@@ -1,0 +1,75 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: flowline
+      POSTGRES_PASSWORD: flowline
+      POSTGRES_DB: flowline
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flowline -d flowline"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - flowline-net
+
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["node", "src/migrate.js"]
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: flowline
+      DB_PASSWORD: flowline
+      DB_NAME: flowline
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - flowline-net
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: flowline
+      DB_PASSWORD: flowline
+      DB_NAME: flowline
+      JWT_SECRET: ${JWT_SECRET:-change-this-secret-in-production}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:8080}
+      NODE_ENV: production
+      PORT: 4000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - flowline-net
+
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-8080}:80"
+    depends_on:
+      - backend
+    networks:
+      - flowline-net
+
+networks:
+  flowline-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
