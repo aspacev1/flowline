@@ -8,7 +8,8 @@ function redirectUri() {
 }
 
 function buildClientSecret() {
-  return jwt.sign({}, process.env.APPLE_PRIVATE_KEY, {
+  const privateKey = (process.env.APPLE_PRIVATE_KEY || "").replace(/\\n/g, "\n");
+  return jwt.sign({}, privateKey, {
     algorithm: "ES256",
     expiresIn: "5m",
     audience: "https://appleid.apple.com",
