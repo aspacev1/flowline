@@ -29,7 +29,8 @@ CREATE TABLE users (
     full_name       text NOT NULL,
     initials        text NOT NULL,
     avatar_color    text NOT NULL DEFAULT '#4F5DFF',
-    password_hash   text NOT NULL,
+    password_hash   text,
+    position        text,
     created_at      timestamptz NOT NULL DEFAULT now()
 );
 
@@ -41,6 +42,22 @@ CREATE TABLE organization_members (
     joined_at       timestamptz NOT NULL DEFAULT now(),
     PRIMARY KEY (organization_id, user_id)
 );
+
+-- ---------- Способы входа ----------
+-- Один пользователь может иметь несколько способов входа
+-- (пароль + один или несколько OAuth-провайдеров).
+
+CREATE TABLE user_identities (
+    id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id           uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider          text NOT NULL CHECK (provider IN ('password', 'google', 'apple', 'microsoft')),
+    provider_user_id  text,
+    email             text NOT NULL,
+    created_at        timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (provider, provider_user_id)
+);
+
+CREATE INDEX idx_user_identities_user_id ON user_identities(user_id);
 
 -- ---------- Отделы ----------
 -- Один отдел на человека (простая связь, не many-to-many).
@@ -54,6 +71,30 @@ CREATE TABLE departments (
 );
 
 ALTER TABLE users ADD COLUMN department_id uuid REFERENCES departments(id) ON DELETE SET NULL;
+
+-- ---------- Приглашения в организацию ----------
+
+CREATE TABLE org_invites (
+    id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id uuid NOT NULL UNIQUE REFERENCES organizations(id) ON DELETE CASCADE,
+    token           text NOT NULL UNIQUE,
+    created_by      uuid NOT NULL REFERENCES users(id),
+    expires_at      timestamptz NOT NULL,
+    revoked_at      timestamptz,
+    created_at      timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE org_invite_emails (
+    id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    organization_id uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    email           text NOT NULL,
+    invited_by      uuid NOT NULL REFERENCES users(id),
+    status          text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted')),
+    created_at      timestamptz NOT NULL DEFAULT now(),
+    accepted_at     timestamptz
+);
+
+CREATE INDEX idx_org_invite_emails_org_email ON org_invite_emails(organization_id, email);
 
 -- ---------- Проекты ----------
 
