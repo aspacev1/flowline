@@ -44,15 +44,17 @@ router.get("/link", requireAuth, async (req, res) => {
   if (existing.rows.length > 0) {
     token = existing.rows[0].token;
   } else {
-    token = generateInviteToken();
-    await pool.query(
+    const newToken = generateInviteToken();
+    const upserted = await pool.query(
       `INSERT INTO org_invites (organization_id, token, created_by, expires_at)
        VALUES ($1, $2, $3, $4)
        ON CONFLICT (organization_id) DO UPDATE
          SET token = EXCLUDED.token, created_by = EXCLUDED.created_by,
-             expires_at = EXCLUDED.expires_at, revoked_at = NULL`,
-      [organizationId, token, req.userId, new Date(Date.now() + INVITE_TTL_MS)]
+             expires_at = EXCLUDED.expires_at, revoked_at = NULL
+       RETURNING token`,
+      [organizationId, newToken, req.userId, new Date(Date.now() + INVITE_TTL_MS)]
     );
+    token = upserted.rows[0].token;
   }
 
   res.json({ url: `${process.env.FRONTEND_ORIGIN || "http://localhost:5173"}/register?invite=${token}` });
@@ -64,15 +66,17 @@ router.post("/link/regenerate", requireAuth, async (req, res) => {
     return res.status(409).json({ error: "Пользователь не состоит в организации" });
   }
 
-  const token = generateInviteToken();
-  await pool.query(
+  const newToken = generateInviteToken();
+  const upserted = await pool.query(
     `INSERT INTO org_invites (organization_id, token, created_by, expires_at)
      VALUES ($1, $2, $3, $4)
      ON CONFLICT (organization_id) DO UPDATE
        SET token = EXCLUDED.token, created_by = EXCLUDED.created_by,
-           expires_at = EXCLUDED.expires_at, revoked_at = NULL`,
-    [organizationId, token, req.userId, new Date(Date.now() + INVITE_TTL_MS)]
+           expires_at = EXCLUDED.expires_at, revoked_at = NULL
+     RETURNING token`,
+    [organizationId, newToken, req.userId, new Date(Date.now() + INVITE_TTL_MS)]
   );
+  const token = upserted.rows[0].token;
 
   res.json({ url: `${process.env.FRONTEND_ORIGIN || "http://localhost:5173"}/register?invite=${token}` });
 });
@@ -104,28 +108,40 @@ router.post("/emails", requireAuth, async (req, res) => {
   );
   let token = linkResult.rows[0]?.token;
   if (!token) {
-    token = generateInviteToken();
-    await pool.query(
+    const newToken = generateInviteToken();
+    const upserted = await pool.query(
       `INSERT INTO org_invites (organization_id, token, created_by, expires_at)
-       VALUES ($1, $2, $3, $4)`,
-      [organizationId, token, req.userId, new Date(Date.now() + INVITE_TTL_MS)]
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (organization_id) DO UPDATE
+         SET token = EXCLUDED.token, created_by = EXCLUDED.created_by,
+             expires_at = EXCLUDED.expires_at, revoked_at = NULL
+       RETURNING token`,
+      [organizationId, newToken, req.userId, new Date(Date.now() + INVITE_TTL_MS)]
     );
+    token = upserted.rows[0].token;
   }
   const url = `${process.env.FRONTEND_ORIGIN || "http://localhost:5173"}/register?invite=${token}`;
 
+  const results = { sent: [], failed: [] };
   for (const email of emails) {
     await pool.query(
       `INSERT INTO org_invite_emails (organization_id, email, invited_by) VALUES ($1, $2, $3)`,
       [organizationId, email, req.userId]
     );
-    await sendMail({
-      to: email,
-      subject: "Вас пригласили в Flowline",
-      html: `<p>Вас пригласили присоединиться к организации в Flowline.</p><p><a href="${url}">Присоединиться</a></p>`,
-    });
+    try {
+      await sendMail({
+        to: email,
+        subject: "Вас пригласили в Flowline",
+        html: `<p>Вас пригласили присоединиться к организации в Flowline.</p><p><a href="${url}">Присоединиться</a></p>`,
+      });
+      results.sent.push(email);
+    } catch (err) {
+      console.error(`Failed to send invite email to ${email}:`, err);
+      results.failed.push(email);
+    }
   }
 
-  res.json({ invited: emails.length });
+  res.json({ invited: results.sent.length, sent: results.sent, failed: results.failed });
 });
 
 export default router;
