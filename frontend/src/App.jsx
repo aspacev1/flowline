@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
 import AuthScreen from "./components/AuthScreen.jsx";
+import OnboardingScreen from "./components/OnboardingScreen.jsx";
+import InviteTeammatesScreen from "./components/InviteTeammatesScreen.jsx";
 import ProjectsScreen from "./components/ProjectsScreen.jsx";
 import GanttScreen from "./components/GanttScreen.jsx";
 import TeamScreen from "./components/TeamScreen.jsx";
@@ -10,6 +12,7 @@ export default function App() {
   const [authChecked, setAuthChecked] = useState(false);
   const [activeProjectId, setActiveProjectId] = useState(null);
   const [showTeam, setShowTeam] = useState(false);
+  const [showInviteScreen, setShowInviteScreen] = useState(false);
 
   useEffect(() => {
     api
@@ -24,6 +27,7 @@ export default function App() {
     setCurrentUser(null);
     setActiveProjectId(null);
     setShowTeam(false);
+    setShowInviteScreen(false);
   };
 
   if (!authChecked) {
@@ -36,6 +40,26 @@ export default function App() {
 
   if (!currentUser) {
     return <AuthScreen onAuthenticated={setCurrentUser} />;
+  }
+
+  if (!currentUser.organization) {
+    const inviteToken = new URLSearchParams(window.location.search).get("invite");
+    return (
+      <OnboardingScreen
+        inviteToken={inviteToken}
+        onComplete={async (result) => {
+          const refreshedUser = await api.me();
+          setCurrentUser(refreshedUser);
+          if (result?.becameOwner) {
+            setShowInviteScreen(true);
+          }
+        }}
+      />
+    );
+  }
+
+  if (showInviteScreen) {
+    return <InviteTeammatesScreen onDone={() => setShowInviteScreen(false)} />;
   }
 
   if (activeProjectId) {

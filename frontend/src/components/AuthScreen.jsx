@@ -1,6 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { FolderKanban } from "lucide-react";
 import { api } from "../api.js";
+
+const OAUTH_LABELS = {
+  google: "Войти через Google",
+  microsoft: "Войти через Microsoft",
+  apple: "Войти через Apple",
+};
 
 export default function AuthScreen({ onAuthenticated }) {
   const [mode, setMode] = useState("login"); // "login" | "register"
@@ -10,6 +16,14 @@ export default function AuthScreen({ onAuthenticated }) {
   const [organizationName, setOrganizationName] = useState("");
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [oauthProviders, setOauthProviders] = useState([]);
+
+  useEffect(() => {
+    api
+      .getOAuthProviders()
+      .then(({ providers }) => setOauthProviders(providers || []))
+      .catch(() => setOauthProviders([]));
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -39,6 +53,26 @@ export default function AuthScreen({ onAuthenticated }) {
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+          {oauthProviders.length > 0 && (
+            <div className="space-y-2 mb-5">
+              {oauthProviders.map((provider) => (
+                <button
+                  key={provider}
+                  type="button"
+                  onClick={() => api.startOAuth(provider)}
+                  className="w-full py-2.5 rounded-lg border border-slate-200 text-slate-700 text-[14px] font-medium hover:bg-slate-50 transition-colors"
+                >
+                  {OAUTH_LABELS[provider] || `Войти через ${provider}`}
+                </button>
+              ))}
+              <div className="flex items-center gap-2 pt-1">
+                <div className="flex-1 h-px bg-slate-200" />
+                <span className="text-[12px] text-slate-400">или</span>
+                <div className="flex-1 h-px bg-slate-200" />
+              </div>
+            </div>
+          )}
+
           <div className="flex mb-6 rounded-lg bg-slate-100 p-1">
             <button
               type="button"
