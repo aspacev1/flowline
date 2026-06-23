@@ -4,6 +4,7 @@ import cookieParser from "cookie-parser";
 import "dotenv/config";
 
 import authRouter from "./routes/auth.js";
+import oauthRouter from "./routes/oauth.js";
 import projectsRouter from "./routes/projects.js";
 import workItemsRouter from "./routes/workItems.js";
 import teamRouter from "./routes/team.js";
@@ -18,6 +19,7 @@ app.use(cookieParser());
 app.get("/api/health", (req, res) => res.json({ ok: true }));
 
 app.use("/api/auth", authRouter);
+app.use("/api/auth/oauth", oauthRouter);
 app.use("/api/projects", projectsRouter);
 app.use("/api/team", teamRouter);
 app.use("/api", workItemsRouter); // содержит /projects/:id/work-items и /work-items/:id
