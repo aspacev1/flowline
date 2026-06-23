@@ -241,6 +241,9 @@ router.post("/onboarding", requireAuth, async (req, res) => {
     res.json({ organizationId, becameOwner });
   } catch (err) {
     await client.query("ROLLBACK");
+    if (err.code === "23505") {
+      return res.status(409).json({ error: "Пользователь уже состоит в организации" });
+    }
     console.error(err);
     res.status(500).json({ error: "Не удалось завершить онбординг" });
   } finally {

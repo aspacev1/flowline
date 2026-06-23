@@ -40,7 +40,8 @@ CREATE TABLE organization_members (
     org_role        text NOT NULL DEFAULT 'member'
                       CHECK (org_role IN ('owner', 'admin', 'member')),
     joined_at       timestamptz NOT NULL DEFAULT now(),
-    PRIMARY KEY (organization_id, user_id)
+    PRIMARY KEY (organization_id, user_id),
+    UNIQUE (user_id)
 );
 
 -- ---------- Способы входа ----------
