@@ -8,6 +8,7 @@ import oauthRouter from "./routes/oauth.js";
 import projectsRouter from "./routes/projects.js";
 import workItemsRouter from "./routes/workItems.js";
 import teamRouter from "./routes/team.js";
+import invitesRouter from "./routes/invites.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -22,6 +23,7 @@ app.use("/api/auth", authRouter);
 app.use("/api/auth/oauth", oauthRouter);
 app.use("/api/projects", projectsRouter);
 app.use("/api/team", teamRouter);
+app.use("/api/invites", invitesRouter);
 app.use("/api", workItemsRouter); // содержит /projects/:id/work-items и /work-items/:id
 
 app.use((err, req, res, next) => {
