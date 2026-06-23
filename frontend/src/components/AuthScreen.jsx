@@ -13,7 +13,6 @@ export default function AuthScreen({ onAuthenticated }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
-  const [organizationName, setOrganizationName] = useState("");
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [oauthProviders, setOauthProviders] = useState([]);
@@ -33,7 +32,7 @@ export default function AuthScreen({ onAuthenticated }) {
       const user =
         mode === "login"
           ? await api.login({ email, password })
-          : await api.register({ email, password, fullName, organizationName });
+          : await api.register({ email, password, fullName });
       onAuthenticated(user);
     } catch (err) {
       setError(err.body?.error || "Что-то пошло не так");
@@ -104,20 +103,6 @@ export default function AuthScreen({ onAuthenticated }) {
                   onChange={(e) => setFullName(e.target.value)}
                   className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-300"
                   placeholder="Анна Иванова"
-                />
-              </div>
-            )}
-
-            {mode === "register" && (
-              <div>
-                <label className="text-[12px] font-medium text-slate-500 mb-1 block">
-                  Название организации <span className="text-slate-300">(необязательно)</span>
-                </label>
-                <input
-                  value={organizationName}
-                  onChange={(e) => setOrganizationName(e.target.value)}
-                  className="w-full px-3 py-2.5 rounded-lg border border-slate-200 text-[14px] focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                  placeholder="Моя команда"
                 />
               </div>
             )}
