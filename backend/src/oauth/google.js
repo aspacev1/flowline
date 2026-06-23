@@ -45,7 +45,7 @@ export async function exchangeCode(code, fetchImpl = fetch) {
   return {
     providerUserId: profile.sub,
     email: profile.email,
-    emailVerified: Boolean(profile.email_verified),
+    emailVerified: profile.email_verified === true || profile.email_verified === "true",
     name: profile.name,
   };
 }

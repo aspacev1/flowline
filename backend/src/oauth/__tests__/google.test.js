@@ -49,4 +49,26 @@ describe("google oauth module", () => {
     const { exchangeCode } = await import("../google.js");
     await expect(exchangeCode("bad-code", fakeFetch)).rejects.toThrow();
   });
+
+  it("exchangeCode treats a string 'false' email_verified as NOT verified", async () => {
+    const fakeFetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ access_token: "tok123" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          sub: "google-user-2",
+          email: "person2@example.com",
+          email_verified: "false",
+          name: "Person Two",
+        }),
+      });
+
+    const { exchangeCode } = await import("../google.js");
+    const profile = await exchangeCode("auth-code", fakeFetch);
+
+    expect(profile.emailVerified).toBe(false);
+  });
 });
