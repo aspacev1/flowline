@@ -9,6 +9,7 @@ export default function OnboardingScreen({ inviteToken, onComplete }) {
   const [organizationName, setOrganizationName] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [inviteInvalid, setInviteInvalid] = useState(false);
 
   useEffect(() => {
     if (!inviteToken) return;
@@ -17,6 +18,7 @@ export default function OnboardingScreen({ inviteToken, onComplete }) {
         const invite = await api.resolveInvite(inviteToken);
         setOrganizationName(invite.organizationName);
       } catch (err) {
+        setInviteInvalid(true);
         setError(err.body?.error || "Ссылка-приглашение недействительна или устарела");
       }
     })();
@@ -106,7 +108,7 @@ export default function OnboardingScreen({ inviteToken, onComplete }) {
 
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || inviteInvalid}
               className="w-full py-2.5 rounded-lg bg-[#4F5DFF] text-white text-[14px] font-medium hover:bg-[#4350DB] transition-colors disabled:opacity-60"
             >
               {loading ? "Подождите…" : "Продолжить"}
