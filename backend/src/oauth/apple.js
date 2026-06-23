@@ -25,7 +25,7 @@ export function getAuthUrl(state) {
     redirect_uri: redirectUri(),
     response_type: "code",
     scope: "name email",
-    response_mode: "form_post",
+    response_mode: "query",
     state,
   });
   return `${AUTH_URL}?${params.toString()}`;

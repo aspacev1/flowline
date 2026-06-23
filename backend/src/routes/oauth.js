@@ -13,6 +13,7 @@ const STATE_COOKIE_OPTIONS = {
   sameSite: "lax",
   maxAge: 10 * 60 * 1000,
 };
+const INVITE_COOKIE = "oauth_invite";
 
 function initialsFromName(name) {
   return (name || "")
@@ -36,6 +37,9 @@ router.get("/:provider/start", async (req, res) => {
   }
   const state = crypto.randomBytes(16).toString("base64url");
   res.cookie(STATE_COOKIE, state, STATE_COOKIE_OPTIONS);
+  if (req.query.invite) {
+    res.cookie(INVITE_COOKIE, req.query.invite, STATE_COOKIE_OPTIONS);
+  }
   const mod = await getProviderModule(provider);
   res.redirect(mod.getAuthUrl(state));
 });
@@ -45,6 +49,8 @@ router.get("/:provider/callback", async (req, res) => {
   const { code, state } = req.query;
   const cookieState = req.cookies?.[STATE_COOKIE];
   res.clearCookie(STATE_COOKIE, STATE_COOKIE_OPTIONS);
+  const inviteToken = req.cookies?.[INVITE_COOKIE];
+  res.clearCookie(INVITE_COOKIE, STATE_COOKIE_OPTIONS);
 
   if (!listEnabledProviders().includes(provider)) {
     return res.status(404).json({ error: "Провайдер не настроен" });
@@ -114,7 +120,8 @@ router.get("/:provider/callback", async (req, res) => {
 
     const token = signToken(user);
     res.cookie("token", token, COOKIE_OPTIONS);
-    res.redirect(process.env.FRONTEND_ORIGIN || "http://localhost:5173");
+    const frontendUrl = process.env.FRONTEND_ORIGIN || "http://localhost:5173";
+    res.redirect(inviteToken ? `${frontendUrl}/?invite=${encodeURIComponent(inviteToken)}` : frontendUrl);
   } catch (err) {
     await client.query("ROLLBACK");
     if (err.code === "23505") {
@@ -133,7 +140,8 @@ router.get("/:provider/callback", async (req, res) => {
           const winner = retry.rows[0];
           const token = signToken(winner);
           res.cookie("token", token, COOKIE_OPTIONS);
-          return res.redirect(process.env.FRONTEND_ORIGIN || "http://localhost:5173");
+          const frontendUrl = process.env.FRONTEND_ORIGIN || "http://localhost:5173";
+          return res.redirect(inviteToken ? `${frontendUrl}/?invite=${encodeURIComponent(inviteToken)}` : frontendUrl);
         }
       } catch (retryErr) {
         console.error(retryErr);

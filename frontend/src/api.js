@@ -29,7 +29,11 @@ export const api = {
   // ---- onboarding / invites ----
   getOAuthProviders: () => request("/auth/oauth/providers"),
   startOAuth: (provider) => {
-    window.location.href = `${API_BASE}/auth/oauth/${provider}/start`;
+    const inviteToken = new URLSearchParams(window.location.search).get("invite");
+    const url = inviteToken
+      ? `${API_BASE}/auth/oauth/${provider}/start?invite=${encodeURIComponent(inviteToken)}`
+      : `${API_BASE}/auth/oauth/${provider}/start`;
+    window.location.href = url;
   },
   submitOnboarding: ({ fullName, position, companyName, inviteToken }) =>
     request("/auth/onboarding", {
