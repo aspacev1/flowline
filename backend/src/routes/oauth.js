@@ -117,6 +117,28 @@ router.get("/:provider/callback", async (req, res) => {
     res.redirect(process.env.FRONTEND_ORIGIN || "http://localhost:5173");
   } catch (err) {
     await client.query("ROLLBACK");
+    if (err.code === "23505") {
+      try {
+        const retry = await pool.query(
+          `SELECT u.id, u.email, u.full_name, u.initials, u.avatar_color
+           FROM users u
+           WHERE u.id = (
+             SELECT ui.user_id FROM user_identities ui
+             WHERE ui.provider = $1 AND ui.provider_user_id = $2
+           ) OR u.email = $3
+           LIMIT 1`,
+          [provider, profile.providerUserId, profile.email]
+        );
+        if (retry.rows.length > 0) {
+          const winner = retry.rows[0];
+          const token = signToken(winner);
+          res.cookie("token", token, COOKIE_OPTIONS);
+          return res.redirect(process.env.FRONTEND_ORIGIN || "http://localhost:5173");
+        }
+      } catch (retryErr) {
+        console.error(retryErr);
+      }
+    }
     console.error(err);
     res.status(500).json({ error: "Не удалось войти через OAuth" });
   } finally {
