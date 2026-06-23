@@ -26,6 +26,22 @@ export const api = {
   logout: () => request("/auth/logout", { method: "POST" }),
   me: () => request("/auth/me"),
 
+  // ---- onboarding / invites ----
+  getOAuthProviders: () => request("/auth/oauth/providers"),
+  startOAuth: (provider) => {
+    window.location.href = `${API_BASE}/auth/oauth/${provider}/start`;
+  },
+  submitOnboarding: ({ fullName, position, companyName, inviteToken }) =>
+    request("/auth/onboarding", {
+      method: "POST",
+      body: JSON.stringify({ fullName, position, companyName, inviteToken }),
+    }),
+  resolveInvite: (token) => request(`/invites/resolve/${token}`),
+  getInviteLink: () => request("/invites/link"),
+  regenerateInviteLink: () => request("/invites/link/regenerate", { method: "POST" }),
+  inviteByEmail: (emails) =>
+    request("/invites/emails", { method: "POST", body: JSON.stringify({ emails }) }),
+
   // ---- team ----
   getTeam: () => request("/team"),
   getPeople: () => request("/team/people"),
