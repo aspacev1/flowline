@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Plus, Calendar, Clock, FolderKanban, Users, LogOut } from "lucide-react";
 import { api } from "../api.js";
 import { fmtDate, currentEndDate } from "../dateUtils.js";
+import CreateProjectModal from "./CreateProjectModal.jsx";
 
 function ProjectCard({ project, onOpen }) {
   const [stats, setStats] = useState(null);
@@ -78,6 +79,7 @@ function ProjectCard({ project, onOpen }) {
 export default function ProjectsScreen({ currentUser, onOpenProject, onOpenTeam, onLogout }) {
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   const loadProjects = () => {
     api
@@ -88,13 +90,9 @@ export default function ProjectsScreen({ currentUser, onOpenProject, onOpenTeam,
 
   useEffect(loadProjects, []);
 
-  const handleCreateProject = async () => {
-    const colors = ["#4F5DFF", "#2FB67C", "#E8A33D", "#E0567C"];
-    const project = await api.createProject({
-      name: "Новый проект",
-      color: colors[projects.length % colors.length],
-    });
+  const handleProjectCreated = (project) => {
     setProjects((prev) => [...prev, project]);
+    setShowCreateModal(false);
     onOpenProject(project.id);
   };
 
@@ -141,7 +139,7 @@ export default function ProjectsScreen({ currentUser, onOpenProject, onOpenTeam,
               Команда
             </button>
             <button
-              onClick={handleCreateProject}
+              onClick={() => setShowCreateModal(true)}
               className="flex items-center gap-1.5 bg-[#4F5DFF] text-white text-[13.5px] font-medium px-4 py-2.5 rounded-xl hover:bg-[#4350DB] transition-colors"
             >
               <Plus size={16} />
@@ -164,6 +162,15 @@ export default function ProjectsScreen({ currentUser, onOpenProject, onOpenTeam,
           </div>
         )}
       </main>
+
+      {showCreateModal && (
+        <CreateProjectModal
+          currentUser={currentUser}
+          projectCount={projects.length}
+          onClose={() => setShowCreateModal(false)}
+          onCreated={handleProjectCreated}
+        />
+      )}
     </div>
   );
 }
