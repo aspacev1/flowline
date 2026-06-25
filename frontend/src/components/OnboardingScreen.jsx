@@ -10,18 +10,34 @@ export default function OnboardingScreen({ inviteToken, onComplete }) {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [inviteInvalid, setInviteInvalid] = useState(false);
+  const [inviteCheckFailed, setInviteCheckFailed] = useState(false);
+  const [checkingInvite, setCheckingInvite] = useState(false);
 
-  useEffect(() => {
+  const checkInvite = async () => {
     if (!inviteToken) return;
-    (async () => {
-      try {
-        const invite = await api.resolveInvite(inviteToken);
-        setOrganizationName(invite.organizationName);
-      } catch (err) {
+    setError(null);
+    setInviteCheckFailed(false);
+    setCheckingInvite(true);
+    try {
+      const invite = await api.resolveInvite(inviteToken);
+      setOrganizationName(invite.organizationName);
+    } catch (err) {
+      if (err.status === 404) {
+        // ссылка реально недействительна/истекла — нет смысла повторять
         setInviteInvalid(true);
         setError(err.body?.error || "Ссылка-приглашение недействительна или устарела");
+      } else {
+        // временная ошибка (сеть и т.п.) — не блокируем навсегда, даём повторить
+        setInviteCheckFailed(true);
+        setError("Не удалось проверить ссылку-приглашение. Проверьте соединение и попробуйте снова.");
       }
-    })();
+    } finally {
+      setCheckingInvite(false);
+    }
+  };
+
+  useEffect(() => {
+    checkInvite();
   }, [inviteToken]);
 
   const handleSubmit = async (e) => {
@@ -104,6 +120,17 @@ export default function OnboardingScreen({ inviteToken, onComplete }) {
               <p className="text-[12.5px] text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
                 {error}
               </p>
+            )}
+
+            {inviteCheckFailed && (
+              <button
+                type="button"
+                onClick={checkInvite}
+                disabled={checkingInvite}
+                className="text-[12.5px] text-indigo-600 hover:text-indigo-700 font-medium disabled:opacity-60"
+              >
+                {checkingInvite ? "Проверяем…" : "Повторить попытку"}
+              </button>
             )}
 
             <button

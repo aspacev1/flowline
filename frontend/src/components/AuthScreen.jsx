@@ -9,7 +9,10 @@ const OAUTH_LABELS = {
 };
 
 export default function AuthScreen({ onAuthenticated }) {
-  const [mode, setMode] = useState("login"); // "login" | "register"
+  // Ссылки-приглашения ведут на /register?invite=... — открываем сразу вкладку регистрации
+  const [mode, setMode] = useState(() =>
+    new URLSearchParams(window.location.search).get("invite") ? "register" : "login"
+  ); // "login" | "register"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
