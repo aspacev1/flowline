@@ -104,6 +104,7 @@ CREATE TABLE projects (
     organization_id  uuid NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
     name             text NOT NULL,
     color            text NOT NULL DEFAULT '#4F5DFF',
+    description      text,
     created_by       uuid NOT NULL REFERENCES users(id),
     created_at       timestamptz NOT NULL DEFAULT now(),
     archived_at      timestamptz
