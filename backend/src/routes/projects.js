@@ -13,6 +13,16 @@ async function getOrgId(userId) {
   return result.rows[0]?.organization_id || null;
 }
 
+// убеждаемся, что проект принадлежит организации вызывающего —
+// иначе можно читать/менять чужие проекты, подставив id в URL
+async function projectInOrg(projectId, organizationId) {
+  const result = await pool.query(
+    `SELECT 1 FROM projects WHERE id = $1 AND organization_id = $2`,
+    [projectId, organizationId]
+  );
+  return result.rowCount > 0;
+}
+
 // GET /api/projects — список проектов организации
 router.get("/", async (req, res) => {
   try {
@@ -78,6 +88,11 @@ router.post("/", async (req, res) => {
 // GET /api/projects/:id — детали проекта + участники
 router.get("/:id", async (req, res) => {
   try {
+    const organizationId = await getOrgId(req.userId);
+    if (!organizationId || !(await projectInOrg(req.params.id, organizationId))) {
+      return res.status(404).json({ error: "Проект не найден" });
+    }
+
     const projectResult = await pool.query(
       `SELECT id, name, color, created_at FROM projects WHERE id = $1`,
       [req.params.id]
@@ -113,6 +128,11 @@ router.get("/:id", async (req, res) => {
 router.patch("/:id", async (req, res) => {
   const { name, color } = req.body;
   try {
+    const organizationId = await getOrgId(req.userId);
+    if (!organizationId || !(await projectInOrg(req.params.id, organizationId))) {
+      return res.status(404).json({ error: "Проект не найден" });
+    }
+
     const result = await pool.query(
       `UPDATE projects SET name = COALESCE($1, name), color = COALESCE($2, color)
        WHERE id = $3 RETURNING id, name, color, created_at`,
@@ -129,6 +149,11 @@ router.patch("/:id", async (req, res) => {
 // DELETE /api/projects/:id — архивировать (мягкое удаление)
 router.delete("/:id", async (req, res) => {
   try {
+    const organizationId = await getOrgId(req.userId);
+    if (!organizationId || !(await projectInOrg(req.params.id, organizationId))) {
+      return res.status(404).json({ error: "Проект не найден" });
+    }
+
     await pool.query(`UPDATE projects SET archived_at = now() WHERE id = $1`, [req.params.id]);
     res.json({ ok: true });
   } catch (err) {
@@ -142,6 +167,20 @@ router.post("/:id/members", async (req, res) => {
   const { userId, role } = req.body;
   if (!userId) return res.status(400).json({ error: "userId обязателен" });
   try {
+    const organizationId = await getOrgId(req.userId);
+    if (!organizationId || !(await projectInOrg(req.params.id, organizationId))) {
+      return res.status(404).json({ error: "Проект не найден" });
+    }
+
+    // добавлять можно только коллег из той же организации
+    const memberCheck = await pool.query(
+      `SELECT 1 FROM organization_members WHERE user_id = $1 AND organization_id = $2`,
+      [userId, organizationId]
+    );
+    if (memberCheck.rowCount === 0) {
+      return res.status(400).json({ error: "Пользователь не состоит в этой организации" });
+    }
+
     await pool.query(
       `INSERT INTO project_members (project_id, user_id, role)
        VALUES ($1, $2, $3)

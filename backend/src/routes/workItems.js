@@ -6,6 +6,35 @@ import { workEndDate, daysBetween } from "../utils/workdays.js";
 const router = express.Router();
 router.use(requireAuth);
 
+async function getOrgId(userId) {
+  const result = await pool.query(
+    `SELECT organization_id FROM organization_members WHERE user_id = $1 LIMIT 1`,
+    [userId]
+  );
+  return result.rows[0]?.organization_id || null;
+}
+
+// проект и любая задача/подзадача внутри него должны принадлежать
+// организации вызывающего — иначе можно читать/менять чужие данные,
+// подставив project/work-item id в URL
+async function projectInOrg(projectId, organizationId) {
+  const result = await pool.query(
+    `SELECT 1 FROM projects WHERE id = $1 AND organization_id = $2`,
+    [projectId, organizationId]
+  );
+  return result.rowCount > 0;
+}
+
+async function workItemInOrg(workItemId, organizationId) {
+  const result = await pool.query(
+    `SELECT 1 FROM work_items wi
+     JOIN projects p ON p.id = wi.project_id
+     WHERE wi.id = $1 AND p.organization_id = $2`,
+    [workItemId, organizationId]
+  );
+  return result.rowCount > 0;
+}
+
 const FIELD_LABELS = {
   name: "Название",
   start_date: "Дата начала",
@@ -90,6 +119,11 @@ function mapRow(row) {
 // GET /api/projects/:projectId/work-items — все задачи+подзадачи+зависимости проекта
 router.get("/projects/:projectId/work-items", async (req, res) => {
   try {
+    const organizationId = await getOrgId(req.userId);
+    if (!organizationId || !(await projectInOrg(req.params.projectId, organizationId))) {
+      return res.status(404).json({ error: "Проект не найден" });
+    }
+
     const itemsResult = await pool.query(
       `SELECT wi.*, s.parent_task_id
        FROM work_items wi
@@ -136,6 +170,11 @@ router.post("/projects/:projectId/work-items", async (req, res) => {
   }
   if (kind === "subtask" && !parentId) {
     return res.status(400).json({ error: "subtask требует parentId" });
+  }
+
+  const organizationId = await getOrgId(req.userId);
+  if (!organizationId || !(await projectInOrg(req.params.projectId, organizationId))) {
+    return res.status(404).json({ error: "Проект не найден" });
   }
 
   const client = await pool.connect().catch((err) => {
@@ -205,6 +244,11 @@ router.patch("/work-items/:id", async (req, res) => {
   const { patch, confirmedDelay } = req.body;
   if (!patch || typeof patch !== "object") {
     return res.status(400).json({ error: "patch обязателен" });
+  }
+
+  const organizationId = await getOrgId(req.userId);
+  if (!organizationId || !(await workItemInOrg(req.params.id, organizationId))) {
+    return res.status(404).json({ error: "Задача не найдена" });
   }
 
   const client = await pool.connect().catch((err) => {
@@ -288,6 +332,11 @@ router.patch("/work-items/:id", async (req, res) => {
 // GET /api/work-items/:id/history — журнал изменений
 router.get("/work-items/:id/history", async (req, res) => {
   try {
+    const organizationId = await getOrgId(req.userId);
+    if (!organizationId || !(await workItemInOrg(req.params.id, organizationId))) {
+      return res.status(404).json({ error: "Задача не найдена" });
+    }
+
     const result = await pool.query(
       `SELECT h.*, u.full_name, u.initials, u.avatar_color
        FROM work_item_history h
@@ -316,6 +365,11 @@ router.get("/work-items/:id/history", async (req, res) => {
 // DELETE /api/work-items/:id
 router.delete("/work-items/:id", async (req, res) => {
   try {
+    const organizationId = await getOrgId(req.userId);
+    if (!organizationId || !(await workItemInOrg(req.params.id, organizationId))) {
+      return res.status(404).json({ error: "Задача не найдена" });
+    }
+
     await pool.query(`DELETE FROM work_items WHERE id = $1`, [req.params.id]);
     res.json({ ok: true });
   } catch (err) {
@@ -328,6 +382,15 @@ router.delete("/work-items/:id", async (req, res) => {
 router.post("/work-items/:id/dependencies", async (req, res) => {
   const { predecessorId } = req.body;
   if (!predecessorId) return res.status(400).json({ error: "predecessorId обязателен" });
+
+  const organizationId = await getOrgId(req.userId);
+  if (
+    !organizationId ||
+    !(await workItemInOrg(req.params.id, organizationId)) ||
+    !(await workItemInOrg(predecessorId, organizationId))
+  ) {
+    return res.status(404).json({ error: "Задача не найдена" });
+  }
 
   const client = await pool.connect().catch((err) => {
     console.error("DB connection failed:", err.message);

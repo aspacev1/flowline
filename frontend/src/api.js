@@ -65,6 +65,11 @@ export const api = {
     request(`/work-items/${id}`, { method: "PATCH", body: JSON.stringify({ patch, confirmedDelay }) }),
   deleteWorkItem: (id) => request(`/work-items/${id}`, { method: "DELETE" }),
   getWorkItemHistory: (id) => request(`/work-items/${id}/history`),
+  addDependency: (workItemId, predecessorId) =>
+    request(`/work-items/${workItemId}/dependencies`, {
+      method: "POST",
+      body: JSON.stringify({ predecessorId }),
+    }),
 };
 
 export class ScheduleDelayError extends Error {
