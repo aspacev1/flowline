@@ -47,6 +47,12 @@ router.get("/", async (req, res) => {
 router.post("/", async (req, res) => {
   const { name, color, description, stakeholderIds, participantIds } = req.body;
   if (!name) return res.status(400).json({ error: "name обязателен" });
+  if (stakeholderIds !== undefined && !Array.isArray(stakeholderIds)) {
+    return res.status(400).json({ error: "stakeholderIds должен быть массивом" });
+  }
+  if (participantIds !== undefined && !Array.isArray(participantIds)) {
+    return res.status(400).json({ error: "participantIds должен быть массивом" });
+  }
 
   const client = await pool.connect().catch((err) => {
     console.error("DB connection failed:", err.message);
