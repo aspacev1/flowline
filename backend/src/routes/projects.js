@@ -45,7 +45,7 @@ router.get("/", async (req, res) => {
 
 // POST /api/projects — создать проект
 router.post("/", async (req, res) => {
-  const { name, color } = req.body;
+  const { name, color, description, stakeholderIds, participantIds } = req.body;
   if (!name) return res.status(400).json({ error: "name обязателен" });
 
   const client = await pool.connect().catch((err) => {
@@ -60,12 +60,28 @@ router.post("/", async (req, res) => {
     const organizationId = await getOrgId(req.userId);
     if (!organizationId) return res.status(400).json({ error: "Нет организации" });
 
+    // объединяем заинтересованных лиц и участников в один набор collaborator-строк,
+    // исключая создателя (он уже добавляется как manager ниже)
+    const memberIds = [...new Set([...(stakeholderIds || []), ...(participantIds || [])])].filter(
+      (id) => id !== req.userId
+    );
+
+    if (memberIds.length > 0) {
+      const orgCheck = await pool.query(
+        `SELECT user_id FROM organization_members WHERE organization_id = $1 AND user_id = ANY($2)`,
+        [organizationId, memberIds]
+      );
+      if (orgCheck.rowCount !== memberIds.length) {
+        return res.status(400).json({ error: "Один или несколько пользователей не состоят в этой организации" });
+      }
+    }
+
     await client.query("BEGIN");
 
     const projectResult = await client.query(
-      `INSERT INTO projects (organization_id, name, color, created_by)
-       VALUES ($1, $2, $3, $4) RETURNING id, name, color, created_at`,
-      [organizationId, name, color || "#4F5DFF", req.userId]
+      `INSERT INTO projects (organization_id, name, color, description, created_by)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id, name, color, description, created_at`,
+      [organizationId, name, color || "#4F5DFF", description || null, req.userId]
     );
     const project = projectResult.rows[0];
 
@@ -73,6 +89,13 @@ router.post("/", async (req, res) => {
       `INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'manager')`,
       [project.id, req.userId]
     );
+
+    for (const memberId of memberIds) {
+      await client.query(
+        `INSERT INTO project_members (project_id, user_id, role) VALUES ($1, $2, 'collaborator')`,
+        [project.id, memberId]
+      );
+    }
 
     await client.query("COMMIT");
     res.status(201).json(project);
@@ -94,7 +117,7 @@ router.get("/:id", async (req, res) => {
     }
 
     const projectResult = await pool.query(
-      `SELECT id, name, color, created_at FROM projects WHERE id = $1`,
+      `SELECT id, name, color, description, created_at FROM projects WHERE id = $1`,
       [req.params.id]
     );
     const project = projectResult.rows[0];
