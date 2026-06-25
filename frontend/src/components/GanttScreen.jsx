@@ -467,7 +467,19 @@ function GanttGrid({ rows, people, rangeStart, totalDays, onDragEnd, selectedId,
 // History tab
 // ============================================================
 
-function HistoryTab({ workItemId }) {
+function formatHistoryValue(field, value, people) {
+  if (value === null || value === undefined || value === "") return "—";
+  if (field === "status") return STATUSES[value]?.label ?? value;
+  if (field === "priority") return PRIORITIES[value]?.label ?? value;
+  if (field === "assignee_id") {
+    const person = people.find((p) => p.id === value);
+    return person ? person.name : "Неизвестный";
+  }
+  if (field === "start_date") return fmtDate(new Date(value));
+  return value;
+}
+
+function HistoryTab({ workItemId, people }) {
   const [entries, setEntries] = useState(null);
 
   useEffect(() => {
@@ -513,9 +525,9 @@ function HistoryTab({ workItemId }) {
                 <span className="font-medium">{entry.changedBy?.name ?? "Неизвестный"}</span> изменил «{entry.fieldLabel}»
               </p>
               <p className="text-[12px] text-slate-400 mt-0.5">
-                <span className="line-through text-slate-400">{entry.oldValue ?? "—"}</span>
+                <span className="line-through text-slate-400">{formatHistoryValue(entry.field, entry.oldValue, people)}</span>
                 {" → "}
-                <span className="text-slate-600 font-medium">{entry.newValue ?? "—"}</span>
+                <span className="text-slate-600 font-medium">{formatHistoryValue(entry.field, entry.newValue, people)}</span>
               </p>
               <p className="text-[11px] text-slate-300 mt-0.5">
                 {new Date(entry.changedAt).toLocaleDateString("ru-RU", {
@@ -537,10 +549,25 @@ function HistoryTab({ workItemId }) {
 // Task detail panel
 // ============================================================
 
-function TaskDetailPanel({ row, people, onClose, onUpdate, onDelete }) {
+function TaskDetailPanel({ row, people, rows, onClose, onUpdate, onDelete, onAddDependency }) {
   const [activeTab, setActiveTab] = useState("details");
+  const [depSelection, setDepSelection] = useState("");
+  const [depError, setDepError] = useState(null);
   if (!row) return null;
   const endDate = currentEndDate(row);
+
+  const depCandidates = rows.filter((r) => r.id !== row.id && !(row.deps || []).includes(r.id));
+
+  const handleAddDependency = async () => {
+    if (!depSelection) return;
+    setDepError(null);
+    try {
+      await onAddDependency(row.id, depSelection);
+      setDepSelection("");
+    } catch (err) {
+      setDepError(err.body?.error || "Не удалось добавить зависимость");
+    }
+  };
 
   return (
     <div className="fixed right-0 top-0 bottom-0 w-[360px] bg-white border-l border-slate-200 shadow-2xl z-30 flex flex-col">
@@ -571,7 +598,7 @@ function TaskDetailPanel({ row, people, onClose, onUpdate, onDelete }) {
       </div>
 
       {activeTab === "history" ? (
-        <HistoryTab workItemId={row.id} />
+        <HistoryTab workItemId={row.id} people={people} />
       ) : (
         <div className="p-5 flex-1 overflow-y-auto space-y-5">
           <div>
@@ -622,6 +649,51 @@ function TaskDetailPanel({ row, people, onClose, onUpdate, onDelete }) {
               </span>
             )}
           </p>
+
+          <div>
+            <label className="text-[11.5px] font-medium text-slate-500 mb-2 block">Зависит от</label>
+            {(row.deps || []).length > 0 ? (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {row.deps.map((depId) => {
+                  const dep = rows.find((r) => r.id === depId);
+                  return (
+                    <span key={depId} className="text-[11px] font-medium px-2 py-1 rounded-full bg-slate-100 text-slate-600">
+                      {dep ? dep.name : "Неизвестная задача"}
+                    </span>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-[12px] text-slate-400 mb-2">Нет зависимостей</p>
+            )}
+            {depCandidates.length > 0 && (
+              <div className="flex gap-1.5">
+                <select
+                  value={depSelection}
+                  onChange={(e) => setDepSelection(e.target.value)}
+                  className="flex-1 px-2.5 py-2 rounded-lg border border-slate-200 text-[12.5px] text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                >
+                  <option value="">Выбрать задачу…</option>
+                  {depCandidates.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={handleAddDependency}
+                  disabled={!depSelection}
+                  className="px-3 py-2 rounded-lg bg-slate-100 text-slate-700 text-[12.5px] font-medium hover:bg-slate-200 transition-colors disabled:opacity-50"
+                >
+                  Добавить
+                </button>
+              </div>
+            )}
+            {depError && (
+              <p className="text-[12px] text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2 mt-2">{depError}</p>
+            )}
+          </div>
 
           <div>
             <label className="text-[11.5px] font-medium text-slate-500 mb-1.5 block">Потрачено</label>
@@ -903,6 +975,11 @@ export default function GanttScreen({ projectId, currentUser, onBack }) {
     setPendingConfirm(null);
   };
 
+  const addDependency = useCallback(async (rowId, predecessorId) => {
+    await api.addDependency(rowId, predecessorId);
+    setItems((prev) => prev.map((i) => (i.id === rowId ? { ...i, deps: [...(i.deps || []), predecessorId] } : i)));
+  }, []);
+
   const deleteRow = useCallback(async (rowId) => {
     await api.deleteWorkItem(rowId);
     setItems((prev) => prev.filter((i) => i.id !== rowId && i.parentId !== rowId));
@@ -1013,7 +1090,15 @@ export default function GanttScreen({ projectId, currentUser, onBack }) {
       {selectedRow && (
         <>
           <div className="fixed inset-0 bg-black/10 z-20" onClick={() => setSelectedId(null)} />
-          <TaskDetailPanel row={selectedRow} people={people} onClose={() => setSelectedId(null)} onUpdate={handleDetailUpdate} onDelete={deleteRow} />
+          <TaskDetailPanel
+            row={selectedRow}
+            people={people}
+            rows={rows}
+            onClose={() => setSelectedId(null)}
+            onUpdate={handleDetailUpdate}
+            onDelete={deleteRow}
+            onAddDependency={addDependency}
+          />
         </>
       )}
 
