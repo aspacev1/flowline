@@ -63,12 +63,15 @@ export default function CreateProjectModal({ onClose, onCreated, currentUser, pr
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    api.getTeam().then(({ departments, unassigned }) => {
-      setDepartments(
-        departments.map((d) => ({ ...d, members: d.members.filter((m) => m.id !== currentUser.id) }))
-      );
-      setUnassigned(unassigned.filter((m) => m.id !== currentUser.id));
-    });
+    api
+      .getTeam()
+      .then(({ departments, unassigned }) => {
+        setDepartments(
+          departments.map((d) => ({ ...d, members: d.members.filter((m) => m.id !== currentUser.id) }))
+        );
+        setUnassigned(unassigned.filter((m) => m.id !== currentUser.id));
+      })
+      .catch(() => setError("Не удалось загрузить список сотрудников"));
   }, [currentUser.id]);
 
   const toggle = (set, setSet) => (id) => {
