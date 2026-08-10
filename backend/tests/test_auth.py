@@ -5,7 +5,15 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from app.api.auth_routes import _cookie_is_secure
-from app.auth import SESSION_COOKIE, authenticate, close_session, current_user, open_session, register
+from app.auth import (
+    SESSION_COOKIE,
+    SESSION_TTL,
+    authenticate,
+    close_session,
+    current_user,
+    open_session,
+    register,
+)
 from app.config import get_settings
 from app.db import get_db
 from app.main import app
@@ -264,3 +272,42 @@ def test_cookie_is_not_secure_when_public_base_url_is_http(monkeypatch):
         assert _cookie_is_secure() is False
     finally:
         get_settings.cache_clear()
+
+
+def test_a_corrupted_hash_is_a_failed_login_not_a_crash():
+    """Испорченная строка в password_hash поднимает InvalidHashError, а не
+    VerifyMismatchError, и раньше долетала до клиента пятисоткой — хотя
+    правильный ответ тот же: войти не удалось."""
+    assert verify_password("s3cret-pass", "не хеш вовсе") is False
+    assert verify_password("s3cret-pass", "") is False
+    # обрезанный настоящий хеш
+    assert verify_password("s3cret-pass", hash_password("s3cret-pass")[:20]) is False
+
+
+def test_a_corrupted_hash_answers_401_instead_of_500(client, db):
+    from sqlalchemy import select
+
+    from app.models import User
+
+    client.post(
+        "/api/auth/register",
+        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+    )
+    user = db.scalar(select(User).where(User.email == "alex@example.com"))
+    user.password_hash = "испорчено"
+    db.flush()
+
+    response = client.post(
+        "/api/auth/login", json={"email": "alex@example.com", "password": "s3cret-pass"}
+    )
+    assert response.status_code == 401
+    assert response.json()["detail"] == "bad_credentials"
+
+
+def test_the_session_cookie_lives_exactly_as_long_as_the_session(client):
+    response = client.post(
+        "/api/auth/register",
+        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+    )
+    header = response.headers["set-cookie"]
+    assert f"Max-Age={int(SESSION_TTL.total_seconds())}" in header

@@ -28,7 +28,13 @@ class ProjectOut(BaseModel):
 
 
 def _membership(db: DbSession, user: User) -> Membership:
-    membership = db.scalar(select(Membership).where(Membership.user_id == user.id))
+    # Человек может состоять в нескольких организациях; переключателя ещё
+    # нет, и маршрут берёт первую. Порядок задан явно, чтобы «первая» была
+    # хотя бы одной и той же от запроса к запросу, а не той, что первой
+    # вернул планировщик.
+    membership = db.scalar(
+        select(Membership).where(Membership.user_id == user.id).order_by(Membership.id)
+    )
     if membership is None:
         raise HTTPException(status_code=403, detail="no_organization")
     return membership

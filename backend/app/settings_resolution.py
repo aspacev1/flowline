@@ -1,11 +1,29 @@
+import logging
 from datetime import date
 
 from app.calendar import Calendar
 from app.models import Organization, Project
 
+logger = logging.getLogger(__name__)
+
 
 def _dates(raw: list[str] | None) -> frozenset[date]:
-    return frozenset(date.fromisoformat(item) for item in (raw or []))
+    """Даты из JSON-списка; непригодные записи пропускаются.
+
+    Список приходит из базы, а не из тела запроса, и содержимое там могло
+    оказаться каким угодно — от правки руками до старой версии формата.
+    date.fromisoformat на одной такой строке поднимал исключение, и проект
+    переставал читаться навсегда, без способа это исправить через
+    приложение. Потерять один день календаря — меньшее зло, чем потерять
+    проект; в журнале это видно.
+    """
+    parsed: set[date] = set()
+    for item in raw or []:
+        try:
+            parsed.add(date.fromisoformat(item))
+        except (TypeError, ValueError):
+            logger.warning("непригодная дата в календаре пропущена: %r", item)
+    return frozenset(parsed)
 
 
 def resolve_working_days(project: Project, org: Organization) -> int:

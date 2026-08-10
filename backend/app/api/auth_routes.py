@@ -3,7 +3,15 @@ from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
-from app.auth import SESSION_COOKIE, authenticate, close_session, current_user, open_session, register
+from app.auth import (
+    SESSION_COOKIE,
+    SESSION_TTL,
+    authenticate,
+    close_session,
+    current_user,
+    open_session,
+    register,
+)
 from app.config import get_settings
 from app.db import get_db
 from app.models import User
@@ -44,7 +52,10 @@ def _set_cookie(response: Response, token: str) -> None:
         httponly=True,
         samesite="lax",
         secure=_cookie_is_secure(),
-        max_age=60 * 60 * 24 * 30,
+        # Ровно столько же, сколько живёт сама сессия в базе: два числа,
+        # заданных порознь, однажды разъедутся, и кука переживёт сессию
+        # (или наоборот) без единого признака в коде.
+        max_age=int(SESSION_TTL.total_seconds()),
     )
 
 

@@ -41,11 +41,27 @@ def test_creating_a_project_derives_a_slug_from_the_name(authed):
     assert response.json()["slug"] == "seher-layihesi"
 
 
-def test_project_listing_shows_only_own_organization(authed):
+def test_project_listing_shows_only_own_organization(authed, db):
+    """В тесте обязана существовать вторая организация со своим проектом.
+
+    Без неё утверждение проходило бы точно так же, даже если убрать из
+    маршрута фильтр по организации, — то есть не проверяло бы ничего.
+    """
+    from app.models import Organization, Project
+
     authed.post("/api/projects", json={"name": "Redesign"})
+
+    other_org = Organization(name="Globex", slug="globex")
+    db.add(other_org)
+    db.flush()
+    db.add(Project(org_id=other_org.id, name="Secret", slug="secret"))
+    db.flush()
+
     response = authed.get("/api/projects")
     assert response.status_code == 200
-    assert [item["name"] for item in response.json()] == ["Redesign"]
+    names = [item["name"] for item in response.json()]
+    assert names == ["Redesign"]
+    assert "Secret" not in names
 
 
 def test_mutation_creates_a_task_and_returns_the_computed_end_date(authed):
