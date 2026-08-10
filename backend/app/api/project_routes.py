@@ -11,7 +11,7 @@ from app.auth import current_user
 from app.calendar import end_date
 from app.db import get_db
 from app.models import Category, Membership, Organization, Project, Role, Task, User
-from app.mutations import InvalidOperation, NotFoundInProject, Op, apply_op
+from app.mutations import InvalidOperation, NotFoundInProject, PublicOp, apply_op, to_internal
 from app.settings_resolution import project_calendar
 from app.text import slugify
 
@@ -151,7 +151,7 @@ def get_project(
 @router.post("/{project_id}/mutations", status_code=201)
 def apply_mutation(
     project_id: uuid.UUID,
-    op: Op = Body(..., embed=True),
+    op: PublicOp = Body(..., embed=True),
     reason: str | None = Body(default=None),
     user: User = Depends(current_user),
     db: DbSession = Depends(get_db),
@@ -161,7 +161,7 @@ def apply_mutation(
         raise HTTPException(status_code=403, detail="forbidden")
 
     try:
-        revision = apply_op(db, project, op, actor_id=user.id, reason=reason)
+        revision = apply_op(db, project, to_internal(op), actor_id=user.id, reason=reason)
     except NotFoundInProject as error:
         # Сущность чужого проекта — не ошибка формата запроса: 404 тем же
         # принципом, что и в _load_project.

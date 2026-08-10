@@ -28,6 +28,13 @@ class Role(StrEnum):
     CLIENT = "client"
 
 
+class Criticality(StrEnum):
+    LOW = "low"
+    NORMAL = "normal"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
 def _uuid_pk() -> Mapped[uuid.UUID]:
     return mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 

@@ -11,8 +11,11 @@ from app.mutations import (
     InvalidOperation,
     MoveTask,
     NotFoundInProject,
+    PublicCreateCategory,
+    PublicCreateTask,
     SetDuration,
     apply_op,
+    to_internal,
     undo,
 )
 
@@ -440,3 +443,69 @@ def test_undo_of_a_task_delete_restores_its_original_position(db, project, categ
     undo(db, project, deleted, actor_id=None)
 
     assert db.get(Task, second_task_id).position == 1
+
+
+def test_public_operations_are_a_subset_of_the_internal_ones():
+    """Публичная модель отличается от внутренней ровно полями восстановления.
+
+    Пин против расхождения: новое поле, добавленное только во внутреннюю
+    модель, — норма, но новое поле восстановления, случайно попавшее в
+    публичную, здесь и всплывёт.
+    """
+    assert set(PublicCreateTask.model_fields) | {"task_id", "position"} == set(
+        CreateTask.model_fields
+    )
+    assert set(PublicCreateCategory.model_fields) | {"category_id", "position"} == set(
+        CreateCategory.model_fields
+    )
+
+
+def test_to_internal_does_not_carry_restore_fields(db, project, category):
+    internal = to_internal(
+        PublicCreateTask(
+            category_id=str(category.id),
+            name="Logo",
+            start_date=date(2026, 3, 4),
+            duration_days=5,
+        )
+    )
+    assert isinstance(internal, CreateTask)
+    assert internal.task_id is None
+    assert internal.position is None
+
+
+def test_creating_past_the_project_task_limit_is_refused(db, project, category, monkeypatch):
+    import app.mutations as mutations
+
+    settings = mutations.get_settings()
+
+    class _Capped:
+        max_tasks_per_project = 1
+
+        def __getattr__(self, item):
+            return getattr(settings, item)
+
+    monkeypatch.setattr(mutations, "get_settings", lambda: _Capped())
+
+    apply_op(
+        db,
+        project,
+        CreateTask(
+            category_id=str(category.id), name="First", start_date=date(2026, 3, 4), duration_days=2
+        ),
+        actor_id=None,
+    )
+
+    with pytest.raises(InvalidOperation) as error:
+        apply_op(
+            db,
+            project,
+            CreateTask(
+                category_id=str(category.id),
+                name="Second",
+                start_date=date(2026, 3, 4),
+                duration_days=2,
+            ),
+            actor_id=None,
+        )
+    assert error.value.code == "task_limit_reached"

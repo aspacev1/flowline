@@ -286,3 +286,111 @@ def test_a_refused_operation_answers_with_a_stable_machine_code(authed):
     assert response.status_code == 422
     # Код, а не переводимая проза: тексты сообщений составляет клиент.
     assert response.json()["detail"] == "category_not_empty"
+
+
+def test_an_over_long_name_is_refused_before_it_reaches_the_column(authed):
+    # tasks.name — varchar(300): без границы в схеме строка длиннее приезжала
+    # в базу и возвращалась пятисоткой на ошибке усечения.
+    project_id, category_id, _ = _project_with_task(authed)
+
+    response = authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={
+            "op": {
+                "type": "create_task",
+                "category_id": category_id,
+                "name": "L" * 301,
+                "start_date": "2026-03-06",
+                "duration_days": 3,
+            }
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_an_unknown_criticality_is_refused(authed):
+    project_id, category_id, _ = _project_with_task(authed)
+
+    response = authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={
+            "op": {
+                "type": "create_task",
+                "category_id": category_id,
+                "name": "Logo",
+                "start_date": "2026-03-06",
+                "duration_days": 3,
+                "criticality": "апокалиптическая",
+            }
+        },
+    )
+    assert response.status_code == 422
+
+
+@pytest.mark.parametrize("progress", [-1, 101])
+def test_progress_outside_the_percentage_range_is_refused(authed, progress):
+    project_id, category_id, _ = _project_with_task(authed)
+
+    response = authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={
+            "op": {
+                "type": "create_task",
+                "category_id": category_id,
+                "name": "Logo",
+                "start_date": "2026-03-06",
+                "duration_days": 3,
+                "progress_pct": progress,
+            }
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_a_client_supplied_task_id_never_reaches_the_database(authed, db):
+    # task_id существует ради отмены удаления: он восстанавливает строку под
+    # прежним идентификатором. По проводу его принимать нельзя — назначение
+    # идентификаторов перестаёт быть делом сервера, а совпадение с уже
+    # существующим id превращается в IntegrityError и пятисотку.
+    from app.models import Task
+
+    project_id, category_id, _ = _project_with_task(authed)
+    chosen = "11111111-1111-1111-1111-111111111111"
+
+    response = authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={
+            "op": {
+                "type": "create_task",
+                "category_id": category_id,
+                "name": "Logo",
+                "start_date": "2026-03-06",
+                "duration_days": 3,
+                "task_id": chosen,
+            }
+        },
+    )
+    assert response.status_code == 422
+    assert db.get(Task, chosen) is None
+
+
+def test_a_client_supplied_position_never_reaches_the_database(authed, db):
+    from app.models import Task
+
+    project_id, category_id, _ = _project_with_task(authed)
+
+    response = authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={
+            "op": {
+                "type": "create_task",
+                "category_id": category_id,
+                "name": "Logo",
+                "start_date": "2026-03-06",
+                "duration_days": 3,
+                "position": -5,
+            }
+        },
+    )
+    assert response.status_code == 422
+    assert db.scalar(select(Task).where(Task.position == -5)) is None
