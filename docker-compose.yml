@@ -2,13 +2,13 @@ services:
   db:
     image: postgres:16
     environment:
-      POSTGRES_USER: flowline
-      POSTGRES_PASSWORD: flowline
-      POSTGRES_DB: flowline
+      POSTGRES_USER: ${POSTGRES_USER:-flowline}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-flowline}
+      POSTGRES_DB: ${POSTGRES_DB:-flowline}
     ports: ["${DB_PORT:-5432}:5432"]
     volumes: ["pgdata:/var/lib/postgresql/data"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U flowline"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-flowline}"]
       interval: 5s
       retries: 10
 
