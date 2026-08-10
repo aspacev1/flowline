@@ -5,6 +5,7 @@ from enum import StrEnum
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
@@ -14,8 +15,8 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.calendar import WEEKDAYS_MON_FRI
 from app.db import Base
@@ -70,11 +71,24 @@ class User(Base):
 
 class Membership(Base):
     __tablename__ = "memberships"
-    __table_args__ = (UniqueConstraint("org_id", "user_id"),)
+    __table_args__ = (
+        UniqueConstraint("org_id", "user_id"),
+        # Свободный String(16) пускал в колонку любое значение, а Role(...)
+        # на нём поднимал ValueError уже в запросе. Список выведен из Role,
+        # чтобы не разъехаться с ним при добавлении роли.
+        CheckConstraint(
+            "role IN (" + ", ".join(f"'{role.value}'" for role in Role) + ")",
+            name="ck_memberships_role",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = _uuid_pk()
     org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"))
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    # Спрашивается на каждом запросе с сессией; составной (org_id, user_id)
+    # ведёт не с той колонки и для этого поиска бесполезен.
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     role: Mapped[str] = mapped_column(String(16))
 
 
@@ -113,7 +127,9 @@ class Category(Base):
     __tablename__ = "categories"
 
     id: Mapped[uuid.UUID] = _uuid_pk()
-    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"))
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
     name: Mapped[str] = mapped_column(String(200))
     color: Mapped[str] = mapped_column(String(9))
     position: Mapped[int] = mapped_column(Integer, default=0)
@@ -123,7 +139,9 @@ class Task(Base):
     __tablename__ = "tasks"
 
     id: Mapped[uuid.UUID] = _uuid_pk()
-    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"))
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
     category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id", ondelete="CASCADE"))
     name: Mapped[str] = mapped_column(String(300))
     description: Mapped[str] = mapped_column(Text, default="")
@@ -164,8 +182,14 @@ class Revision(Base):
     project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"))
     seq: Mapped[int] = mapped_column(Integer)
     actor_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
-    op: Mapped[dict] = mapped_column(JSON)
-    inverse: Mapped[dict] = mapped_column(JSON)
+    # jsonb, а не json: все три фичи, ради которых ведётся журнал, ищут по
+    # содержимому полезной нагрузки. json хранит сырой текст, не умеет
+    # операторов вхождения и не индексируется GIN. Продукт только под
+    # Postgres; менять это после появления боевых записей — переписывание
+    # таблицы, сегодня — бесплатно.
+    op: Mapped[dict] = mapped_column(JSONB)
+    inverse: Mapped[dict] = mapped_column(JSONB)
     reason: Mapped[str | None] = mapped_column(Text)
-    batch_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    # Пакет ревизий читается целиком при отмене групповой операции.
+    batch_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

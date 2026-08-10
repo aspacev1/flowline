@@ -1,7 +1,11 @@
 from datetime import date
 
+import pytest
+from sqlalchemy.exc import IntegrityError
+
 from app.calendar import WEEKDAYS_MON_FRI
-from app.models import Category, Organization, Project, Task
+from app.models import Category, Membership, Organization, Project, Task, User
+from app.security import hash_password
 
 
 def test_organization_defaults_come_from_the_spec(db):
@@ -55,3 +59,22 @@ def test_task_belongs_to_a_category_and_keeps_its_position(db):
     assert task.criticality == "normal"
     assert task.progress_pct == 0
     assert task.baseline_start is None
+
+
+def test_membership_role_outside_the_enum_is_refused_by_the_database(db):
+    """Колонка была свободным String(16): в неё ложилось что угодно, а
+    Role(...) на этом значении поднимал ValueError, то есть пятисотку."""
+    org = Organization(name="Acme", slug="acme")
+    user = User(email="a@example.com", password_hash=hash_password("x"), name="A")
+    db.add_all([org, user])
+    db.flush()
+
+    # SAVEPOINT: откатывается только неудачная вставка, а не транзакция
+    # фикстуры вокруг всего теста.
+    with pytest.raises(IntegrityError):
+        with db.begin_nested():
+            db.add(Membership(org_id=org.id, user_id=user.id, role="шеф"))
+            db.flush()
+
+    db.add(Membership(org_id=org.id, user_id=user.id, role="owner"))
+    db.flush()

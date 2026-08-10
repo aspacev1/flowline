@@ -596,3 +596,29 @@ def test_undo_refuses_a_revision_from_another_project(db, project, other_project
 
     # задача чужого проекта осталась на месте
     assert db.get(Task, foreign.op["task_id"]) is not None
+
+
+def test_the_journal_is_queryable_by_payload_containment(db, project, category):
+    """op и inverse — jsonb, а не json.
+
+    Все три фичи на этом журнале ищут по содержимому полезной нагрузки.
+    Оператор вхождения (@>) существует только у jsonb: на json этот запрос
+    не выполнится вовсе.
+    """
+    from sqlalchemy import select
+
+    from app.models import Revision
+
+    apply_op(
+        db,
+        project,
+        CreateTask(
+            category_id=str(category.id), name="Logo", start_date=date(2026, 3, 4), duration_days=5
+        ),
+        actor_id=None,
+    )
+
+    found = db.scalars(
+        select(Revision).where(Revision.op.contains({"type": "create_task", "name": "Logo"}))
+    ).all()
+    assert len(found) == 1
