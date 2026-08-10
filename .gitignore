@@ -1,0 +1,15 @@
+# рабочие файлы визуального компаньона брейншторма
+.superpowers/
+
+# окружение и артефакты
+.env
+.env.*
+!.env.example
+node_modules/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+dist/
+build/
+.DS_Store
