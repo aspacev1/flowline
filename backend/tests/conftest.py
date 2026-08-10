@@ -4,15 +4,61 @@ os.environ.setdefault("APP_SECRET", "test-secret-not-for-production")
 
 import pytest
 from sqlalchemy import create_engine
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import sessionmaker
 
 from app.config import get_settings
 from app.db import Base
 
 
+def _safe_test_database_url() -> str:
+    """Адрес тестовой базы, выведенный из DATABASE_URL, а не боевой адрес как есть.
+
+    Разрушающие операции (drop_all/create_all) допустимы только по базе, чьё
+    имя оканчивается на «_test», и никогда по базе из DATABASE_URL — иначе
+    прогон тестов однажды снесёт рабочую базу разработки. Адрес разбирается
+    через make_url()/set(), а не строковой склейкой, чтобы не развалиться на
+    паролях со спецсимволами (например, слэшами).
+    """
+    prod_url = make_url(get_settings().database_url)
+    prod_db = prod_url.database
+    test_db = f"{prod_db}_test"
+    test_url = prod_url.set(database=test_db)
+
+    if test_db == prod_db or not test_db.endswith("_test"):
+        raise RuntimeError(
+            "отказ выполнять drop_all/create_all: выведенное имя тестовой базы "
+            f"{test_db!r} совпадает с боевым DATABASE_URL ({prod_db!r}) или не "
+            "оканчивается на '_test'. Тесты никогда не должны трогать базу из "
+            "DATABASE_URL."
+        )
+    # render_as_string(hide_password=False): str(url) маскирует пароль
+    # звёздочками, а нам нужен настоящий DSN для подключения.
+    return test_url.render_as_string(hide_password=False)
+
+
 @pytest.fixture(scope="session")
 def engine():
-    engine = create_engine(get_settings().database_url)
+    test_url = _safe_test_database_url()
+    engine = create_engine(test_url)
+
+    try:
+        with engine.connect():
+            pass
+    except OperationalError as exc:
+        url = make_url(test_url)
+        raise RuntimeError(
+            f"тестовая база {url.database!r} недоступна "
+            f"({url.render_as_string(hide_password=True)}).\n"
+            "Если её ещё нет, создай её — Postgres поднят через docker compose, "
+            "сервис 'db':\n"
+            f"  docker compose exec db createdb -U {url.username} {url.database}\n"
+            "или, если Postgres не в докере:\n"
+            f"  createdb -h {url.host} -p {url.port} -U {url.username} {url.database}\n"
+            f"Исходная ошибка: {exc}"
+        ) from exc
+
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
     yield engine
