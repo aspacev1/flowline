@@ -9,6 +9,33 @@ from sqlalchemy.orm import Session as DbSession
 from app.models import Category, Project, Revision, Task
 
 
+class MutationError(Exception):
+    """Отказ применить операцию.
+
+    Несёт стабильный машинный код для ответа и человеческий текст — для
+    журнала. Текст в тело ответа не попадает: язык интерфейса по умолчанию
+    азербайджанский, словарей сообщений сервер сознательно не держит (их
+    составляет клиент), поэтому проза в `detail` непереводима.
+    """
+
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+
+
+class NotFoundInProject(MutationError):
+    """Названная сущность не существует или принадлежит другому проекту.
+
+    Отдельный класс от InvalidOperation: обращение к задаче чужой
+    организации — это не ошибка формата запроса, и маршрут отвечает на него
+    404, а не 422.
+    """
+
+
+class InvalidOperation(MutationError):
+    """Операция составлена так, что применить её нельзя."""
+
+
 class CreateCategory(BaseModel):
     type: Literal["create_category"] = "create_category"
     name: str
@@ -71,14 +98,14 @@ def _next_seq(db: DbSession, project: Project) -> int:
 def _require_task(db: DbSession, project: Project, task_id: uuid.UUID) -> Task:
     task = db.get(Task, task_id)
     if task is None or task.project_id != project.id:
-        raise ValueError("задача не найдена в этом проекте")
+        raise NotFoundInProject("task_not_found", "задача не найдена в этом проекте")
     return task
 
 
 def _require_category(db: DbSession, project: Project, category_id: uuid.UUID) -> Category:
     category = db.get(Category, category_id)
     if category is None or category.project_id != project.id:
-        raise ValueError("категория не найдена в этом проекте")
+        raise NotFoundInProject("category_not_found", "категория не найдена в этом проекте")
     return category
 
 
@@ -116,7 +143,7 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
 
     if isinstance(op, CreateTask):
         if op.duration_days < 1:
-            raise ValueError("длительность должна быть не меньше одного дня")
+            raise InvalidOperation("duration_too_short", "длительность должна быть не меньше одного дня")
         # Внешний ключ гарантирует лишь, что категория где-то существует —
         # не то, что она принадлежит этому проекту. Без явной проверки задача
         # может незаметно оказаться под категорией чужого проекта.
@@ -183,7 +210,7 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
 
     if isinstance(op, SetDuration):
         if op.duration_days < 1:
-            raise ValueError("длительность должна быть не меньше одного дня")
+            raise InvalidOperation("duration_too_short", "длительность должна быть не меньше одного дня")
         task = _require_task(db, project, op.task_id)
         previous = task.duration_days
         task.duration_days = op.duration_days
@@ -203,7 +230,7 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
         # Удаление непустой категории унесло бы задачи каскадом, и обратная
         # операция их бы не вернула. Требуем сначала разобрать содержимое.
         if remaining:
-            raise ValueError("категория не пуста")
+            raise InvalidOperation("category_not_empty", "категория не пуста")
         snapshot = {
             "type": "create_category",
             "category_id": str(category.id),
@@ -236,7 +263,7 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
         db.flush()
         return ({"type": "delete_task", "task_id": str(op.task_id)}, snapshot)
 
-    raise ValueError(f"неизвестная операция: {op!r}")
+    raise InvalidOperation("unknown_operation", f"неизвестная операция: {op!r}")
 
 
 def apply_op(

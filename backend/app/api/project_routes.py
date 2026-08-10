@@ -11,7 +11,7 @@ from app.auth import current_user
 from app.calendar import end_date
 from app.db import get_db
 from app.models import Category, Membership, Organization, Project, Role, Task, User
-from app.mutations import Op, apply_op
+from app.mutations import InvalidOperation, NotFoundInProject, Op, apply_op
 from app.settings_resolution import project_calendar
 from app.text import slugify
 
@@ -162,8 +162,12 @@ def apply_mutation(
 
     try:
         revision = apply_op(db, project, op, actor_id=user.id, reason=reason)
-    except ValueError as error:
-        raise HTTPException(status_code=422, detail=str(error))
+    except NotFoundInProject as error:
+        # Сущность чужого проекта — не ошибка формата запроса: 404 тем же
+        # принципом, что и в _load_project.
+        raise HTTPException(status_code=404, detail=error.code)
+    except InvalidOperation as error:
+        raise HTTPException(status_code=422, detail=error.code)
 
     show_notes = can(Role(membership.role), Action.READ_INTERNAL_NOTE)
     return {

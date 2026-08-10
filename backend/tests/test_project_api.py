@@ -237,3 +237,52 @@ def test_role_without_read_internal_note_permission_does_not_see_it_in_mutation_
     )
     deleted = delete_response.json()
     assert "internal_note" not in deleted["inverse"]
+
+
+def _project_with_task(authed) -> tuple[str, str, str]:
+    project_id = authed.post("/api/projects", json={"name": "Redesign"}).json()["id"]
+    category_id = authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={"op": {"type": "create_category", "name": "Design", "color": "#3b82f6"}},
+    ).json()["op"]["category_id"]
+    task_id = authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={
+            "op": {
+                "type": "create_task",
+                "category_id": category_id,
+                "name": "Logo",
+                "start_date": "2026-03-06",
+                "duration_days": 3,
+            }
+        },
+    ).json()["op"]["task_id"]
+    return project_id, category_id, task_id
+
+
+def test_naming_a_task_of_another_project_is_reported_as_not_found(authed):
+    # Раньше маршрут расплющивал оба класса отказа в 422 с русской прозой:
+    # обращение к задаче чужой организации выглядело ошибкой валидации.
+    own_project_id, _, _ = _project_with_task(authed)
+    other_project_id, _, foreign_task_id = _project_with_task(authed)
+    assert other_project_id != own_project_id
+
+    response = authed.post(
+        f"/api/projects/{own_project_id}/mutations",
+        json={"op": {"type": "move_task", "task_id": foreign_task_id,
+                     "start_date": "2026-03-11"}},
+    )
+    assert response.status_code == 404
+    assert response.json()["detail"] == "task_not_found"
+
+
+def test_a_refused_operation_answers_with_a_stable_machine_code(authed):
+    project_id, category_id, _ = _project_with_task(authed)
+
+    response = authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={"op": {"type": "delete_category", "category_id": category_id}},
+    )
+    assert response.status_code == 422
+    # Код, а не переводимая проза: тексты сообщений составляет клиент.
+    assert response.json()["detail"] == "category_not_empty"

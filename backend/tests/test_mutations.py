@@ -8,7 +8,9 @@ from app.mutations import (
     CreateTask,
     DeleteCategory,
     DeleteTask,
+    InvalidOperation,
     MoveTask,
+    NotFoundInProject,
     SetDuration,
     apply_op,
     undo,
@@ -189,8 +191,9 @@ def test_deleting_a_non_empty_category_is_refused(db, project, category):
         actor_id=None,
     )
 
-    with pytest.raises(ValueError, match="не пуста"):
+    with pytest.raises(InvalidOperation) as error:
         apply_op(db, project, DeleteCategory(category_id=str(category.id)), actor_id=None)
+    assert error.value.code == "category_not_empty"
 
 
 def test_undo_of_a_category_delete_restores_it_with_the_same_id(db, project, category):
@@ -216,10 +219,11 @@ def test_set_duration_rejects_zero(db, project, category):
         actor_id=None,
     )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(InvalidOperation) as error:
         apply_op(
             db, project, SetDuration(task_id=created.op["task_id"], duration_days=0), actor_id=None
         )
+    assert error.value.code == "duration_too_short"
 
 
 def test_set_duration_changes_the_duration_and_records_both_bounds(db, project, category):
@@ -329,17 +333,18 @@ def test_operation_naming_a_task_from_another_project_is_rejected(
     )
     foreign_task_id = foreign.op["task_id"]
 
-    with pytest.raises(ValueError, match="не найдена в этом проекте"):
+    with pytest.raises(NotFoundInProject) as error:
         apply_op(
             db,
             project,
             MoveTask(task_id=foreign_task_id, start_date=date(2026, 3, 11)),
             actor_id=None,
         )
+    assert error.value.code == "task_not_found"
 
 
 def test_create_task_rejects_a_category_from_another_project(db, project, other_category):
-    with pytest.raises(ValueError, match="не найдена в этом проекте"):
+    with pytest.raises(NotFoundInProject) as error:
         apply_op(
             db,
             project,
@@ -351,6 +356,7 @@ def test_create_task_rejects_a_category_from_another_project(db, project, other_
             ),
             actor_id=None,
         )
+    assert error.value.code == "category_not_found"
 
 
 def test_create_after_a_delete_does_not_reuse_an_occupied_task_position(db, project, category):
