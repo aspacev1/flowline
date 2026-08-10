@@ -15,6 +15,16 @@ services:
   api:
     build: ./backend
     env_file: .env
+    environment:
+      # Переопределяет DATABASE_URL из .env: тот адрес — для запуска с хоста
+      # (тесты, локальный uvicorn), где база слушает на localhost:${DB_PORT}.
+      # Внутри сети compose своего localhost у контейнера нет — «localhost»
+      # там означает сам контейнер api, а не db, поэтому адрес пересобирается
+      # явно на сервис db и его внутренний порт 5432 (DB_PORT управляет
+      # только публикацией наружу и к внутреннему адресу отношения не имеет).
+      # environment имеет приоритет над env_file, так что .env продолжает
+      # обслуживать хост без изменений.
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-flowline}:${POSTGRES_PASSWORD:-flowline}@db:5432/${POSTGRES_DB:-flowline}
     depends_on:
       db: {condition: service_healthy}
     ports: ["8000:8000"]
