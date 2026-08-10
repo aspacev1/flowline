@@ -1,4 +1,3 @@
-import secrets
 import uuid
 
 from fastapi import APIRouter, Body, Depends, HTTPException
@@ -12,8 +11,8 @@ from app.calendar import end_date
 from app.db import get_db
 from app.models import Category, Membership, Organization, Project, Role, Task, User
 from app.mutations import InvalidOperation, NotFoundInProject, PublicOp, apply_op, to_internal
+from app.projects import create_project as create_project_entity
 from app.settings_resolution import project_calendar
-from app.text import slugify
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
@@ -42,14 +41,6 @@ def _load_project(db: DbSession, user: User, project_id: uuid.UUID) -> tuple[Pro
     if project is None or project.org_id != membership.org_id:
         raise HTTPException(status_code=404, detail="project_not_found")
     return project, membership
-
-
-def _unique_slug(db: DbSession, org_id: uuid.UUID, name: str) -> str:
-    base = slugify(name)
-    taken = db.scalar(
-        select(Project).where(Project.org_id == org_id, Project.slug == base)
-    )
-    return base if taken is None else f"{base}-{secrets.token_hex(3)}"
 
 
 def _require_project_read(membership: Membership) -> None:
@@ -81,13 +72,7 @@ def create_project(
     if not can(Role(membership.role), Action.PROJECT_WRITE):
         raise HTTPException(status_code=403, detail="forbidden")
 
-    project = Project(
-        org_id=membership.org_id,
-        name=payload.name,
-        slug=_unique_slug(db, membership.org_id, payload.name),
-    )
-    db.add(project)
-    db.flush()
+    project = create_project_entity(db, org_id=membership.org_id, name=payload.name)
     return ProjectOut(id=str(project.id), name=project.name, slug=project.slug)
 
 

@@ -58,21 +58,21 @@ def test_org_slug_collision_at_insert_time_retries_instead_of_failing(db, monkey
     прошёл конкурентный запрос за долю секунды до нас), и первая попытка
     вставки словит IntegrityError на уникальном индексе. register() должен
     тихо повторить попытку с новым суффиксом, а не поднять исключение."""
-    import app.auth as auth_module
+    import app.slugs as slugs
 
     register(db, name="Acme", email="first@example.com", password="s3cret-pass")
     db.flush()
 
-    original = auth_module._org_slug_candidate
+    original = slugs._candidate
     calls = {"n": 0}
 
-    def flaky(db_, name, *, forced):
+    def flaky(name, *, forced, is_taken, fallback):
         calls["n"] += 1
         if calls["n"] == 1:
             return "acme"  # уже занято first@example.com — вставка упадёт
-        return original(db_, name, forced=True)
+        return original(name, forced=True, is_taken=is_taken, fallback=fallback)
 
-    monkeypatch.setattr(auth_module, "_org_slug_candidate", flaky)
+    monkeypatch.setattr(slugs, "_candidate", flaky)
 
     second = register(db, name="Acme", email="second@example.com", password="s3cret-pass")
     db.flush()

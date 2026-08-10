@@ -1,4 +1,3 @@
-import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import Cookie, Depends, HTTPException
@@ -10,12 +9,11 @@ from app.config import get_settings
 from app.db import get_db
 from app.models import Membership, Organization, Role, Session, User
 from app.security import hash_password, hash_token, new_token, verify_password
-from app.text import normalize_email, slugify
+from app.slugs import insert_with_unique_slug
+from app.text import normalize_email
 
 SESSION_COOKIE = "flowline_session"
 SESSION_TTL = timedelta(days=30)
-
-_MAX_SLUG_ATTEMPTS = 5
 
 # Посчитан один раз при импорте модуля, а не на каждый запрос: используется в
 # ветке authenticate(), где пользователь не найден, чтобы эта ветка стоила
@@ -25,11 +23,8 @@ _MAX_SLUG_ATTEMPTS = 5
 _DUMMY_PASSWORD_HASH = hash_password("timing-safety-dummy-password")
 
 
-def _org_slug_candidate(db: DbSession, name: str, *, forced: bool) -> str:
-    base = slugify(name, fallback="org")
-    if not forced and db.scalar(select(Organization).where(Organization.slug == base)) is None:
-        return base
-    return f"{base}-{secrets.token_hex(3)}"
+def _org_slug_taken(db: DbSession, slug: str) -> bool:
+    return db.scalar(select(Organization.id).where(Organization.slug == slug)) is not None
 
 
 def register(db: DbSession, *, name: str, email: str, password: str) -> User:
@@ -55,26 +50,13 @@ def register(db: DbSession, *, name: str, email: str, password: str) -> User:
         raise ValueError("адрес уже занят") from exc
 
     org_name = name.strip()
-    org: Organization | None = None
-    last_error: IntegrityError | None = None
-    for attempt in range(_MAX_SLUG_ATTEMPTS):
-        candidate = Organization(
-            name=org_name, slug=_org_slug_candidate(db, org_name, forced=attempt > 0)
-        )
-        try:
-            with db.begin_nested():
-                db.add(candidate)
-                db.flush()
-        except IntegrityError as exc:
-            # Коллизия слага — не вина пользователя (его организация просто
-            # называется как уже существующая); пробуем ещё раз с новым
-            # случайным суффиксом, а не проваливаем регистрацию.
-            last_error = exc
-            continue
-        org = candidate
-        break
-    if org is None:
-        raise last_error
+    org = insert_with_unique_slug(
+        db,
+        lambda slug: Organization(name=org_name, slug=slug),
+        name=org_name,
+        is_taken=lambda slug: _org_slug_taken(db, slug),
+        fallback="org",
+    )
 
     db.add(Membership(org_id=org.id, user_id=user.id, role=Role.OWNER))
     db.flush()

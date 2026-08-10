@@ -394,3 +394,39 @@ def test_a_client_supplied_position_never_reaches_the_database(authed, db):
     )
     assert response.status_code == 422
     assert db.scalar(select(Task).where(Task.position == -5)) is None
+
+
+def test_project_slug_collision_at_insert_time_retries_instead_of_failing(authed, monkeypatch):
+    """Тот же тест гонки, что у слага организации, — теперь и для проекта.
+
+    Раньше маршрут делал проверку-и-вставку без обработки IntegrityError: два
+    одновременных создания с одинаковым названием в одной организации давали
+    пятисотку. Симулируем устаревшую проверку: первый кандидат — уже занятый
+    слаг, вставка обязана упасть и повториться с новым суффиксом.
+    """
+    import app.slugs as slugs
+
+    authed.post("/api/projects", json={"name": "Redesign"})
+
+    original = slugs._candidate
+    calls = {"n": 0}
+
+    def flaky(name, *, forced, is_taken, fallback):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return "redesign"  # уже занято — вставка упадёт на уникальном индексе
+        return original(name, forced=True, is_taken=is_taken, fallback=fallback)
+
+    monkeypatch.setattr(slugs, "_candidate", flaky)
+
+    response = authed.post("/api/projects", json={"name": "Redesign"})
+    assert response.status_code == 201
+    assert response.json()["slug"] != "redesign"
+    assert calls["n"] >= 2
+
+
+def test_two_projects_with_the_same_name_get_distinct_slugs(authed):
+    first = authed.post("/api/projects", json={"name": "Redesign"}).json()
+    second = authed.post("/api/projects", json={"name": "Redesign"}).json()
+    assert first["slug"] == "redesign"
+    assert second["slug"].startswith("redesign-")
