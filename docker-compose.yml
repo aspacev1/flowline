@@ -28,7 +28,12 @@ services:
     depends_on:
       db: {condition: service_healthy}
     ports: ["8000:8000"]
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    # Схема накатывается перед стартом сервера, а не «когда-нибудь руками»:
+    # иначе свежая установка поднимает uvicorn поверх пустой базы, и это
+    # незаметно, потому что единственный маршрут, который не ходит в базу
+    # (/api/health), продолжает отвечать «ok». `&&` обязателен: если миграция
+    # не прошла, сервер не должен подняться и делать вид, что всё в порядке.
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
 volumes:
   pgdata:
