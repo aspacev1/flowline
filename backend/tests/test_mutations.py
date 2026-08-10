@@ -509,3 +509,69 @@ def test_creating_past_the_project_task_limit_is_refused(db, project, category, 
             actor_id=None,
         )
     assert error.value.code == "task_limit_reached"
+
+
+def test_apply_op_takes_a_row_lock_on_the_project(engine):
+    """Две сессии не могут применять операции к одному проекту одновременно.
+
+    Проверка настоящая, а не «вызвался ли метод»: вторая сессия просит строку
+    проекта с NOWAIT — до применения операции она свободна, после apply_op в
+    незавершённой транзакции первой сессии Postgres отказывает немедленно.
+    Без блокировки обе сессии считали бы max(seq)+1 из одного снимка, и
+    проигравший ловил бы нарушение уникальности (project_id, seq).
+
+    Наблюдатель просит именно FOR NO KEY UPDATE, а не FOR UPDATE: вставка
+    ревизии и так берёт на строке проекта FOR KEY SHARE по внешнему ключу, и
+    с FOR UPDATE тест проходил бы даже без явной блокировки — то есть не
+    проверял бы ничего. FOR NO KEY UPDATE с FOR KEY SHARE совместим и
+    конфликтует ровно с той блокировкой, которую берёт apply_op.
+    """
+    from sqlalchemy import delete, select
+    from sqlalchemy.exc import OperationalError
+    from sqlalchemy.orm import sessionmaker
+
+    from app.models import Organization, Project
+
+    make_session = sessionmaker(bind=engine)
+
+    setup = make_session()
+    org = Organization(name="Lock", slug="lock-race-org")
+    setup.add(org)
+    setup.flush()
+    locked = Project(org_id=org.id, name="Locked", slug="locked")
+    setup.add(locked)
+    setup.flush()
+    org_id, project_id = org.id, locked.id
+    setup.commit()
+    setup.close()
+
+    worker = make_session()
+    observer = make_session()
+    try:
+        free = (
+            select(Project.id)
+            .where(Project.id == project_id)
+            .with_for_update(nowait=True, key_share=True)
+        )
+        observer.execute(free)  # до операции строка свободна
+        observer.rollback()
+
+        apply_op(
+            worker,
+            worker.get(Project, project_id),
+            CreateCategory(name="Design", color="#3b82f6"),
+            actor_id=None,
+        )
+
+        with pytest.raises(OperationalError):
+            observer.execute(free)
+        observer.rollback()
+    finally:
+        worker.rollback()
+        worker.close()
+        observer.rollback()
+        observer.close()
+        cleanup = make_session()
+        cleanup.execute(delete(Organization).where(Organization.id == org_id))
+        cleanup.commit()
+        cleanup.close()

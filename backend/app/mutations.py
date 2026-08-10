@@ -384,6 +384,14 @@ def apply_op(
     reason: str | None = None,
     batch_id: uuid.UUID | None = None,
 ) -> Revision:
+    # Блокировка строки проекта на всё время применения операции. Без неё два
+    # запроса, правящих один проект, считают max(seq)+1 из одного и того же
+    # снимка: проигравший нарушает уникальное ограничение (project_id, seq), и
+    # вызывающий получает голую пятисотку. Та же гонка дублирует position, где
+    # ограничения нет вовсе и расхождение остаётся незамеченным. Совместное
+    # редактирование одного проекта — нормальный режим этого продукта, а не
+    # редкий случай; когда конкуренции нет, блокировка не стоит ничего.
+    db.execute(select(Project.id).where(Project.id == project.id).with_for_update())
     forward, inverse = _apply(db, project, op)
     revision = Revision(
         project_id=project.id,
