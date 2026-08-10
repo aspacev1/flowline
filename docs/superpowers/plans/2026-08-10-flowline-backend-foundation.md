@@ -35,6 +35,7 @@
 - Create: `backend/app/main.py`
 - Create: `backend/tests/conftest.py`
 - Create: `backend/tests/test_health.py`
+- Create: `backend/Dockerfile`
 - Create: `docker-compose.yml`
 - Create: `.env.example`
 
@@ -177,7 +178,25 @@ cd backend && uv run pytest tests/test_health.py -v
 
 Ожидается: PASS.
 
-- [ ] **Step 8: Написать docker-compose и пример окружения**
+- [ ] **Step 8: Написать Dockerfile, docker-compose и пример окружения**
+
+Создать `backend/Dockerfile`:
+
+```dockerfile
+FROM python:3.12-slim
+
+COPY --from=ghcr.io/astral-sh/uv:0.5.11 /uv /usr/local/bin/uv
+
+WORKDIR /app
+COPY pyproject.toml ./
+RUN uv sync --no-dev --no-install-project
+
+COPY . .
+
+ENV PATH="/app/.venv/bin:$PATH"
+EXPOSE 8000
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
 
 Создать `docker-compose.yml` в корне репозитория:
 
@@ -1628,7 +1647,7 @@ def category(db, project):
     return db.get(Category, revision.op["category_id"])
 
 
-def test_create_task_writes_a_revision_with_seq_one(db, project, category):
+def test_create_task_writes_a_revision_after_the_category_one(db, project, category):
     revision = apply_op(
         db,
         project,
