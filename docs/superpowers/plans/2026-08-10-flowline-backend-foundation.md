@@ -989,11 +989,15 @@ git commit -m "feat: модели данных и первая миграция"
 Создать `backend/tests/test_auth.py`:
 
 ```python
-import pytest
+from datetime import datetime, timedelta, timezone
 
-from app.auth import authenticate, register
-from app.models import Membership, Organization, Role
-from app.security import hash_password, verify_password
+import pytest
+from fastapi import HTTPException
+from sqlalchemy import select
+
+from app.auth import authenticate, close_session, current_user, open_session, register
+from app.models import Membership, Organization, Role, Session
+from app.security import hash_password, hash_token, verify_password
 
 
 def test_password_hash_is_not_the_password():
@@ -1034,6 +1038,33 @@ def test_org_slug_gets_a_suffix_when_taken(db):
     membership = db.query(Membership).filter_by(user_id=second.id).one()
     org = db.get(Organization, membership.org_id)
     assert org.slug.startswith("acme-")
+
+
+def test_expired_session_does_not_authenticate(db):
+    """Истёкшая сессия — 401, а не молчаливый вход."""
+    user = register(db, name="Alex", email="alex@example.com", password="s3cret-pass")
+    db.flush()
+    token = open_session(db, user)
+    record = db.scalar(select(Session).where(Session.token_hash == hash_token(token)))
+    record.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+    db.flush()
+
+    with pytest.raises(HTTPException) as error:
+        current_user(flowline_session=token, db=db)
+    assert error.value.status_code == 401
+
+
+def test_logout_kills_the_server_side_session_not_only_the_cookie(db):
+    user = register(db, name="Alex", email="alex@example.com", password="s3cret-pass")
+    db.flush()
+    token = open_session(db, user)
+    assert current_user(flowline_session=token, db=db).id == user.id
+
+    close_session(db, token)
+    db.flush()
+
+    with pytest.raises(HTTPException):
+        current_user(flowline_session=token, db=db)
 
 
 def test_authenticate_accepts_the_right_password_and_rejects_the_wrong_one(db):
@@ -1141,9 +1172,16 @@ def register(db: DbSession, *, name: str, email: str, password: str) -> User:
     return user
 
 
+# Хеш-пустышка считается один раз. Он нужен, чтобы проверка пароля для
+# несуществующего адреса стоила столько же, сколько для существующего:
+# иначе по времени ответа перебором собирается список зарегистрированных.
+_DUMMY_HASH = hash_password("dummy-password-for-constant-time-compare")
+
+
 def authenticate(db: DbSession, *, email: str, password: str) -> User | None:
     user = db.scalar(select(User).where(User.email == normalize_email(email)))
     if user is None:
+        verify_password(password, _DUMMY_HASH)
         return None
     return user if verify_password(password, user.password_hash) else None
 
@@ -1188,6 +1226,7 @@ def current_user(
 ```python
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
 from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
 from app.auth import SESSION_COOKIE, authenticate, close_session, current_user, open_session, register
@@ -1216,9 +1255,23 @@ class UserOut(BaseModel):
     locale: str
 
 
+def _cookie_is_secure() -> bool:
+    """Кука помечается Secure ровно тогда, когда установка работает по https.
+
+    Выводим из уже существующей настройки, а не заводим отдельный рубильник:
+    иначе появляется способ развернуть боевую установку и забыть его включить.
+    """
+    return get_settings().public_base_url.startswith("https://")
+
+
 def _set_cookie(response: Response, token: str) -> None:
     response.set_cookie(
-        SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=60 * 60 * 24 * 30
+        SESSION_COOKIE,
+        token,
+        httponly=True,
+        secure=_cookie_is_secure(),
+        samesite="lax",
+        max_age=int(SESSION_TTL.total_seconds()),
     )
 
 
@@ -1233,6 +1286,12 @@ def register_route(payload: RegisterIn, response: Response, db: DbSession = Depe
     try:
         user = register(db, name=payload.name, email=payload.email, password=payload.password)
     except ValueError:
+        raise HTTPException(status_code=409, detail="email_taken")
+    except IntegrityError:
+        # Гонка: между проверкой и вставкой адрес занял кто-то другой.
+        # Ответ тот же, что и при обычном дубликате, — человеку всё равно,
+        # проиграл он гонку или пришёл вторым.
+        db.rollback()
         raise HTTPException(status_code=409, detail="email_taken")
     _set_cookie(response, open_session(db, user))
     return _to_out(user)
