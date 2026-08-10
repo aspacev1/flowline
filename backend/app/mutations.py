@@ -427,4 +427,10 @@ def _op_from_dict(payload: dict):
 
 
 def undo(db: DbSession, project: Project, revision: Revision, *, actor_id: uuid.UUID | None) -> Revision:
+    # Каждый соседний помощник перепроверяет project_id, а undo принимал
+    # ревизию на веру. Сегодня недостижимо — маршрута отмены нет; но маршрут
+    # возьмёт номер ревизии из адреса, и без этой проверки это ровно
+    # межарендная запись: чужая ревизия применилась бы к своему проекту.
+    if revision.project_id != project.id:
+        raise NotFoundInProject("revision_not_found", "ревизия не найдена в этом проекте")
     return apply_op(db, project, _op_from_dict(revision.inverse), actor_id=actor_id)

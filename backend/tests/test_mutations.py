@@ -575,3 +575,24 @@ def test_apply_op_takes_a_row_lock_on_the_project(engine):
         cleanup.execute(delete(Organization).where(Organization.id == org_id))
         cleanup.commit()
         cleanup.close()
+
+
+def test_undo_refuses_a_revision_from_another_project(db, project, other_project, other_category):
+    foreign = apply_op(
+        db,
+        other_project,
+        CreateTask(
+            category_id=str(other_category.id),
+            name="Foreign task",
+            start_date=date(2026, 3, 4),
+            duration_days=3,
+        ),
+        actor_id=None,
+    )
+
+    with pytest.raises(NotFoundInProject) as error:
+        undo(db, project, foreign, actor_id=None)
+    assert error.value.code == "revision_not_found"
+
+    # задача чужого проекта осталась на месте
+    assert db.get(Task, foreign.op["task_id"]) is not None
