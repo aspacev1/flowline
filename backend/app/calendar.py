@@ -43,8 +43,12 @@ def end_date(start: date, duration_days: int, cal: Calendar) -> date:
 
     d = _first_working_on_or_after(start, cal)
     counted = 1
+    iterations = 0
     while counted < duration_days:
         d += timedelta(days=1)
+        iterations += 1
+        if iterations > _MAX_SEARCH_DAYS:
+            raise ValueError("календарь не содержит достаточного количества рабочих дней для такой длительности")
         if cal.is_working(d):
             counted += 1
     return d

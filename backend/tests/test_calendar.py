@@ -65,3 +65,22 @@ def test_count_working_days_rejects_reversed_range():
 def test_duration_must_be_at_least_one_day():
     with pytest.raises(ValueError):
         end_date(date(2026, 3, 4), 0, DEFAULT)
+
+
+def test_end_date_rejects_insufficient_working_days():
+    """Календарь без достаточного количества рабочих дней должен поднять ошибку, а не висеть."""
+    cal = Calendar(working_days=0, extra_workdays=frozenset({date(2026, 3, 6)}))
+    # Только одна рабочая дата (6 марта), но требуем 2 дня
+    with pytest.raises(ValueError, match="достаточного количества рабочих дней"):
+        end_date(date(2026, 3, 6), 2, cal)
+
+
+def test_end_date_respects_extra_workdays_priority_in_duration():
+    """Дни из extra_workdays считаются в длительности даже если они в holidays."""
+    # пт 6 марта, вс 8 марта в holidays, но вс в extra_workdays
+    # пт 6 + вс 8 (extra) = 2 рабочих дня должно быть вс 8
+    cal = Calendar(
+        holidays=frozenset({date(2026, 3, 8)}),
+        extra_workdays=frozenset({date(2026, 3, 8)}),
+    )
+    assert end_date(date(2026, 3, 6), 2, cal) == date(2026, 3, 8)
