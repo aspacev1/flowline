@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
 from pydantic import BaseModel, EmailStr, Field
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
 from app.auth import SESSION_COOKIE, authenticate, close_session, current_user, open_session, register
@@ -28,9 +29,22 @@ class UserOut(BaseModel):
     locale: str
 
 
+def _cookie_is_secure() -> bool:
+    """Secure выводится из уже существующего PUBLIC_BASE_URL, а не из
+    отдельного рубильника: боевая установка на https защищена автоматически,
+    локальная разработка на http продолжает работать, и деплойщику не нужно
+    помнить про ещё одну переменную окружения."""
+    return get_settings().public_base_url.startswith("https://")
+
+
 def _set_cookie(response: Response, token: str) -> None:
     response.set_cookie(
-        SESSION_COOKIE, token, httponly=True, samesite="lax", max_age=60 * 60 * 24 * 30
+        SESSION_COOKIE,
+        token,
+        httponly=True,
+        samesite="lax",
+        secure=_cookie_is_secure(),
+        max_age=60 * 60 * 24 * 30,
     )
 
 
@@ -45,6 +59,13 @@ def register_route(payload: RegisterIn, response: Response, db: DbSession = Depe
     try:
         user = register(db, name=payload.name, email=payload.email, password=payload.password)
     except ValueError:
+        raise HTTPException(status_code=409, detail="email_taken")
+    except IntegrityError:
+        # Защитная сетка на случай гонки, не пойманной внутри register()
+        # (например, если состав вставок там изменится в будущем): без
+        # отката сессия остаётся в прерванном состоянии, а без этой ветки
+        # клиент получил бы 500 вместо честного «адрес занят».
+        db.rollback()
         raise HTTPException(status_code=409, detail="email_taken")
     _set_cookie(response, open_session(db, user))
     return _to_out(user)
