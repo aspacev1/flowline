@@ -195,7 +195,10 @@ def test_role_without_read_internal_note_permission_does_not_see_it_in_mutation_
     # операции заметки нет, зато её обратная операция (снимок для undo)
     # несёт полную копию задачи вместе с internal_note. Проверяем оба поля
     # на паре запросов, которая реально их заполняет.
-    import app.api.project_routes as project_routes
+    #
+    # Подменяется can() внутри access: решение о видимости заметки живёт там,
+    # а маршрут только зовёт access.visible_op.
+    import app.access as access
 
     project_id = authed.post("/api/projects", json={"name": "Redesign"}).json()["id"]
     category_id = authed.post(
@@ -203,7 +206,7 @@ def test_role_without_read_internal_note_permission_does_not_see_it_in_mutation_
         json={"op": {"type": "create_category", "name": "Design", "color": "#3b82f6"}},
     ).json()["op"]["category_id"]
 
-    real_can = project_routes.can
+    real_can = access.can
 
     def fake_can(role, action, *, project_granted=False):
         from app.access import Action
@@ -212,7 +215,7 @@ def test_role_without_read_internal_note_permission_does_not_see_it_in_mutation_
             return False
         return real_can(role, action, project_granted=project_granted)
 
-    monkeypatch.setattr(project_routes, "can", fake_can)
+    monkeypatch.setattr(access, "can", fake_can)
 
     create_response = authed.post(
         f"/api/projects/{project_id}/mutations",

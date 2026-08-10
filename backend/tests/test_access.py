@@ -1,6 +1,6 @@
 import pytest
 
-from app.access import Action, can, require
+from app.access import UNKNOWN_ROLE, Action, can, parse_role, require, visible_op
 from app.models import Role
 
 
@@ -41,3 +41,73 @@ def test_guest_reads_the_shared_project_and_comments():
 def test_require_raises_for_a_forbidden_action():
     with pytest.raises(PermissionError):
         require(Role.VIEWER, Action.PROJECT_WRITE)
+
+
+def test_owner_succeeds_without_an_explicit_project_grant():
+    # project_granted=False — это значение по умолчанию, и именно с ним
+    # приходят маршруты: owner не входит в _NEEDS_GRANT и не должен зависеть
+    # от гранта, который сегодня некому выдать.
+    for action in Action:
+        assert can(Role.OWNER, action) is True
+
+
+def test_comment_is_refused_to_client_and_guest_without_a_project_grant():
+    assert can(Role.CLIENT, Action.COMMENT, project_granted=False) is False
+    assert can(None, Action.COMMENT, project_granted=False) is False
+
+
+def test_an_unknown_role_gets_nothing():
+    """Матрица заперта по умолчанию: значение, которого нет в Role, не даёт
+    даже прав гостя — иначе испорченная запись членства превращалась бы в
+    повышение до «гостя по ссылке»."""
+    for action in Action:
+        assert can(UNKNOWN_ROLE, action) is False
+        assert can(UNKNOWN_ROLE, action, project_granted=True) is False
+
+
+def test_parse_role_turns_a_broken_value_into_a_refusal_not_a_crash():
+    # Role("шеф") поднимал ValueError — то есть пятисотку ещё до того, как
+    # спросят can(), и запертая матрица оказывалась недостижимой через HTTP.
+    assert parse_role("owner") is Role.OWNER
+    assert parse_role(None) is None
+    assert parse_role("шеф") == UNKNOWN_ROLE
+    assert can(parse_role("шеф"), Action.PROJECT_READ, project_granted=True) is False
+
+
+# ---- Видимость полей журнала ------------------------------------------------
+
+
+def _create_task_op() -> dict:
+    return {
+        "type": "create_task",
+        "task_id": "11111111-1111-1111-1111-111111111111",
+        "name": "Logo",
+        "internal_note": "тайный план",
+    }
+
+
+def test_visible_op_keeps_the_note_for_a_role_that_may_read_it():
+    payload = _create_task_op()
+    assert visible_op(payload, Role.EDITOR) == payload
+
+
+def test_visible_op_strips_the_note_for_client_and_guest():
+    payload = _create_task_op()
+
+    for role in (Role.CLIENT, None):
+        shown = visible_op(payload, role, project_granted=True)
+        assert "internal_note" not in shown
+        assert shown["name"] == "Logo"
+
+
+def test_visible_op_does_not_mutate_the_stored_payload():
+    # revision.op на самой записи трогать нельзя: будущая отмена восстановила
+    # бы задачу без заметки.
+    payload = _create_task_op()
+    visible_op(payload, Role.CLIENT, project_granted=True)
+    assert payload["internal_note"] == "тайный план"
+
+
+def test_visible_op_passes_through_operations_without_a_note():
+    payload = {"type": "delete_task", "task_id": "11111111-1111-1111-1111-111111111111"}
+    assert visible_op(payload, Role.CLIENT, project_granted=True) is payload

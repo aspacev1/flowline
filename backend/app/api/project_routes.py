@@ -5,11 +5,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
-from app.access import Action, can
+from app.access import Action, can, parse_role, visible_op
 from app.auth import current_user
 from app.calendar import end_date
 from app.db import get_db
-from app.models import Category, Membership, Organization, Project, Role, Task, User
+from app.models import Category, Membership, Organization, Project, Task, User
 from app.mutations import InvalidOperation, NotFoundInProject, PublicOp, apply_op, to_internal
 from app.projects import create_project as create_project_entity
 from app.settings_resolution import project_calendar
@@ -48,20 +48,8 @@ def _require_project_read(membership: Membership) -> None:
     не сравнивает роль напрямую. Отказ — 404, а не 403, тем же принципом,
     что и в _load_project: клиент без выданного доступа к проекту не должен
     отличить существующий проект от несуществующего."""
-    if not can(Role(membership.role), Action.PROJECT_READ):
+    if not can(parse_role(membership.role), Action.PROJECT_READ):
         raise HTTPException(status_code=404, detail="project_not_found")
-
-
-def _visible_op(payload: dict, *, show_notes: bool) -> dict:
-    """internal_note — единственное поле с ограниченной видимостью.
-    create_task/delete_task кладут его в op/inverse наравне с остальными
-    полями; здесь оно вычищается для тех, кому access отказывает в
-    Action.READ_INTERNAL_NOTE. Возвращает новый словарь — revision.op /
-    revision.inverse на самой записи не трогаются, иначе будущий undo
-    восстановил бы задачу без заметки."""
-    if show_notes or "internal_note" not in payload:
-        return payload
-    return {key: value for key, value in payload.items() if key != "internal_note"}
 
 
 @router.post("", response_model=ProjectOut, status_code=201)
@@ -69,7 +57,7 @@ def create_project(
     payload: ProjectIn, user: User = Depends(current_user), db: DbSession = Depends(get_db)
 ):
     membership = _membership(db, user)
-    if not can(Role(membership.role), Action.PROJECT_WRITE):
+    if not can(parse_role(membership.role), Action.PROJECT_WRITE):
         raise HTTPException(status_code=403, detail="forbidden")
 
     project = create_project_entity(db, org_id=membership.org_id, name=payload.name)
@@ -92,7 +80,7 @@ def get_project(
     _require_project_read(membership)
     org = db.get(Organization, project.org_id)
     calendar = project_calendar(project, org)
-    show_notes = can(Role(membership.role), Action.READ_INTERNAL_NOTE)
+    show_notes = can(parse_role(membership.role), Action.READ_INTERNAL_NOTE)
 
     # Позиции могут совпадать в одном крайнем случае (строка, восстановленная
     # отменой на позицию, которую с тех пор занял другой ряд), поэтому id —
@@ -142,7 +130,7 @@ def apply_mutation(
     db: DbSession = Depends(get_db),
 ):
     project, membership = _load_project(db, user, project_id)
-    if not can(Role(membership.role), Action.PROJECT_WRITE):
+    if not can(parse_role(membership.role), Action.PROJECT_WRITE):
         raise HTTPException(status_code=403, detail="forbidden")
 
     try:
@@ -154,9 +142,9 @@ def apply_mutation(
     except InvalidOperation as error:
         raise HTTPException(status_code=422, detail=error.code)
 
-    show_notes = can(Role(membership.role), Action.READ_INTERNAL_NOTE)
+    role = parse_role(membership.role)
     return {
         "seq": revision.seq,
-        "op": _visible_op(revision.op, show_notes=show_notes),
-        "inverse": _visible_op(revision.inverse, show_notes=show_notes),
+        "op": visible_op(revision.op, role),
+        "inverse": visible_op(revision.inverse, role),
     }
