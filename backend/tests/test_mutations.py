@@ -353,6 +353,52 @@ def test_create_task_rejects_a_category_from_another_project(db, project, other_
         )
 
 
+def test_create_after_a_delete_does_not_reuse_an_occupied_task_position(db, project, category):
+    first = apply_op(
+        db,
+        project,
+        CreateTask(
+            category_id=str(category.id), name="First", start_date=date(2026, 3, 4), duration_days=2
+        ),
+        actor_id=None,
+    )
+    second = apply_op(
+        db,
+        project,
+        CreateTask(
+            category_id=str(category.id), name="Second", start_date=date(2026, 3, 4), duration_days=2
+        ),
+        actor_id=None,
+    )
+    apply_op(db, project, DeleteTask(task_id=first.op["task_id"]), actor_id=None)
+    third = apply_op(
+        db,
+        project,
+        CreateTask(
+            category_id=str(category.id), name="Third", start_date=date(2026, 3, 4), duration_days=2
+        ),
+        actor_id=None,
+    )
+
+    # COUNT(*) после удаления считает оставшиеся строки, а не наибольший
+    # занятый номер: после удаления первой из двух задач остаётся одна
+    # строка, и COUNT(*) даёт 1 — тот же номер, что уже занят второй задачей.
+    second_position = db.get(Task, second.op["task_id"]).position
+    third_position = db.get(Task, third.op["task_id"]).position
+    assert second_position != third_position
+
+
+def test_create_after_a_delete_does_not_reuse_an_occupied_category_position(db, project):
+    first = apply_op(db, project, CreateCategory(name="First", color="#111111"), actor_id=None)
+    second = apply_op(db, project, CreateCategory(name="Second", color="#222222"), actor_id=None)
+    apply_op(db, project, DeleteCategory(category_id=first.op["category_id"]), actor_id=None)
+    third = apply_op(db, project, CreateCategory(name="Third", color="#333333"), actor_id=None)
+
+    second_position = db.get(Category, second.op["category_id"]).position
+    third_position = db.get(Category, third.op["category_id"]).position
+    assert second_position != third_position
+
+
 def test_undo_of_a_task_delete_restores_its_original_position(db, project, category):
     apply_op(
         db,

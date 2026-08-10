@@ -86,11 +86,17 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
     """Применяет операцию и возвращает пару (что записать в op, что записать в inverse)."""
 
     if isinstance(op, CreateCategory):
+        # max(position) + 1, а не COUNT(*): удаление пробивает дыру в
+        # нумерации, и COUNT(*) после удаления вновь выдаёт уже занятый
+        # номер. coalesce(..., -1) даёт 0 для пустой коллекции без отдельной
+        # ветки.
         position = (
             op.position
             if op.position is not None
             else db.scalar(
-                select(func.count()).select_from(Category).where(Category.project_id == project.id)
+                select(func.coalesce(func.max(Category.position), -1) + 1).where(
+                    Category.project_id == project.id
+                )
             )
         )
         category = Category(
@@ -115,11 +121,16 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
         # не то, что она принадлежит этому проекту. Без явной проверки задача
         # может незаметно оказаться под категорией чужого проекта.
         _require_category(db, project, op.category_id)
+        # Тот же принцип, что и для категорий: наибольшая занятая позиция + 1,
+        # а не COUNT(*) — иначе номер, освободившийся после удаления,
+        # достаётся следующей же созданной задаче ещё раз.
         position = (
             op.position
             if op.position is not None
             else db.scalar(
-                select(func.count()).select_from(Task).where(Task.project_id == project.id)
+                select(func.coalesce(func.max(Task.position), -1) + 1).where(
+                    Task.project_id == project.id
+                )
             )
         )
         task = Task(
