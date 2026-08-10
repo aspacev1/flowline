@@ -1,5 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from app.db import get_db
 from app.main import app
@@ -97,3 +98,142 @@ def test_mutation_on_a_foreign_project_returns_404(authed, db):
         json={"op": {"type": "create_category", "name": "X", "color": "#000000"}},
     )
     assert response.status_code == 404
+
+
+def test_get_project_on_a_foreign_project_returns_404(authed, db):
+    # Тот же обработчик _load_project, что и у мутаций, но здесь это отдельный
+    # маршрут (GET), и до сих пор эта ветка не была проверена для него.
+    from app.models import Organization, Project
+
+    other_org = Organization(name="Other", slug="other")
+    db.add(other_org)
+    db.flush()
+    foreign = Project(org_id=other_org.id, name="Secret", slug="secret")
+    db.add(foreign)
+    db.flush()
+
+    response = authed.get(f"/api/projects/{foreign.id}")
+    assert response.status_code == 404
+
+
+def _demote_own_membership(authed, db, role: str) -> None:
+    """Меняет роль зарегистрированного пользователя напрямую в записи
+    членства, минуя регистрацию (у неё роль всегда owner)."""
+    from app.models import Membership
+
+    user_id = authed.get("/api/auth/me").json()["id"]
+    membership = db.scalar(select(Membership).where(Membership.user_id == user_id))
+    membership.role = role
+    db.flush()
+
+
+def test_role_without_project_read_permission_gets_404_on_both_read_routes(authed, db):
+    # access._MATRIX: client входит в _NEEDS_GRANT и без выданного доступа к
+    # проекту не имеет даже PROJECT_READ — маршруты чтения обязаны спросить
+    # об этом can(), а не пускать любого члена организации.
+    project_id = authed.post("/api/projects", json={"name": "Redesign"}).json()["id"]
+
+    _demote_own_membership(authed, db, "client")
+
+    # чужой проект неотличим от несуществующего — тот же принцип применяется
+    # и к «есть проект, но роль не имеет права его читать»: 404, а не 403.
+    assert authed.get(f"/api/projects/{project_id}").status_code == 404
+    assert authed.get("/api/projects").status_code == 404
+
+
+def test_role_without_read_internal_note_permission_does_not_see_it_in_get_project(
+    authed, db, monkeypatch
+):
+    # Ни одна из ролей, доступных сегодня через HTTP без грантов на проект
+    # (owner/editor с правом записи всегда заодно имеют READ_INTERNAL_NOTE),
+    # не воспроизводит «читает проект, но не видит заметку» — этот разрыв
+    # появится вместе с приглашениями и ролью client с выданным доступом
+    # (план 5). Поэтому здесь can() подменяется точечно только для
+    # READ_INTERNAL_NOTE, чтобы проверить именно код маршрута, а не гадать
+    # о будущей инфраструктуре грантов.
+    import app.api.project_routes as project_routes
+
+    project_id = authed.post("/api/projects", json={"name": "Redesign"}).json()["id"]
+    category_id = authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={"op": {"type": "create_category", "name": "Design", "color": "#3b82f6"}},
+    ).json()["op"]["category_id"]
+    authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={
+            "op": {
+                "type": "create_task",
+                "category_id": category_id,
+                "name": "Logo",
+                "start_date": "2026-03-06",
+                "duration_days": 3,
+                "internal_note": "тайный план",
+            }
+        },
+    )
+
+    real_can = project_routes.can
+
+    def fake_can(role, action, *, project_granted=False):
+        from app.access import Action
+
+        if action is Action.READ_INTERNAL_NOTE:
+            return False
+        return real_can(role, action, project_granted=project_granted)
+
+    monkeypatch.setattr(project_routes, "can", fake_can)
+
+    state = authed.get(f"/api/projects/{project_id}").json()
+    assert "internal_note" not in state["tasks"][0]
+
+
+def test_role_without_read_internal_note_permission_does_not_see_it_in_mutation_response(
+    authed, monkeypatch
+):
+    # create_task кладёт internal_note в свой op, а его обратная операция —
+    # это голый delete_task без заметки; delete_task — наоборот, у самой
+    # операции заметки нет, зато её обратная операция (снимок для undo)
+    # несёт полную копию задачи вместе с internal_note. Проверяем оба поля
+    # на паре запросов, которая реально их заполняет.
+    import app.api.project_routes as project_routes
+
+    project_id = authed.post("/api/projects", json={"name": "Redesign"}).json()["id"]
+    category_id = authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={"op": {"type": "create_category", "name": "Design", "color": "#3b82f6"}},
+    ).json()["op"]["category_id"]
+
+    real_can = project_routes.can
+
+    def fake_can(role, action, *, project_granted=False):
+        from app.access import Action
+
+        if action is Action.READ_INTERNAL_NOTE:
+            return False
+        return real_can(role, action, project_granted=project_granted)
+
+    monkeypatch.setattr(project_routes, "can", fake_can)
+
+    create_response = authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={
+            "op": {
+                "type": "create_task",
+                "category_id": category_id,
+                "name": "Logo",
+                "start_date": "2026-03-06",
+                "duration_days": 3,
+                "internal_note": "тайный план",
+            }
+        },
+    )
+    created = create_response.json()
+    assert "internal_note" not in created["op"]
+    task_id = created["op"]["task_id"]
+
+    delete_response = authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={"op": {"type": "delete_task", "task_id": task_id}},
+    )
+    deleted = delete_response.json()
+    assert "internal_note" not in deleted["inverse"]
