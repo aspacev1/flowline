@@ -37,6 +37,28 @@ def category(db, project):
     return db.get(Category, revision.op["category_id"])
 
 
+@pytest.fixture
+def other_project(db):
+    org = Organization(name="Globex", slug="globex")
+    db.add(org)
+    db.flush()
+    project = Project(org_id=org.id, name="Migration", slug="migration")
+    db.add(project)
+    db.flush()
+    return project
+
+
+@pytest.fixture
+def other_category(db, other_project):
+    revision = apply_op(
+        db,
+        other_project,
+        CreateCategory(name="Ops", color="#22c55e"),
+        actor_id=None,
+    )
+    return db.get(Category, revision.op["category_id"])
+
+
 def test_create_task_writes_a_revision_after_the_category_one(db, project, category):
     revision = apply_op(
         db,
@@ -198,3 +220,171 @@ def test_set_duration_rejects_zero(db, project, category):
         apply_op(
             db, project, SetDuration(task_id=created.op["task_id"], duration_days=0), actor_id=None
         )
+
+
+def test_set_duration_changes_the_duration_and_records_both_bounds(db, project, category):
+    created = apply_op(
+        db,
+        project,
+        CreateTask(
+            category_id=str(category.id),
+            name="Logo",
+            start_date=date(2026, 3, 4),
+            duration_days=5,
+        ),
+        actor_id=None,
+    )
+    task_id = created.op["task_id"]
+
+    changed = apply_op(
+        db,
+        project,
+        SetDuration(task_id=task_id, duration_days=8),
+        actor_id=None,
+    )
+
+    assert changed.op == {
+        "type": "set_duration",
+        "task_id": task_id,
+        "from": 5,
+        "to": 8,
+    }
+    assert changed.inverse == {
+        "type": "set_duration",
+        "task_id": task_id,
+        "from": 8,
+        "to": 5,
+    }
+    assert db.get(Task, task_id).duration_days == 8
+
+
+def test_undo_of_set_duration_restores_the_previous_duration(db, project, category):
+    created = apply_op(
+        db,
+        project,
+        CreateTask(
+            category_id=str(category.id),
+            name="Logo",
+            start_date=date(2026, 3, 4),
+            duration_days=5,
+        ),
+        actor_id=None,
+    )
+    task_id = created.op["task_id"]
+
+    changed = apply_op(db, project, SetDuration(task_id=task_id, duration_days=8), actor_id=None)
+    undo(db, project, changed, actor_id=None)
+
+    assert db.get(Task, task_id).duration_days == 5
+
+
+def test_undo_of_create_task_removes_it(db, project, category):
+    created = apply_op(
+        db,
+        project,
+        CreateTask(
+            category_id=str(category.id),
+            name="Logo",
+            start_date=date(2026, 3, 4),
+            duration_days=5,
+        ),
+        actor_id=None,
+    )
+    task_id = created.op["task_id"]
+    assert db.get(Task, task_id) is not None
+
+    undo(db, project, created, actor_id=None)
+
+    assert db.get(Task, task_id) is None
+
+
+def test_undo_of_create_category_removes_it(db, project):
+    created = apply_op(
+        db,
+        project,
+        CreateCategory(name="Design", color="#3b82f6"),
+        actor_id=None,
+    )
+    category_id = created.op["category_id"]
+    assert db.get(Category, category_id) is not None
+
+    undo(db, project, created, actor_id=None)
+
+    assert db.get(Category, category_id) is None
+
+
+def test_operation_naming_a_task_from_another_project_is_rejected(
+    db, project, other_project, other_category
+):
+    foreign = apply_op(
+        db,
+        other_project,
+        CreateTask(
+            category_id=str(other_category.id),
+            name="Foreign task",
+            start_date=date(2026, 3, 4),
+            duration_days=3,
+        ),
+        actor_id=None,
+    )
+    foreign_task_id = foreign.op["task_id"]
+
+    with pytest.raises(ValueError, match="не найдена в этом проекте"):
+        apply_op(
+            db,
+            project,
+            MoveTask(task_id=foreign_task_id, start_date=date(2026, 3, 11)),
+            actor_id=None,
+        )
+
+
+def test_create_task_rejects_a_category_from_another_project(db, project, other_category):
+    with pytest.raises(ValueError, match="не найдена в этом проекте"):
+        apply_op(
+            db,
+            project,
+            CreateTask(
+                category_id=str(other_category.id),
+                name="Logo",
+                start_date=date(2026, 3, 4),
+                duration_days=5,
+            ),
+            actor_id=None,
+        )
+
+
+def test_undo_of_a_task_delete_restores_its_original_position(db, project, category):
+    apply_op(
+        db,
+        project,
+        CreateTask(
+            category_id=str(category.id), name="First", start_date=date(2026, 3, 4), duration_days=2
+        ),
+        actor_id=None,
+    )
+    second = apply_op(
+        db,
+        project,
+        CreateTask(
+            category_id=str(category.id), name="Second", start_date=date(2026, 3, 4), duration_days=2
+        ),
+        actor_id=None,
+    )
+    second_task_id = second.op["task_id"]
+    assert db.get(Task, second_task_id).position == 1
+
+    deleted = apply_op(db, project, DeleteTask(task_id=second_task_id), actor_id=None)
+    # Другая задача занимает освободившееся место — наивный пересчёт при
+    # отмене удаления сдвинул бы восстановленную задачу в конец списка.
+    apply_op(
+        db,
+        project,
+        CreateTask(
+            category_id=str(category.id), name="Third", start_date=date(2026, 3, 4), duration_days=2
+        ),
+        actor_id=None,
+    )
+
+    undo(db, project, deleted, actor_id=None)
+
+    assert db.get(Task, second_task_id).position == 1

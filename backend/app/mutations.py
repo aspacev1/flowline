@@ -14,6 +14,7 @@ class CreateCategory(BaseModel):
     name: str
     color: str
     category_id: uuid.UUID | None = None
+    position: int | None = None
 
 
 class CreateTask(BaseModel):
@@ -23,8 +24,13 @@ class CreateTask(BaseModel):
     start_date: date
     duration_days: int
     description: str = ""
+    internal_note: str = ""
     criticality: str = "normal"
+    progress_pct: int = 0
+    baseline_start: date | None = None
+    baseline_duration: int | None = None
     task_id: uuid.UUID | None = None
+    position: int | None = None
 
 
 class MoveTask(BaseModel):
@@ -69,42 +75,67 @@ def _require_task(db: DbSession, project: Project, task_id: uuid.UUID) -> Task:
     return task
 
 
+def _require_category(db: DbSession, project: Project, category_id: uuid.UUID) -> Category:
+    category = db.get(Category, category_id)
+    if category is None or category.project_id != project.id:
+        raise ValueError("категория не найдена в этом проекте")
+    return category
+
+
 def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
     """Применяет операцию и возвращает пару (что записать в op, что записать в inverse)."""
 
     if isinstance(op, CreateCategory):
+        position = (
+            op.position
+            if op.position is not None
+            else db.scalar(
+                select(func.count()).select_from(Category).where(Category.project_id == project.id)
+            )
+        )
         category = Category(
             id=op.category_id or uuid.uuid4(),
             project_id=project.id,
             name=op.name,
             color=op.color,
-            position=db.scalar(
-                select(func.count()).select_from(Category).where(Category.project_id == project.id)
-            ),
+            position=position,
         )
         db.add(category)
         db.flush()
         return (
             {"type": "create_category", "category_id": str(category.id), "name": op.name,
-             "color": op.color},
+             "color": op.color, "position": category.position},
             {"type": "delete_category", "category_id": str(category.id)},
         )
 
     if isinstance(op, CreateTask):
         if op.duration_days < 1:
             raise ValueError("длительность должна быть не меньше одного дня")
+        # Внешний ключ гарантирует лишь, что категория где-то существует —
+        # не то, что она принадлежит этому проекту. Без явной проверки задача
+        # может незаметно оказаться под категорией чужого проекта.
+        _require_category(db, project, op.category_id)
+        position = (
+            op.position
+            if op.position is not None
+            else db.scalar(
+                select(func.count()).select_from(Task).where(Task.project_id == project.id)
+            )
+        )
         task = Task(
             id=op.task_id or uuid.uuid4(),
             project_id=project.id,
             category_id=op.category_id,
             name=op.name,
             description=op.description,
+            internal_note=op.internal_note,
             start_date=op.start_date,
             duration_days=op.duration_days,
             criticality=op.criticality,
-            position=db.scalar(
-                select(func.count()).select_from(Task).where(Task.project_id == project.id)
-            ),
+            progress_pct=op.progress_pct,
+            position=position,
+            baseline_start=op.baseline_start,
+            baseline_duration=op.baseline_duration,
         )
         db.add(task)
         db.flush()
@@ -117,7 +148,12 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
                 "start_date": task.start_date.isoformat(),
                 "duration_days": task.duration_days,
                 "description": task.description,
+                "internal_note": task.internal_note,
                 "criticality": task.criticality,
+                "progress_pct": task.progress_pct,
+                "position": task.position,
+                "baseline_start": task.baseline_start.isoformat() if task.baseline_start else None,
+                "baseline_duration": task.baseline_duration,
             },
             {"type": "delete_task", "task_id": str(task.id)},
         )
@@ -149,9 +185,7 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
         )
 
     if isinstance(op, DeleteCategory):
-        category = db.get(Category, op.category_id)
-        if category is None or category.project_id != project.id:
-            raise ValueError("категория не найдена в этом проекте")
+        category = _require_category(db, project, op.category_id)
         remaining = db.scalar(
             select(func.count()).select_from(Task).where(Task.category_id == category.id)
         )
@@ -164,6 +198,7 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
             "category_id": str(category.id),
             "name": category.name,
             "color": category.color,
+            "position": category.position,
         }
         db.delete(category)
         db.flush()
@@ -179,7 +214,12 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
             "start_date": task.start_date.isoformat(),
             "duration_days": task.duration_days,
             "description": task.description,
+            "internal_note": task.internal_note,
             "criticality": task.criticality,
+            "progress_pct": task.progress_pct,
+            "position": task.position,
+            "baseline_start": task.baseline_start.isoformat() if task.baseline_start else None,
+            "baseline_duration": task.baseline_duration,
         }
         db.delete(task)
         db.flush()
