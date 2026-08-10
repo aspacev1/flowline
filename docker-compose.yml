@@ -5,7 +5,7 @@ services:
       POSTGRES_USER: flowline
       POSTGRES_PASSWORD: flowline
       POSTGRES_DB: flowline
-    ports: ["5432:5432"]
+    ports: ["${DB_PORT:-5432}:5432"]
     volumes: ["pgdata:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U flowline"]
