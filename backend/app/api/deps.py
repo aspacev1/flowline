@@ -17,25 +17,12 @@ from app.access import Action, can, parse_role
 from app.auth import current_user
 from app.db import get_db
 from app.models import Membership, Organization, Project, ProjectAccess, Role, User
+from app.orgs import current_membership
 
-
-def current_membership(db: DbSession, user: User) -> Membership:
-    # Человек может состоять в нескольких организациях; переключателя ещё
-    # нет, и маршрут берёт первую. Порядок задан явно, чтобы «первая» была
-    # хотя бы одной и той же от запроса к запросу, а не той, что первой
-    # вернул планировщик.
-    membership = db.scalar(
-        select(Membership).where(Membership.user_id == user.id).order_by(Membership.id)
-    )
-    if membership is None:
-        raise HTTPException(status_code=403, detail="no_organization")
-    return membership
-
-
-def membership_dependency(
-    user: User = Depends(current_user), db: DbSession = Depends(get_db)
-) -> Membership:
-    return current_membership(db, user)
+# Членство берётся из app.orgs, а не ищется здесь: с приглашениями второе
+# членство стало обычным делом, и «в какой организации выполняется запрос»
+# решает выбор, живущий в сессии, — один ответ на всё приложение.
+__all__ = ["ProjectContext", "current_membership", "project_context", "project_granted"]
 
 
 def project_granted(db: DbSession, project_id: uuid.UUID, user_id: uuid.UUID) -> bool:
@@ -87,6 +74,7 @@ class ProjectContext:
 def project_context(
     project_id: uuid.UUID,
     user: User = Depends(current_user),
+    membership: Membership = Depends(current_membership),
     db: DbSession = Depends(get_db),
 ) -> ProjectContext:
     """Проект по адресу — вместе с правом его читать.
@@ -96,7 +84,6 @@ def project_context(
     перебирать чужие проекты — а роль `client` видит ровно те, куда её позвали,
     и знать о существовании остальных не должна.
     """
-    membership = current_membership(db, user)
     project = db.get(Project, project_id)
     if project is None or project.org_id != membership.org_id:
         raise HTTPException(status_code=404, detail="project_not_found")

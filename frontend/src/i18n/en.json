@@ -69,7 +69,8 @@
   },
   "nav": {
     "projects": "Projects",
-    "logout": "Log out"
+    "logout": "Log out",
+    "members": "Members"
   },
   "locale": {
     "switch_label": "Interface language"
@@ -93,6 +94,15 @@
       "no_account": "No account yet?",
       "link_register": "Register"
     },
+    "verify": {
+      "title": "Email confirmation",
+      "checking": "Checking the link…",
+      "done": "Your email address is confirmed",
+      "resend": "Send the letter again",
+      "resent": "The letter is on its way — check your inbox",
+      "not_sent": "The letter could not be sent. Try again later",
+      "link_projects": "Go to projects"
+    },
     "error": {
       "email_taken": "This address is already taken",
       "bad_credentials": "Wrong email or password",
@@ -100,7 +110,12 @@
       "not_authenticated": "Log in to continue",
       "session_expired": "Your session has expired, log in again",
       "validation_error": "Check the form: some fields are filled in incorrectly",
-      "password_too_short": "The password must be at least 8 characters long"
+      "password_too_short": "The password must be at least 8 characters long",
+      "missing_token": "The link carries no token — copy it from the letter in full",
+      "invalid_token": "This link does not work: it has probably been used already",
+      "token_expired": "The link has expired",
+      "already_verified": "The address is already confirmed",
+      "too_many_requests": "Too soon: wait a minute and try again"
     }
   },
   "error": {
@@ -129,7 +144,20 @@
     "comment_empty": "The comment is empty",
     "comment_too_long": "The comment is too long",
     "guest_name_required": "Enter your name — a comment should not go unsigned",
-    "too_many_comments": "That is too many comments too fast. Please wait a little"
+    "too_many_comments": "That is too many comments too fast. Please wait a little",
+    "invite_not_found": "No such invitation — check the whole link",
+    "invite_expired": "The link has expired — ask for a new one",
+    "invite_revoked": "The invitation was revoked — ask for a new one",
+    "invite_accepted": "The invitation has already been accepted — just sign in",
+    "invite_wrong_email": "The invitation was issued to a different address",
+    "invite_rate_limited": "Too many invitations this hour — try again later",
+    "invalid_email": "Check the addresses: one of them is empty or is not an email",
+    "unknown_role": "There is no such role",
+    "project_ids_need_client_role": "Projects are chosen for the client role only",
+    "organization_not_found": "Organization not found",
+    "mail_failed": "The email did not go out — copy the link and send it yourself",
+    "mail_not_configured": "Mail is not configured in this installation",
+    "mail_disabled": "Mail is turned off in this installation"
   },
   "projects": {
     "title": "Projects",
@@ -249,5 +277,65 @@
   },
   "public": {
     "badge": "Public page"
+  },
+  "org": {
+    "switch_label": "Organization"
+  },
+  "members": {
+    "title": "Members",
+    "invite": "Invite",
+    "role": {
+      "owner": "Owner",
+      "editor": "Editor",
+      "viewer": "Viewer",
+      "client": "Client"
+    }
+  },
+  "invite": {
+    "title": "Invite to the organization",
+    "emails": "Addresses",
+    "emails_hint": "Several at once — separated by commas or line breaks",
+    "link_only": "Link without an address",
+    "link_only_hint": "With no address you get a link invitation: it belongs to whoever opens it",
+    "role": "Role",
+    "projects": "Projects",
+    "projects_hint": "A client sees only the projects ticked here",
+    "deliver": "Send an email",
+    "submit": "Create the invitation",
+    "list": {
+      "title": "Invitations",
+      "empty": "Nobody has been invited yet"
+    },
+    "status": {
+      "pending": "Waiting",
+      "accepted": "Accepted",
+      "revoked": "Revoked",
+      "expired": "Expired"
+    },
+    "action": {
+      "link": "New link",
+      "resend": "Send again",
+      "revoke": "Revoke"
+    },
+    "issued": {
+      "link": "Invitation link",
+      "once": "Copy the link now: there is nowhere to take it a second time — the server keeps only its fingerprint",
+      "copy": "Copy",
+      "copied": "Copied",
+      "sent": "Email sent",
+      "done": "Done"
+    },
+    "accept": {
+      "title": "Invitation",
+      "summary": "You are invited to “{org}” — role: {role}",
+      "inviter": "Invited by {name}",
+      "bearer": "This is a link invitation: it works for whoever opened it",
+      "register": "Create an account",
+      "login": "Sign in",
+      "submit": "Accept the invitation",
+      "wrong_account": "The invitation was issued to {email}. Sign out and sign in with that address",
+      "logout": "Sign out",
+      "go_home": "To projects"
+    }
   }
 }

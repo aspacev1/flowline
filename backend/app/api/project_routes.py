@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
 from app.access import Action, can, needs_project_grant, parse_role, visible_op
-from app.api.deps import ProjectContext, membership_dependency, project_context
+from app.api.deps import ProjectContext, project_context
 from app.api.serialization import comments_out, project_state
 from app.auth import current_user
 from app.calendar import CalendarError
@@ -14,6 +14,7 @@ from app.comments import CommentRejected, add_comment, list_comments
 from app.db import get_db
 from app.models import Membership, Project, ProjectAccess, Revision, User
 from app.mutations import InvalidOperation, NotFoundInProject, PublicOp, apply_op, to_internal
+from app.orgs import current_membership
 from app.projects import create_project as create_project_entity
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -37,7 +38,7 @@ class CommentIn(BaseModel):
 @router.post("", response_model=ProjectOut, status_code=201)
 def create_project(
     payload: ProjectIn,
-    membership: Membership = Depends(membership_dependency),
+    membership: Membership = Depends(current_membership),
     db: DbSession = Depends(get_db),
 ):
     if not can(parse_role(membership.role), Action.PROJECT_WRITE):
@@ -50,7 +51,7 @@ def create_project(
 @router.get("", response_model=list[ProjectOut])
 def list_projects(
     user: User = Depends(current_user),
-    membership: Membership = Depends(membership_dependency),
+    membership: Membership = Depends(current_membership),
     db: DbSession = Depends(get_db),
 ):
     role = parse_role(membership.role)

@@ -13,6 +13,10 @@ const AUTH_CODES = new Set([
   "session_expired",
   "validation_error",
   "password_too_short",
+  "invalid_token",
+  "token_expired",
+  "already_verified",
+  "too_many_requests",
 ]);
 
 const PLAIN_CODES = new Set([
@@ -45,6 +49,24 @@ const PLAIN_CODES = new Set([
   "comment_too_long",
   "guest_name_required",
   "too_many_comments",
+  // Приглашения. Три состояния мёртвой ссылки названы порознь, а не одним
+  // «ссылка недействительна»: по «просрочено» человек просит новую, по
+  // «принято» просто входит, по «отозвано» идёт к тому, кто звал.
+  "invite_not_found",
+  "invite_expired",
+  "invite_revoked",
+  "invite_accepted",
+  "invite_wrong_email",
+  "invite_rate_limited",
+  "invalid_email",
+  "unknown_role",
+  "project_ids_need_client_role",
+  "organization_not_found",
+  // Отказы почты. Отдельный код у каждого: «письмо не ушло» и «почта в этой
+  // установке не настроена» чинятся разными людьми.
+  "mail_failed",
+  "mail_not_configured",
+  "mail_disabled",
 ]);
 
 /** Ключ словаря, которым объясняется ошибка. Сырой код наружу не выходит. */
