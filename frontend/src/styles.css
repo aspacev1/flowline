@@ -80,6 +80,24 @@ body {
   max-width: 380px;
 }
 
+/* Диаграмма занимает всю ширину экрана: ради неё человек сюда и пришёл. */
+.screen--wide {
+  max-width: none;
+}
+
+.screen__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--gap);
+  margin-bottom: 24px;
+}
+
+.screen__head h1 {
+  margin: 0;
+}
+
 .screen--center {
   display: flex;
   justify-content: center;
@@ -169,10 +187,52 @@ button:disabled {
 }
 
 .projects li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 12px 16px;
+}
+
+.projects__slug {
+  font-size: 14px;
+}
+
+/* --- модальное окно --- */
+
+.modal__backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--gap);
+  background: rgb(0 0 0 / 45%);
+}
+
+.modal {
+  width: 100%;
+  max-width: 420px;
+  max-height: 100%;
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+}
+
+.modal__title {
+  font-size: 18px;
+  margin: 0 0 var(--gap);
+}
+
+.modal__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 24px;
 }
 
 .empty {

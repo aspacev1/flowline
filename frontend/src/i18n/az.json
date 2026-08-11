@@ -4,6 +4,8 @@
   },
   "common": {
     "loading": "Yüklənir…",
+    "create": "Yarat",
+    "cancel": "Ləğv et",
     "days": {
       "one": "{count} gün",
       "other": "{count} gün"
@@ -49,7 +51,8 @@
     "network": "Server əlçatan deyil. Bağlantını yoxlayıb yenidən cəhd edin",
     "unknown": "Gözlənilməz xəta baş verdi",
     "no_organization": "Siz heç bir təşkilata daxil deyilsiniz",
-    "forbidden": "Bunun üçün icazəniz yoxdur"
+    "forbidden": "Bunun üçün icazəniz yoxdur",
+    "project_not_found": "Layihə tapılmadı"
   },
   "projects": {
     "title": "Layihələr",
@@ -58,6 +61,9 @@
       "hint": "İlk layihəni yaradın — kateqoriyalar və tapşırıqlar onun içində yaşayacaq"
     },
     "create": "Layihə yarat",
-    "create_soon": "Layihə yaratma sehrbazı hazırlanır"
+    "new": {
+      "title": "Yeni layihə",
+      "name": "Ad"
+    }
   }
 }

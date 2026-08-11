@@ -4,6 +4,8 @@
   },
   "common": {
     "loading": "Loading…",
+    "create": "Create",
+    "cancel": "Cancel",
     "days": {
       "one": "{count} day",
       "other": "{count} days"
@@ -49,7 +51,8 @@
     "network": "The server is unavailable. Check your connection and try again",
     "unknown": "Something unexpected went wrong",
     "no_organization": "You do not belong to any organization",
-    "forbidden": "You are not allowed to do this"
+    "forbidden": "You are not allowed to do this",
+    "project_not_found": "Project not found"
   },
   "projects": {
     "title": "Projects",
@@ -58,6 +61,9 @@
       "hint": "Create the first project — categories and tasks will live inside it"
     },
     "create": "Create project",
-    "create_soon": "The project creation wizard is on its way"
+    "new": {
+      "title": "New project",
+      "name": "Name"
+    }
   }
 }

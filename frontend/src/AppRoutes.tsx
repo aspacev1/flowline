@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import { RequireAuth } from "./auth/RequireAuth";
 import { Login } from "./screens/Login";
+import { Project } from "./screens/Project";
 import { Projects } from "./screens/Projects";
 import { Register } from "./screens/Register";
 
@@ -18,6 +19,7 @@ export function AppRoutes() {
       <Route path="/login" element={<Login />} />
       <Route element={<RequireAuth />}>
         <Route path="/projects" element={<Projects />} />
+        <Route path="/projects/:projectId" element={<Project />} />
       </Route>
       {/* Неизвестный адрес ведёт внутрь, а оттуда — на вход, если человек не
           вошёл. Отдельный экран «не найдено» появится, когда появятся адреса,

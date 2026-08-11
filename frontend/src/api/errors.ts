@@ -15,7 +15,12 @@ const AUTH_CODES = new Set([
   "password_too_short",
 ]);
 
-const PLAIN_CODES = new Set(["network", "no_organization", "forbidden"]);
+const PLAIN_CODES = new Set([
+  "network",
+  "no_organization",
+  "forbidden",
+  "project_not_found",
+]);
 
 /** Ключ словаря, которым объясняется ошибка. Сырой код наружу не выходит. */
 export function errorKey(error: unknown): string {
