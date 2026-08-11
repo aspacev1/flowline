@@ -85,6 +85,51 @@
   font-size: 13px;
 }
 
+.panel__history {
+  margin-top: var(--gap);
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.panel__history-title {
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.panel__events {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.panel__event {
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.panel__event-line,
+.panel__event-meta {
+  margin: 0;
+}
+
+.panel__event-actor {
+  font-weight: 600;
+}
+
+.panel__event-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* Причина набрана иначе, чем событие: это слова человека внутри строки,
+   собранной приложением, и их не должно быть видно как одно целое. */
+.panel__event-reason {
+  font-style: italic;
+}
+
 /* Назначенный исполнитель отличается заливкой, а не только галочкой: список
    читают взглядом по кругу, и различие обязано быть видно с расстояния. */
 .panel__chip[aria-pressed="true"] {

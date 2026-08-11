@@ -157,6 +157,9 @@ export function projectFixtures() {
     http.get("/api/org", () => HttpResponse.json({ ...ORG, role })),
     http.get("/api/org/members", () => HttpResponse.json(MEMBERS)),
     http.get("/api/projects/p1", () => HttpResponse.json(state)),
+    // Журнал карточки. Пустой по умолчанию: тест, которому история важна,
+    // объявляет её сам.
+    http.get("/api/projects/p1/revisions", () => HttpResponse.json([])),
     http.post("/api/projects/p1/mutations", async ({ request }) => {
       const body = (await request.json()) as Sent;
       sent.push(body);

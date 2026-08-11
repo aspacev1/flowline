@@ -181,6 +181,32 @@
       "submit": "Создать задачу"
     }
   },
+  "history": {
+    "title": "История",
+    "empty": "Записей пока нет",
+    "unknown": "изменил задачу",
+    "move_task": "перенёс старт с {from} на {to}",
+    "set_duration": "изменил длительность с {from} на {to}",
+    "set_progress": "изменил готовность с {from}% на {to}%",
+    "set_criticality": "изменил критичность с «{from}» на «{to}»",
+    "set_task_fields": "изменил {fields}",
+    "field": {
+      "name": "название",
+      "description": "описание",
+      "internal_note": "внутреннюю заметку"
+    },
+    "create_task": "создал задачу",
+    "delete_task": "удалил задачу",
+    "reorder_task": "переставил задачу",
+    "assign_user": "назначил исполнителя",
+    "unassign_user": "снял исполнителя",
+    "add_dependency": "добавил связь",
+    "remove_dependency": "убрал связь",
+    "create_category": "создал категорию",
+    "delete_category": "удалил категорию",
+    "rename_category": "переименовал категорию с «{from}» на «{to}»",
+    "set_category_color": "изменил цвет категории"
+  },
   "gantt": {
     "empty": "В проекте пока ни одной категории. Создайте категорию, а внутри неё — задачи",
     "today": "Сегодня",

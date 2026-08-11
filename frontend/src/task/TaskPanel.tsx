@@ -10,6 +10,7 @@ import { useProjectMutation } from "../project/useProjectMutation";
 import { formatShortDate } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
 import { SelectField, TextField, ValueField } from "./fields";
+import { History } from "./History";
 
 import "./panel.css";
 
@@ -286,6 +287,8 @@ export function TaskPanel({
           </div>
         </fieldset>
       )}
+
+      <History projectId={projectId} taskId={task.id} />
     </aside>
   );
 }

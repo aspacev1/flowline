@@ -179,6 +179,32 @@
       "submit": "Create task"
     }
   },
+  "history": {
+    "title": "History",
+    "empty": "Nothing here yet",
+    "unknown": "changed the task",
+    "move_task": "moved the start from {from} to {to}",
+    "set_duration": "changed the duration from {from} to {to}",
+    "set_progress": "changed progress from {from}% to {to}%",
+    "set_criticality": "changed criticality from “{from}” to “{to}”",
+    "set_task_fields": "changed the {fields}",
+    "field": {
+      "name": "name",
+      "description": "description",
+      "internal_note": "internal note"
+    },
+    "create_task": "created the task",
+    "delete_task": "deleted the task",
+    "reorder_task": "moved the task",
+    "assign_user": "added an assignee",
+    "unassign_user": "removed an assignee",
+    "add_dependency": "added a link",
+    "remove_dependency": "removed a link",
+    "create_category": "created the category",
+    "delete_category": "deleted the category",
+    "rename_category": "renamed the category from “{from}” to “{to}”",
+    "set_category_color": "changed the category colour"
+  },
   "gantt": {
     "empty": "This project has no categories yet. Create a category — tasks live inside it",
     "today": "Today",

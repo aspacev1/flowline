@@ -179,6 +179,32 @@
       "submit": "Tapşırıq yarat"
     }
   },
+  "history": {
+    "title": "Tarixçə",
+    "empty": "Hələ heç bir qeyd yoxdur",
+    "unknown": "tapşırığı dəyişdi",
+    "move_task": "başlanğıcı {from} → {to} dəyişdi",
+    "set_duration": "müddəti {from} → {to} dəyişdi",
+    "set_progress": "tamamlanmanı {from}% → {to}% dəyişdi",
+    "set_criticality": "kritikliyi «{from}» → «{to}» dəyişdi",
+    "set_task_fields": "{fields} dəyişdi",
+    "field": {
+      "name": "adı",
+      "description": "təsviri",
+      "internal_note": "daxili qeydi"
+    },
+    "create_task": "tapşırığı yaratdı",
+    "delete_task": "tapşırığı sildi",
+    "reorder_task": "tapşırığı daşıdı",
+    "assign_user": "icraçı təyin etdi",
+    "unassign_user": "icraçını çıxardı",
+    "add_dependency": "əlaqə əlavə etdi",
+    "remove_dependency": "əlaqəni sildi",
+    "create_category": "kateqoriya yaratdı",
+    "delete_category": "kateqoriyanı sildi",
+    "rename_category": "kateqoriyanın adını «{from}» → «{to}» dəyişdi",
+    "set_category_color": "kateqoriyanın rəngini dəyişdi"
+  },
   "gantt": {
     "empty": "Layihədə hələ bir dənə də kateqoriya yoxdur. Kateqoriya yaradın, tapşırıqlar isə onun içində olacaq",
     "today": "Bu gün",
