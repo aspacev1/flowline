@@ -1,5 +1,7 @@
 import type { Category, Task } from "../api/projects";
 import { useDragDates } from "./useDragDates";
+import { halfOf } from "./useReorder";
+import type { Reorder } from "./useReorder";
 import type { Scale } from "./timescale";
 
 /**
@@ -16,12 +18,14 @@ export function CategoryRow({
   scale,
   addLabel,
   onAddTask,
+  reorder,
 }: {
   category: Category;
   tasks: Task[];
   scale: Scale;
   addLabel: string;
   onAddTask?: (categoryId: string) => void;
+  reorder?: Reorder;
 }) {
   const span =
     tasks.length === 0
@@ -32,7 +36,13 @@ export function CategoryRow({
         };
 
   return (
-    <div className="gantt__row gantt__row--category">
+    <div
+      className={`gantt__row gantt__row--category ${reorder?.markFor("category", category.id) ?? ""}`.trimEnd()}
+      // Заголовок категории — тоже цель броска: перенести задачу в другую
+      // категорию иначе можно было бы только через список в карточке.
+      onPointerMove={() => reorder?.over({ kind: "category", id: category.id, half: "bottom" })}
+      onPointerUp={() => reorder?.drop()}
+    >
       <div className="gantt__label">
         <span className="gantt__dot" style={{ background: category.color }} aria-hidden="true" />
         <span className="gantt__label-name">{category.name}</span>
@@ -87,6 +97,8 @@ export function TaskRow({
   canWrite = false,
   selected = false,
   onSelect,
+  reorder,
+  handleLabel,
 }: {
   projectId: string;
   task: Task;
@@ -98,12 +110,43 @@ export function TaskRow({
   /** Открыта ли карточка этой задачи. */
   selected?: boolean;
   onSelect?: (taskId: string) => void;
+  reorder?: Reorder;
+  handleLabel?: string;
 }) {
   const { offset, handlers } = useDragDates({ projectId, task, scale, enabled: canWrite });
 
   return (
-    <div className={`gantt__row${selected ? " is-selected" : ""}`}>
+    <div
+      className={`gantt__row${selected ? " is-selected" : ""} ${
+        reorder?.markFor("task", task.id) ?? ""
+      }`.trimEnd()}
+      onPointerMove={(event) => reorder?.over({ kind: "task", id: task.id, half: halfOf(event) })}
+      onPointerUp={() => reorder?.drop()}
+    >
       <div className="gantt__label">
+        {reorder?.enabled && (
+          // Ручка отдельно от полоски: за неё меняют порядок, за полоску —
+          // даты.
+          //
+          // Не кнопка и скрыта от чтения с экрана намеренно. Кнопка обещала бы
+          // работу с клавиатуры, а перестановка строк с клавиатуры в этот план
+          // не входит: объявить десять кнопок, ни одна из которых не
+          // срабатывает по Enter, хуже, чем не объявлять их вовсе. Полоска
+          // задачи при этом остаётся кнопкой и по-прежнему двигается стрелками.
+          <span
+            className="gantt__handle"
+            aria-hidden="true"
+            title={handleLabel}
+            onPointerDown={(event) => {
+              // Без этого нажатие уводит фокус и начинает выделение текста
+              // вместо перетаскивания.
+              event.preventDefault();
+              reorder.start(task.id);
+            }}
+          >
+            ⠿
+          </span>
+        )}
         <span className="gantt__label-name">{task.name}</span>
         {late && (
           <span className="gantt__flag" title={lateLabel} role="img" aria-label={lateLabel}>

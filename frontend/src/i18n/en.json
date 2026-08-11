@@ -182,6 +182,7 @@
   "gantt": {
     "empty": "This project has no categories yet. Create a category — tasks live inside it",
     "today": "Today",
+    "reorder": "Reorder “{name}”",
     "deadline": "Deadline {date}",
     "late": "Ends after the deadline",
     "summary": {

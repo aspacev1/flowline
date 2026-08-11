@@ -188,6 +188,48 @@
   font-weight: 700;
 }
 
+/* Ручка перетаскивания: появляется при наведении на строку. Постоянно видимая
+   она превратила бы левую колонку в частокол из точек, а при чтении с экрана
+   она есть всегда — видимость не влияет на доступное дерево. */
+.gantt__handle {
+  flex: 0 0 auto;
+  padding: 0 2px;
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  line-height: 1;
+  cursor: grab;
+  opacity: 0;
+  /* Строку тащат пальцем: без этого браузер принимает жест за прокрутку. */
+  touch-action: none;
+}
+
+.gantt__row:hover .gantt__handle,
+.gantt__handle:focus-visible {
+  opacity: 1;
+}
+
+.gantt.is-reordering .gantt__handle {
+  cursor: grabbing;
+}
+
+/* Линия вставки. Тень внутрь, а не рамка: рамка добавила бы строке высоту, и
+   соседи дёргались бы на пиксель при каждом движении курсора. */
+.gantt__row.drop-before .gantt__label,
+.gantt__row.drop-before .gantt__lane {
+  box-shadow: inset 0 2px 0 0 var(--accent);
+}
+
+.gantt__row.drop-after .gantt__label,
+.gantt__row.drop-after .gantt__lane {
+  box-shadow: inset 0 -2px 0 0 var(--accent);
+}
+
+.gantt__row.drop-into .gantt__label,
+.gantt__row.drop-into .gantt__lane {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
 .gantt__add {
   margin-left: auto;
   flex: 0 0 auto;

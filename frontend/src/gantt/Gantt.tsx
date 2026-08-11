@@ -6,6 +6,7 @@ import { useLocale } from "../i18n/LocaleProvider";
 import { Grid } from "./Grid";
 import { Header } from "./Header";
 import { CategoryRow, TaskRow } from "./Row";
+import { useReorder } from "./useReorder";
 import { DAY_WIDTH, projectWindow } from "./scale";
 import { buildScale, daysBetween, toISO } from "./timescale";
 
@@ -43,6 +44,7 @@ export function Gantt({
 }) {
   const { t } = useLocale();
   const scroller = useRef<HTMLDivElement>(null);
+  const reorder = useReorder({ projectId, state, canWrite });
 
   const today = toISO(Date.now());
   // Зависимость — границы окна, а не само состояние: после каждого изменения
@@ -75,7 +77,7 @@ export function Gantt({
   const isLate = (task: Task) => state.deadline !== null && task.end_date > state.deadline;
 
   return (
-    <div className="gantt">
+    <div className={`gantt${reorder.active ? " is-reordering" : ""}`}>
       <Summary state={state} formatDay={formatDay} />
 
       {categories.length === 0 ? (
@@ -116,6 +118,7 @@ export function Gantt({
                         scale={scale}
                         addLabel={t("task.add_to", { category: category.name })}
                         onAddTask={onAddTask}
+                        reorder={reorder}
                       />
                       {tasks.map((task) => (
                         <TaskRow
@@ -129,6 +132,8 @@ export function Gantt({
                           title={`${formatDay(task.start_date)} — ${formatDay(task.end_date)}`}
                           selected={task.id === selectedTaskId}
                           onSelect={onSelectTask}
+                          reorder={reorder}
+                          handleLabel={t("gantt.reorder", { name: task.name })}
                         />
                       ))}
                     </div>
