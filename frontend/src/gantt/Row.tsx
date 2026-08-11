@@ -1,3 +1,5 @@
+import type { HTMLAttributes, ReactNode } from "react";
+
 import type { Category, Task } from "../api/projects";
 import { useDragDates } from "./useDragDates";
 import { halfOf } from "./useReorder";
@@ -82,10 +84,11 @@ export function CategoryRow({
 /**
  * Строка задачи.
  *
- * Полоска — кнопка, а не `div` с обработчиком: по ней будут кликать, и в
- * плане 3 по ней будут ходить с клавиатуры. Кнопка приносит фокус, роль и
- * реакцию на Enter даром; `div` пришлось бы доводить до того же руками и
- * забыть половину.
+ * Полоска — кнопка, а не `div` с обработчиком, везде, где по ней кликают или
+ * ходят с клавиатуры: кнопка приносит фокус, роль и реакцию на Enter даром,
+ * `div` пришлось бы доводить до того же руками и забыть половину. Там, где она
+ * не делает ни того ни другого — на публичной странице, — она объявляется
+ * картинкой; см. `Bar` ниже.
  */
 export function TaskRow({
   projectId,
@@ -156,8 +159,13 @@ export function TaskRow({
       </div>
 
       <div className="gantt__lane" style={{ width: scale.width }}>
-        <button
-          type="button"
+        {/* Кнопка — только когда полоска действительно что-то делает: открывает
+            карточку или двигается. На публичной странице она не делает ни
+            того, ни другого, и кнопка там обещала бы действие, которого нет, —
+            забирала бы фокус с клавиатуры и читалась бы с экрана как
+            нажимаемая. Тогда это картинка с подписью, а не орган управления. */}
+        <Bar
+          interactive={Boolean(onSelect) || canWrite}
           className={`gantt__bar${late ? " is-late" : ""}${canWrite ? " is-draggable" : ""}${
             offset === 0 ? "" : " is-dragging"
           }`}
@@ -188,8 +196,42 @@ export function TaskRow({
             aria-hidden="true"
           />
           {task.name}
-        </button>
+        </Bar>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Полоска задачи: орган управления или картинка с подписью.
+ *
+ * Различие не косметическое. Кнопка забирает фокус с клавиатуры и читается с
+ * экрана как нажимаемая; на публичной странице, где карточки задачи нет и
+ * даты не двигаются, это обещание действия, которого не существует. Тогда
+ * полоска объявляется картинкой — `role="img"` с тем же именем: она
+ * по-прежнему называет задачу и её даты, но не притворяется кнопкой.
+ */
+function Bar({
+  interactive,
+  children,
+  ...rest
+}: { interactive: boolean; children: ReactNode } & HTMLAttributes<HTMLElement>) {
+  if (interactive) {
+    return (
+      <button type="button" {...rest}>
+        {children}
+      </button>
+    );
+  }
+  // aria-expanded и onClick сюда не доходят: без onSelect они пусты, а пустой
+  // обработчик на неинтерактивном элементе — след, который читается как забытая
+  // возможность.
+  const { onClick, "aria-expanded": expanded, ...plain } = rest;
+  void onClick;
+  void expanded;
+  return (
+    <div role="img" {...plain}>
+      {children}
     </div>
   );
 }

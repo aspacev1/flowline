@@ -1,0 +1,40 @@
+/* Ветка обсуждения. Одна на карточку задачи и на публичную страницу: реплика
+   гостя и реплика участника обязаны выглядеть одинаково. */
+
+.comments__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.comments__item {
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+/* Подпись мельче и тише самой реплики: читают текст, а не шапку над ним. */
+.comments__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.comments__author {
+  font-weight: 600;
+}
+
+/* pre-wrap: человек разбивает реплику на абзацы, и склеивать их в сплошную
+   строку значит переписывать за ним. anywhere — на случай ссылки без
+   пробелов: без него она растянула бы колонку. */
+.comments__body {
+  margin: 2px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.comments__form {
+  margin-top: 12px;
+}

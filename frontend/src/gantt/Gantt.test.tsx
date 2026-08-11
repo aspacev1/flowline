@@ -35,6 +35,11 @@ const STATE: ProjectState = {
 /**
  * Диаграмма читает язык из провайдера: итог по дедлайну — это фраза, а не
  * картинка. Поэтому рисуем её всегда внутри провайдеров, как в приложении.
+ *
+ * Без `canWrite` и без `onSelectTask` — то есть на чтение, как на публичной
+ * странице. В этом виде полоска объявляется картинкой, а не кнопкой (см. Bar
+ * в Row.tsx), и тесты ниже спрашивают её по роли `img`. Проверяют они рисунок
+ * — ширину, класс, порядок, — а не поведение органа управления.
  */
 function draw(state: ProjectState, locale: Locale = "ru") {
   return renderWithProviders(<Gantt projectId="p1" state={state} />, { locale });
@@ -43,7 +48,7 @@ function draw(state: ProjectState, locale: Locale = "ru") {
 describe("диаграмма", () => {
   it("рисует задачу полоской нужной ширины", () => {
     draw(STATE);
-    const bar = screen.getByRole("button", { name: /Логотип/ });
+    const bar = screen.getByRole("img", { name: /Логотип/ });
     // 4-10 марта — семь календарных дней
     expect(bar).toHaveStyle({ width: `${7 * DAY_WIDTH}px` });
   });
@@ -79,12 +84,12 @@ describe("диаграмма", () => {
 
   it("красит задачу, заезжающую за дедлайн", () => {
     draw({ ...STATE, tasks: [{ ...STATE.tasks[0], end_date: "2026-06-05" }] });
-    expect(screen.getByRole("button", { name: /Логотип/ })).toHaveClass("is-late");
+    expect(screen.getByRole("img", { name: /Логотип/ })).toHaveClass("is-late");
   });
 
   it("задача, кончающаяся ровно в день дедлайна, не просрочена", () => {
     draw({ ...STATE, tasks: [{ ...STATE.tasks[0], end_date: "2026-06-01" }] });
-    expect(screen.getByRole("button", { name: /Логотип/ })).not.toHaveClass("is-late");
+    expect(screen.getByRole("img", { name: /Логотип/ })).not.toHaveClass("is-late");
   });
 
   it("показывает итог по дедлайну на языке читателя", () => {
@@ -106,7 +111,7 @@ describe("диаграмма", () => {
       ],
     });
     const names = screen
-      .getAllByRole("button", { name: /Первая|Вторая/ })
+      .getAllByRole("img", { name: /Первая|Вторая/ })
       .map((node) => node.textContent);
     expect(names).toEqual(["Первая", "Вторая"]);
   });
