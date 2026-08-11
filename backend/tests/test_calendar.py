@@ -84,3 +84,29 @@ def test_end_date_respects_extra_workdays_priority_in_duration():
         extra_workdays=frozenset({date(2026, 3, 8)}),
     )
     assert end_date(date(2026, 3, 6), 2, cal) == date(2026, 3, 8)
+
+
+def test_a_calendar_failure_carries_a_machine_code():
+    """Отказ календаря — не голый ValueError.
+
+    Маршрут обязан отличить его от любой другой ошибки и ответить 422 с
+    кодом; на голом ValueError ему пришлось бы разбирать текст сообщения.
+    """
+    from app.calendar import CalendarError
+
+    empty = Calendar(working_days=0)
+    with pytest.raises(CalendarError) as error:
+        end_date(date(2026, 3, 4), 1, empty)
+    assert error.value.code == "calendar_has_no_working_days"
+
+    narrow = Calendar(working_days=0, extra_workdays=frozenset({date(2026, 3, 6)}))
+    with pytest.raises(CalendarError) as error:
+        end_date(date(2026, 3, 6), 2, narrow)
+    assert error.value.code == "calendar_too_few_working_days"
+
+
+def test_calendar_error_is_still_a_value_error():
+    """Подкласс ValueError: прежние ловушки на ValueError продолжают работать."""
+    from app.calendar import CalendarError
+
+    assert issubclass(CalendarError, ValueError)

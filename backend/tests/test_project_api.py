@@ -521,3 +521,54 @@ def test_the_calendar_reports_the_project_exceptions(authed, db):
     calendar = authed.get(f"/api/projects/{project_id}").json()["calendar"]
     assert calendar["holidays"] == ["2026-03-09"]
     assert calendar["extra_workdays"] == ["2026-03-07"]
+
+
+def test_reading_a_project_with_no_working_days_explains_itself(authed, db):
+    """Настройка приходит от человека — значит уронить чтение может человек.
+
+    Вырожденная маска раньше поднимала голый ValueError из end_date и
+    отвечала пятисоткой: проект переставал читаться без объяснения.
+    """
+    import uuid
+
+    from app.models import Project
+
+    project_id = authed.post("/api/projects", json={"name": "Broken"}).json()["id"]
+    category_id = authed.post(f"/api/projects/{project_id}/mutations", json={"op": {
+        "type": "create_category", "name": "Design", "color": "#3b82f6"}}).json()["op"]["category_id"]
+    authed.post(f"/api/projects/{project_id}/mutations", json={"op": {
+        "type": "create_task", "category_id": category_id, "name": "A",
+        "start_date": "2026-03-04", "duration_days": 2}})
+
+    project = db.get(Project, uuid.UUID(project_id))
+    project.working_days = 0
+    db.flush()
+
+    response = authed.get(f"/api/projects/{project_id}")
+    assert response.status_code == 422
+    assert response.json()["detail"] == "calendar_has_no_working_days"
+
+
+def test_a_calendar_too_short_for_the_duration_is_also_explained(authed, db):
+    """Вторая точка отказа календаря отвечает так же — кодом, а не пятисоткой."""
+    import uuid
+
+    from app.models import Project
+
+    project_id = authed.post("/api/projects", json={"name": "Narrow"}).json()["id"]
+    category_id = authed.post(f"/api/projects/{project_id}/mutations", json={"op": {
+        "type": "create_category", "name": "Design", "color": "#3b82f6"}}).json()["op"]["category_id"]
+    authed.post(f"/api/projects/{project_id}/mutations", json={"op": {
+        "type": "create_task", "category_id": category_id, "name": "A",
+        "start_date": "2026-03-06", "duration_days": 2}})
+
+    project = db.get(Project, uuid.UUID(project_id))
+    # Единственный рабочий день во всём календаре — тот, с которого задача
+    # начинается; на второй день длительности рабочих дней уже не остаётся.
+    project.working_days = 0
+    project.workdays_extra = ["2026-03-06"]
+    db.flush()
+
+    response = authed.get(f"/api/projects/{project_id}")
+    assert response.status_code == 422
+    assert response.json()["detail"] == "calendar_too_few_working_days"

@@ -7,6 +7,23 @@ WEEKDAYS_MON_FRI = MONDAY | TUESDAY | WEDNESDAY | THURSDAY | FRIDAY
 _MAX_SEARCH_DAYS = 3650
 
 
+class CalendarError(ValueError):
+    """Календарь настроен так, что дату посчитать нельзя.
+
+    Отдельный класс, а не голый ValueError: маску рабочих дней задаёт
+    человек, поэтому вырожденная настройка — это отказ, о котором надо
+    сказать, а не авария сервера. Код машинный, по тем же правилам, что и у
+    отказов мутаций: прозу читателю собирает клиент на его языке.
+
+    Наследует ValueError, чтобы прежние ловушки на ValueError продолжали
+    работать.
+    """
+
+    def __init__(self, code: str, message: str):
+        super().__init__(message)
+        self.code = code
+
+
 @dataclass(frozen=True)
 class Calendar:
     """Рабочий календарь проекта.
@@ -33,7 +50,9 @@ def _first_working_on_or_after(start: date, cal: Calendar) -> date:
         if cal.is_working(d):
             return d
         d += timedelta(days=1)
-    raise ValueError("календарь не содержит ни одного рабочего дня")
+    raise CalendarError(
+        "calendar_has_no_working_days", "календарь не содержит ни одного рабочего дня"
+    )
 
 
 def end_date(start: date, duration_days: int, cal: Calendar) -> date:
@@ -48,7 +67,10 @@ def end_date(start: date, duration_days: int, cal: Calendar) -> date:
         d += timedelta(days=1)
         iterations += 1
         if iterations > _MAX_SEARCH_DAYS:
-            raise ValueError("календарь не содержит достаточного количества рабочих дней для такой длительности")
+            raise CalendarError(
+                "calendar_too_few_working_days",
+                "календарь не содержит достаточного количества рабочих дней для такой длительности",
+            )
         if cal.is_working(d):
             counted += 1
     return d

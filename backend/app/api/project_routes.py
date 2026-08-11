@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from app.access import Action, can, parse_role, visible_op
 from app.auth import current_user
-from app.calendar import end_date
+from app.calendar import CalendarError, end_date
 from app.db import get_db
 from app.models import (
     Category,
@@ -126,7 +126,13 @@ def get_project(
         .order_by(Dependency.from_task_id, Dependency.to_task_id)
     ).all()
 
-    ends = [end_date(t.start_date, t.duration_days, calendar) for t in tasks]
+    try:
+        ends = [end_date(t.start_date, t.duration_days, calendar) for t in tasks]
+    except CalendarError as error:
+        # Той же формы, что и отказы мутаций: 422 с машинным кодом. Раньше
+        # здесь была голая пятисотка — вырожденную маску задаёт человек, и
+        # проект переставал читаться без объяснения.
+        raise HTTPException(status_code=422, detail=error.code)
 
     return {
         "id": str(project.id),
