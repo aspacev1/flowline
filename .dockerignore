@@ -20,3 +20,9 @@ docs/
 docker/
 *.md
 docker-compose*.yml
+
+# Раскладка для Vercel — второй способ размещения, к образам отношения не
+# имеющий: свой мост к бэкенду и свой список зависимостей Python.
+api/
+vercel.json
+requirements.txt

@@ -1,0 +1,102 @@
+"""Настройки, выводимые из окружения хостинга.
+
+Обе проверки ниже — про деплой на платформу, где переменные окружения
+приходят не из `.env`, а из панели и от самой платформы. Ошибка в любой из
+них не роняет приложение, а тихо его ослабляет: не тот драйвер — падение
+только на первом запросе в базу, не тот PUBLIC_BASE_URL — кука сессии без
+Secure. Поэтому они проверяются отдельно, а не «увидим на бою».
+"""
+
+import pytest
+
+from app.config import Settings
+
+
+def _settings(**env: str) -> Settings:
+    # _env_file=None: иначе рядом лежащий .env разработчика перебьёт то, что
+    # тест задаёт явно, и проверка станет зависеть от чужой машины.
+    return Settings(_env_file=None, app_secret="test", **env)
+
+
+@pytest.mark.parametrize(
+    ("given", "expected"),
+    [
+        (
+            "postgresql://u:p@host/db",
+            "postgresql+psycopg://u:p@host/db",
+        ),
+        # Наследие Heroku: SQLAlchemy такую схему не разбирает вовсе.
+        (
+            "postgres://u:p@host/db",
+            "postgresql+psycopg://u:p@host/db",
+        ),
+        # Уже с драйвером — трогать нечего.
+        (
+            "postgresql+psycopg://u:p@host/db",
+            "postgresql+psycopg://u:p@host/db",
+        ),
+        # Чужой драйвер выбран осознанно, подменять его нельзя.
+        (
+            "postgresql+asyncpg://u:p@host/db",
+            "postgresql+asyncpg://u:p@host/db",
+        ),
+    ],
+)
+def test_database_url_gets_the_driver_it_needs(given: str, expected: str) -> None:
+    assert _settings(database_url=given).database_url == expected
+
+
+def test_the_query_string_of_a_managed_database_survives_the_rewrite() -> None:
+    # У Neon и Supabase в адресе есть sslmode и имя канала пулера. Склейка,
+    # потерявшая хвост, дала бы соединение без TLS вместо явной ошибки.
+    settings = _settings(database_url="postgresql://u:p@ep-x-pooler.aws.neon.tech/db?sslmode=require")
+    assert settings.database_url.endswith("/db?sslmode=require")
+    assert settings.database_url.startswith("postgresql+psycopg://")
+
+
+def test_public_base_url_comes_from_the_platform_when_nobody_set_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("VERCEL_PROJECT_PRODUCTION_URL", "flowline.vercel.app")
+
+    settings = _settings(database_url="postgresql+psycopg://u:p@host/db")
+
+    assert settings.public_base_url == "https://flowline.vercel.app"
+
+
+def test_a_deployment_without_a_project_domain_falls_back_to_its_own(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("VERCEL_PROJECT_PRODUCTION_URL", raising=False)
+    monkeypatch.setenv("VERCEL_URL", "flowline-abc123.vercel.app")
+
+    settings = _settings(database_url="postgresql+psycopg://u:p@host/db")
+
+    assert settings.public_base_url == "https://flowline-abc123.vercel.app"
+
+
+def test_an_explicit_public_base_url_wins_over_the_platform(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Свой домен, привязанный к проекту, платформа в своих переменных не
+    # показывает — угадывание поверх заданного значения увело бы адрес
+    # обратно на vercel.app.
+    monkeypatch.setenv("VERCEL_PROJECT_PRODUCTION_URL", "flowline.vercel.app")
+
+    settings = _settings(
+        database_url="postgresql+psycopg://u:p@host/db",
+        public_base_url="https://flowline.example.com",
+    )
+
+    assert settings.public_base_url == "https://flowline.example.com"
+
+
+def test_outside_the_platform_the_base_url_stays_local(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("VERCEL_PROJECT_PRODUCTION_URL", raising=False)
+    monkeypatch.delenv("VERCEL_URL", raising=False)
+
+    settings = _settings(database_url="postgresql+psycopg://u:p@host/db")
+
+    assert settings.public_base_url == "http://localhost:8000"
