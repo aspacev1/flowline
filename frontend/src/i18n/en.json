@@ -4,9 +4,52 @@
   },
   "common": {
     "loading": "Loading…",
+    "create": "Create",
+    "cancel": "Cancel",
     "days": {
       "one": "{count} day",
       "other": "{count} days"
+    }
+  },
+  "calendar": {
+    "date": "{month} {day}",
+    "month_year": "{month} {year}",
+    "month": {
+      "1": "January",
+      "2": "February",
+      "3": "March",
+      "4": "April",
+      "5": "May",
+      "6": "June",
+      "7": "July",
+      "8": "August",
+      "9": "September",
+      "10": "October",
+      "11": "November",
+      "12": "December"
+    },
+    "month_in": {
+      "1": "January",
+      "2": "February",
+      "3": "March",
+      "4": "April",
+      "5": "May",
+      "6": "June",
+      "7": "July",
+      "8": "August",
+      "9": "September",
+      "10": "October",
+      "11": "November",
+      "12": "December"
+    },
+    "weekday": {
+      "0": "Su",
+      "1": "Mo",
+      "2": "Tu",
+      "3": "We",
+      "4": "Th",
+      "5": "Fr",
+      "6": "Sa"
     }
   },
   "nav": {
@@ -49,7 +92,16 @@
     "network": "The server is unavailable. Check your connection and try again",
     "unknown": "Something unexpected went wrong",
     "no_organization": "You do not belong to any organization",
-    "forbidden": "You are not allowed to do this"
+    "forbidden": "You are not allowed to do this",
+    "project_not_found": "Project not found",
+    "category_not_found": "No such category in this project",
+    "task_not_found": "No such task in this project",
+    "task_limit_reached": "This project has too many tasks: the cap is reached",
+    "duration_too_short": "The duration must be at least one day",
+    "category_not_empty": "The category still has tasks — move them out first",
+    "user_not_in_organization": "This person is not in your organization",
+    "calendar_has_no_working_days": "The project calendar has no working days at all",
+    "calendar_too_few_working_days": "The project calendar has too few working days for this duration"
   },
   "projects": {
     "title": "Projects",
@@ -58,6 +110,48 @@
       "hint": "Create the first project — categories and tasks will live inside it"
     },
     "create": "Create project",
-    "create_soon": "The project creation wizard is on its way"
+    "new": {
+      "title": "New project",
+      "name": "Name"
+    }
+  },
+  "category": {
+    "create": "New category",
+    "new": {
+      "title": "New category",
+      "name": "Name",
+      "color": "Colour"
+    }
+  },
+  "task": {
+    "create": "New task",
+    "add_to": "Add a task to “{category}”",
+    "criticality": {
+      "low": "Low",
+      "normal": "Normal",
+      "high": "High",
+      "critical": "Critical"
+    },
+    "new": {
+      "title": "New task",
+      "name": "Name",
+      "description": "Description",
+      "category": "Category",
+      "criticality": "Criticality",
+      "start": "Start date",
+      "duration": "Duration, working days",
+      "assignees": "Assignees",
+      "submit": "Create task"
+    }
+  },
+  "gantt": {
+    "empty": "This project has no categories yet. Create a category — tasks live inside it",
+    "today": "Today",
+    "deadline": "Deadline {date}",
+    "late": "Ends after the deadline",
+    "summary": {
+      "late": "The project ends {end} — {days} after the {deadline} deadline",
+      "fits": "On track for {deadline} — {days} to spare"
+    }
   }
 }

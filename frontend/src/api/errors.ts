@@ -15,7 +15,23 @@ const AUTH_CODES = new Set([
   "password_too_short",
 ]);
 
-const PLAIN_CODES = new Set(["network", "no_organization", "forbidden"]);
+const PLAIN_CODES = new Set([
+  "network",
+  "no_organization",
+  "forbidden",
+  "project_not_found",
+  // Отказы домена. Список явный по той же причине, что и у кодов входа:
+  // подстановка кода в шаблон ключа превратила бы незнакомый код в
+  // отсутствующий перевод, и человек прочитал бы `task_limit_reached`.
+  "category_not_found",
+  "task_not_found",
+  "task_limit_reached",
+  "duration_too_short",
+  "category_not_empty",
+  "user_not_in_organization",
+  "calendar_has_no_working_days",
+  "calendar_too_few_working_days",
+]);
 
 /** Ключ словаря, которым объясняется ошибка. Сырой код наружу не выходит. */
 export function errorKey(error: unknown): string {

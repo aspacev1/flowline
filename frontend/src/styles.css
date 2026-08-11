@@ -9,6 +9,12 @@
   --accent: #2f5bd7;
   --accent-text: #ffffff;
   --danger: #b3261e;
+  --ok: #1f7a4d;
+  --nonworking: #ececf0;
+  --bar: #d7dcea;
+  --bar-low: #e6e7ec;
+  --bar-high: #f7dfb8;
+  --bar-critical: #f5c7c3;
   --radius: 8px;
   --gap: 16px;
 }
@@ -23,6 +29,12 @@
     --accent: #7d9cf0;
     --accent-text: #12121a;
     --danger: #f2b8b5;
+    --ok: #7ad3a4;
+    --nonworking: #26262b;
+    --bar: #3a4054;
+    --bar-low: #2c2c33;
+    --bar-high: #5a4a2a;
+    --bar-critical: #5c3230;
   }
 }
 
@@ -80,6 +92,30 @@ body {
   max-width: 380px;
 }
 
+/* Диаграмма занимает всю ширину экрана: ради неё человек сюда и пришёл. */
+.screen--wide {
+  max-width: none;
+}
+
+.screen__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--gap);
+  margin-bottom: 24px;
+}
+
+.screen__head h1 {
+  margin: 0;
+}
+
+.screen__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .screen--center {
   display: flex;
   justify-content: center;
@@ -108,6 +144,30 @@ h1 {
   color: var(--text-muted);
 }
 
+.fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px 12px;
+}
+
+.fieldset legend {
+  font-size: 14px;
+  color: var(--text-muted);
+  padding: 0 4px;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkbox input {
+  width: auto;
+}
+
+select,
+textarea,
 input {
   font: inherit;
   color: var(--text);
@@ -118,6 +178,8 @@ input {
 }
 
 input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
 button:focus-visible {
   /* Видимый фокус обязателен: без него по интерфейсу нельзя ходить с
      клавиатуры, не угадывая, где ты сейчас. */
@@ -169,10 +231,52 @@ button:disabled {
 }
 
 .projects li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--gap);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 12px 16px;
+}
+
+.projects__slug {
+  font-size: 14px;
+}
+
+/* --- модальное окно --- */
+
+.modal__backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--gap);
+  background: rgb(0 0 0 / 45%);
+}
+
+.modal {
+  width: 100%;
+  max-width: 420px;
+  max-height: 100%;
+  overflow: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+}
+
+.modal__title {
+  font-size: 18px;
+  margin: 0 0 var(--gap);
+}
+
+.modal__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 24px;
 }
 
 .empty {

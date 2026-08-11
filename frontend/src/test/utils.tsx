@@ -1,7 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render } from "@testing-library/react";
+import { HttpResponse, http } from "msw";
 import type { ReactElement, ReactNode } from "react";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 
 import { AppRoutes } from "../AppRoutes";
 import { AuthProvider } from "../auth/AuthProvider";
@@ -62,6 +63,32 @@ export const ORG = {
   role: "owner",
 };
 
+/**
+ * Ответы, без которых защищённый маршрут не открывается вовсе: профиль и
+ * организация. Тест про проекты не должен переписывать их у себя — иначе
+ * половина его текста будет про вход, а не про то, что он проверяет. Идут
+ * первыми, чтобы `server.use` теста мог перекрыть любой из них.
+ */
+export function sessionHandlers() {
+  return [
+    http.get("/api/auth/me", () => HttpResponse.json(USER)),
+    http.get("/api/org", () => HttpResponse.json(ORG)),
+  ];
+}
+
+/**
+ * Текущий адрес, вынесенный в разметку.
+ *
+ * Переход после успешного действия — наблюдаемое поведение, и проверять его
+ * надо так же, как его видит человек: по тому, куда он попал. Подмена
+ * `useNavigate` вместо этого проверяла бы, что компонент вызвал функцию, —
+ * и продолжала бы зеленеть, если бы маршрута по этому адресу не было вовсе.
+ */
+function LocationProbe() {
+  const location = useLocation();
+  return <span data-testid="location">{location.pathname}</span>;
+}
+
 /** Всё приложение целиком: маршруты, аутентификация, языки — как в бою. */
 export function renderApp(options: { route?: string; locale?: Locale } = {}) {
   const { route = "/", locale = "ru" } = options;
@@ -71,6 +98,7 @@ export function renderApp(options: { route?: string; locale?: Locale } = {}) {
         <MemoryRouter initialEntries={[route]}>
           <AuthProvider>
             <AppRoutes />
+            <LocationProbe />
           </AuthProvider>
         </MemoryRouter>
       </LocaleProvider>
