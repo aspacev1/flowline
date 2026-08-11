@@ -57,7 +57,7 @@
 
 Ссылка одна на проект — отсюда `UniqueConstraint("project_id")`. Второй ряд означал бы два разных адреса к одному проекту, а адрес выводится из слагов и потому ровно один.
 
-- [ ] **Step 1: Написать падающий тест**
+- [x] **Step 1: Написать падающий тест**
 
 В конец `backend/tests/test_models.py`:
 
@@ -87,7 +87,7 @@ def test_project_has_at_most_one_share_link(db):
 
 Импорт в шапке дополнить `ShareLink`.
 
-- [ ] **Step 2: Убедиться, что тест падает**
+- [x] **Step 2: Убедиться, что тест падает**
 
 ```bash
 cd backend && uv run pytest tests/test_models.py -q
@@ -95,7 +95,7 @@ cd backend && uv run pytest tests/test_models.py -q
 
 Ожидается: `ImportError: cannot import name 'ShareLink'`.
 
-- [ ] **Step 3: Добавить модель**
+- [x] **Step 3: Добавить модель**
 
 В `backend/app/models.py`, после `Comment`:
 
@@ -118,13 +118,13 @@ class ShareLink(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 ```
 
-- [ ] **Step 4: Убедиться, что тест проходит**
+- [x] **Step 4: Убедиться, что тест проходит**
 
 ```bash
 cd backend && uv run pytest tests/test_models.py -q
 ```
 
-- [ ] **Step 5: Миграция**
+- [x] **Step 5: Миграция**
 
 ```bash
 cd backend && uv run alembic revision --autogenerate -m "share_links" && uv run alembic upgrade head && uv run pytest -q
@@ -132,7 +132,7 @@ cd backend && uv run alembic revision --autogenerate -m "share_links" && uv run 
 
 Проверить, что в `upgrade()` только `create_table('share_links')`.
 
-- [ ] **Step 6: Коммит**
+- [x] **Step 6: Коммит**
 
 ```bash
 git add backend/app/models.py backend/migrations backend/tests/test_models.py
@@ -159,7 +159,7 @@ git commit -m "feat: таблица публичной ссылки"
 
 `resolve` — единственное место, где решается, открыт ли проект наружу. Условий три (ссылка есть, не отозвана, организация не запретила публикацию вовсе), и разнести их по маршрутам значило бы проверить два из трёх в одном месте и три из трёх в другом.
 
-- [ ] **Step 1: Написать падающие тесты**
+- [x] **Step 1: Написать падающие тесты**
 
 Создать `backend/tests/test_sharing.py`:
 
@@ -279,7 +279,7 @@ def test_switching_comments_on_an_unpublished_project_is_refused(db, org, projec
     assert refusal.value.code == "not_published"
 ```
 
-- [ ] **Step 2: Убедиться, что тесты падают**
+- [x] **Step 2: Убедиться, что тесты падают**
 
 ```bash
 cd backend && uv run pytest tests/test_sharing.py -q
@@ -287,7 +287,7 @@ cd backend && uv run pytest tests/test_sharing.py -q
 
 Ожидается: `ModuleNotFoundError: No module named 'app.sharing'`.
 
-- [ ] **Step 3: Написать модуль**
+- [x] **Step 3: Написать модуль**
 
 Создать `backend/app/sharing.py`:
 
@@ -406,7 +406,7 @@ def resolve(
     return row[0], row[1], row[2]
 ```
 
-- [ ] **Step 4: Убедиться, что тесты проходят**
+- [x] **Step 4: Убедиться, что тесты проходят**
 
 ```bash
 cd backend && uv run pytest tests/test_sharing.py -q
@@ -414,7 +414,7 @@ cd backend && uv run pytest tests/test_sharing.py -q
 
 Ожидается: 9 passed.
 
-- [ ] **Step 5: Коммит**
+- [x] **Step 5: Коммит**
 
 ```bash
 git add backend/app/sharing.py backend/tests/test_sharing.py
@@ -437,7 +437,7 @@ git commit -m "feat: домен публикации проекта"
 
 `show_assignees` выключается для гостя: исполнители — это состав организации, а его гостю не показывают (`GET /api/org/members` роль `client` не получает вовсе).
 
-- [ ] **Step 1: Написать тест на сборщик**
+- [x] **Step 1: Написать тест на сборщик**
 
 Создать `backend/tests/test_project_state.py`:
 
@@ -497,7 +497,7 @@ def test_state_for_a_guest_carries_neither_notes_nor_assignees(db, filled):
     assert state["calendar"]["working_days"] > 0
 ```
 
-- [ ] **Step 2: Убедиться, что тест падает**
+- [x] **Step 2: Убедиться, что тест падает**
 
 ```bash
 cd backend && uv run pytest tests/test_project_state.py -q
@@ -505,7 +505,7 @@ cd backend && uv run pytest tests/test_project_state.py -q
 
 Ожидается: `ModuleNotFoundError: No module named 'app.project_state'`.
 
-- [ ] **Step 3: Перенести сборку состояния в модуль**
+- [x] **Step 3: Перенести сборку состояния в модуль**
 
 Создать `backend/app/project_state.py`: перенести в него **без изменений по существу** тело `get_project` из `backend/app/api/project_routes.py` начиная со строки `calendar = project_calendar(project, org)` и до `return {...}` включительно, обернув в функцию:
 
@@ -558,7 +558,7 @@ def build_state(
                 **({"internal_note": t.internal_note} if show_notes else {}),
 ```
 
-- [ ] **Step 4: Позвать сборщик из маршрута**
+- [x] **Step 4: Позвать сборщик из маршрута**
 
 `get_project` в `backend/app/api/project_routes.py` сокращается до:
 
@@ -581,7 +581,7 @@ def get_project(
 
 Неиспользованные после переезда импорты (`Category`, `Task`, `TaskAssignee`, `Dependency`, `end_date`, `CalendarError`, `project_calendar`, `resolve_*`) из `project_routes.py` убрать — те, что ещё нужны мутациям, оставить; проверяет `npm run lint`-эквивалент для Python здесь только глазами, поэтому свериться со списком в конце файла.
 
-- [ ] **Step 5: Убедиться, что ничего не сломалось**
+- [x] **Step 5: Убедиться, что ничего не сломалось**
 
 ```bash
 cd backend && uv run pytest -q
@@ -589,7 +589,7 @@ cd backend && uv run pytest -q
 
 Ожидается: все прежние тесты проекта проходят без правок — это и есть проверка того, что правка не изменила поведение.
 
-- [ ] **Step 6: Коммит**
+- [x] **Step 6: Коммит**
 
 ```bash
 git add backend/app/project_state.py backend/app/api/project_routes.py backend/tests/test_project_state.py
@@ -613,7 +613,7 @@ git commit -m "refactor: состояние проекта собирается 
 
 Право — `Action.PROJECT_ADMIN`: публикация проекта наружу это не то же, что правка задачи, и `viewer`, которому правка запрещена, тем более не должен открывать проект миру.
 
-- [ ] **Step 1: Написать падающие тесты**
+- [x] **Step 1: Написать падающие тесты**
 
 Создать `backend/tests/test_share_api.py` с фикстурами `client`/`authed`/`project_id` (скопировать из `tests/test_comment_api.py` — они там же и той же формы) и тестами:
 
@@ -707,13 +707,13 @@ def test_settings_of_another_organization_are_not_reachable(authed, db):
     assert authed.get(f"/api/projects/{stranger.id}/settings").status_code == 404
 ```
 
-- [ ] **Step 2: Убедиться, что тесты падают**
+- [x] **Step 2: Убедиться, что тесты падают**
 
 ```bash
 cd backend && uv run pytest tests/test_share_api.py -q
 ```
 
-- [ ] **Step 3: Добавить маршруты**
+- [x] **Step 3: Добавить маршруты**
 
 В `backend/app/api/project_routes.py`:
 
@@ -784,13 +784,13 @@ def set_share(
 
 Импорты: `from app.config import get_settings`, `from app.models import ShareLink`, `from app.sharing import SharingRefused, link_of, public_path, publish, revoke, set_comments_enabled`.
 
-- [ ] **Step 4: Убедиться, что тесты проходят, и прогнать бэкенд**
+- [x] **Step 4: Убедиться, что тесты проходят, и прогнать бэкенд**
 
 ```bash
 cd backend && uv run pytest -q
 ```
 
-- [ ] **Step 5: Коммит**
+- [x] **Step 5: Коммит**
 
 ```bash
 git add backend/app/api/project_routes.py backend/tests/test_share_api.py
@@ -815,7 +815,7 @@ git commit -m "feat: настройки проекта и публикация"
 
 Слаг нормализует сервер той же `slugify`, что и при создании: человек вводит «Редизайн 2026», получает `redizayn-2026`. Повторять транслитерацию в браузере нельзя — расхождение даст ссылку, которая не открывается.
 
-- [ ] **Step 1: Написать падающие тесты**
+- [x] **Step 1: Написать падающие тесты**
 
 Создать `backend/tests/test_slug_api.py` (фикстуры — как в `test_share_api.py`):
 
@@ -885,13 +885,13 @@ def test_a_viewer_may_not_rename_the_slug(authed, project_id, db):
     )
 ```
 
-- [ ] **Step 2: Убедиться, что тесты падают**
+- [x] **Step 2: Убедиться, что тесты падают**
 
 ```bash
 cd backend && uv run pytest tests/test_slug_api.py -q
 ```
 
-- [ ] **Step 3: Дописать домен**
+- [x] **Step 3: Дописать домен**
 
 В `backend/app/projects.py`:
 
@@ -937,7 +937,7 @@ def rename_slug(db: DbSession, project: Project, raw: str) -> Project:
     return project
 ```
 
-- [ ] **Step 4: Добавить маршруты**
+- [x] **Step 4: Добавить маршруты**
 
 В `backend/app/api/project_routes.py`:
 
@@ -985,7 +985,7 @@ def set_slug(
     }
 ```
 
-- [ ] **Step 5: Прогнать бэкенд и закоммитить**
+- [x] **Step 5: Прогнать бэкенд и закоммитить**
 
 ```bash
 cd backend && uv run pytest -q
@@ -1008,7 +1008,7 @@ git commit -m "feat: переименование слага проекта"
 
 Свой файл, а не `project_routes.py`: тамошние маршруты все до одного начинаются с `_load_project(db, user, …)`, а здесь пользователя нет вовсе. Соседство двух семейств в одном файле рано или поздно кончается тем, что публичный маршрут по недосмотру получает `Depends(current_user)` и перестаёт быть публичным.
 
-- [ ] **Step 1: Написать падающие тесты**
+- [x] **Step 1: Написать падающие тесты**
 
 Создать `backend/tests/test_public_api.py`. Фикстуры `client`/`authed`/`project_id` — как раньше; плюс:
 
@@ -1097,13 +1097,13 @@ def test_the_state_says_whether_comments_are_open(client, authed, published):
     assert guest.get(_address(authed, published)).json()["comments_enabled"] is False
 ```
 
-- [ ] **Step 2: Убедиться, что тесты падают**
+- [x] **Step 2: Убедиться, что тесты падают**
 
 ```bash
 cd backend && uv run pytest tests/test_public_api.py -q
 ```
 
-- [ ] **Step 3: Написать маршрут**
+- [x] **Step 3: Написать маршрут**
 
 Создать `backend/app/api/public_routes.py`:
 
@@ -1140,7 +1140,7 @@ def public_project(org_slug: str, project_slug: str, db: DbSession = Depends(get
 
 В `backend/app/main.py` — `app.include_router(public_routes.router)`.
 
-- [ ] **Step 4: Прогнать бэкенд и закоммитить**
+- [x] **Step 4: Прогнать бэкенд и закоммитить**
 
 ```bash
 cd backend && uv run pytest -q
@@ -1169,7 +1169,7 @@ git commit -m "feat: публичное чтение проекта"
 
 Право гостя спрашивается у матрицы: `can(None, Action.COMMENT, project_granted=True)`. Роль `None` — это гость, а действующая ссылка и есть тот самый выданный доступ, ради которого в `access.py` заведён `project_granted`.
 
-- [ ] **Step 1: Написать тест ограничителя**
+- [x] **Step 1: Написать тест ограничителя**
 
 Создать `backend/tests/test_rate_limit.py`:
 
@@ -1223,7 +1223,7 @@ def test_keys_that_fell_out_of_the_window_stop_taking_memory():
     assert "ip" not in limiter._hits
 ```
 
-- [ ] **Step 2: Написать ограничитель**
+- [x] **Step 2: Написать ограничитель**
 
 Создать `backend/app/rate_limit.py`:
 
@@ -1288,7 +1288,7 @@ class RateLimiter:
 cd backend && uv run pytest tests/test_rate_limit.py -q
 ```
 
-- [ ] **Step 3: Написать падающие тесты гостевых реплик**
+- [x] **Step 3: Написать падающие тесты гостевых реплик**
 
 Создать `backend/tests/test_public_comments_api.py` (фикстуры `authed`/`published`/`_address` — как в Task 6):
 
@@ -1376,7 +1376,7 @@ def test_too_many_replies_from_one_address_are_refused(client, authed, published
     assert refused.json()["detail"] == "too_many_comments"
 ```
 
-- [ ] **Step 4: Дописать публичные маршруты**
+- [x] **Step 4: Дописать публичные маршруты**
 
 В `backend/app/api/public_routes.py`:
 
@@ -1454,7 +1454,7 @@ def add_public_comment(
 
 `_comment_out` переехал: вынести его из `project_routes.py` в `app/comments.py` (там же, где домен реплик) и импортировать в обоих маршрутных файлах — иначе публичный файл импортирует приватного помощника из соседнего, ровно того сорта связь, ради отсутствия которой файл и заведён.
 
-- [ ] **Step 5: Прогнать бэкенд и закоммитить**
+- [x] **Step 5: Прогнать бэкенд и закоммитить**
 
 ```bash
 cd backend && uv run pytest -q
@@ -1477,31 +1477,31 @@ git commit -m "feat: гостевые реплики и ограничитель
 
 Ссылку показывает поле только для чтения плюс кнопка «скопировать», а не голый текст: адрес длинный, и выделять его мышью из абзаца — работа, которую делает одна кнопка.
 
-- [ ] **Step 1: Написать падающие тесты**
+- [x] **Step 1: Написать падающие тесты**
 
 `frontend/src/screens/ProjectSettings.test.tsx` — проверить: адрес виден до публикации; переключатель публикации шлёт `{published, comments_enabled}`; выключение комментариев шлёт то же с `comments_enabled: false`; занятый слаг показывает подсказанный вариант и не отправляет форму; успешное переименование меняет показанный адрес; человеку без права администрирования проекта экран отвечает объяснением, а не пустой формой.
 
 Оснастка — в стиле `src/test/project.ts`: обработчики `GET /api/projects/p1/settings`, `PUT /api/projects/p1/share`, `GET /api/projects/p1/slug-check`, `PUT /api/projects/p1/slug`.
 
-- [ ] **Step 2: Клиент**
+- [x] **Step 2: Клиент**
 
 `frontend/src/api/sharing.ts` — типы `ProjectSettings = {slug, public_url, public_sharing_enabled, share: {published, comments_enabled}}`, функции `projectSettings(id)`, `setShare(id, {published, comments_enabled})`, `checkSlug(id, slug)`, `renameSlug(id, slug)`. Ключ — `["project", id, "settings"]`, под тем же префиксом, что и остальное поддерево проекта.
 
-- [ ] **Step 3: Экран**
+- [x] **Step 3: Экран**
 
 `ProjectSettings.tsx`: заголовок с названием проекта, раздел «Публичная ссылка» (адрес только для чтения + «Скопировать», переключатель публикации, переключатель комментариев — неактивный, пока не опубликовано), раздел «Адрес» (поле слага, живая проверка с подсказкой, кнопка «Сохранить»), и предупреждение о том, что переименование слага убивает прежний адрес: человек обязан узнать об этом до нажатия, а не от клиента, у которого перестала открываться ссылка.
 
 Копирование — `navigator.clipboard.writeText`; отсутствие API (старый браузер, не-https) не должно ронять экран: кнопка тогда просто не показывается, а поле остаётся выделяемым.
 
-- [ ] **Step 4: Маршрут и вход на экран**
+- [x] **Step 4: Маршрут и вход на экран**
 
 В `AppRoutes.tsx` — `<Route path="/projects/:projectId/settings" element={<ProjectSettings />} />` внутри `RequireAuth`. В `Project.tsx` — ссылка «Настройки» в `screen__actions`, видимая только при `canWrite`.
 
-- [ ] **Step 5: Словари и коды отказов**
+- [x] **Step 5: Словари и коды отказов**
 
 Ключи `settings.*` в трёх словарях; коды `slug_taken`, `slug_empty`, `public_sharing_disabled`, `not_published` — в `PLAIN_CODES` и в блок `error` всех трёх словарей.
 
-- [ ] **Step 6: Проверить и закоммитить**
+- [x] **Step 6: Проверить и закоммитить**
 
 ```bash
 cd frontend && npx vitest run --maxWorkers=2 && npm run lint && npx tsc -b
@@ -1528,25 +1528,25 @@ git add frontend/src && git commit -m "feat: экран настроек про�
 
 Имя гостя запрашивается один раз и запоминается в браузере (`localStorage`, ключ `flowline_guest_name`). Не в куке: сервер его не спрашивает, а кука уезжала бы с каждым запросом впустую.
 
-- [ ] **Step 1: Написать падающие тесты**
+- [x] **Step 1: Написать падающие тесты**
 
 `PublicProject.test.tsx` — проверить: страница открывается без сессии и показывает диаграмму; внутренних заметок в разметке нет; при `comments_enabled: false` формы реплики нет вовсе; первая реплика спрашивает имя и шлёт `{body, guest_name}`; имя, сохранённое в браузере, больше не спрашивается; 404 показывает объяснение «ссылка не действует», а не пустой экран; отказ 429 объясняется словами.
 
-- [ ] **Step 2: Память об имени**
+- [x] **Step 2: Память об имени**
 
 `frontend/src/public/guestName.ts` — чтение и запись `localStorage` с защитой от исключения: в приватном режиме некоторых браузеров обращение к `localStorage` бросает, и страница не должна из-за этого падать целиком.
 
-- [ ] **Step 3: Клиент и страница**
+- [x] **Step 3: Клиент и страница**
 
 `api/public.ts`: `publicProjectQueryKey(org, project)`, `getPublicProject`, `listPublicComments`, `postPublicComment`. Тип состояния — `ProjectState & { comments_enabled: boolean }`, где `tasks[].internal_note` и `assignee_ids` необязательны.
 
 `PublicProject.tsx`: три состояния (ожидание, отказ, страница), шапка с названием организации и `<LocaleSwitch />`, `<Gantt canWrite={false} />`, ветка обсуждения с формой, в которой рядом с полем реплики стоит поле имени — оно показывается, только пока имя не запомнено.
 
-- [ ] **Step 4: Разделить ветку обсуждения**
+- [x] **Step 4: Разделить ветку обсуждения**
 
 `Comments.tsx` из плана 4 умеет только ветку задачи под сессией. Публичной странице нужна ветка проекта под публичными маршрутами. Вынести разметку ветки в `CommentThread` (принимает список реплик, состояние отправки и слот под поля формы), а `Comments` и публичная страница пусть будут двумя её вызывающими. Разметка одна — иначе реплика гостя и реплика участника разойдутся по виду, хотя это одна и та же реплика.
 
-- [ ] **Step 5: Маршрут**
+- [x] **Step 5: Маршрут**
 
 В `AppRoutes.tsx`, **вне** `RequireAuth` и **до** `*`:
 
@@ -1554,7 +1554,7 @@ git add frontend/src && git commit -m "feat: экран настроек про�
       <Route path="/p/:orgSlug/:projectSlug" element={<PublicProject />} />
 ```
 
-- [ ] **Step 6: Проверить и закоммитить**
+- [x] **Step 6: Проверить и закоммитить**
 
 ```bash
 cd frontend && npx vitest run --maxWorkers=2 && npm run lint && npx tsc -b
@@ -1562,6 +1562,12 @@ git add frontend/src && git commit -m "feat: публичная страница
 ```
 
 ---
+
+## Правки по ходу исполнения
+
+- **`stored_link()` рядом с `link_of()`.** Настройкам нужен ряд как он есть, включая отозванный: иначе снятие публикации возвращало переключатель комментариев в положение «включено», и решение владельца пропадало у него на глазах.
+- **Полоска задачи — не всегда кнопка** (`Bar` в `frontend/src/gantt/Row.tsx`). На публичной странице она не открывает карточку и не двигается, а кнопка там забирает фокус с клавиатуры и читается с экрана как нажимаемая. Теперь в этом случае это `role="img"` с тем же именем. Тесты диаграммы, которые рисуют её на чтение, спрашивают полоску по новой роли.
+- **`comment_out` и `author_names` переехали в `app/comments.py`.** Их собирают оба файла маршрутов, и вторая копия развела бы форму одной и той же реплики по двум лентам.
 
 ## Что осталось за границей плана
 
