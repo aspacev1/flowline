@@ -66,6 +66,14 @@
       "name": "Name"
     }
   },
+  "category": {
+    "create": "New category",
+    "new": {
+      "title": "New category",
+      "name": "Name",
+      "color": "Colour"
+    }
+  },
   "gantt": {
     "empty": "This project has no categories yet. Create a category — tasks live inside it",
     "today": "Today",

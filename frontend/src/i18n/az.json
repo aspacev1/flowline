@@ -66,6 +66,14 @@
       "name": "Ad"
     }
   },
+  "category": {
+    "create": "Yeni kateqoriya",
+    "new": {
+      "title": "Yeni kateqoriya",
+      "name": "Ad",
+      "color": "Rəng"
+    }
+  },
   "gantt": {
     "empty": "Layihədə hələ bir dənə də kateqoriya yoxdur. Kateqoriya yaradın, tapşırıqlar isə onun içində olacaq",
     "today": "Bu gün",

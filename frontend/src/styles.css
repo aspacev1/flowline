@@ -110,6 +110,12 @@ body {
   margin: 0;
 }
 
+.screen__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .screen--center {
   display: flex;
   justify-content: center;
