@@ -4,6 +4,9 @@
 # изолированные рабочие копии
 .worktrees/
 
+# дампы базы, которые снимает сервис backup (docker compose)
+backups/
+
 # окружение и артефакты
 .env
 .env.*
@@ -11,6 +14,8 @@
 node_modules/
 __pycache__/
 *.py[cod]
+.coverage
+coverage/
 .venv/
 venv/
 dist/
