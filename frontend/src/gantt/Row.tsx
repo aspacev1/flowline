@@ -1,4 +1,5 @@
 import type { Category, Task } from "../api/projects";
+import { useDragDates } from "./useDragDates";
 import type { Scale } from "./timescale";
 
 /**
@@ -77,23 +78,29 @@ export function CategoryRow({
  * забыть половину.
  */
 export function TaskRow({
+  projectId,
   task,
   scale,
   late,
   lateLabel,
   title,
+  canWrite = false,
   selected = false,
   onSelect,
 }: {
+  projectId: string;
   task: Task;
   scale: Scale;
   late: boolean;
   lateLabel: string;
   title: string;
+  canWrite?: boolean;
   /** Открыта ли карточка этой задачи. */
   selected?: boolean;
   onSelect?: (taskId: string) => void;
 }) {
+  const { offset, handlers } = useDragDates({ projectId, task, scale, enabled: canWrite });
+
   return (
     <div className={`gantt__row${selected ? " is-selected" : ""}`}>
       <div className="gantt__label">
@@ -108,12 +115,18 @@ export function TaskRow({
       <div className="gantt__lane" style={{ width: scale.width }}>
         <button
           type="button"
-          className={`gantt__bar${late ? " is-late" : ""}`}
+          className={`gantt__bar${late ? " is-late" : ""}${canWrite ? " is-draggable" : ""}${
+            offset === 0 ? "" : " is-dragging"
+          }`}
           data-criticality={task.criticality}
           style={{
-            left: scale.xOf(task.start_date),
+            // Пока полоску тащат, она стоит там, где палец, — а не там, где
+            // ей полагается по датам. Сами даты меняются только по ответу
+            // сервера.
+            left: scale.xOf(task.start_date) + offset,
             width: scale.widthOf(task.start_date, task.end_date),
           }}
+          {...handlers}
           // Имя названо явно вместе с датами, а не оставлено содержимому
           // кнопки: у полоски есть и `title`, и обрезаемый по ширине текст, и
           // браузеры расходятся в том, что из этого станет доступным именем.

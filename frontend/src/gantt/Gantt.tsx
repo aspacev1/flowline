@@ -24,12 +24,17 @@ function byPosition<T extends { position: number; id: string }>(rows: T[]): T[] 
 }
 
 export function Gantt({
+  projectId,
   state,
+  canWrite = false,
   onAddTask,
   selectedTaskId = null,
   onSelectTask,
 }: {
+  projectId: string;
   state: ProjectState;
+  /** Может ли этот человек менять проект. Гость только смотрит. */
+  canWrite?: boolean;
   /** Плюс на строке категории. Без него диаграмма остаётся на чтение. */
   onAddTask?: (categoryId: string) => void;
   /** Задача, карточка которой открыта. */
@@ -115,8 +120,10 @@ export function Gantt({
                       {tasks.map((task) => (
                         <TaskRow
                           key={task.id}
+                          projectId={projectId}
                           task={task}
                           scale={scale}
+                          canWrite={canWrite}
                           late={isLate(task)}
                           lateLabel={t("gantt.late")}
                           title={`${formatDay(task.start_date)} — ${formatDay(task.end_date)}`}

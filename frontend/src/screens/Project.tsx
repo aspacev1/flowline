@@ -92,7 +92,9 @@ export function Project() {
           справа отнимает у ленты треть экрана ради ничего. */}
       <div className="project__body">
         <Gantt
+          projectId={projectId}
           state={query.data}
+          canWrite={canWrite}
           onAddTask={canWrite ? setAddingTaskIn : undefined}
           selectedTaskId={selectedTaskId}
           // Повторный щелчок по той же полоске закрывает карточку: люди

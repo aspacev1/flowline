@@ -37,7 +37,7 @@ const STATE: ProjectState = {
  * картинка. Поэтому рисуем её всегда внутри провайдеров, как в приложении.
  */
 function draw(state: ProjectState, locale: Locale = "ru") {
-  return renderWithProviders(<Gantt state={state} />, { locale });
+  return renderWithProviders(<Gantt projectId="p1" state={state} />, { locale });
 }
 
 describe("диаграмма", () => {
