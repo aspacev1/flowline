@@ -7,7 +7,15 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
 from app.config import get_settings
-from app.models import CRITICALITY_LEVELS, Category, Criticality, Project, Revision, Task
+from app.models import (
+    CRITICALITY_LEVELS,
+    Category,
+    Criticality,
+    Dependency,
+    Project,
+    Revision,
+    Task,
+)
 
 
 class MutationError(Exception):
@@ -140,6 +148,18 @@ class ReorderTask(BaseModel):
     position: int
 
 
+class AddDependency(BaseModel):
+    type: Literal["add_dependency"] = "add_dependency"
+    from_task_id: uuid.UUID
+    to_task_id: uuid.UUID
+
+
+class RemoveDependency(BaseModel):
+    type: Literal["remove_dependency"] = "remove_dependency"
+    from_task_id: uuid.UUID
+    to_task_id: uuid.UUID
+
+
 class ApplyPositions(BaseModel):
     """Внутренняя операция: расставить позиции по готовой карте.
 
@@ -166,7 +186,9 @@ Op = Annotated[
     | RenameCategory
     | SetCategoryColor
     | ReorderTask
-    | ApplyPositions,
+    | ApplyPositions
+    | AddDependency
+    | RemoveDependency,
     Field(discriminator="type"),
 ]
 
@@ -184,6 +206,8 @@ _MODELS = {
     "set_category_color": SetCategoryColor,
     "reorder_task": ReorderTask,
     "apply_positions": ApplyPositions,
+    "add_dependency": AddDependency,
+    "remove_dependency": RemoveDependency,
 }
 
 
@@ -284,6 +308,18 @@ class PublicReorderTask(_Wire):
     position: int = Field(ge=0)
 
 
+class PublicAddDependency(_Wire):
+    type: Literal["add_dependency"] = "add_dependency"
+    from_task_id: uuid.UUID
+    to_task_id: uuid.UUID
+
+
+class PublicRemoveDependency(_Wire):
+    type: Literal["remove_dependency"] = "remove_dependency"
+    from_task_id: uuid.UUID
+    to_task_id: uuid.UUID
+
+
 # ApplyPositions публичного зеркала не имеет и иметь не должна: она внутренняя.
 
 
@@ -299,7 +335,9 @@ PublicOp = Annotated[
     | PublicSetProgress
     | PublicRenameCategory
     | PublicSetCategoryColor
-    | PublicReorderTask,
+    | PublicReorderTask
+    | PublicAddDependency
+    | PublicRemoveDependency,
     Field(discriminator="type"),
 ]
 
@@ -332,6 +370,24 @@ def _require_category(db: DbSession, project: Project, category_id: uuid.UUID) -
     if category is None or category.project_id != project.id:
         raise NotFoundInProject("category_not_found", "категория не найдена в этом проекте")
     return category
+
+
+def _find_dependency(
+    db: DbSession, project: Project, from_task_id: uuid.UUID, to_task_id: uuid.UUID
+) -> Dependency | None:
+    """Связь по обоим концам, ограниченная этим проектом.
+
+    project_id в условии избыточен, пока обе задачи уже проверены
+    _require_task, — но он же делает запрос верным сам по себе, без опоры на
+    то, что вызывающий не забыл проверку.
+    """
+    return db.scalar(
+        select(Dependency).where(
+            Dependency.project_id == project.id,
+            Dependency.from_task_id == from_task_id,
+            Dependency.to_task_id == to_task_id,
+        )
+    )
 
 
 # Поля, которые карточка задачи сохраняет одним действием.
@@ -544,6 +600,39 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
         category.color = op.color
         db.flush()
         return forward, _swap(forward)
+
+    if isinstance(op, AddDependency):
+        # Связи по спеку — стрелки на картинке, а не правило расчёта: даты по
+        # ним не пересчитываются. Но мусор в них допускать нельзя.
+        if op.from_task_id == op.to_task_id:
+            raise InvalidOperation("self_dependency", "задача не может зависеть от себя")
+        # Обе стороны через _require_task: связь с задачей чужого проекта
+        # отсекается тем же механизмом, что и всё остальное.
+        _require_task(db, project, op.from_task_id)
+        _require_task(db, project, op.to_task_id)
+        if _find_dependency(db, project, op.from_task_id, op.to_task_id) is not None:
+            raise InvalidOperation("dependency_exists", "такая связь уже есть")
+        db.add(
+            Dependency(
+                project_id=project.id,
+                from_task_id=op.from_task_id,
+                to_task_id=op.to_task_id,
+            )
+        )
+        db.flush()
+        ends = {"from_task_id": str(op.from_task_id), "to_task_id": str(op.to_task_id)}
+        return {"type": "add_dependency", **ends}, {"type": "remove_dependency", **ends}
+
+    if isinstance(op, RemoveDependency):
+        _require_task(db, project, op.from_task_id)
+        _require_task(db, project, op.to_task_id)
+        dependency = _find_dependency(db, project, op.from_task_id, op.to_task_id)
+        if dependency is None:
+            raise NotFoundInProject("dependency_not_found", "связь не найдена в этом проекте")
+        db.delete(dependency)
+        db.flush()
+        ends = {"from_task_id": str(op.from_task_id), "to_task_id": str(op.to_task_id)}
+        return {"type": "remove_dependency", **ends}, {"type": "add_dependency", **ends}
 
     if isinstance(op, ReorderTask):
         if op.position < 0:

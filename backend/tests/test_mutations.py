@@ -1,10 +1,11 @@
 from datetime import date
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 
-from app.models import Category, Organization, Project, Revision, Task
+from app.models import Category, Dependency, Organization, Project, Revision, Task
 from app.mutations import (
+    AddDependency,
     CreateCategory,
     CreateTask,
     DeleteCategory,
@@ -14,6 +15,7 @@ from app.mutations import (
     NotFoundInProject,
     PublicCreateCategory,
     PublicCreateTask,
+    RemoveDependency,
     RenameCategory,
     ReorderTask,
     SetCategoryColor,
@@ -830,3 +832,79 @@ def test_reorder_is_not_accepted_over_the_wire_as_apply_positions():
     }
     assert "reorder_task" in accepted
     assert "apply_positions" not in accepted
+
+
+def test_dependency_round_trips(db, project, category):
+    a, b = [apply_op(db, project, CreateTask(
+        category_id=str(category.id), name=n,
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+        for n in ("A", "B")]
+
+    added = apply_op(db, project, AddDependency(from_task_id=a, to_task_id=b), actor_id=None)
+    assert db.scalar(select(func.count()).select_from(Dependency)) == 1
+
+    undo(db, project, added, actor_id=None)
+    assert db.scalar(select(func.count()).select_from(Dependency)) == 0
+
+
+def test_a_task_cannot_depend_on_itself(db, project, category):
+    a = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="A",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+
+    with pytest.raises(InvalidOperation):
+        apply_op(db, project, AddDependency(from_task_id=a, to_task_id=a), actor_id=None)
+
+
+def test_the_same_dependency_cannot_be_added_twice(db, project, category):
+    a, b = [apply_op(db, project, CreateTask(
+        category_id=str(category.id), name=n,
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+        for n in ("A", "B")]
+    apply_op(db, project, AddDependency(from_task_id=a, to_task_id=b), actor_id=None)
+
+    with pytest.raises(InvalidOperation):
+        apply_op(db, project, AddDependency(from_task_id=a, to_task_id=b), actor_id=None)
+
+
+def test_removing_a_dependency_that_does_not_exist_is_refused(db, project, category):
+    a, b = [apply_op(db, project, CreateTask(
+        category_id=str(category.id), name=n,
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+        for n in ("A", "B")]
+
+    with pytest.raises(NotFoundInProject):
+        apply_op(db, project, RemoveDependency(from_task_id=a, to_task_id=b), actor_id=None)
+
+
+def test_a_dependency_to_a_task_of_another_project_is_refused(
+    db, project, category, other_project, other_category
+):
+    """Обе стороны связи проходят через _require_task.
+
+    Иначе стрелку можно протянуть в чужой проект — и сам факт существования
+    той задачи стал бы наблюдаемым.
+    """
+    mine = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="A",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+    foreign = apply_op(db, other_project, CreateTask(
+        category_id=str(other_category.id), name="Foreign",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+
+    with pytest.raises(NotFoundInProject):
+        apply_op(db, project, AddDependency(from_task_id=mine, to_task_id=foreign), actor_id=None)
+
+
+def test_undo_of_a_dependency_removal_brings_the_arrow_back(db, project, category):
+    a, b = [apply_op(db, project, CreateTask(
+        category_id=str(category.id), name=n,
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+        for n in ("A", "B")]
+    apply_op(db, project, AddDependency(from_task_id=a, to_task_id=b), actor_id=None)
+
+    removed = apply_op(db, project, RemoveDependency(from_task_id=a, to_task_id=b), actor_id=None)
+    assert db.scalar(select(func.count()).select_from(Dependency)) == 0
+
+    undo(db, project, removed, actor_id=None)
+    assert db.scalar(select(func.count()).select_from(Dependency)) == 1
