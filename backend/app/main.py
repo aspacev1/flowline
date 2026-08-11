@@ -7,6 +7,7 @@ from app.api import (
     meta_routes,
     org_routes,
     project_routes,
+    public_routes,
 )
 
 app = FastAPI(title="Flowline")
@@ -17,6 +18,7 @@ app.include_router(project_routes.router)
 app.include_router(invite_routes.org_router)
 app.include_router(invite_routes.public_router)
 app.include_router(ai_routes.router)
+app.include_router(public_routes.router)
 
 
 @app.get("/api/health")

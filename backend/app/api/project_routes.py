@@ -143,14 +143,24 @@ def get_project(
     project, membership = _load_project(db, user, project_id)
     granted = _granted(db, user, project.id)
     _require_project_read(membership, granted=granted)
+    return project_state(db, project, role=parse_role(membership.role), granted=granted)
+
+
+def project_state(db: DbSession, project: Project, *, role, granted: bool = False) -> dict:
+    """Состояние проекта в том виде, в каком его вправе увидеть эта роль.
+
+    Одна функция и для участника, и для гостя по публичной ссылке: страница
+    по ссылке показывает ту же раскладку, что и рабочий экран, и собирать её
+    вторым куском кода значило бы получить два проекта, расходящихся на первой
+    же правке. Гость приходит сюда с `role=None` — той самой ролью, которую
+    матрица прав знает как «гость».
+    """
     org = db.get(Organization, project.org_id)
     calendar = project_calendar(project, org)
     # Заметка — единственное поле с ограниченной видимостью. Выданный доступ к
     # проекту её не открывает: клиент, позванный в проект, читает его, но не
-    # внутренние заметки команды.
-    show_notes = can(
-        parse_role(membership.role), Action.READ_INTERNAL_NOTE, project_granted=granted
-    )
+    # внутренние заметки команды. Гость — тем более.
+    show_notes = can(role, Action.READ_INTERNAL_NOTE, project_granted=granted)
 
     # Позиции могут совпадать в одном крайнем случае (строка, восстановленная
     # отменой на позицию, которую с тех пор занял другой ряд), поэтому id —
@@ -219,10 +229,11 @@ def get_project(
         "undoable": (
             {
                 "seq": undoable.seq,
-                "op": visible_op(undoable.op, parse_role(membership.role)),
+                "op": visible_op(undoable.op, role, project_granted=granted),
                 "batch_id": str(undoable.batch_id) if undoable.batch_id else None,
             }
-            if (undoable := last_undoable(db, project)) is not None
+            if can(role, Action.PROJECT_WRITE, project_granted=granted)
+            and (undoable := last_undoable(db, project)) is not None
             else None
         ),
         # Максимум по датам окончания задач; пустой проект не имеет конца.

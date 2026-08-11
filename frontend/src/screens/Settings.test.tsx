@@ -155,6 +155,9 @@ describe("настройки проекта", () => {
     };
     server.use(
       http.get("/api/projects/p1", () => HttpResponse.json(state)),
+      // Панель публичной ссылки живёт на этом же экране: без ответа она
+      // показывает «проект наружу не показан», но запрос всё равно уходит.
+      http.get("/api/projects/p1/share", () => HttpResponse.json(null)),
       http.patch("/api/projects/p1", async ({ request }) => {
         const patch = (await request.json()) as Patch;
         patches.push(patch);

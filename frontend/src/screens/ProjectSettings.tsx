@@ -7,6 +7,7 @@ import { checkProjectSlug, getProject, projectQueryKey, updateProject } from "..
 import type { ProjectState } from "../api/projects";
 import { useCanWrite } from "../auth/permissions";
 import { useLocale } from "../i18n/LocaleProvider";
+import { SharePanel } from "../project/SharePanel";
 import { DateListField, SlugField, WorkingDaysField } from "../settings/fields";
 
 /**
@@ -201,6 +202,10 @@ export function ProjectSettings() {
           disabled={readOnly}
           onCommit={(workdays_extra) => save.mutate({ workdays_extra })}
         />
+
+        {/* Публичная ссылка — последним блоком: это не настройка расчёта, а
+            решение показать проект наружу. */}
+        {!readOnly && <SharePanel projectId={projectId} />}
       </section>
     </main>
   );

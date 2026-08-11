@@ -10,6 +10,7 @@ import { Profile } from "./screens/Profile";
 import { Project } from "./screens/Project";
 import { ProjectSettings } from "./screens/ProjectSettings";
 import { Projects } from "./screens/Projects";
+import { PublicProject } from "./screens/PublicProject";
 import { Register } from "./screens/Register";
 
 /**
@@ -26,6 +27,10 @@ export function AppRoutes() {
       {/* Приём приглашения — снаружи RequireAuth: человек с ссылкой на руках
           должен увидеть, куда его зовут, прежде чем заводить аккаунт. */}
       <Route path="/invite/:token" element={<AcceptInvite />} />
+      {/* Публичная страница: слаги в адресе ради читаемости, токен — в
+          параметре, потому что без него отзыв ссылки неисполним. Сессии не
+          требует вовсе. */}
+      <Route path="/p/:orgSlug/:projectSlug" element={<PublicProject />} />
       <Route element={<RequireAuth />}>
         <Route path="/projects" element={<Projects />} />
         {/* Интервью доступно только при создании нового проекта: запуск

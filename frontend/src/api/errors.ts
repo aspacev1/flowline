@@ -52,6 +52,28 @@ const PLAIN_CODES = new Set([
   "email_not_verified",
   "role_not_invitable",
   "verification_not_found",
+  // Публичный доступ и комментарии.
+  "share_not_found",
+  "comments_disabled",
+  "guest_name_required",
+  "comment_rate_limited",
+  "public_sharing_disabled",
+  // AI. Сбой модели — состояние, о котором человеку говорят словами:
+  // переписка и черновик при этом сохраняются.
+  "llm_not_configured",
+  "llm_unreachable",
+  "llm_refused",
+  "llm_schema_mismatch",
+  "llm_bad_json",
+  "llm_bad_shape",
+  "llm_key_unreadable",
+  "llm_failed",
+  "api_key_required",
+  "wrong_step",
+  "already_applied",
+  "ai_session_not_found",
+  "interview_exhausted",
+  "nothing_asked",
   // Обычно этот отказ не доходит до человека: интерфейс спрашивает причину и
   // повторяет операцию. Перевод нужен для того случая, когда спросить негде —
   // например, окно закрыли до ответа сервера.

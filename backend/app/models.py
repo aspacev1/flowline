@@ -280,6 +280,58 @@ class Dependency(Base):
     to_task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"))
 
 
+class ShareLink(Base):
+    """Публичная ссылка на проект.
+
+    Токен лежит открытым текстом — в отличие от приглашения, и это осознанная
+    разница. Приглашение выдаёт доступ к организации и показывается один раз;
+    публичную ссылку владелец копирует и пересылает снова и снова, и хранить
+    её хешем значило бы, что «скопировать ссылку ещё раз» требует выпустить
+    новую и разослать всем заново. Утечка дампа при этом открывает чтение
+    проекта, а не вход в организацию.
+    """
+
+    __tablename__ = "share_links"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    token: Mapped[str] = mapped_column(String(64), unique=True)
+    comments_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Comment(Base):
+    """Комментарий участника или гостя.
+
+    Автор — либо аккаунт, либо имя, введённое гостем: третьего не дано, и
+    оба поля nullable именно поэтому. Имя гостя подписывает его реплики
+    пометкой «гость», визуально отличаясь от участников с аккаунтом.
+    """
+
+    __tablename__ = "comments"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    # null — комментарий к проекту целиком, а не к задаче.
+    task_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"))
+    author_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    guest_name: Mapped[str | None] = mapped_column(String(100))
+    body: Mapped[str] = mapped_column(Text)
+    # clock_timestamp(), а не now(): now() возвращает время начала транзакции,
+    # одно на все вставки внутри неё, и две реплики, добавленные одним
+    # запросом, оказываются неразличимы по времени — лента переставляет их
+    # местами от запроса к запросу. У ревизий эту роль играет seq; у ленты
+    # комментариев порядкового номера нет, и его заменяет настоящее время.
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.clock_timestamp()
+    )
+
+
 class OrgLlmCredential(Base):
     """Подключение LLM: одно на организацию.
 

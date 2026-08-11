@@ -152,7 +152,12 @@
     "already_applied": "Qaralama artıq tətbiq edilib",
     "ai_session_not_found": "Sessiya tapılmadı",
     "interview_exhausted": "Suallar bitdi — konspektə keçin",
-    "nothing_asked": "Sual hələ verilməyib"
+    "nothing_asked": "Sual hələ verilməyib",
+    "share_not_found": "Keçid işləmir və ya ləğv edilib",
+    "comments_disabled": "Şərhlər bağlıdır",
+    "guest_name_required": "Adınızı yazın",
+    "comment_rate_limited": "Çox tez-tez — bir az gözləyin",
+    "public_sharing_disabled": "Açıq keçidlər bu quraşdırmada bağlıdır"
   },
   "projects": {
     "title": "Layihələr",
@@ -387,5 +392,22 @@
       "project_name": "Layihənin adı",
       "apply": "Layihəyə tətbiq et"
     }
+  },
+  "comments": {
+    "title": "Şərhlər",
+    "guest": "(qonaq)",
+    "disabled": "Bu keçiddə şərhlər bağlıdır",
+    "your_name": "Adınız",
+    "body": "Şərh",
+    "send": "Göndər"
+  },
+  "share": {
+    "title": "Açıq keçid",
+    "hidden": "Layihə bayıra açıq deyil",
+    "publish": "Keçid çıxar",
+    "url": "Keçid",
+    "comments": "Şərhlərə icazə verilir",
+    "reissue": "Yenidən çıxar (köhnəsi dərhal ölür)",
+    "revoke": "Keçidi bağla"
   }
 }

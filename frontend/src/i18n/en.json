@@ -152,7 +152,12 @@
     "already_applied": "The draft has already been applied",
     "ai_session_not_found": "Session not found",
     "interview_exhausted": "No questions left — move on to the summary",
-    "nothing_asked": "Nothing has been asked yet"
+    "nothing_asked": "Nothing has been asked yet",
+    "share_not_found": "The link does not work or was revoked",
+    "comments_disabled": "Comments are off",
+    "guest_name_required": "Say who you are",
+    "comment_rate_limited": "Too fast — wait a little",
+    "public_sharing_disabled": "Public links are switched off in this installation"
   },
   "projects": {
     "title": "Projects",
@@ -387,5 +392,22 @@
       "project_name": "Project name",
       "apply": "Apply to a project"
     }
+  },
+  "comments": {
+    "title": "Comments",
+    "guest": "(guest)",
+    "disabled": "Comments are off for this link",
+    "your_name": "Your name",
+    "body": "Comment",
+    "send": "Send"
+  },
+  "share": {
+    "title": "Public link",
+    "hidden": "The project is not shared",
+    "publish": "Publish a link",
+    "url": "Link",
+    "comments": "Comments are allowed",
+    "reissue": "Re-issue (the old link dies instantly)",
+    "revoke": "Close the link"
   }
 }
