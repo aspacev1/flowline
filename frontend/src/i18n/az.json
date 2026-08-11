@@ -1,0 +1,63 @@
+{
+  "app": {
+    "title": "Flowline"
+  },
+  "common": {
+    "loading": "Yüklənir…",
+    "days": {
+      "one": "{count} gün",
+      "other": "{count} gün"
+    }
+  },
+  "nav": {
+    "projects": "Layihələr",
+    "logout": "Çıxış"
+  },
+  "locale": {
+    "switch_label": "İnterfeys dili"
+  },
+  "auth": {
+    "greeting": "Salam, {name}",
+    "field": {
+      "name": "Ad",
+      "email": "E-poçt",
+      "password": "Parol"
+    },
+    "register": {
+      "title": "Qeydiyyat",
+      "submit": "Qeydiyyatdan keç",
+      "have_account": "Artıq hesabınız var?",
+      "link_login": "Daxil olun"
+    },
+    "login": {
+      "title": "Giriş",
+      "submit": "Daxil ol",
+      "no_account": "Hesabınız yoxdur?",
+      "link_register": "Qeydiyyatdan keçin"
+    },
+    "error": {
+      "email_taken": "Bu ünvan artıq tutulub",
+      "bad_credentials": "E-poçt və ya parol yanlışdır",
+      "signup_disabled": "Bu quraşdırmada açıq qeydiyyat bağlıdır",
+      "not_authenticated": "Davam etmək üçün daxil olun",
+      "session_expired": "Sessiyanın vaxtı bitdi, yenidən daxil olun",
+      "validation_error": "Formu yoxlayın: bəzi sahələr düzgün doldurulmayıb",
+      "password_too_short": "Parol ən azı 8 simvol olmalıdır"
+    }
+  },
+  "error": {
+    "network": "Server əlçatan deyil. Bağlantını yoxlayıb yenidən cəhd edin",
+    "unknown": "Gözlənilməz xəta baş verdi",
+    "no_organization": "Siz heç bir təşkilata daxil deyilsiniz",
+    "forbidden": "Bunun üçün icazəniz yoxdur"
+  },
+  "projects": {
+    "title": "Layihələr",
+    "empty": {
+      "title": "Hələ bir dənə də layihə yoxdur",
+      "hint": "İlk layihəni yaradın — kateqoriyalar və tapşırıqlar onun içində yaşayacaq"
+    },
+    "create": "Layihə yarat",
+    "create_soon": "Layihə yaratma sehrbazı hazırlanır"
+  }
+}
