@@ -226,6 +226,12 @@ class Task(Base):
     position: Mapped[int] = mapped_column(Integer, default=0)
     baseline_start: Mapped[date | None] = mapped_column(Date)
     baseline_duration: Mapped[int | None] = mapped_column(Integer)
+    # Откуда взялась задача. В истории остаётся «создана AI-сессией от
+    # 10 августа», и без этого поля такой записи неоткуда взяться: журнал
+    # ревизий хранит операцию, а не её происхождение.
+    created_by_ai_session_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("ai_sessions.id", ondelete="SET NULL")
+    )
 
 
 class PlanVersion(Base):
@@ -272,6 +278,60 @@ class Dependency(Base):
     project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"))
     from_task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"))
     to_task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"))
+
+
+class OrgLlmCredential(Base):
+    """Подключение LLM: одно на организацию.
+
+    `base_url` и `model` — обязательные настройки, а не константы: без них
+    BYOK работает с одним облаком по одной зашитой модели, и обещание «можно
+    подсунуть локальную модель» остаётся на словах.
+
+    Ключ шифруется симметрично секретом приложения и наружу не отдаётся
+    никогда — только признак «ключ настроен».
+    """
+
+    __tablename__ = "org_llm_credentials"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), unique=True
+    )
+    provider: Mapped[str] = mapped_column(String(32), default="openai")
+    base_url: Mapped[str] = mapped_column(String(300))
+    model: Mapped[str] = mapped_column(String(100))
+    encrypted_key: Mapped[str] = mapped_column(Text)
+
+
+class AiSession(Base):
+    """Интервью, конспект и черновик — до применения в проект.
+
+    Живёт отдельно от проекта, потому что проекта до применения не существует:
+    AI ничего не пишет в проект без явного подтверждения человека.
+    """
+
+    __tablename__ = "ai_sessions"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), index=True
+    )
+    # Заполняется после применения: до него проекта нет.
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL")
+    )
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    # Язык интервью фиксируется на сессии, а не берётся из профиля каждый раз:
+    # человек, переключивший интерфейс посреди интервью, иначе получил бы
+    # черновик наполовину на одном языке, наполовину на другом.
+    locale: Mapped[str] = mapped_column(String(5), default="az")
+    status: Mapped[str] = mapped_column(String(16), default="interview")
+    transcript: Mapped[list] = mapped_column(JSONB, default=list)
+    summary: Mapped[list] = mapped_column(JSONB, default=list)
+    draft: Mapped[dict] = mapped_column(JSONB, default=dict)
+    tokens_used: Mapped[int] = mapped_column(Integer, default=0)
+    applied_batch_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Revision(Base):
