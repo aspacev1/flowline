@@ -1,5 +1,8 @@
 import { request } from "./client";
 
+/** Ключ кэша профиля: один на всё приложение, иначе состояний входа станет два. */
+export const ME_QUERY_KEY = ["auth", "me"] as const;
+
 export type User = {
   id: string;
   name: string;
