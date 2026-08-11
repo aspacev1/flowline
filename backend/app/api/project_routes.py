@@ -1,27 +1,20 @@
 import uuid
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
-from app.access import Action, can, parse_role, visible_op
+from app.access import Action, can, needs_project_grant, parse_role, visible_op
+from app.api.deps import ProjectContext, project_context
+from app.api.serialization import comments_out, project_state
 from app.auth import current_user
-from app.calendar import CalendarError, end_date
+from app.calendar import CalendarError
+from app.comments import CommentRejected, add_comment, list_comments
 from app.db import get_db
-from app.models import (
-    Category,
-    Dependency,
-    Membership,
-    Organization,
-    Project,
-    ProjectAccess,
-    Revision,
-    Task,
-    TaskAssignee,
-    User,
-)
+from app.live import hub
+from app.models import Membership, Project, ProjectAccess, Revision, User
 from app.mutations import (
     MutationError,
     NotFoundInProject,
@@ -33,10 +26,10 @@ from app.mutations import (
     undo,
     undo_batch,
 )
+from app.orgs import current_membership
 from app.plans import approve_plan, plan_versions
 from app.projects import create_project as create_project_entity
 from app.settings_input import NULLABLE_PROJECT_FIELDS, ProjectSettingsIn, changes
-from app.settings_resolution import project_calendar, resolve_shift_threshold, resolve_timezone
 from app.slugs import slug_check
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -52,60 +45,17 @@ class ProjectOut(BaseModel):
     slug: str
 
 
-def _membership(db: DbSession, user: User) -> Membership:
-    # Человек может состоять в нескольких организациях; переключателя ещё
-    # нет, и маршрут берёт первую. Порядок задан явно, чтобы «первая» была
-    # хотя бы одной и той же от запроса к запросу, а не той, что первой
-    # вернул планировщик.
-    membership = db.scalar(
-        select(Membership).where(Membership.user_id == user.id).order_by(Membership.id)
-    )
-    if membership is None:
-        raise HTTPException(status_code=403, detail="no_organization")
-    return membership
-
-
-def _granted(db: DbSession, user: User, project_id: uuid.UUID) -> bool:
-    """Позвали ли этого человека именно в этот проект.
-
-    Спрашивается только ради роли `client`: остальные видят все проекты
-    организации, и строка доступа для них ничего не значит. Но спрашивается
-    всегда — ветка «если роль client» здесь означала бы, что правило живёт в
-    двух местах: в матрице прав и в условии перед ней.
-    """
-    return (
-        db.scalar(
-            select(ProjectAccess.id).where(
-                ProjectAccess.project_id == project_id, ProjectAccess.user_id == user.id
-            )
-        )
-        is not None
-    )
-
-
-def _load_project(db: DbSession, user: User, project_id: uuid.UUID) -> tuple[Project, Membership]:
-    membership = _membership(db, user)
-    project = db.get(Project, project_id)
-    # чужой проект неотличим от несуществующего: 404, а не 403
-    if project is None or project.org_id != membership.org_id:
-        raise HTTPException(status_code=404, detail="project_not_found")
-    return project, membership
-
-
-def _require_project_read(membership: Membership, *, granted: bool = False) -> None:
-    """Единственное место, где решается право на чтение: спрашивает access,
-    не сравнивает роль напрямую. Отказ — 404, а не 403, тем же принципом,
-    что и в _load_project: клиент без выданного доступа к проекту не должен
-    отличить существующий проект от несуществующего."""
-    if not can(parse_role(membership.role), Action.PROJECT_READ, project_granted=granted):
-        raise HTTPException(status_code=404, detail="project_not_found")
+class CommentIn(BaseModel):
+    body: str = Field(min_length=1)
+    task_id: uuid.UUID | None = None
 
 
 @router.post("", response_model=ProjectOut, status_code=201)
 def create_project(
-    payload: ProjectIn, user: User = Depends(current_user), db: DbSession = Depends(get_db)
+    payload: ProjectIn,
+    membership: Membership = Depends(current_membership),
+    db: DbSession = Depends(get_db),
 ):
-    membership = _membership(db, user)
     if not can(parse_role(membership.role), Action.PROJECT_WRITE):
         raise HTTPException(status_code=403, detail="forbidden")
 
@@ -114,270 +64,100 @@ def create_project(
 
 
 @router.get("", response_model=list[ProjectOut])
-def list_projects(user: User = Depends(current_user), db: DbSession = Depends(get_db)):
-    membership = _membership(db, user)
+def list_projects(
+    user: User = Depends(current_user),
+    membership: Membership = Depends(current_membership),
+    db: DbSession = Depends(get_db),
+):
     role = parse_role(membership.role)
+    if not can(role, Action.PROJECT_READ, project_granted=True):
+        # Роль, которая не читает проекты ни при каком гранте (то есть
+        # значение вне матрицы), не получает и списка. Тот же 404, что и у
+        # отдельного проекта: пустой список сказал бы «проектов нет», а это
+        # неправда.
+        raise HTTPException(status_code=404, detail="project_not_found")
+
     query = select(Project).where(Project.org_id == membership.org_id)
-
-    if not can(role, Action.PROJECT_READ):
-        # Роль без общего права чтения видит не пустой список, а только те
-        # проекты, куда её позвали явно. Пустой список тем, у кого доступов
-        # нет, — это то же самое, но сказанное данными, а не отказом: клиент
-        # не должен узнавать о существовании остальных проектов.
-        query = query.where(
-            Project.id.in_(
-                select(ProjectAccess.project_id).where(ProjectAccess.user_id == user.id)
-            )
+    if needs_project_grant(role):
+        # Роль, которую зовут в проекты поимённо, видит ровно их. Фильтр
+        # запросом, а не отсевом в Python: список проектов организации — это
+        # ровно то, что от неё скрывают.
+        query = query.join(ProjectAccess, ProjectAccess.project_id == Project.id).where(
+            ProjectAccess.user_id == user.id
         )
-        if not can(role, Action.PROJECT_READ, project_granted=True):
-            raise HTTPException(status_code=404, detail="project_not_found")
-
     projects = db.scalars(query).all()
     return [ProjectOut(id=str(p.id), name=p.name, slug=p.slug) for p in projects]
 
 
+def _undoable(db: DbSession, context: ProjectContext) -> dict | None:
+    """Запись, которую снимет кнопка «Отменить», — или None.
+
+    Проходит через visible_op: снимок удалённой задачи несёт внутреннюю
+    заметку, и подпись кнопки не должна её выдать.
+    """
+    if not context.can(Action.PROJECT_WRITE):
+        return None
+    revision = last_undoable(db, context.project)
+    if revision is None:
+        return None
+    return {
+        "seq": revision.seq,
+        "op": visible_op(revision.op, context.role, project_granted=context.granted),
+        "batch_id": str(revision.batch_id) if revision.batch_id else None,
+    }
+
+
 @router.get("/{project_id}")
 def get_project(
-    project_id: uuid.UUID, user: User = Depends(current_user), db: DbSession = Depends(get_db)
+    context: ProjectContext = Depends(project_context), db: DbSession = Depends(get_db)
 ):
-    project, membership = _load_project(db, user, project_id)
-    granted = _granted(db, user, project.id)
-    _require_project_read(membership, granted=granted)
-    return project_state(db, project, role=parse_role(membership.role), granted=granted)
-
-
-def project_state(db: DbSession, project: Project, *, role, granted: bool = False) -> dict:
-    """Состояние проекта в том виде, в каком его вправе увидеть эта роль.
-
-    Одна функция и для участника, и для гостя по публичной ссылке: страница
-    по ссылке показывает ту же раскладку, что и рабочий экран, и собирать её
-    вторым куском кода значило бы получить два проекта, расходящихся на первой
-    же правке. Гость приходит сюда с `role=None` — той самой ролью, которую
-    матрица прав знает как «гость».
-    """
-    org = db.get(Organization, project.org_id)
-    calendar = project_calendar(project, org)
-    # Заметка — единственное поле с ограниченной видимостью. Выданный доступ к
-    # проекту её не открывает: клиент, позванный в проект, читает его, но не
-    # внутренние заметки команды. Гость — тем более.
-    show_notes = can(role, Action.READ_INTERNAL_NOTE, project_granted=granted)
-
-    # Позиции могут совпадать в одном крайнем случае (строка, восстановленная
-    # отменой на позицию, которую с тех пор занял другой ряд), поэтому id —
-    # обязательный второй ключ сортировки, а не только position.
-    categories = db.scalars(
-        select(Category)
-        .where(Category.project_id == project.id)
-        .order_by(Category.position, Category.id)
-    ).all()
-    tasks = db.scalars(
-        select(Task).where(Task.project_id == project.id).order_by(Task.position, Task.id)
-    ).all()
-
-    # Один запрос на весь проект, а не по запросу на задачу: на сотне задач
-    # второе дало бы сотню запросов ради одного экрана.
-    assignees: dict[str, list[str]] = {str(t.id): [] for t in tasks}
-    for task_id, user_id in db.execute(
-        select(TaskAssignee.task_id, TaskAssignee.user_id)
-        .join(Task, Task.id == TaskAssignee.task_id)
-        .where(Task.project_id == project.id)
-        .order_by(TaskAssignee.user_id)
-    ).all():
-        assignees[str(task_id)].append(str(user_id))
-
-    dependencies = db.execute(
-        select(Dependency.from_task_id, Dependency.to_task_id)
-        .where(Dependency.project_id == project.id)
-        .order_by(Dependency.from_task_id, Dependency.to_task_id)
-    ).all()
-
     try:
-        ends = [end_date(t.start_date, t.duration_days, calendar) for t in tasks]
-        # Конец базового плана считает сервер по тому же календарю, что и
-        # текущий: призрак под полоской обязан стоять там же, где стояла бы
-        # настоящая полоска с теми датами, а клиент календарной арифметики не
-        # повторяет.
-        baseline_ends = [
-            end_date(t.baseline_start, t.baseline_duration, calendar)
-            if t.baseline_start is not None and t.baseline_duration is not None
-            else None
-            for t in tasks
-        ]
+        return project_state(
+            db,
+            context.project,
+            context.org,
+            show_notes=context.can(Action.READ_INTERNAL_NOTE),
+            undoable=_undoable(db, context),
+        )
     except CalendarError as error:
         # Той же формы, что и отказы мутаций: 422 с машинным кодом. Раньше
         # здесь была голая пятисотка — вырожденную маску задаёт человек, и
         # проект переставал читаться без объяснения.
         raise HTTPException(status_code=422, detail=error.code)
 
+
+def _revision_entry(revision: Revision, actor_name: str | None, op: dict) -> dict:
+    """Запись журнала в том виде, в каком её читает клиент.
+
+    Одна форма на два пути: ленту истории запрашивают по HTTP, а новые ревизии
+    приходят в сокет. Собранные порознь, они разойдутся на первом же добавленном
+    поле, и клиенту придётся разбирать две формы одного события.
+
+    `op` приходит параметром, а не берётся из ревизии: кому что видно, решается
+    у получателя (в HTTP — по роли спрашивающего, в сокете — по роли каждого
+    подписчика отдельно), и решать это здесь значило бы решать дважды.
+    """
     return {
-        "id": str(project.id),
-        "name": project.name,
-        "slug": project.slug,
-        "deadline": project.deadline.isoformat() if project.deadline else None,
-        # План: утверждён ли и какой версией. По этим двум значениям интерфейс
-        # отличает черновик (правки свободны) от утверждённого плана и знает,
-        # какую кнопку показать — «Утвердить» или «Переутвердить».
-        "plan_approved_at": (
-            project.plan_approved_at.isoformat() if project.plan_approved_at else None
-        ),
-        "plan_version": project.plan_version,
-        # То, что отменит кнопка «Отменить», — вместе с состоянием, а не
-        # отдельным запросом: кнопка обязана быть неактивной сразу, а не
-        # оживать через кадр после отрисовки. Запись проходит через
-        # visible_op: снимок удалённой задачи несёт внутреннюю заметку, и
-        # подпись кнопки не должна её выдать.
-        "undoable": (
-            {
-                "seq": undoable.seq,
-                "op": visible_op(undoable.op, role, project_granted=granted),
-                "batch_id": str(undoable.batch_id) if undoable.batch_id else None,
-            }
-            if can(role, Action.PROJECT_WRITE, project_granted=granted)
-            and (undoable := last_undoable(db, project)) is not None
+        "seq": revision.seq,
+        "created_at": revision.created_at.isoformat(),
+        # Автора может не быть: операции AI и системные записи идут без
+        # человека, и выдумывать им автора нельзя.
+        "actor": (
+            {"id": str(revision.actor_user_id), "name": actor_name}
+            if actor_name is not None
             else None
         ),
-        # Максимум по датам окончания задач; пустой проект не имеет конца.
-        "project_end": max(ends).isoformat() if ends else None,
-        # Календарь едет вместе с состоянием: интерфейс заливает нерабочие дни
-        # и рисует выходные ещё до первого клика, а не догадывается о них.
-        "calendar": {
-            "working_days": calendar.working_days,
-            "holidays": sorted(d.isoformat() for d in calendar.holidays),
-            "extra_workdays": sorted(d.isoformat() for d in calendar.extra_workdays),
-        },
-        # Разрешённые значения, а не сырые nullable-колонки проекта: кто их
-        # унаследовал от организации, а кто задал сам — не дело интерфейса.
-        "settings": {
-            "shift_threshold_days": resolve_shift_threshold(project, org),
-            "timezone": resolve_timezone(project, org),
-        },
-        # Сырые переопределения — рядом с разрешёнными значениями, но отдельно
-        # от них. Экрану настроек нужно именно это различие: `null` там
-        # означает «наследовать», и показать его как унаследованное число
-        # значило бы предложить человеку переопределить то, что он и не
-        # переопределял.
-        "overrides": {
-            "timezone": project.timezone,
-            "working_days": project.working_days,
-            "shift_threshold_days": project.shift_threshold_days,
-            "holidays_extra": list(project.holidays_extra or []),
-            "workdays_extra": list(project.workdays_extra or []),
-        },
-        "categories": [
-            {"id": str(c.id), "name": c.name, "color": c.color, "position": c.position}
-            for c in categories
-        ],
-        "tasks": [
-            {
-                "id": str(t.id),
-                "category_id": str(t.category_id),
-                "name": t.name,
-                "description": t.description,
-                "start_date": t.start_date.isoformat(),
-                "duration_days": t.duration_days,
-                "end_date": task_end.isoformat(),
-                "criticality": t.criticality,
-                "progress_pct": t.progress_pct,
-                "position": t.position,
-                "assignee_ids": assignees[str(t.id)],
-                # Базовый план едет с задачей всегда, а не по отдельному
-                # запросу: под каждой полоской рисуется его призрак, и второй
-                # поход к серверу ради него означал бы диаграмму, которая
-                # дорисовывается через кадр после появления.
-                #
-                # Пустые baseline_* при утверждённом плане — это и есть
-                # признак «сверх первоначального плана»: отдельного флага нет,
-                # потому что он был бы вычислим из этих же двух полей и однажды
-                # разошёлся бы с ними.
-                "baseline_start": t.baseline_start.isoformat() if t.baseline_start else None,
-                "baseline_duration": t.baseline_duration,
-                "baseline_end": baseline_end.isoformat() if baseline_end else None,
-                **({"internal_note": t.internal_note} if show_notes else {}),
-            }
-            for t, task_end, baseline_end in zip(tasks, ends, baseline_ends)
-        ],
-        "dependencies": [
-            {"from_task_id": str(source), "to_task_id": str(target)}
-            for source, target in dependencies
-        ],
+        # Причина — текст человека: отдаётся как есть и не переводится.
+        "reason": revision.reason,
+        "op": op,
     }
-
-
-def _project_slug_taken(db: DbSession, org_id: uuid.UUID, slug: str, *, except_id) -> bool:
-    return (
-        db.scalar(
-            select(Project.id).where(
-                Project.org_id == org_id, Project.slug == slug, Project.id != except_id
-            )
-        )
-        is not None
-    )
-
-
-@router.get("/{project_id}/slug-check")
-def check_project_slug(
-    project_id: uuid.UUID,
-    slug: str = Query(min_length=1, max_length=100),
-    user: User = Depends(current_user),
-    db: DbSession = Depends(get_db),
-):
-    """Свободен ли слаг внутри этой организации — и что предложить, если занят."""
-    project, membership = _load_project(db, user, project_id)
-    if not can(parse_role(membership.role), Action.PROJECT_ADMIN):
-        raise HTTPException(status_code=403, detail="forbidden")
-
-    def taken(candidate: str) -> bool:
-        return _project_slug_taken(db, project.org_id, candidate, except_id=project.id)
-
-    return slug_check(slug, is_taken=taken)
-
-
-@router.patch("/{project_id}")
-def update_project(
-    project_id: uuid.UUID,
-    payload: ProjectSettingsIn,
-    user: User = Depends(current_user),
-    db: DbSession = Depends(get_db),
-):
-    """Уровень 3 настроек: слаг, целевая дата и переопределения организации.
-
-    `null` в часовом поясе, рабочих днях и пороге — это «наследовать», а не
-    «пусто», и отличается он от «поле не прислали» тем, что второе просто не
-    попадает в набор изменений. Без этой разницы сбросить переопределение было
-    бы нечем: любой запрос без поля стирал бы его.
-
-    Правки не проходят через журнал ревизий: журнал — история плана, а не
-    история настроек. Смешать их значило бы наполнить историю задачи записями
-    о том, что кто-то поменял часовой пояс.
-    """
-    project, membership = _load_project(db, user, project_id)
-    if not can(parse_role(membership.role), Action.PROJECT_ADMIN):
-        raise HTTPException(status_code=403, detail="forbidden")
-
-    updates = changes(payload, nullable=NULLABLE_PROJECT_FIELDS)
-    if "slug" in updates and _project_slug_taken(
-        db, project.org_id, updates["slug"], except_id=project.id
-    ):
-        raise HTTPException(status_code=409, detail="slug_taken")
-
-    for field, value in updates.items():
-        setattr(project, field, value)
-
-    try:
-        db.flush()
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(status_code=409, detail="slug_taken")
-
-    return get_project(project_id, user, db)
 
 
 @router.get("/{project_id}/revisions")
 def list_revisions(
-    project_id: uuid.UUID,
     task_id: uuid.UUID | None = None,
     limit: int = Query(default=200, ge=1, le=1000),
-    user: User = Depends(current_user),
+    context: ProjectContext = Depends(project_context),
     db: DbSession = Depends(get_db),
 ):
     """Журнал изменений проекта, при желании — одной задачи.
@@ -390,11 +170,7 @@ def list_revisions(
     Отдавать её «на будущее» значило бы удваивать вес ленты и заодно удваивать
     поверхность, на которой заметка может утечь.
     """
-    project, membership = _load_project(db, user, project_id)
-    granted = _granted(db, user, project.id)
-    _require_project_read(membership, granted=granted)
-
-    query = select(Revision).where(Revision.project_id == project.id)
+    query = select(Revision).where(Revision.project_id == context.project.id)
     if task_id is not None:
         # Поиск по содержимому jsonb — то, ради чего колонка и объявлена jsonb:
         # выбирать все ревизии проекта и отсеивать их в Python значило бы
@@ -413,22 +189,12 @@ def list_revisions(
         ).all()
     }
 
-    role = parse_role(membership.role)
     return [
-        {
-            "seq": revision.seq,
-            "created_at": revision.created_at.isoformat(),
-            # Автора может не быть: операции AI и системные записи идут без
-            # человека, и выдумывать им автора нельзя.
-            "actor": (
-                {"id": str(revision.actor_user_id), "name": actors[revision.actor_user_id]}
-                if revision.actor_user_id in actors
-                else None
-            ),
-            # Причина — текст человека: отдаётся как есть и не переводится.
-            "reason": revision.reason,
-            "op": visible_op(revision.op, role, project_granted=granted),
-        }
+        _revision_entry(
+            revision,
+            actors.get(revision.actor_user_id),
+            visible_op(revision.op, context.role, project_granted=context.granted),
+        )
         for revision in revisions
     ]
 
@@ -455,11 +221,76 @@ def _refuse(error: MutationError):
     return HTTPException(status_code=422, detail=error.code)
 
 
+def _project_slug_taken(db: DbSession, org_id: uuid.UUID, slug: str, *, except_id) -> bool:
+    return (
+        db.scalar(
+            select(Project.id).where(
+                Project.org_id == org_id, Project.slug == slug, Project.id != except_id
+            )
+        )
+        is not None
+    )
+
+
+@router.get("/{project_id}/slug-check")
+def check_project_slug(
+    slug: str = Query(min_length=1, max_length=100),
+    context: ProjectContext = Depends(project_context),
+    db: DbSession = Depends(get_db),
+):
+    """Свободен ли слаг внутри этой организации — и что предложить, если занят."""
+    context.require(Action.PROJECT_ADMIN)
+
+    def taken(candidate: str) -> bool:
+        return _project_slug_taken(
+            db, context.project.org_id, candidate, except_id=context.project.id
+        )
+
+    return slug_check(slug, is_taken=taken)
+
+
+@router.patch("/{project_id}")
+def update_project(
+    payload: ProjectSettingsIn,
+    context: ProjectContext = Depends(project_context),
+    db: DbSession = Depends(get_db),
+):
+    """Уровень 3 настроек: слаг, целевая дата и переопределения организации.
+
+    `null` в часовом поясе, рабочих днях и пороге — это «наследовать», а не
+    «пусто», и отличается он от «поле не прислали» тем, что второе просто не
+    попадает в набор изменений. Без этой разницы сбросить переопределение было
+    бы нечем: любой запрос без поля стирал бы его.
+
+    Правки не проходят через журнал ревизий: журнал — история плана, а не
+    история настроек. Смешать их значило бы наполнить историю задачи записями
+    о том, что кто-то поменял часовой пояс.
+    """
+    context.require(Action.PROJECT_ADMIN)
+    project = context.project
+
+    updates = changes(payload, nullable=NULLABLE_PROJECT_FIELDS)
+    if "slug" in updates and _project_slug_taken(
+        db, project.org_id, updates["slug"], except_id=project.id
+    ):
+        raise HTTPException(status_code=409, detail="slug_taken")
+
+    for field, value in updates.items():
+        setattr(project, field, value)
+
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="slug_taken")
+
+    return get_project(context, db)
+
+
 @router.post("/{project_id}/undo", status_code=201)
 def undo_last(
-    project_id: uuid.UUID,
     reason: str | None = Body(default=None, embed=True),
-    user: User = Depends(current_user),
+    context: ProjectContext = Depends(project_context),
     db: DbSession = Depends(get_db),
 ):
     """Отмена последнего изменения.
@@ -473,37 +304,35 @@ def undo_last(
     и всякое изменение сроков: возврат, уводящий задачу от базового плана
     дальше порога, объясняется ровно так же.
     """
-    project, membership = _load_project(db, user, project_id)
-    if not can(parse_role(membership.role), Action.PROJECT_WRITE):
-        raise HTTPException(status_code=403, detail="forbidden")
+    context.require(Action.PROJECT_WRITE)
 
-    revision = last_undoable(db, project)
+    revision = last_undoable(db, context.project)
     if revision is None:
         raise HTTPException(status_code=404, detail="nothing_to_undo")
 
     try:
-        applied = undo(db, project, revision, actor_id=user.id, reason=reason)
+        applied = undo(db, context.project, revision, actor_id=context.user.id, reason=reason)
     except MutationError as error:
         raise _refuse(error)
 
-    role = parse_role(membership.role)
-    return {"seq": applied.seq, "undone_seq": revision.seq, "op": visible_op(applied.op, role)}
+    return {
+        "seq": applied.seq,
+        "undone_seq": revision.seq,
+        "op": visible_op(applied.op, context.role, project_granted=context.granted),
+    }
 
 
 @router.post("/{project_id}/batches/{batch_id}/undo", status_code=201)
 def undo_whole_batch(
-    project_id: uuid.UUID,
     batch_id: uuid.UUID,
-    user: User = Depends(current_user),
+    context: ProjectContext = Depends(project_context),
     db: DbSession = Depends(get_db),
 ):
     """Откат пачки целиком — одной кнопкой, как обещано про применение AI."""
-    project, membership = _load_project(db, user, project_id)
-    if not can(parse_role(membership.role), Action.PROJECT_WRITE):
-        raise HTTPException(status_code=403, detail="forbidden")
+    context.require(Action.PROJECT_WRITE)
 
     try:
-        applied = undo_batch(db, project, batch_id, actor_id=user.id)
+        applied = undo_batch(db, context.project, batch_id, actor_id=context.user.id)
     except MutationError as error:
         raise _refuse(error)
 
@@ -512,7 +341,7 @@ def undo_whole_batch(
 
 @router.post("/{project_id}/plan/approvals", status_code=201)
 def approve_plan_route(
-    project_id: uuid.UUID, user: User = Depends(current_user), db: DbSession = Depends(get_db)
+    context: ProjectContext = Depends(project_context), db: DbSession = Depends(get_db)
 ):
     """Утверждение плана, оно же переутверждение.
 
@@ -521,15 +350,10 @@ def approve_plan_route(
     отличался бы от первого только проверкой права, и разъехались бы они на
     первой же правке снимка.
     """
-    project, membership = _load_project(db, user, project_id)
-    role = parse_role(membership.role)
+    first_time = context.project.plan_version == 0
+    context.require(Action.PLAN_APPROVE if first_time else Action.PLAN_REAPPROVE)
 
-    first_time = project.plan_version == 0
-    needed = Action.PLAN_APPROVE if first_time else Action.PLAN_REAPPROVE
-    if not can(role, needed):
-        raise HTTPException(status_code=403, detail="forbidden")
-
-    version = approve_plan(db, project, actor_id=user.id)
+    version = approve_plan(db, context.project, actor_id=context.user.id)
     return {
         "version": version.version,
         "approved_at": version.approved_at.isoformat(),
@@ -539,7 +363,7 @@ def approve_plan_route(
 
 @router.get("/{project_id}/plan/approvals")
 def list_plan_versions(
-    project_id: uuid.UUID, user: User = Depends(current_user), db: DbSession = Depends(get_db)
+    context: ProjectContext = Depends(project_context), db: DbSession = Depends(get_db)
 ):
     """Летопись утверждений: что обещали в январе, что в марте.
 
@@ -547,10 +371,7 @@ def list_plan_versions(
     длительности и названия, а названия видит всякий, кто вправе читать
     проект.
     """
-    project, membership = _load_project(db, user, project_id)
-    _require_project_read(membership, granted=_granted(db, user, project.id))
-
-    versions = plan_versions(db, project)
+    versions = plan_versions(db, context.project)
     approvers = {
         row.id: row.name
         for row in db.scalars(
@@ -574,24 +395,78 @@ def list_plan_versions(
 
 @router.post("/{project_id}/mutations", status_code=201)
 def apply_mutation(
-    project_id: uuid.UUID,
+    background: BackgroundTasks,
     op: PublicOp = Body(..., embed=True),
     reason: str | None = Body(default=None),
-    user: User = Depends(current_user),
+    context: ProjectContext = Depends(project_context),
     db: DbSession = Depends(get_db),
 ):
-    project, membership = _load_project(db, user, project_id)
-    if not can(parse_role(membership.role), Action.PROJECT_WRITE):
-        raise HTTPException(status_code=403, detail="forbidden")
+    context.require(Action.PROJECT_WRITE)
 
     try:
-        revision = apply_op(db, project, to_internal(op), actor_id=user.id, reason=reason)
+        revision = apply_op(
+            db, context.project, to_internal(op), actor_id=context.user.id, reason=reason
+        )
     except MutationError as error:
+        # Сущность чужого проекта — не ошибка формата запроса, а непроизнесённая
+        # причина снимается тем же запросом с добавленным полем: разбор кодов
+        # общий для всех пишущих маршрутов.
         raise _refuse(error)
 
-    role = parse_role(membership.role)
+    # Заметка внутрь события кладётся как есть: кому её видно, решает каждый
+    # сокет отдельно — в одной комнате сидят и редактор, и клиент.
+    event = {"type": "revision", **_revision_entry(revision, context.user.name, revision.op)}
+
+    # Коммит явный, до постановки рассылки в очередь, и это не перестраховка.
+    # Разослать можно только то, что уже лежит в базе: получив сигнал, клиент
+    # перезапрашивает проект целиком — и, придя раньше коммита, не увидел бы
+    # изменения, а второго сигнала не будет. Полагаться здесь на коммит из
+    # get_db нельзя: фоновые задачи выполняются раньше, чем закрывается
+    # зависимость с yield. Повторный коммит на выходе безвреден — коммитить
+    # уже нечего.
+    db.commit()
+    background.add_task(hub.publish, context.project.id, event)
+
+    seen = {"role": context.role, "project_granted": context.granted}
     return {
         "seq": revision.seq,
-        "op": visible_op(revision.op, role),
-        "inverse": visible_op(revision.inverse, role),
+        "op": visible_op(revision.op, **seen),
+        "inverse": visible_op(revision.inverse, **seen),
     }
+
+
+@router.get("/{project_id}/comments")
+def list_project_comments(
+    task_id: uuid.UUID | None = None,
+    context: ProjectContext = Depends(project_context),
+    db: DbSession = Depends(get_db),
+):
+    """Лента проекта — та же самая, что видна на публичной странице.
+
+    Гостевые реплики приходят участнику вместе с остальными: смысл публичной
+    ссылки в том, чтобы разговор с клиентом жил в проекте, а не в почте.
+    """
+    return comments_out(db, list_comments(db, context.project, task_id=task_id))
+
+
+@router.post("/{project_id}/comments", status_code=201)
+def create_project_comment(
+    payload: CommentIn,
+    context: ProjectContext = Depends(project_context),
+    db: DbSession = Depends(get_db),
+):
+    context.require(Action.COMMENT)
+    try:
+        comment = add_comment(
+            db,
+            context.project,
+            body=payload.body,
+            task_id=payload.task_id,
+            author=context.user,
+        )
+    except CommentRejected as error:
+        # task_not_found — не ошибка формата: та же 404, что и у мутаций,
+        # ссылающихся на чужую задачу.
+        status = 404 if error.code == "task_not_found" else 422
+        raise HTTPException(status_code=status, detail=error.code)
+    return comments_out(db, [comment])[0]

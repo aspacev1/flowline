@@ -1,461 +1,439 @@
-"""Приглашения — пункт 6 раздела 13.
+"""Приглашения как домен: выпуск, отзыв, повторный выпуск и приём.
 
-Проверяются ровно те правила, которые названы в спецификации: принятое
-повторно не срабатывает; просроченное и отозванное отбиваются; роль из ссылки
-нельзя подменить при приёме; приглашение с адресом не принимается под другим
-аккаунтом; повторная отправка убивает прежний токен; лимит срабатывает.
-Отдельно — что токен в базе лежит хешем, а не открытым текстом.
+Тесты бьют по функциям модуля, а не по HTTP: те же правила действуют и на
+приёме по ссылке, и на регистрации по ней, а HTTP-слой у этих двух путей
+разный. Отдельно проверяется то, что спецификация требует держать в тестах
+явно: токен лежит хешем, принятое приглашение не срабатывает второй раз, роль
+из ссылки не подменяется, лимит срабатывает.
 """
 
+import uuid
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy import select
 
-from app.db import get_db
-from app.invitations import InvitationError, create_invitation, accept
-from app.main import app
-from app.mail import MailError
-from app.models import Invitation, Membership, Organization, Project, ProjectAccess, User
+from app.auth import register
+from app.config import get_settings
+from app.invitations import (
+    InvitationError,
+    Status,
+    accept,
+    by_token,
+    create,
+    granted_project_ids,
+    reissue,
+    revoke,
+    status_of,
+)
+from app.models import Invitation, Membership, Project, ProjectAccess, Role
+from app.projects import create_project
 from app.security import hash_token
 
-
-@pytest.fixture
-def client(db):
-    def _override_get_db():
-        yield db
-
-    app.dependency_overrides[get_db] = _override_get_db
-    try:
-        yield TestClient(app)
-    finally:
-        app.dependency_overrides.pop(get_db, None)
+NOW = datetime(2026, 8, 11, 12, 0, tzinfo=timezone.utc)
 
 
-def _register(client, name: str, email: str) -> dict:
-    return client.post(
-        "/api/auth/register",
-        json={"name": name, "email": email, "password": "s3cret-pass"},
-    ).json()
+def _owner(db, *, name="Acme", email="owner@example.com"):
+    user = register(db, name=name, email=email, password="s3cret-pass")
+    db.flush()
+    membership = db.scalar(select(Membership).where(Membership.user_id == user.id))
+    return user, membership.org_id
 
 
-@pytest.fixture
-def owner(client):
-    """Владелец со своей организацией. Почта в тестах выключена, поэтому
-    подтверждение адреса не спрашивается — ровно как в установке без почты."""
-    _register(client, "Alex", "alex@example.com")
-    return client
-
-
-@pytest.fixture
-def guest_client(db):
-    """Второй браузер: своя сессия, тот же сервер."""
-
-    def _override_get_db():
-        yield db
-
-    app.dependency_overrides[get_db] = _override_get_db
-    try:
-        yield TestClient(app)
-    finally:
-        app.dependency_overrides.pop(get_db, None)
-
-
-def _invite(owner, **payload) -> dict:
-    body = {"role": "editor", **payload}
-    response = owner.post("/api/org/invitations", json=body)
-    assert response.status_code == 201, response.text
-    return response.json()[0]
-
-
-def _token(link: str) -> str:
-    return link.rsplit("/", 1)[-1]
-
-
-# --- выпуск ------------------------------------------------------------------
-
-
-def test_the_link_is_shown_once_and_the_token_is_stored_hashed(owner, db):
-    invitation = _invite(owner, emails=["new@example.com"])
-    token = _token(invitation["link"])
-
-    row = db.scalar(select(Invitation))
-    assert row.token_hash == hash_token(token)
-    # Ни в одном поле нет самого токена: утечка дампа не должна раздавать
-    # доступ к организациям.
-    assert token not in {row.token_hash, row.email or ""}
-    # И в списке ссылки нет: сервер её не помнит.
-    listed = owner.get("/api/org/invitations").json()
-    assert "link" not in listed[0]
-
-
-def test_several_addresses_at_once_produce_several_invitations(owner):
-    response = owner.post(
-        "/api/org/invitations",
-        json={"emails": ["a@example.com", "b@example.com"], "role": "viewer"},
+def _invite(
+    db, org_id, inviter_id, *, role="viewer", emails=("guest@example.com",), projects=(), now=NOW
+):
+    [(invitation, token)] = create(
+        db,
+        org_id=org_id,
+        inviter_id=inviter_id,
+        role=role,
+        emails=list(emails),
+        project_ids=list(projects),
+        now=now,
     )
-
-    assert response.status_code == 201
-    assert [item["email"] for item in response.json()] == ["a@example.com", "b@example.com"]
-    # Ссылки разные: одна на всех — это уже многоразовое приглашение, которого
-    # в первой версии нет.
-    links = {item["link"] for item in response.json()}
-    assert len(links) == 2
+    return invitation, token
 
 
-def test_an_invitation_without_an_address_is_for_the_bearer(owner):
-    invitation = _invite(owner, emails=[])
+def test_the_token_is_stored_hashed_and_never_in_the_open(db):
+    owner, org_id = _owner(db)
+    invitation, token = _invite(db, org_id, owner.id)
 
-    assert invitation["email"] is None
-    assert invitation["link"] is not None
-
-
-def test_the_owner_role_cannot_be_handed_out_by_a_link(owner):
-    response = owner.post("/api/org/invitations", json={"emails": [], "role": "owner"})
-
-    assert response.status_code == 422
-    assert response.json()["detail"] == "role_not_invitable"
+    assert invitation.token_hash != token
+    assert invitation.token_hash == hash_token(token)
+    # Прямое следствие: найти приглашение можно только предъявив токен.
+    assert by_token(db, token).id == invitation.id
+    assert by_token(db, "не тот токен") is None
 
 
-def test_only_the_owner_invites(owner, db):
-    user_id = owner.get("/api/auth/me").json()["id"]
-    membership = db.scalar(select(Membership).where(Membership.user_id == user_id))
-    membership.role = "editor"
+def test_an_invitation_without_an_address_belongs_to_whoever_holds_the_link(db):
+    owner, org_id = _owner(db)
+    [(invitation, token)] = create(
+        db, org_id=org_id, inviter_id=owner.id, role="viewer", emails=[], project_ids=[], now=NOW
+    )
+    stranger = register(db, name="Stranger", email="stranger@example.com", password="s3cret-pass")
     db.flush()
 
-    assert owner.post("/api/org/invitations", json={"emails": [], "role": "viewer"}).status_code == 403
+    assert invitation.email is None
+    accept(db, invitation, user=stranger, now=NOW)
+    assert db.scalar(
+        select(Membership).where(Membership.user_id == stranger.id, Membership.org_id == org_id)
+    ) is not None
 
 
-def test_the_hourly_limit_bites(owner, monkeypatch):
-    import app.invitations as invitations
+def test_accepting_creates_a_membership_with_the_role_from_the_invitation(db):
+    owner, org_id = _owner(db)
+    invitation, _ = _invite(db, org_id, owner.id, role="viewer")
+    guest = register(db, name="Guest", email="guest@example.com", password="s3cret-pass")
+    db.flush()
 
-    settings = invitations.get_settings()
-    monkeypatch.setattr(settings, "invite_rate_limit", 2, raising=False)
+    membership = accept(db, invitation, user=guest, now=NOW)
 
-    assert owner.post("/api/org/invitations", json={"emails": [], "role": "viewer"}).status_code == 201
-    assert owner.post("/api/org/invitations", json={"emails": [], "role": "viewer"}).status_code == 201
-    # Без потолка приложение превращается в бесплатный рассыльщик писем с
-    # чужого домена.
-    third = owner.post("/api/org/invitations", json={"emails": [], "role": "viewer"})
-    assert third.status_code == 429
-    assert third.json()["detail"] == "invite_rate_limited"
-
-
-# --- приём -------------------------------------------------------------------
+    # Роль зафиксирована в момент приглашения: принимающий на неё не влияет
+    # ничем — ни адресом, ни тем, как он открыл ссылку.
+    assert membership.role == Role.VIEWER
+    assert invitation.accepted_at == NOW
+    assert invitation.accepted_by == guest.id
 
 
-def test_accepting_adds_the_membership_with_the_role_from_the_link(owner, guest_client, db):
-    invitation = _invite(owner, emails=["maria@example.com"], role="viewer")
-    _register(guest_client, "Maria", "maria@example.com")
+def test_an_accepted_invitation_does_not_work_a_second_time(db):
+    owner, org_id = _owner(db)
+    invitation, _ = _invite(db, org_id, owner.id)
+    guest = register(db, name="Guest", email="guest@example.com", password="s3cret-pass")
+    other = register(db, name="Other", email="other@example.com", password="s3cret-pass")
+    db.flush()
 
-    response = guest_client.post(f"/api/invitations/{_token(invitation['link'])}/accept")
-
-    assert response.status_code == 200
-    assert response.json()["role"] == "viewer"
-    maria = db.scalar(select(User).where(User.email == "maria@example.com"))
-    roles = db.scalars(select(Membership.role).where(Membership.user_id == maria.id)).all()
-    # Своя организация от регистрации плюс та, куда позвали.
-    assert sorted(roles) == ["owner", "viewer"]
+    accept(db, invitation, user=guest, now=NOW)
+    with pytest.raises(InvitationError) as error:
+        accept(db, invitation, user=other, now=NOW)
+    assert error.value.code == "invite_accepted"
 
 
-def test_the_role_from_the_link_cannot_be_swapped_on_acceptance(owner, guest_client, db):
-    """Роль фиксируется в момент приглашения.
+def test_an_expired_invitation_says_so_instead_of_failing_silently(db):
+    owner, org_id = _owner(db)
+    invitation, _ = _invite(db, org_id, owner.id)
+    guest = register(db, name="Guest", email="guest@example.com", password="s3cret-pass")
+    db.flush()
 
-    Подменить её принимающему нечем: маршрут приёма роли не принимает вовсе,
-    и лишнее поле в теле отбивается, а не молча используется.
+    later = NOW + timedelta(days=get_settings().invite_ttl_days + 1)
+    assert status_of(invitation, later) is Status.EXPIRED
+    with pytest.raises(InvitationError) as error:
+        accept(db, invitation, user=guest, now=later)
+    assert error.value.code == "invite_expired"
+
+
+def test_a_revoked_invitation_dies_immediately(db):
+    owner, org_id = _owner(db)
+    invitation, _ = _invite(db, org_id, owner.id)
+    guest = register(db, name="Guest", email="guest@example.com", password="s3cret-pass")
+    db.flush()
+
+    revoke(db, invitation, now=NOW)
+    with pytest.raises(InvitationError) as error:
+        accept(db, invitation, user=guest, now=NOW)
+    assert error.value.code == "invite_revoked"
+
+
+def test_an_accepted_invitation_reads_as_accepted_even_after_its_date(db):
+    """Порядок проверок в status_of: принятое остаётся принятым и после срока.
+
+    Иначе человек, открывший свою же старую ссылку, пойдёт просить новую
+    вместо того, чтобы просто войти.
     """
-    invitation = _invite(owner, emails=["maria@example.com"], role="viewer")
-    _register(guest_client, "Maria", "maria@example.com")
-    token = _token(invitation["link"])
-
-    response = guest_client.post(f"/api/invitations/{token}/accept", json={"role": "owner"})
-
-    assert response.status_code == 200
-    assert response.json()["role"] == "viewer"
-
-
-def test_an_accepted_invitation_does_not_work_a_second_time(owner, guest_client):
-    invitation = _invite(owner, emails=["maria@example.com"])
-    _register(guest_client, "Maria", "maria@example.com")
-    token = _token(invitation["link"])
-    guest_client.post(f"/api/invitations/{token}/accept")
-
-    again = guest_client.post(f"/api/invitations/{token}/accept")
-
-    assert again.status_code == 409
-    assert again.json()["detail"] == "invite_accepted"
-
-
-def test_a_revoked_invitation_is_refused(owner, guest_client):
-    invitation = _invite(owner, emails=["maria@example.com"])
-    owner.post(f"/api/org/invitations/{invitation['id']}/revoke")
-    _register(guest_client, "Maria", "maria@example.com")
-
-    response = guest_client.post(f"/api/invitations/{_token(invitation['link'])}/accept")
-
-    assert response.status_code == 409
-    assert response.json()["detail"] == "invite_revoked"
-
-
-def test_an_expired_invitation_is_refused(owner, guest_client, db):
-    invitation = _invite(owner, emails=["maria@example.com"])
-    row = db.get(Invitation, invitation["id"])
-    row.expires_at = datetime.now(timezone.utc) - timedelta(days=1)
-    db.flush()
-    _register(guest_client, "Maria", "maria@example.com")
-
-    response = guest_client.post(f"/api/invitations/{_token(invitation['link'])}/accept")
-
-    # Три разных сообщения, а не одно «ссылка недействительна»: человек должен
-    # понимать, просить ли новую ссылку.
-    assert response.status_code == 409
-    assert response.json()["detail"] == "invite_expired"
-
-
-def test_an_addressed_invitation_is_not_accepted_under_another_account(owner, guest_client):
-    invitation = _invite(owner, emails=["maria@example.com"])
-    _register(guest_client, "Someone", "someone@example.com")
-
-    response = guest_client.post(f"/api/invitations/{_token(invitation['link'])}/accept")
-
-    assert response.status_code == 403
-    assert response.json()["detail"] == "invite_for_another_address"
-
-
-def test_an_invitation_without_an_address_is_accepted_by_whoever_holds_it(owner, guest_client):
-    invitation = _invite(owner, emails=[], role="viewer")
-    _register(guest_client, "Someone", "someone@example.com")
-
-    response = guest_client.post(f"/api/invitations/{_token(invitation['link'])}/accept")
-
-    assert response.status_code == 200
-
-
-def test_the_address_comparison_ignores_case_the_same_way_everywhere(owner, guest_client):
-    """Адрес нормализуется одинаково при выпуске и при приёме.
-
-    Иначе приглашение, выписанное на «Maria@Example.com», не принималось бы
-    аккаунтом «maria@example.com» — тем самым, который система сама и завела.
-    """
-    invitation = _invite(owner, emails=["Maria@Example.com"])
-    _register(guest_client, "Maria", "maria@example.com")
-
-    response = guest_client.post(f"/api/invitations/{_token(invitation['link'])}/accept")
-
-    assert response.status_code == 200
-
-
-def test_accepting_needs_a_session(client, owner):
-    invitation = _invite(owner, emails=[])
-    anonymous = TestClient(app)
-
-    assert anonymous.post(f"/api/invitations/{_token(invitation['link'])}/accept").status_code == 401
-
-
-def test_the_preview_works_without_a_session(client, owner):
-    """Человек с ссылкой видит, куда его зовут, до всякой регистрации."""
-    invitation = _invite(owner, emails=["maria@example.com"], role="viewer")
-    anonymous = TestClient(app)
-
-    body = anonymous.get(f"/api/invitations/{_token(invitation['link'])}").json()
-
-    assert body["org_name"] == "Alex"
-    assert body["role"] == "viewer"
-    assert body["email"] == "maria@example.com"
-
-
-# --- повторная отправка и отзыв ---------------------------------------------
-
-
-def test_reissuing_kills_the_previous_token(owner, guest_client):
-    invitation = _invite(owner, emails=["maria@example.com"])
-    old = _token(invitation["link"])
-
-    reissued = owner.post(f"/api/org/invitations/{invitation['id']}/reissue").json()
-    new = _token(reissued["link"])
-
-    assert new != old
-    _register(guest_client, "Maria", "maria@example.com")
-    # Иначе отозвать «то самое старое письмо» становится невозможно.
-    assert guest_client.post(f"/api/invitations/{old}/accept").status_code == 404
-    assert guest_client.post(f"/api/invitations/{new}/accept").status_code == 200
-
-
-def test_a_revoked_invitation_cannot_be_reissued(owner):
-    invitation = _invite(owner, emails=["maria@example.com"])
-    owner.post(f"/api/org/invitations/{invitation['id']}/revoke")
-
-    assert owner.post(f"/api/org/invitations/{invitation['id']}/reissue").status_code == 409
-
-
-def test_an_invitation_of_another_organization_is_not_found(owner, db, guest_client):
-    _register(guest_client, "Other", "other@example.com")
-    other_org = db.scalar(
-        select(Organization).join(Membership).join(User).where(User.email == "other@example.com")
-    )
-    stranger = Invitation(
-        org_id=other_org.id,
-        email=None,
-        role="viewer",
-        token_hash="whatever",
-        expires_at=datetime.now(timezone.utc) + timedelta(days=1),
-    )
-    db.add(stranger)
+    owner, org_id = _owner(db)
+    invitation, _ = _invite(db, org_id, owner.id)
+    guest = register(db, name="Guest", email="guest@example.com", password="s3cret-pass")
     db.flush()
 
-    assert owner.post(f"/api/org/invitations/{stranger.id}/revoke").status_code == 404
+    accept(db, invitation, user=guest, now=NOW)
+    assert status_of(invitation, NOW + timedelta(days=365)) is Status.ACCEPTED
 
 
-# --- роль client и доступ к проектам -----------------------------------------
-
-
-def test_a_client_gets_access_only_to_the_named_projects(owner, guest_client, db):
-    first = owner.post("/api/projects", json={"name": "Первый"}).json()["id"]
-    second = owner.post("/api/projects", json={"name": "Второй"}).json()["id"]
-    invitation = _invite(owner, emails=["client@example.com"], role="client", project_ids=[first])
-    _register(guest_client, "Client", "client@example.com")
-    guest_client.post(f"/api/invitations/{_token(invitation['link'])}/accept")
-
-    client_user = db.scalar(select(User).where(User.email == "client@example.com"))
-    granted = db.scalars(
-        select(ProjectAccess.project_id).where(ProjectAccess.user_id == client_user.id)
-    ).all()
-
-    assert [str(item) for item in granted] == [first]
-    assert second not in [str(item) for item in granted]
-
-
-def test_a_project_of_another_organization_cannot_be_granted(owner, db):
-    other_org = Organization(name="Globex", slug="globex")
-    db.add(other_org)
-    db.flush()
-    foreign = Project(org_id=other_org.id, name="Secret", slug="secret")
-    db.add(foreign)
-    db.flush()
-
-    response = owner.post(
-        "/api/org/invitations",
-        json={"emails": [], "role": "client", "project_ids": [str(foreign.id)]},
-    )
-
-    assert response.status_code == 404
-    assert response.json()["detail"] == "project_not_found"
-
-
-# --- почта -------------------------------------------------------------------
-
-
-def test_without_mail_the_invitation_is_created_and_the_link_is_still_there(owner):
-    """Установка без почтового сервера остаётся полноценной."""
-    invitation = _invite(owner, emails=["maria@example.com"])
-
-    assert invitation["sent"] is False
-    assert invitation["link"] is not None
-
-
-def test_a_failed_email_does_not_roll_the_invitation_back(owner, monkeypatch, db):
-    """Приглашение существует независимо от того, доставили его письмом или нет."""
-    import app.api.invite_routes as routes
-
-    class Broken:
-        enabled = True
-
-        def send(self, *args, **kwargs):
-            raise MailError("сервер отказал")
-
-    monkeypatch.setattr(routes, "get_mailer", lambda: Broken())
-
-    invitation = _invite(owner, emails=["maria@example.com"])
-
-    assert invitation["sent"] is False
-    assert invitation["mail_error"] == "сервер отказал"
-    assert invitation["link"] is not None
-    assert db.scalar(select(Invitation)) is not None
-
-
-def test_with_mail_configured_an_unverified_owner_cannot_invite(db, client, monkeypatch):
-    """Подтверждение не блокирует работу, кроме приглашения других."""
-    from app.config import get_settings
-
-    monkeypatch.setattr(get_settings(), "mail_transport", "log", raising=False)
-    _register(client, "Alex", "alex@example.com")
-
-    refused = client.post("/api/org/invitations", json={"emails": [], "role": "viewer"})
-    assert refused.status_code == 403
-    assert refused.json()["detail"] == "email_not_verified"
-
-    # Всё остальное при этом доступно.
-    assert client.post("/api/projects", json={"name": "Redesign"}).status_code == 201
-
-    user = db.scalar(select(User).where(User.email == "alex@example.com"))
-    user.email_verified_at = datetime.now(timezone.utc)
-    db.flush()
-    assert client.post("/api/org/invitations", json={"emails": [], "role": "viewer"}).status_code == 201
-
-
-def test_the_verification_link_confirms_the_address(db, client, monkeypatch):
-    from app.config import get_settings
-
-    monkeypatch.setattr(get_settings(), "mail_transport", "log", raising=False)
-    sent: list[str] = []
-
-    import app.api.auth_routes as auth_routes
-
-    class Recording:
-        enabled = True
-
-        def send(self, to, template, locale, params):
-            sent.append(params["link"])
-
-    monkeypatch.setattr(auth_routes, "get_mailer", lambda: Recording())
-    _register(client, "Alex", "alex@example.com")
-
-    token = sent[0].rsplit("/", 1)[-1]
-    response = client.post(f"/api/auth/verify/{token}")
-
-    assert response.status_code == 200
-    user = db.scalar(select(User).where(User.email == "alex@example.com"))
-    assert user.email_verified_at is not None
-    # Токен одноразовый: повторно та же ссылка не работает.
-    assert client.post(f"/api/auth/verify/{token}").status_code == 404
-
-
-# --- домен -------------------------------------------------------------------
-
-
-def test_creating_an_invitation_with_an_unknown_role_is_refused(db):
-    org = Organization(name="Acme", slug="acme")
-    db.add(org)
-    db.flush()
-    user = User(email="a@b.c", password_hash="x", name="A")
-    db.add(user)
+def test_an_invitation_addressed_to_someone_is_not_accepted_by_another_account(db):
+    owner, org_id = _owner(db)
+    invitation, _ = _invite(db, org_id, owner.id, emails=("guest@example.com",))
+    stranger = register(db, name="Stranger", email="stranger@example.com", password="s3cret-pass")
     db.flush()
 
     with pytest.raises(InvitationError) as error:
-        create_invitation(db, org, inviter=user, role="admin")
+        accept(db, invitation, user=stranger, now=NOW)
+    assert error.value.code == "invite_wrong_email"
+    assert invitation.accepted_at is None
 
+
+def test_the_address_binds_regardless_of_case(db):
+    owner, org_id = _owner(db)
+    invitation, _ = _invite(db, org_id, owner.id, emails=("Guest@Example.com",))
+    guest = register(db, name="Guest", email="guest@example.com", password="s3cret-pass")
+    db.flush()
+
+    accept(db, invitation, user=guest, now=NOW)
+    assert invitation.accepted_by == guest.id
+
+
+def test_reissuing_kills_the_previous_link(db):
+    owner, org_id = _owner(db)
+    invitation, first = _invite(db, org_id, owner.id)
+
+    second = reissue(db, invitation, now=NOW)
+
+    assert second != first
+    # Старая ссылка перестаёт находить приглашение — иначе отозвать «то самое
+    # отправленное письмо» было бы нечем.
+    assert by_token(db, first) is None
+    assert by_token(db, second).id == invitation.id
+
+
+def test_reissuing_starts_the_lifetime_over(db):
+    owner, org_id = _owner(db)
+    invitation, _ = _invite(db, org_id, owner.id)
+    was = invitation.expires_at
+
+    reissue(db, invitation, now=NOW + timedelta(days=3))
+
+    assert invitation.expires_at > was
+
+
+def test_an_accepted_invitation_cannot_be_reissued_or_revoked(db):
+    owner, org_id = _owner(db)
+    invitation, _ = _invite(db, org_id, owner.id)
+    guest = register(db, name="Guest", email="guest@example.com", password="s3cret-pass")
+    db.flush()
+    accept(db, invitation, user=guest, now=NOW)
+
+    with pytest.raises(InvitationError) as reissue_error:
+        reissue(db, invitation, now=NOW)
+    assert reissue_error.value.code == "invite_accepted"
+
+    with pytest.raises(InvitationError) as revoke_error:
+        revoke(db, invitation, now=NOW)
+    assert revoke_error.value.code == "invite_accepted"
+
+
+def test_revoking_twice_changes_nothing_and_is_not_an_error(db):
+    owner, org_id = _owner(db)
+    invitation, _ = _invite(db, org_id, owner.id)
+
+    revoke(db, invitation, now=NOW)
+    first_time = invitation.revoked_at
+    revoke(db, invitation, now=NOW + timedelta(hours=1))
+
+    assert invitation.revoked_at == first_time
+
+
+def test_a_second_invitation_to_the_same_address_reissues_the_live_one(db):
+    """Два действующих токена на один адрес означали бы, что отозвать «то самое
+    письмо» уже нельзя: отзыв убил бы одну ссылку, а вторая продолжила бы
+    работать рядом."""
+    owner, org_id = _owner(db)
+    first_invitation, first_token = _invite(db, org_id, owner.id)
+    second_invitation, second_token = _invite(db, org_id, owner.id)
+
+    assert second_invitation.id == first_invitation.id
+    assert by_token(db, first_token) is None
+    assert by_token(db, second_token).id == first_invitation.id
+    assert db.scalar(select(Invitation).where(Invitation.org_id == org_id)) is not None
+
+
+def test_a_new_invitation_is_issued_once_the_previous_one_is_accepted(db):
+    owner, org_id = _owner(db)
+    first_invitation, _ = _invite(db, org_id, owner.id)
+    guest = register(db, name="Guest", email="guest@example.com", password="s3cret-pass")
+    db.flush()
+    accept(db, first_invitation, user=guest, now=NOW)
+
+    second_invitation, _ = _invite(db, org_id, owner.id)
+
+    assert second_invitation.id != first_invitation.id
+
+
+def test_the_hourly_ceiling_stops_the_next_batch(db, monkeypatch):
+    monkeypatch.setenv("INVITE_RATE_LIMIT", "2")
+    get_settings.cache_clear()
+    try:
+        owner, org_id = _owner(db)
+        create(
+            db,
+            org_id=org_id,
+            inviter_id=owner.id,
+            role="viewer",
+            emails=["one@example.com", "two@example.com"],
+            project_ids=[],
+            now=NOW,
+        )
+
+        with pytest.raises(InvitationError) as error:
+            _invite(db, org_id, owner.id, emails=("three@example.com",))
+        assert error.value.code == "invite_rate_limited"
+
+        # Потолок часовой, а не вечный: за окном он отпускает.
+        _invite(db, org_id, owner.id, emails=("three@example.com",), now=NOW + timedelta(hours=2))
+    finally:
+        get_settings.cache_clear()
+
+
+def test_the_ceiling_counts_the_whole_batch_before_issuing_any_of_it(db, monkeypatch):
+    monkeypatch.setenv("INVITE_RATE_LIMIT", "2")
+    get_settings.cache_clear()
+    try:
+        owner, org_id = _owner(db)
+        with pytest.raises(InvitationError):
+            create(
+                db,
+                org_id=org_id,
+                inviter_id=owner.id,
+                role="viewer",
+                emails=["one@example.com", "two@example.com", "three@example.com"],
+                project_ids=[],
+                now=NOW,
+            )
+        # Отказ до первой вставки: наполовину разосланная пачка хуже, чем
+        # отказанная целиком — половину адресов пришлось бы вычислять глазами.
+        assert db.scalar(select(Invitation).where(Invitation.org_id == org_id)) is None
+    finally:
+        get_settings.cache_clear()
+
+
+def test_the_ceiling_belongs_to_the_organization_not_to_the_installation(db, monkeypatch):
+    monkeypatch.setenv("INVITE_RATE_LIMIT", "1")
+    get_settings.cache_clear()
+    try:
+        first_owner, first_org = _owner(db, name="Acme", email="acme@example.com")
+        second_owner, second_org = _owner(db, name="Globex", email="globex@example.com")
+
+        _invite(db, first_org, first_owner.id, emails=("one@example.com",))
+        _invite(db, second_org, second_owner.id, emails=("two@example.com",))
+    finally:
+        get_settings.cache_clear()
+
+
+def test_a_client_invitation_grants_the_projects_it_names(db):
+    owner, org_id = _owner(db)
+    project = create_project(db, org_id=org_id, name="Redesign")
+    other = create_project(db, org_id=org_id, name="Launch")
+    db.flush()
+
+    invitation, _ = _invite(db, org_id, owner.id, role="client", projects=(project.id,))
+    guest = register(db, name="Guest", email="guest@example.com", password="s3cret-pass")
+    db.flush()
+    accept(db, invitation, user=guest, now=NOW)
+
+    assert granted_project_ids(db, user_id=guest.id) == {project.id}
+    assert other.id not in granted_project_ids(db, user_id=guest.id)
+
+
+def test_naming_projects_without_the_client_role_is_refused_rather_than_ignored(db):
+    owner, org_id = _owner(db)
+    project = create_project(db, org_id=org_id, name="Redesign")
+    db.flush()
+
+    with pytest.raises(InvitationError) as error:
+        _invite(db, org_id, owner.id, role="viewer", projects=(project.id,))
+    assert error.value.code == "project_ids_need_client_role"
+
+
+def test_a_project_of_another_organization_cannot_be_granted(db):
+    owner, org_id = _owner(db)
+    _, foreign_org = _owner(db, name="Globex", email="globex@example.com")
+    foreign = create_project(db, org_id=foreign_org, name="Secret")
+    db.flush()
+
+    with pytest.raises(InvitationError) as error:
+        _invite(db, org_id, owner.id, role="client", projects=(foreign.id,))
+    assert error.value.code == "project_not_found"
+
+
+def test_an_unknown_role_is_refused_at_the_door(db):
+    owner, org_id = _owner(db)
+    with pytest.raises(InvitationError) as error:
+        _invite(db, org_id, owner.id, role="superuser")
     assert error.value.code == "unknown_role"
 
 
-def test_accepting_twice_in_the_same_organization_does_not_duplicate_membership(db):
-    org = Organization(name="Acme", slug="acme")
-    db.add(org)
-    db.flush()
-    inviter = User(email="owner@b.c", password_hash="x", name="Owner")
-    guest = User(email="guest@b.c", password_hash="x", name="Guest")
-    db.add_all([inviter, guest])
-    db.flush()
-    db.add(Membership(org_id=org.id, user_id=guest.id, role="viewer"))
+def test_a_project_deleted_between_the_invitation_and_the_acceptance_is_skipped(db):
+    """Ссылка на исчезнувший проект — не повод отказать человеку во входе."""
+    owner, org_id = _owner(db)
+    alive = create_project(db, org_id=org_id, name="Redesign")
+    doomed = create_project(db, org_id=org_id, name="Cancelled")
     db.flush()
 
-    _, token = create_invitation(db, org, inviter=inviter, role="editor")
-    accept(db, token, guest)
+    invitation, _ = _invite(db, org_id, owner.id, role="client", projects=(alive.id, doomed.id))
+    db.delete(db.get(Project, doomed.id))
+    db.flush()
 
-    memberships = db.scalars(
-        select(Membership).where(Membership.org_id == org.id, Membership.user_id == guest.id)
-    ).all()
-    # Второй раз в ту же организацию не зовут — и роль не переписывают
-    # приглашением: повышение это отдельное действие над участником.
-    assert len(memberships) == 1
-    assert memberships[0].role == "viewer"
+    guest = register(db, name="Guest", email="guest@example.com", password="s3cret-pass")
+    db.flush()
+    accept(db, invitation, user=guest, now=NOW)
+
+    assert granted_project_ids(db, user_id=guest.id) == {alive.id}
+
+
+def test_accepting_does_not_rewrite_the_role_of_an_existing_membership(db):
+    """Приглашение зовёт снаружи, а не переписывает роль тому, кто уже внутри.
+
+    Иначе владелец, выписавший приглашение на свой же адрес и принявший его по
+    невнимательности, разжаловал бы сам себя — и починить это стало бы некому.
+    """
+    owner, org_id = _owner(db)
+    invitation, _ = _invite(db, org_id, owner.id, emails=("owner@example.com",), role="viewer")
+
+    membership = accept(db, invitation, user=owner, now=NOW)
+
+    assert membership.role == Role.OWNER
+    assert (
+        len(db.scalars(select(Membership).where(Membership.user_id == owner.id)).all()) == 1
+    )
+
+
+def test_accepting_twice_over_does_not_duplicate_project_access(db):
+    owner, org_id = _owner(db)
+    project = create_project(db, org_id=org_id, name="Redesign")
+    db.flush()
+    guest = register(db, name="Guest", email="guest@example.com", password="s3cret-pass")
+    db.flush()
+
+    first, _ = _invite(db, org_id, owner.id, role="client", projects=(project.id,))
+    accept(db, first, user=guest, now=NOW)
+    second, _ = _invite(db, org_id, owner.id, role="client", projects=(project.id,))
+    accept(db, second, user=guest, now=NOW)
+
+    rows = db.scalars(select(ProjectAccess).where(ProjectAccess.user_id == guest.id)).all()
+    assert len(rows) == 1
+
+
+def test_an_invitation_survives_acceptance_as_a_record_of_who_invited_whom(db):
+    owner, org_id = _owner(db)
+    invitation, _ = _invite(db, org_id, owner.id)
+    guest = register(db, name="Guest", email="guest@example.com", password="s3cret-pass")
+    db.flush()
+    accept(db, invitation, user=guest, now=NOW)
+
+    stored = db.get(Invitation, invitation.id)
+    assert stored.invited_by == owner.id
+    assert stored.accepted_by == guest.id
+
+
+def test_an_empty_address_is_refused_rather_than_turned_into_a_link_invitation(db):
+    owner, org_id = _owner(db)
+    with pytest.raises(InvitationError) as error:
+        _invite(db, org_id, owner.id, emails=("   ",))
+    assert error.value.code == "invalid_email"
+
+
+def test_the_same_address_twice_in_one_batch_produces_one_invitation(db):
+    owner, org_id = _owner(db)
+    issued = create(
+        db,
+        org_id=org_id,
+        inviter_id=owner.id,
+        role="viewer",
+        emails=["guest@example.com", "GUEST@example.com"],
+        project_ids=[],
+        now=NOW,
+    )
+    assert len(issued) == 1
+
+
+def test_a_random_uuid_is_not_a_token(db):
+    assert by_token(db, str(uuid.uuid4())) is None
+    assert by_token(db, "") is None

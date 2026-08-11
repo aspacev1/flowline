@@ -7,7 +7,7 @@ AiSession живёт отдельно от проекта, потому что �
 «создана AI-сессией» в истории задачи.
 
 Revision ID: 9c584d8968ac
-Revises: 1b744a85e51f
+Revises: 6681178a1115
 Create Date: 2026-08-11 08:55:01.114673
 
 """
@@ -19,7 +19,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = '9c584d8968ac'
-down_revision: Union[str, Sequence[str], None] = '1b744a85e51f'
+down_revision: Union[str, Sequence[str], None] = '6681178a1115'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -1,343 +1,173 @@
-"""Публичный доступ: ссылка на проект и комментарии — свои и гостевые.
+"""Публичная страница проекта: чтение по ссылке и гостевые комментарии.
 
-Гость аккаунта не имеет: его роль — `None`, ровно та, которую матрица прав
-знает как «гость по ссылке». Никакой второй матрицы для него не заводится.
+Единственная часть API, которая работает без сессии. Отсюда три правила,
+которые в этом файле не обсуждаются, а соблюдаются:
+
+1. Право спрашивается у `access.py` с ролью `None` — гость. Ссылка и есть тот
+   самый грант на проект, о котором знает матрица прав; собственных решений
+   «гостю можно вот это» здесь нет.
+2. Внутренние заметки и состав организации наружу не выходят вовсе
+   (см. `project_state`).
+3. Отказ всегда один и тот же — 404 `link_not_found`. Отличать «нет такого
+   проекта» от «ссылка отозвана» нельзя: разница превращает адрес в способ
+   перебирать чужие проекты по слагам.
 """
 
-import secrets
-import time
 import uuid
-from collections import deque
-from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session as DbSession
 
-from app.access import Action, can, parse_role
-from app.api.project_routes import _granted, _load_project, project_state
-from app.auth import current_user
+from app.access import Action, can
+from app.api.serialization import comments_out, project_state
+from app.calendar import CalendarError
+from app.comments import CommentRejected, add_comment, list_comments
 from app.config import get_settings
 from app.db import get_db
-from app.models import Comment, Organization, Project, ShareLink, Task, User
+from app.models import Organization, Project, ShareLink
+from app.rate_limit import SlidingWindow
+from app.sharing import TOKEN_PARAM, resolve
 
-router = APIRouter(prefix="/api", tags=["public"])
+router = APIRouter(prefix="/api/public", tags=["public"])
 
-
-class ShareOut(BaseModel):
-    url: str
-    comments_enabled: bool
-    created_at: str
-
-
-class ShareIn(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    comments_enabled: bool | None = None
+_HOUR = 3600.0
+_guest_comments: SlidingWindow | None = None
 
 
-def _public_url(project: Project, org: Organization, link: ShareLink) -> str:
-    """Адрес вида flowline.ru/p/acme/redesign-2026?s=…
+def guest_comment_limiter() -> SlidingWindow:
+    """Счётчик гостевых комментариев, собранный по первому требованию.
 
-    Слаги организации и проекта — ради читаемости, токен — ради возможности
-    ссылку отозвать. Без токена «перевыпустить ссылку: старая умирает
-    мгновенно» неисполнимо: адрес из двух слагов после перевыпуска остался бы
-    тем же самым и продолжал работать.
+    Не на уровне модуля: `GUEST_COMMENT_RATE_LIMIT` читается из настроек, а
+    настройки на момент импорта могут быть ещё не собраны — и тогда потолок
+    навсегда застыл бы на значении по умолчанию.
     """
-    base = get_settings().public_base_url.rstrip("/")
-    return f"{base}/p/{org.slug}/{project.slug}?s={link.token}"
-
-
-def _active_link(db: DbSession, project: Project) -> ShareLink | None:
-    return db.scalar(
-        select(ShareLink).where(
-            ShareLink.project_id == project.id, ShareLink.revoked_at.is_(None)
+    global _guest_comments
+    if _guest_comments is None:
+        _guest_comments = SlidingWindow(
+            limit=get_settings().guest_comment_rate_limit, window=_HOUR
         )
-    )
+    return _guest_comments
 
 
-def _require_admin(membership) -> None:
-    if not can(parse_role(membership.role), Action.PROJECT_ADMIN):
-        raise HTTPException(status_code=403, detail="forbidden")
+def client_key(request: Request) -> str:
+    """Кого считать одним гостем.
 
+    Прямой адрес соединения здесь бесполезен: и Caddy, и Vercel стоят перед
+    приложением, и все гости приходят с одного и того же адреса — потолок в
+    десять комментариев в час стал бы общим на всю установку. Поэтому
+    предпочитается `X-Forwarded-For`.
 
-@router.get("/projects/{project_id}/share", response_model=ShareOut | None)
-def read_share(
-    project_id: uuid.UUID, user: User = Depends(current_user), db: DbSession = Depends(get_db)
-):
-    project, membership = _load_project(db, user, project_id)
-    _require_admin(membership)
-    link = _active_link(db, project)
-    if link is None:
-        return None
-    org = db.get(Organization, project.org_id)
-    return ShareOut(
-        url=_public_url(project, org, link),
-        comments_enabled=link.comments_enabled,
-        created_at=link.created_at.isoformat(),
-    )
-
-
-@router.post("/projects/{project_id}/share", response_model=ShareOut, status_code=201)
-def issue_share(
-    project_id: uuid.UUID,
-    payload: ShareIn,
-    user: User = Depends(current_user),
-    db: DbSession = Depends(get_db),
-):
-    """Выпустить ссылку — или перевыпустить: прежняя умирает мгновенно.
-
-    Глобальный запрет публичных ссылок (PUBLIC_SHARING_ENABLED) и запрет на
-    уровне организации проверяются здесь оба: первый — решение того, кто
-    разворачивает, второй — владельца, и ни один не должен обходиться другим.
+    Подделать заголовок может кто угодно, и это принято сознательно: цена
+    подделки — обойденный предохранитель от заливки ленты, то есть ровно то
+    состояние, в котором мы оказались бы, не считая вовсе. Правами заголовок
+    не распоряжается ничем.
     """
-    project, membership = _load_project(db, user, project_id)
-    _require_admin(membership)
-
-    org = db.get(Organization, project.org_id)
-    if not get_settings().public_sharing_enabled or not org.public_sharing_enabled:
-        raise HTTPException(status_code=403, detail="public_sharing_disabled")
-
-    previous = _active_link(db, project)
-    if previous is not None:
-        previous.revoked_at = datetime.now(timezone.utc)
-
-    link = ShareLink(
-        project_id=project.id,
-        token=secrets.token_urlsafe(24),
-        comments_enabled=(
-            payload.comments_enabled
-            if payload.comments_enabled is not None
-            else org.default_comments_enabled
-        ),
-    )
-    db.add(link)
-    db.flush()
-    return ShareOut(
-        url=_public_url(project, org, link),
-        comments_enabled=link.comments_enabled,
-        created_at=link.created_at.isoformat(),
-    )
+    forwarded = request.headers.get("x-forwarded-for", "")
+    first = forwarded.split(",")[0].strip()
+    if first:
+        return first
+    return request.client.host if request.client else "unknown"
 
 
-@router.patch("/projects/{project_id}/share", response_model=ShareOut)
-def update_share(
-    project_id: uuid.UUID,
-    payload: ShareIn,
-    user: User = Depends(current_user),
-    db: DbSession = Depends(get_db),
-):
-    """Переключатель комментариев. Ссылку при этом не трогает: выключить
-    комментарии — не то же самое, что разослать всем новый адрес."""
-    project, membership = _load_project(db, user, project_id)
-    _require_admin(membership)
-    link = _active_link(db, project)
-    if link is None:
-        raise HTTPException(status_code=404, detail="share_not_found")
-    if payload.comments_enabled is not None:
-        link.comments_enabled = payload.comments_enabled
-    db.flush()
-    org = db.get(Organization, project.org_id)
-    return ShareOut(
-        url=_public_url(project, org, link),
-        comments_enabled=link.comments_enabled,
-        created_at=link.created_at.isoformat(),
-    )
-
-
-@router.delete("/projects/{project_id}/share", status_code=204)
-def revoke_share(
-    project_id: uuid.UUID, user: User = Depends(current_user), db: DbSession = Depends(get_db)
-):
-    project, membership = _load_project(db, user, project_id)
-    _require_admin(membership)
-    link = _active_link(db, project)
-    if link is None:
-        raise HTTPException(status_code=404, detail="share_not_found")
-    link.revoked_at = datetime.now(timezone.utc)
-    db.flush()
-
-
-# --- гостевая сторона --------------------------------------------------------
-
-
-def _link_by_token(db: DbSession, token: str) -> ShareLink:
-    link = db.scalar(select(ShareLink).where(ShareLink.token == token))
-    # Отозванная ссылка неотличима от несуществующей: гостю всё равно, а
-    # разница между ними — это подсказка тому, кто перебирает токены.
-    if link is None or link.revoked_at is not None:
-        raise HTTPException(status_code=404, detail="share_not_found")
-    return link
-
-
-@router.get("/public/{token}")
-def public_project(token: str, db: DbSession = Depends(get_db)):
-    """Проект по публичной ссылке.
-
-    Та же раскладка, что и на рабочем экране, и та же функция сборки
-    состояния — но с ролью гостя: без внутренних заметок и без отмены.
-    """
-    link = _link_by_token(db, token)
-    project = db.get(Project, link.project_id)
-    org = db.get(Organization, project.org_id)
-    return {
-        **project_state(db, project, role=None),
-        "org_name": org.name,
-        "comments_enabled": link.comments_enabled,
-    }
-
-
-class CommentIn(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    body: str = Field(min_length=1, max_length=4000)
+class GuestCommentIn(BaseModel):
+    # Имя гостя — обязательное поле: неподписанная реплика на публичной
+    # странице неотличима от чужой.
+    name: str = Field(min_length=1, max_length=80)
+    body: str = Field(min_length=1)
     task_id: uuid.UUID | None = None
-    #: Гость при первом комментарии вводит имя. Участнику это поле не нужно:
-    #: его подписывает аккаунт.
-    guest_name: str | None = Field(default=None, max_length=100)
 
 
-class CommentOut(BaseModel):
-    id: str
-    task_id: str | None
-    body: str
-    created_at: str
-    author_name: str
-    #: Реплики гостя визуально отличаются от реплик участников с аккаунтом.
-    is_guest: bool
+class SharedProject:
+    """Проект, открытый по действующей ссылке."""
+
+    def __init__(self, org: Organization, project: Project, link: ShareLink) -> None:
+        self.org = org
+        self.project = project
+        self.link = link
 
 
-def _serialize(db: DbSession, comments: list[Comment]) -> list[CommentOut]:
-    authors = {
-        row.id: row.name
-        for row in db.scalars(
-            select(User).where(
-                User.id.in_({c.author_user_id for c in comments if c.author_user_id})
-            )
-        ).all()
-    }
-    return [
-        CommentOut(
-            id=str(comment.id),
-            task_id=str(comment.task_id) if comment.task_id else None,
-            body=comment.body,
-            created_at=comment.created_at.isoformat(),
-            author_name=authors.get(comment.author_user_id) or comment.guest_name or "",
-            is_guest=comment.author_user_id is None,
+def shared_project(
+    org_slug: str,
+    project_slug: str,
+    token: str = Query(default="", alias=TOKEN_PARAM),
+    db: DbSession = Depends(get_db),
+) -> SharedProject:
+    found = resolve(db, org_slug=org_slug, project_slug=project_slug, token=token)
+    if found is None:
+        raise HTTPException(status_code=404, detail="link_not_found")
+    if not can(None, Action.PROJECT_READ, project_granted=True):
+        # Матрица прав — единственное место, где решается «можно ли»: если
+        # гостю однажды закроют чтение, этот маршрут закроется вместе с ней,
+        # а не останется дырой, о которой все забыли.
+        raise HTTPException(status_code=404, detail="link_not_found")
+    return SharedProject(*found)
+
+
+@router.get("/{org_slug}/{project_slug}")
+def public_project(
+    shared: SharedProject = Depends(shared_project), db: DbSession = Depends(get_db)
+):
+    """Та же раскладка, что и на рабочем экране, но без внутренних заметок и
+    без исполнителей."""
+    try:
+        state = project_state(
+            db,
+            shared.project,
+            shared.org,
+            show_notes=can(None, Action.READ_INTERNAL_NOTE, project_granted=True),
+            show_people=False,
         )
-        for comment in comments
-    ]
+    except CalendarError as error:
+        raise HTTPException(status_code=422, detail=error.code)
+
+    return {
+        **state,
+        # Название организации подписывает страницу: гость должен видеть, чей
+        # это план, прежде чем что-то в нём комментировать.
+        "org": {"name": shared.org.name, "slug": shared.org.slug},
+        "comments_enabled": shared.link.comments_enabled
+        and can(None, Action.COMMENT, project_granted=True),
+    }
 
 
-def _comments(db: DbSession, project: Project) -> list[Comment]:
-    return list(
-        db.scalars(
-            select(Comment)
-            .where(Comment.project_id == project.id)
-            .order_by(Comment.created_at, Comment.id)
-        ).all()
-    )
-
-
-def _check_task(db: DbSession, project: Project, task_id: uuid.UUID | None) -> None:
-    if task_id is None:
-        return
-    task = db.get(Task, task_id)
-    if task is None or task.project_id != project.id:
-        raise HTTPException(status_code=404, detail="task_not_found")
-
-
-# Гостевые комментарии по IP: без ограничителя публичная страница превращается
-# в форму для спама, а модерации в первой версии нет. Счётчик в памяти
-# процесса — того же рода, что и рассылка ревизий по WebSocket: пока сервер
-# один, этого достаточно.
-_GUEST_HITS: dict[str, deque[float]] = {}
-_WINDOW_SECONDS = 3600
-
-
-def _check_guest_rate(request: Request) -> None:
-    limit = get_settings().guest_comment_rate_limit
-    ip = request.client.host if request.client else "unknown"
-    now = time.monotonic()
-    hits = _GUEST_HITS.setdefault(ip, deque())
-    while hits and now - hits[0] > _WINDOW_SECONDS:
-        hits.popleft()
-    if len(hits) >= limit:
-        raise HTTPException(status_code=429, detail="comment_rate_limited")
-    hits.append(now)
-
-
-@router.get("/public/{token}/comments", response_model=list[CommentOut])
-def public_comments(token: str, db: DbSession = Depends(get_db)):
-    link = _link_by_token(db, token)
-    project = db.get(Project, link.project_id)
-    return _serialize(db, _comments(db, project))
-
-
-@router.post("/public/{token}/comments", response_model=CommentOut, status_code=201)
-def add_public_comment(
-    token: str, payload: CommentIn, request: Request, db: DbSession = Depends(get_db)
-):
-    link = _link_by_token(db, token)
-    if not link.comments_enabled:
-        raise HTTPException(status_code=403, detail="comments_disabled")
-    if not payload.guest_name or not payload.guest_name.strip():
-        raise HTTPException(status_code=422, detail="guest_name_required")
-
-    _check_guest_rate(request)
-    project = db.get(Project, link.project_id)
-    _check_task(db, project, payload.task_id)
-
-    comment = Comment(
-        project_id=project.id,
-        task_id=payload.task_id,
-        guest_name=payload.guest_name.strip(),
-        body=payload.body,
-    )
-    db.add(comment)
-    db.flush()
-    return _serialize(db, [comment])[0]
-
-
-# --- сторона участника -------------------------------------------------------
-
-
-@router.get("/projects/{project_id}/comments", response_model=list[CommentOut])
-def project_comments(
-    project_id: uuid.UUID, user: User = Depends(current_user), db: DbSession = Depends(get_db)
-):
-    project, membership = _load_project(db, user, project_id)
-    granted = _granted(db, user, project.id)
-    if not can(parse_role(membership.role), Action.PROJECT_READ, project_granted=granted):
-        raise HTTPException(status_code=404, detail="project_not_found")
-    return _serialize(db, _comments(db, project))
-
-
-@router.post("/projects/{project_id}/comments", response_model=CommentOut, status_code=201)
-def add_comment(
-    project_id: uuid.UUID,
-    payload: CommentIn,
-    user: User = Depends(current_user),
+@router.get("/{org_slug}/{project_slug}/comments")
+def public_comments(
+    task_id: uuid.UUID | None = None,
+    shared: SharedProject = Depends(shared_project),
     db: DbSession = Depends(get_db),
 ):
-    """Комментарий участника.
+    """Лента видна и при выключенных комментариях.
 
-    Право комментировать есть у всех ролей, включая `client` с выданным
-    доступом: спецификация даёт его каждому, кто вправе читать проект.
+    Выключенные комментарии — это запрет писать, а не приказ спрятать уже
+    сказанное: разговор, который клиент видел вчера, не должен исчезнуть от
+    щелчка переключателем.
     """
-    project, membership = _load_project(db, user, project_id)
-    granted = _granted(db, user, project.id)
-    if not can(parse_role(membership.role), Action.COMMENT, project_granted=granted):
-        raise HTTPException(status_code=404, detail="project_not_found")
-    _check_task(db, project, payload.task_id)
+    return comments_out(db, list_comments(db, shared.project, task_id=task_id))
 
-    comment = Comment(
-        project_id=project.id,
-        task_id=payload.task_id,
-        author_user_id=user.id,
-        body=payload.body,
-    )
-    db.add(comment)
-    db.flush()
-    return _serialize(db, [comment])[0]
+
+@router.post("/{org_slug}/{project_slug}/comments", status_code=201)
+def add_public_comment(
+    payload: GuestCommentIn,
+    request: Request,
+    shared: SharedProject = Depends(shared_project),
+    db: DbSession = Depends(get_db),
+):
+    if not can(None, Action.COMMENT, project_granted=True) or not shared.link.comments_enabled:
+        raise HTTPException(status_code=403, detail="comments_closed")
+
+    if not guest_comment_limiter().allow(client_key(request)):
+        raise HTTPException(status_code=429, detail="too_many_comments")
+
+    try:
+        comment = add_comment(
+            db,
+            shared.project,
+            body=payload.body,
+            task_id=payload.task_id,
+            guest_name=payload.name,
+        )
+    except CommentRejected as error:
+        status = 404 if error.code == "task_not_found" else 422
+        raise HTTPException(status_code=status, detail=error.code)
+    return comments_out(db, [comment])[0]

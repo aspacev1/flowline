@@ -6,7 +6,7 @@ baseline_duration) хранят только последнюю версию —
 именно этого.
 
 Revision ID: 036f4c8b7f36
-Revises: 3b3648273b7a
+Revises: adee83e4d023
 Create Date: 2026-08-11 07:56:41.760996
 
 """
@@ -18,7 +18,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = '036f4c8b7f36'
-down_revision: Union[str, Sequence[str], None] = '3b3648273b7a'
+down_revision: Union[str, Sequence[str], None] = 'adee83e4d023'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

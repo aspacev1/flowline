@@ -70,9 +70,9 @@
   "nav": {
     "projects": "Layihələr",
     "logout": "Çıxış",
+    "members": "İştirakçılar",
     "org_settings": "Təşkilat",
-    "profile": "Profil",
-    "members": "İştirakçılar"
+    "profile": "Profil"
   },
   "locale": {
     "switch_label": "İnterfeys dili"
@@ -96,6 +96,15 @@
       "no_account": "Hesabınız yoxdur?",
       "link_register": "Qeydiyyatdan keçin"
     },
+    "verify": {
+      "title": "Ünvanın təsdiqi",
+      "checking": "Keçid yoxlanılır…",
+      "done": "E-poçt ünvanı təsdiqləndi",
+      "resend": "Məktubu yenidən göndər",
+      "resent": "Məktub göndərildi — poçtunuzu yoxlayın",
+      "not_sent": "Məktubu göndərmək alınmadı. Bir azdan yenidən cəhd edin",
+      "link_projects": "Layihələrə keç"
+    },
     "error": {
       "email_taken": "Bu ünvan artıq tutulub",
       "bad_credentials": "E-poçt və ya parol yanlışdır",
@@ -103,7 +112,12 @@
       "not_authenticated": "Davam etmək üçün daxil olun",
       "session_expired": "Sessiyanın vaxtı bitdi, yenidən daxil olun",
       "validation_error": "Formu yoxlayın: bəzi sahələr düzgün doldurulmayıb",
-      "password_too_short": "Parol ən azı 8 simvol olmalıdır"
+      "password_too_short": "Parol ən azı 8 simvol olmalıdır",
+      "missing_token": "Keçiddə token yoxdur: onu məktubdan tam kopyalayın",
+      "invalid_token": "Keçid işləmir: yəqin ki, ondan artıq istifadə olunub",
+      "token_expired": "Keçidin müddəti bitib",
+      "already_verified": "Ünvan artıq təsdiqlənib",
+      "too_many_requests": "Çox tez-tez: bir dəqiqə gözləyib yenidən cəhd edin"
     }
   },
   "error": {
@@ -125,17 +139,34 @@
     "already_assigned": "Bu adam tapşırığa artıq təyin olunub",
     "assignment_not_found": "Bu adam onsuz da tapşırığa təyin olunmayıb",
     "negative_position": "Sətri qoymağa yer yoxdur: mövqe mənfidir",
+    "link_not_found": "Keçid işləmir: ya ləğv edilib, ya da ünvanda səhv var",
+    "sharing_disabled": "Bu quraşdırmada ictimai keçidlər söndürülüb",
+    "share_link_not_found": "Layihə hələ dərc edilməyib",
+    "comments_closed": "Bu səhifədə şərhlər bağlıdır",
+    "comment_empty": "Şərh boşdur",
+    "comment_too_long": "Şərh həddindən uzundur",
+    "guest_name_required": "Adınızı yazın — şərh imzasız qalmamalıdır",
+    "too_many_comments": "Çox tez-tez yazırsınız. Bir az gözləyin",
+    "invite_not_found": "Belə dəvət yoxdur — keçidi bütöv yoxlayın",
+    "invite_expired": "Keçidin vaxtı keçib — yenisini istəyin",
+    "invite_revoked": "Dəvət geri alınıb — yenisini istəyin",
+    "invite_accepted": "Dəvət artıq qəbul edilib — sadəcə daxil olun",
+    "invite_wrong_email": "Dəvət başqa ünvana yazılıb",
+    "invite_rate_limited": "Bir saatda həddindən çox dəvət — bir azdan yenidən cəhd edin",
+    "invalid_email": "Ünvanları yoxlayın: biri boşdur və ya poçt ünvanına oxşamır",
+    "unknown_role": "Belə rol yoxdur",
+    "project_ids_need_client_role": "Layihələr yalnız «Müştəri» rolu üçün seçilir",
+    "organization_not_found": "Təşkilat tapılmadı",
+    "mail_failed": "Məktub getmədi — keçidi köçürüb özünüz göndərin",
+    "mail_not_configured": "Bu quraşdırmada poçt konfiqurasiya olunmayıb",
+    "mail_disabled": "Bu quraşdırmada poçt söndürülüb",
+    "offline": "Serverlə əlaqə yoxdur: dəyişiklik göndərilmədi",
     "nothing_to_undo": "Geri alınacaq bir şey yoxdur",
     "batch_not_found": "Paket tapılmadı",
     "reason_required": "Bu sürüşmə üçün səbəb lazımdır",
     "slug_taken": "Bu ünvan artıq tutulub",
     "unsupported_locale": "Bu dil dəstəklənmir",
-    "invite_not_found": "Belə dəvət yoxdur",
-    "invite_expired": "Dəvətin vaxtı keçib — yenisini istəyin",
-    "invite_revoked": "Dəvət ləğv edilib",
-    "invite_accepted": "Dəvət artıq qəbul edilib — sadəcə daxil olun",
     "invite_for_another_address": "Dəvət başqa ünvana ünvanlanıb",
-    "invite_rate_limited": "Bir saat ərzində çox dəvət — bir az sonra",
     "email_not_verified": "Əvvəlcə öz ünvanınızı təsdiqləyin",
     "role_not_invitable": "Bu rolu keçidlə vermək olmaz",
     "verification_not_found": "Təsdiq keçidi işləmir",
@@ -155,9 +186,12 @@
     "nothing_asked": "Sual hələ verilməyib",
     "share_not_found": "Keçid işləmir və ya ləğv edilib",
     "comments_disabled": "Şərhlər bağlıdır",
-    "guest_name_required": "Adınızı yazın",
     "comment_rate_limited": "Çox tez-tez — bir az gözləyin",
     "public_sharing_disabled": "Açıq keçidlər bu quraşdırmada bağlıdır"
+  },
+  "live": {
+    "offline": "Serverlə əlaqə yoxdur. Redaktə mümkün deyil",
+    "offline_since": "Əlaqə yoxdur, saat {time} vəziyyətindəki məlumatlar göstərilir. Redaktə mümkün deyil"
   },
   "projects": {
     "title": "Layihələr",
@@ -259,6 +293,121 @@
     "nudge": "«{name}» tapşırığını {days} irəli çəkim?",
     "nudge_dismiss": "Təklifi bağla"
   },
+  "share": {
+    "open": "İctimai keçid",
+    "title": "Layihənin ictimai keçidi",
+    "hint": "Keçid layihəni qeydiyyatsız oxumağa açır: nə daxili qeydlər, nə də icraçılar görünür",
+    "publish": "Keçid ver",
+    "url": "Keçid ünvanı",
+    "copy": "Kopyala",
+    "copied": "Kopyalandı",
+    "reissue": "Yenidən ver",
+    "reissue_warning": "Yeni keçid veriləndə köhnəsi dərhal ölür — göndərilmiş ünvan açılmayacaq",
+    "revoke": "Keçidi bağla",
+    "comments_enabled": "Şərhlərə icazə ver",
+    "disabled": "İctimai keçidlər söndürülüb: quraşdırma və ya təşkilat ayarı",
+    "hidden": "Layihə bayıra açıq deyil",
+    "comments": "Şərhlərə icazə verilir"
+  },
+  "comments": {
+    "title": "Şərhlər",
+    "empty": "Hələ heç nə yazılmayıb",
+    "guest": "qonaq",
+    "your_name": "Adınız",
+    "body": "Şərh",
+    "send": "Göndər",
+    "closed": "Layihənin sahibi şərhləri bağlayıb",
+    "disabled": "Bu keçiddə şərhlər bağlıdır"
+  },
+  "public": {
+    "badge": "İctimai səhifə"
+  },
+  "org": {
+    "switch_label": "Təşkilat"
+  },
+  "members": {
+    "title": "İştirakçılar",
+    "invite": "Dəvət et",
+    "role": {
+      "owner": "Sahib",
+      "editor": "Redaktor",
+      "viewer": "İzləyici",
+      "client": "Müştəri"
+    },
+    "emails": "Ünvanlar",
+    "emails_hint": "Hər sətirdə bir ünvan. Boş buraxsanız — sadəcə keçid çıxarılacaq, onu kim açsa, o da qəbul edəcək",
+    "role_label": "Rol",
+    "projects": "Layihələr",
+    "invite_and_send": "Dəvət et və məktub göndər",
+    "invite_link_only": "Keçid çıxar",
+    "issued": "Çıxarılmış keçidlər",
+    "issued_hint": "Keçid yalnız indi görünür: server onu yadda saxlamır, bazada yalnız hash var",
+    "copy": "Kopyala",
+    "sent": "Məktub göndərildi",
+    "mail_failed": "Məktub getmədi — keçidi kopyalayın",
+    "by_link": "Keçidlə (təqdim edənə)",
+    "people": "İştirakçılar",
+    "invitations": "Dəvətlər",
+    "no_invitations": "Hələ dəvət yoxdur",
+    "reissue": "Keçidi yenidən çıxar",
+    "revoke": "Ləğv et",
+    "status": {
+      "pending": "gözləyir",
+      "accepted": "qəbul edilib",
+      "revoked": "ləğv edilib",
+      "expired": "vaxtı keçib"
+    }
+  },
+  "invite": {
+    "title": "Təşkilata dəvət",
+    "emails": "Ünvanlar",
+    "emails_hint": "Bir neçəsini birdən yazmaq olar — vergüllə və ya yeni sətirdə",
+    "link_only": "Ünvansız keçid",
+    "link_only_hint": "Ünvan yazmasanız, keçid-dəvət alınır: onu kim açsa, ona çatacaq",
+    "role": "Rol",
+    "projects": "Layihələr",
+    "projects_hint": "Müştəri yalnız burada seçilmiş layihələri görür",
+    "deliver": "Məktub göndər",
+    "submit": "Dəvəti yarat",
+    "list": {
+      "title": "Dəvətlər",
+      "empty": "Hələ heç kim dəvət olunmayıb"
+    },
+    "status": {
+      "pending": "Gözləyir",
+      "accepted": "Qəbul edilib",
+      "revoked": "Geri alınıb",
+      "expired": "Vaxtı keçib"
+    },
+    "action": {
+      "link": "Yeni keçid",
+      "resend": "Yenidən göndər",
+      "revoke": "Geri al"
+    },
+    "issued": {
+      "link": "Dəvət keçidi",
+      "once": "Keçidi indi köçürün: ikinci dəfə onu heç yerdən götürmək olmayacaq — server yalnız izini saxlayır",
+      "copy": "Köçür",
+      "copied": "Köçürüldü",
+      "sent": "Məktub göndərildi",
+      "done": "Hazırdır"
+    },
+    "accept": {
+      "title": "Dəvət",
+      "summary": "Sizi «{org}» təşkilatına dəvət edirlər — rol: {role}",
+      "inviter": "Dəvət edən: {name}",
+      "bearer": "Bu, keçid-dəvətdir: onu kim açıbsa, ona işləyir",
+      "register": "Qeydiyyatdan keç",
+      "login": "Daxil ol",
+      "submit": "Dəvəti qəbul et",
+      "wrong_account": "Dəvət {email} ünvanına yazılıb. Çıxın və həmin ünvanla daxil olun",
+      "logout": "Çıx",
+      "go_home": "Layihələrə"
+    },
+    "bearer": "Bu dəvət ünvana bağlı deyil: kim keçidi açsa, o da qəbul edir",
+    "sign_in_first": "Qəbul etmək üçün daxil olun və ya qeydiyyatdan keçin — sonra bu keçidə qayıdın",
+    "another_account": "Dəvət {email} ünvanına ünvanlanıb. Başqa hesabla girmisiniz — çıxın və düzgün hesabla daxil olun"
+  },
   "plan": {
     "approve": "Planı təsdiqlə",
     "reapprove": "Planı yenidən təsdiqlə (versiya {version})",
@@ -326,47 +475,6 @@
       "save": "Qoşulmanı saxla"
     }
   },
-  "members": {
-    "title": "İştirakçılar və dəvətlər",
-    "invite": "Yeni dəvət",
-    "emails": "Ünvanlar",
-    "emails_hint": "Hər sətirdə bir ünvan. Boş buraxsanız — sadəcə keçid çıxarılacaq, onu kim açsa, o da qəbul edəcək",
-    "role_label": "Rol",
-    "projects": "Layihələr",
-    "invite_and_send": "Dəvət et və məktub göndər",
-    "invite_link_only": "Keçid çıxar",
-    "issued": "Çıxarılmış keçidlər",
-    "issued_hint": "Keçid yalnız indi görünür: server onu yadda saxlamır, bazada yalnız hash var",
-    "copy": "Kopyala",
-    "sent": "Məktub göndərildi",
-    "mail_failed": "Məktub getmədi — keçidi kopyalayın",
-    "by_link": "Keçidlə (təqdim edənə)",
-    "people": "İştirakçılar",
-    "invitations": "Dəvətlər",
-    "no_invitations": "Hələ dəvət yoxdur",
-    "reissue": "Keçidi yenidən çıxar",
-    "revoke": "Ləğv et",
-    "role": {
-      "owner": "Sahib",
-      "editor": "Redaktor",
-      "viewer": "Müşahidəçi",
-      "client": "Müştəri"
-    },
-    "status": {
-      "pending": "gözləyir",
-      "accepted": "qəbul edilib",
-      "revoked": "ləğv edilib",
-      "expired": "vaxtı keçib"
-    }
-  },
-  "invite": {
-    "title": "«{org}» sizi dəvət edir",
-    "role": "Rol: {role}",
-    "bearer": "Bu dəvət ünvana bağlı deyil: kim keçidi açsa, o da qəbul edir",
-    "sign_in_first": "Qəbul etmək üçün daxil olun və ya qeydiyyatdan keçin — sonra bu keçidə qayıdın",
-    "another_account": "Dəvət {email} ünvanına ünvanlanıb. Başqa hesabla girmisiniz — çıxın və düzgün hesabla daxil olun",
-    "accept": "Dəvəti qəbul et"
-  },
   "ai": {
     "title": "Müsahibə ilə yeni layihə",
     "intro": "Sistem bir-bir sual verəcək, sonunda kateqoriya və tapşırıq layihəsi çıxacaq. Siz təsdiqləməyincə layihəyə heç nə yazılmır",
@@ -392,22 +500,5 @@
       "project_name": "Layihənin adı",
       "apply": "Layihəyə tətbiq et"
     }
-  },
-  "comments": {
-    "title": "Şərhlər",
-    "guest": "(qonaq)",
-    "disabled": "Bu keçiddə şərhlər bağlıdır",
-    "your_name": "Adınız",
-    "body": "Şərh",
-    "send": "Göndər"
-  },
-  "share": {
-    "title": "Açıq keçid",
-    "hidden": "Layihə bayıra açıq deyil",
-    "publish": "Keçid çıxar",
-    "url": "Keçid",
-    "comments": "Şərhlərə icazə verilir",
-    "reissue": "Yenidən çıxar (köhnəsi dərhal ölür)",
-    "revoke": "Keçidi bağla"
   }
 }

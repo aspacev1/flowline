@@ -1,87 +1,106 @@
 import { request } from "./client";
 
 export const INVITATIONS_QUERY_KEY = ["org", "invitations"] as const;
-export const CONFIG_QUERY_KEY = ["config"] as const;
 
-/** Рубильники установки: что вообще имеет смысл показывать. */
-export type InstallConfig = {
-  mail_enabled: boolean;
-  signup_mode: string;
-  supported_locales: string[];
-  default_locale: string;
-  public_sharing_enabled: boolean;
+/** Ключ приглашения по токену: у каждой ссылки свой, экранов приёма может быть несколько. */
+export function inviteQueryKey(token: string) {
+  return ["invitation", token] as const;
+}
+
+export type InviteStatus = "pending" | "accepted" | "revoked" | "expired";
+
+export type Invitation = {
+  id: string;
+  /** null — приглашение только по ссылке: оно достаётся предъявителю. */
+  email: string | null;
+  role: string;
+  status: InviteStatus;
+  project_ids: string[];
+  created_at: string;
+  expires_at: string;
+  last_sent_at: string | null;
+  invited_by: string | null;
+  accepted_at: string | null;
 };
 
-export type IssuedInvitation = {
+export type InvitationList = {
+  /**
+   * Настроена ли в установке почта. Без неё кнопка отправки не показывается
+   * вовсе — установка без почтового сервера остаётся полноценной, а не
+   * показывает кнопку, которая всегда отвечает отказом.
+   */
+  mail_enabled: boolean;
+  invitations: Invitation[];
+};
+
+export type Issued = {
   id: string;
   email: string | null;
   role: string;
   expires_at: string;
   /**
-   * Ссылка приходит ровно один раз — в ответе на создание или повторный
-   * выпуск. Сервер её не помнит: в базе лежит хеш. Значит, показать её надо
-   * сразу и до тех пор, пока человек её не заберёт.
+   * Открытая ссылка. Приходит только в ответ на выпуск и больше нигде: в базе
+   * лежит хеш токена, и второй раз её взять негде. Отсюда и поведение экрана —
+   * ссылка показывается сразу и не прячется до следующего действия.
    */
-  link: string | null;
+  url: string;
   sent: boolean;
+  /** Почему письмо не ушло. Приглашение при этом создано. */
   mail_error: string | null;
 };
 
-export type InvitationRow = {
-  id: string;
-  email: string | null;
-  role: string;
-  status: "pending" | "accepted" | "revoked" | "expired";
-  created_at: string;
-  expires_at: string;
-  last_sent_at: string | null;
-};
-
-export type InvitationPreview = {
-  org_name: string;
-  role: string;
-  email: string | null;
-  expires_at: string;
-};
-
-export function installConfig(): Promise<InstallConfig> {
-  return request<InstallConfig>("/api/config");
-}
-
-export function listInvitations(): Promise<InvitationRow[]> {
-  return request<InvitationRow[]>("/api/org/invitations");
-}
-
-export function createInvitations(payload: {
+export type InviteInput = {
   emails: string[];
   role: string;
   project_ids?: string[];
-  send_email?: boolean;
-}): Promise<IssuedInvitation[]> {
-  return request<IssuedInvitation[]>("/api/org/invitations", {
+  deliver?: boolean;
+};
+
+export type InvitePreview = {
+  org_name: string;
+  role: string;
+  email: string | null;
+  inviter_name: string | null;
+  expires_at: string;
+};
+
+export type JoinedOrganization = {
+  id: string;
+  name: string;
+  slug: string;
+  role: string;
+};
+
+export function listInvitations(): Promise<InvitationList> {
+  return request<InvitationList>("/api/org/invitations");
+}
+
+export function createInvitations(input: InviteInput): Promise<Issued[]> {
+  return request<Issued[]>("/api/org/invitations", {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify(input),
   });
 }
 
-/** Новый токен взамен прежнего. Прежний умирает немедленно. */
-export function reissueInvitation(id: string, sendEmail: boolean): Promise<IssuedInvitation> {
-  return request<IssuedInvitation>(
-    `/api/org/invitations/${id}/reissue?send_email=${sendEmail ? "true" : "false"}`,
-    { method: "POST" },
-  );
+/** Новая ссылка взамен прежней — она же «отправить ещё раз». */
+export function reissueInvitation(id: string, deliver: boolean): Promise<Issued> {
+  return request<Issued>(`/api/org/invitations/${id}/reissue`, {
+    method: "POST",
+    body: JSON.stringify({ deliver }),
+  });
 }
 
 export function revokeInvitation(id: string): Promise<void> {
-  return request<void>(`/api/org/invitations/${id}/revoke`, { method: "POST" });
+  return request<void>(`/api/org/invitations/${id}`, { method: "DELETE" });
 }
 
-export function previewInvitation(token: string): Promise<InvitationPreview> {
-  return request<InvitationPreview>(`/api/invitations/${encodeURIComponent(token)}`);
+/** Что за приглашение на руках — отвечает и тому, кто ещё не вошёл. */
+export function previewInvitation(token: string): Promise<InvitePreview> {
+  return request<InvitePreview>(`/api/invitations/${encodeURIComponent(token)}`);
 }
 
-export function acceptInvitation(
-  token: string,
-): Promise<{ org_id: string; org_name: string; role: string }> {
-  return request(`/api/invitations/${encodeURIComponent(token)}/accept`, { method: "POST" });
+export function acceptInvitation(token: string): Promise<JoinedOrganization> {
+  return request<JoinedOrganization>(`/api/invitations/${encodeURIComponent(token)}/accept`, {
+    method: "POST",
+  });
 }

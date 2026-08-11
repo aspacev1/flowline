@@ -6,6 +6,8 @@ type FieldProps = {
   onChange: (value: string) => void;
   autoComplete?: string;
   required?: boolean;
+  /** Значение задано не человеком — например, адрес, к которому привязано приглашение. */
+  readOnly?: boolean;
 };
 
 /**
@@ -20,6 +22,7 @@ export function Field({
   onChange,
   autoComplete,
   required,
+  readOnly,
 }: FieldProps) {
   return (
     <p className="field">
@@ -31,6 +34,7 @@ export function Field({
         value={value}
         autoComplete={autoComplete}
         required={required}
+        readOnly={readOnly}
         onChange={(event) => onChange(event.target.value)}
       />
     </p>

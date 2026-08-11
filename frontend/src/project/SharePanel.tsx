@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { errorKey } from "../api/errors";
-import { issueShare, readShare, revokeShare, setShareComments } from "../api/public";
-import type { Share } from "../api/public";
+import { getShare, issueShare, revokeShare, setShareComments } from "../api/share";
+import type { Share } from "../api/share";
 import { useLocale } from "../i18n/LocaleProvider";
 
 const shareQueryKey = (projectId: string) => ["project", projectId, "share"] as const;
@@ -20,7 +20,7 @@ export function SharePanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient();
   const key = shareQueryKey(projectId);
 
-  const query = useQuery({ queryKey: key, queryFn: () => readShare(projectId), retry: false });
+  const query = useQuery({ queryKey: key, queryFn: () => getShare(projectId), retry: false });
   const write = (share: Share | null) => queryClient.setQueryData(key, share);
 
   const issue = useMutation({ mutationFn: () => issueShare(projectId), onSuccess: write });
@@ -57,7 +57,7 @@ export function SharePanel({ projectId }: { projectId: string }) {
         <>
           <p className="field">
             <label htmlFor="share-url">{t("share.url")}</label>
-            <input id="share-url" name="share-url" readOnly value={share.url} />
+            <input id="share-url" name="share-url" readOnly value={share.url ?? ""} />
           </p>
 
           <p className="field field--inline">

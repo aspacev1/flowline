@@ -13,10 +13,18 @@ const AUTH_CODES = new Set([
   "session_expired",
   "validation_error",
   "password_too_short",
+  "invalid_token",
+  "token_expired",
+  "already_verified",
+  "too_many_requests",
 ]);
 
 const PLAIN_CODES = new Set([
   "network",
+  // Отказ, придуманный клиентом, а не сервером: при оборванной связи изменение
+  // не отправляется вовсе. Живёт в общем списке, потому что показывается тем же
+  // способом, что и отказ сервера, — человеку разницы нет.
+  "offline",
   "no_organization",
   "forbidden",
   "project_not_found",
@@ -43,21 +51,37 @@ const PLAIN_CODES = new Set([
   // Приглашения. Просроченное, отозванное и уже принятое — три разных кода и
   // три разных сообщения: человек должен понимать, просить ли новую ссылку
   // или он уже в системе и достаточно войти.
+  // Публичный доступ и комментарии.
+  "link_not_found",
+  "sharing_disabled",
+  "share_link_not_found",
+  "comments_closed",
+  "comment_empty",
+  "comment_too_long",
+  "guest_name_required",
+  "too_many_comments",
+  // Приглашения. Три состояния мёртвой ссылки названы порознь, а не одним
+  // «ссылка недействительна»: по «просрочено» человек просит новую, по
+  // «принято» просто входит, по «отозвано» идёт к тому, кто звал.
   "invite_not_found",
   "invite_expired",
   "invite_revoked",
   "invite_accepted",
+  "invite_wrong_email",
+  "invite_rate_limited",
+  "invalid_email",
+  "unknown_role",
+  "project_ids_need_client_role",
+  "organization_not_found",
+  // Отказы почты. Отдельный код у каждого: «письмо не ушло» и «почта в этой
+  // установке не настроена» чинятся разными людьми.
+  "mail_failed",
+  "mail_not_configured",
+  "mail_disabled",
   "invite_for_another_address",
   "invite_rate_limited",
   "email_not_verified",
   "role_not_invitable",
-  "verification_not_found",
-  // Публичный доступ и комментарии.
-  "share_not_found",
-  "comments_disabled",
-  "guest_name_required",
-  "comment_rate_limited",
-  "public_sharing_disabled",
   // AI. Сбой модели — состояние, о котором человеку говорят словами:
   // переписка и черновик при этом сохраняются.
   "llm_not_configured",

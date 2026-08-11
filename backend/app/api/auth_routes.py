@@ -2,10 +2,10 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Response
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
-from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
+from app.api.invite_routes import as_http
 from app.auth import (
     SESSION_COOKIE,
     SESSION_TTL,
@@ -17,10 +17,15 @@ from app.auth import (
 )
 from app.config import get_settings
 from app.db import get_db
+from app.email_verification import (
+    VerificationError,
+    confirm_email,
+    send_verification,
+    sent_recently,
+)
+from app.invitations import InvitationError, Status, by_token, check_recipient, status_of
 from app.locales import locale_from_request
-from app.mail import MailError, get_mailer
-from app.models import User
-from app.security import hash_token, new_token
+from app.models import Invitation, User
 from app.settings_input import check_locale
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -30,6 +35,10 @@ class RegisterIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     email: EmailStr
     password: str = Field(min_length=8, max_length=200)
+    #: Приглашение, по которому человек пришёл. С ним аккаунт заводится сразу
+    #: внутри позвавшей организации — и заводится даже в установке, где
+    #: свободная регистрация выключена.
+    invite_token: str | None = None
 
 
 class LoginIn(BaseModel):
@@ -37,11 +46,25 @@ class LoginIn(BaseModel):
     password: str
 
 
+class VerifyEmailIn(BaseModel):
+    token: str = Field(min_length=1, max_length=200)
+
+
 class UserOut(BaseModel):
     id: str
     name: str
     email: str
     locale: str
+    # Не дата, а признак: интерфейсу нужно решить, показывать ли полоску
+    # «подтвердите адрес», а точное время подтверждения ему не нужно ни для
+    # чего — и не стоит того, чтобы разбирать формат даты на клиенте.
+    email_verified: bool
+
+
+class MailResultOut(BaseModel):
+    """Ушло письмо или нет. Врать «отправлено» нельзя: человек будет ждать."""
+
+    sent: bool
 
 
 def _cookie_is_secure() -> bool:
@@ -67,7 +90,42 @@ def _set_cookie(response: Response, token: str) -> None:
 
 
 def _to_out(user: User) -> UserOut:
-    return UserOut(id=str(user.id), name=user.name, email=user.email, locale=user.locale)
+    return UserOut(
+        id=str(user.id),
+        name=user.name,
+        email=user.email,
+        locale=user.locale,
+        email_verified=user.email_verified_at is not None,
+    )
+
+
+def _invitation_for_signup(db: DbSession, payload: RegisterIn) -> Invitation | None:
+    """Приглашение из формы регистрации, проверенное до создания аккаунта.
+
+    Проверка идёт здесь, а не внутри register(): человек, чья ссылка
+    просрочена, должен прочитать про ссылку, а не завести аккаунт и получить
+    отказ уже после. Тот же набор кодов, что и у приёма по ссылке, — экран
+    регистрации и экран приглашения объясняют одно и то же одинаково.
+    """
+    if not payload.invite_token:
+        return None
+
+    invitation = by_token(db, payload.invite_token)
+    if invitation is None:
+        raise HTTPException(status_code=404, detail="invite_not_found")
+
+    state = status_of(invitation, datetime.now(timezone.utc))
+    if state is not Status.PENDING:
+        raise HTTPException(status_code=409, detail=f"invite_{state.value}")
+
+    try:
+        # Адрес приглашения не редактируется: форма его подставляет, а сервер
+        # не верит форме. Иначе приглашение с адресом становится приглашением
+        # предъявителю, чего оно как раз и не должно допускать.
+        check_recipient(invitation, str(payload.email))
+    except InvitationError as error:
+        raise as_http(error)
+    return invitation
 
 
 @router.post("/register", response_model=UserOut, status_code=201)
@@ -77,8 +135,16 @@ def register_route(
     db: DbSession = Depends(get_db),
     accept_language: str | None = Header(default=None),
 ):
-    if get_settings().signup_mode != "open":
+    mode = get_settings().signup_mode
+    # `closed` проверяется до приглашения: в такой установке регистрации нет
+    # вовсе, и отвечать на неё разбором чужой ссылки не за чем.
+    if mode == "closed":
         raise HTTPException(status_code=403, detail="signup_disabled")
+
+    invitation = _invitation_for_signup(db, payload)
+    if mode == "invite_only" and invitation is None:
+        raise HTTPException(status_code=403, detail="signup_disabled")
+
     try:
         user = register(
             db,
@@ -88,7 +154,10 @@ def register_route(
             # Единственное место, где заголовок вообще читается: язык при
             # первом появлении человека. Дальше он живёт в профиле.
             locale=locale_from_request(accept_language),
+            invitation=invitation,
         )
+    except InvitationError as error:
+        raise as_http(error)
     except ValueError:
         raise HTTPException(status_code=409, detail="email_taken")
     except IntegrityError:
@@ -98,11 +167,15 @@ def register_route(
         # клиент получил бы 500 вместо честного «адрес занят».
         db.rollback()
         raise HTTPException(status_code=409, detail="email_taken")
-    # Подтверждение адреса спрашивается, только если в установке настроена
-    # почта. Оно не блокирует работу: до подтверждения нельзя приглашать
-    # других, всё остальное доступно.
-    _start_verification(db, user)
-    _set_cookie(response, open_session(db, user))
+    _set_cookie(
+        response,
+        open_session(db, user, active_org_id=invitation.org_id if invitation else None),
+    )
+    # Письмо уходит синхронно, но регистрацию не решает: недоступный
+    # почтовый сервер не повод не пускать человека в только что созданную
+    # организацию. Отказ уже записан в журнал внутри mail.send, повторная
+    # отправка доступна отдельным маршрутом.
+    send_verification(db, user)
     return _to_out(user)
 
 
@@ -131,60 +204,32 @@ def me_route(user: User = Depends(current_user)):
     return _to_out(user)
 
 
-def _start_verification(db: DbSession, user: User) -> bool:
-    """Выпускает токен подтверждения и отправляет письмо.
+@router.post("/verify-email", status_code=204)
+def verify_email_route(payload: VerifyEmailIn, db: DbSession = Depends(get_db)):
+    """Погашение ссылки из письма. Куки не требует.
 
-    Возвращает, ушло ли письмо. Неудача не отменяет регистрации: аккаунт
-    работает, не работает только приглашение других — и человек может
-    попросить письмо заново.
-
-    В установке без почты подтверждать нечем и незачем: аккаунт работает
-    сразу, иначе установка без почтового сервера превращается в неработающую.
+    Ссылку открывают в том браузере, куда пришла почта, а не обязательно в
+    том, где открыта сессия. Требовать вход значило бы ломать самый обычный
+    сценарий — письмо на телефоне, работа на ноутбуке; сам токен при этом
+    одноразовый, живёт сутки и достаточно длинный, чтобы его нельзя было
+    подобрать.
     """
-    mailer = get_mailer()
-    if not mailer.enabled:
-        return False
-
-    raw, hashed = new_token()
-    user.verification_token_hash = hashed
-    db.flush()
     try:
-        mailer.send(
-            user.email,
-            "verify_email",
-            user.locale,
-            {"link": f"{get_settings().public_base_url.rstrip('/')}/verify/{raw}"},
-        )
-    except MailError:
-        # Письмо не ушло — токен всё равно выпущен, и повторная отправка
-        # попробует ещё раз. Молча притворяться, что письмо доставлено, хуже.
-        return False
-    return True
+        confirm_email(db, payload.token)
+    except VerificationError as exc:
+        raise HTTPException(status_code=400, detail=exc.code)
 
 
-@router.post("/verify/{token}", response_model=UserOut)
-def verify_email(token: str, db: DbSession = Depends(get_db)):
-    """Подтверждение адреса по ссылке из письма.
-
-    Сессии не требует: по ссылке приходят из почтового клиента, который
-    открывает её в чём угодно, включая браузер без сессии. Токен здесь и есть
-    доказательство — он одноразовый и лежит в базе хешем.
-    """
-    user = db.scalar(select(User).where(User.verification_token_hash == hash_token(token)))
-    if user is None:
-        raise HTTPException(status_code=404, detail="verification_not_found")
-    user.email_verified_at = datetime.now(timezone.utc)
-    user.verification_token_hash = None
-    db.flush()
-    return _to_out(user)
-
-
-@router.post("/verify", status_code=202)
-def resend_verification(user: User = Depends(current_user), db: DbSession = Depends(get_db)):
-    """Прислать письмо с подтверждением заново."""
+@router.post("/verify-email/resend", response_model=MailResultOut)
+def resend_verification_route(
+    user: User = Depends(current_user),
+    db: DbSession = Depends(get_db),
+):
     if user.email_verified_at is not None:
-        return {"sent": False, "already_verified": True}
-    return {"sent": _start_verification(db, user), "already_verified": False}
+        raise HTTPException(status_code=409, detail="already_verified")
+    if sent_recently(db, user):
+        raise HTTPException(status_code=429, detail="too_many_requests")
+    return MailResultOut(sent=send_verification(db, user))
 
 
 class ProfileIn(BaseModel):

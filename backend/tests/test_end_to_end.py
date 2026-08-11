@@ -10,6 +10,7 @@
 """
 
 import pytest
+from urllib.parse import urlsplit
 from fastapi.testclient import TestClient
 
 from app.ai.provider import RecordedProvider
@@ -60,6 +61,23 @@ def guest(db):
         yield TestClient(app)
     finally:
         app.dependency_overrides.pop(get_db, None)
+
+
+def _public_path(url: str) -> str:
+    """Адрес публичной страницы для тестового клиента.
+
+    Ссылка приходит с доменом из PUBLIC_BASE_URL, а TestClient ходит по путям:
+    домен отрезается, а слаги и токен остаются такими же, какими их увидит
+    гость в браузере.
+    """
+    parts = urlsplit(url)
+    return f"{parts.path.replace('/p/', '/api/public/', 1)}?{parts.query}"
+
+
+def _with_comments(path: str) -> str:
+    """Тот же адрес, но ленты комментариев: токен остаётся в параметрах."""
+    page, _, query = path.partition("?")
+    return f"{page}/comments?{query}"
 
 
 def test_the_whole_way_from_interview_to_the_public_link(client, guest, db, monkeypatch):
@@ -133,11 +151,11 @@ def test_the_whole_way_from_interview_to_the_public_link(client, guest, db, monk
 
     # 6. Владелец выпускает публичную ссылку.
     share = client.post(f"/api/projects/{project_id}/share", json={}).json()
-    token = share["url"].split("s=")[-1]
-    assert f"/p/" in share["url"]
+    path = _public_path(share["url"])
+    assert "/p/" in share["url"]
 
     # 7. Другой браузер, без всякой сессии: диаграмма видна.
-    public = guest.get(f"/api/public/{token}")
+    public = guest.get(path)
     assert public.status_code == 200
     page = public.json()
     assert page["name"] == "Сайт"
@@ -158,23 +176,22 @@ def test_the_whole_way_from_interview_to_the_public_link(client, guest, db, monk
         json={"body": "Держим сроки", "task_id": task_id},
     )
     posted = guest.post(
-        f"/api/public/{token}/comments",
-        json={"body": "А успеем до июня?", "guest_name": "Мария"},
+        _with_comments(path),
+        json={"body": "А успеем до июня?", "name": "Мария"},
     )
     assert posted.status_code == 201
-    assert posted.json()["author_name"] == "Мария"
-    assert posted.json()["is_guest"] is True
+    assert posted.json()["author"] == {"name": "Мария", "guest": True}
 
-    comments = guest.get(f"/api/public/{token}/comments").json()
-    assert [(item["author_name"], item["is_guest"]) for item in comments] == [
+    comments = guest.get(_with_comments(path)).json()
+    assert [(item["author"]["name"], item["author"]["guest"]) for item in comments] == [
         ("Alex", False),
         ("Мария", True),
     ]
 
     # 9. Перевыпуск ссылки убивает прежнюю мгновенно.
     fresh = client.post(f"/api/projects/{project_id}/share", json={}).json()
-    assert guest.get(f"/api/public/{token}").status_code == 404
-    assert guest.get(f"/api/public/{fresh['url'].split('s=')[-1]}").status_code == 200
+    assert guest.get(path).status_code == 404
+    assert guest.get(_public_path(fresh["url"])).status_code == 200
 
 
 def test_a_guest_cannot_comment_when_comments_are_off(client, guest, db):
@@ -183,19 +200,18 @@ def test_a_guest_cannot_comment_when_comments_are_off(client, guest, db):
         json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
     )
     project_id = client.post("/api/projects", json={"name": "Сайт"}).json()["id"]
-    share = client.post(
-        f"/api/projects/{project_id}/share", json={"comments_enabled": False}
-    ).json()
-    token = share["url"].split("s=")[-1]
+    share = client.post(f"/api/projects/{project_id}/share", json={}).json()
+    # Комментарии выключаются отдельным запросом: выпуск ссылки и её настройка
+    # — разные действия, и второе доступно и после первого.
+    client.patch(f"/api/projects/{project_id}/share", json={"comments_enabled": False})
+    path = _public_path(share["url"])
 
-    refused = guest.post(
-        f"/api/public/{token}/comments", json={"body": "привет", "guest_name": "Мария"}
-    )
+    refused = guest.post(_with_comments(path), json={"body": "привет", "name": "Мария"})
 
     assert refused.status_code == 403
-    assert refused.json()["detail"] == "comments_disabled"
+    assert refused.json()["detail"] == "comments_closed"
     # Читать проект при этом можно: выключены комментарии, а не ссылка.
-    assert guest.get(f"/api/public/{token}").status_code == 200
+    assert guest.get(path).status_code == 200
 
 
 def test_a_guest_must_name_themselves(client, guest, db):
@@ -204,12 +220,13 @@ def test_a_guest_must_name_themselves(client, guest, db):
         json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
     )
     project_id = client.post("/api/projects", json={"name": "Сайт"}).json()["id"]
-    token = client.post(f"/api/projects/{project_id}/share", json={}).json()["url"].split("s=")[-1]
+    path = _public_path(client.post(f"/api/projects/{project_id}/share", json={}).json()["url"])
 
-    refused = guest.post(f"/api/public/{token}/comments", json={"body": "привет"})
+    refused = guest.post(_with_comments(path), json={"body": "привет"})
 
+    # Имя гостя — обязательное поле схемы: неподписанная реплика на публичной
+    # странице неотличима от чужой.
     assert refused.status_code == 422
-    assert refused.json()["detail"] == "guest_name_required"
 
 
 def test_a_revoked_link_is_indistinguishable_from_a_missing_one(client, guest, db):
@@ -218,12 +235,12 @@ def test_a_revoked_link_is_indistinguishable_from_a_missing_one(client, guest, d
         json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
     )
     project_id = client.post("/api/projects", json={"name": "Сайт"}).json()["id"]
-    token = client.post(f"/api/projects/{project_id}/share", json={}).json()["url"].split("s=")[-1]
+    path = _public_path(client.post(f"/api/projects/{project_id}/share", json={}).json()["url"])
 
     client.delete(f"/api/projects/{project_id}/share")
 
-    revoked = guest.get(f"/api/public/{token}")
-    missing = guest.get("/api/public/nonexistent-token")
+    revoked = guest.get(path)
+    missing = guest.get("/api/public/nobody/nothing?s=nonexistent-token")
     # Разница между ними была бы подсказкой тому, кто перебирает токены.
     assert revoked.status_code == missing.status_code == 404
     assert revoked.json() == missing.json()
@@ -240,7 +257,7 @@ def test_public_sharing_can_be_switched_off_by_the_organization(client, db):
     refused = client.post(f"/api/projects/{project_id}/share", json={})
 
     assert refused.status_code == 403
-    assert refused.json()["detail"] == "public_sharing_disabled"
+    assert refused.json()["detail"] == "sharing_disabled"
 
 
 def test_the_guest_comment_rate_limit_bites(client, guest, db, monkeypatch):
@@ -249,20 +266,23 @@ def test_the_guest_comment_rate_limit_bites(client, guest, db, monkeypatch):
 
     monkeypatch.setattr(get_settings(), "guest_comment_rate_limit", 2, raising=False)
     # Счётчик живёт в памяти процесса и переживает тесты: соседний тест не
-    # должен решать судьбу этого.
-    public_routes._GUEST_HITS.clear()
+    # должен решать судьбу этого. Обнуляется он вместе со всем счётчиком —
+    # тот собирается по первому требованию и подхватит потолок выше.
+    monkeypatch.setattr(public_routes, "_guest_comments", None)
 
     client.post(
         "/api/auth/register",
         json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
     )
     project_id = client.post("/api/projects", json={"name": "Сайт"}).json()["id"]
-    token = client.post(f"/api/projects/{project_id}/share", json={}).json()["url"].split("s=")[-1]
+    path = _with_comments(
+        _public_path(client.post(f"/api/projects/{project_id}/share", json={}).json()["url"])
+    )
 
-    body = {"body": "привет", "guest_name": "Мария"}
-    assert guest.post(f"/api/public/{token}/comments", json=body).status_code == 201
-    assert guest.post(f"/api/public/{token}/comments", json=body).status_code == 201
-    third = guest.post(f"/api/public/{token}/comments", json=body)
+    body = {"body": "привет", "name": "Мария"}
+    assert guest.post(path, json=body).status_code == 201
+    assert guest.post(path, json=body).status_code == 201
+    third = guest.post(path, json=body)
 
     assert third.status_code == 429
-    assert third.json()["detail"] == "comment_rate_limited"
+    assert third.json()["detail"] == "too_many_comments"

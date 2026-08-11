@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from app.config import get_settings
-from app.mail import get_mailer
+from app.mail import mail_enabled
 
 router = APIRouter(prefix="/api", tags=["meta"])
 
@@ -29,7 +29,7 @@ class InstallConfig(BaseModel):
 def install_config():
     settings = get_settings()
     return InstallConfig(
-        mail_enabled=get_mailer().enabled,
+        mail_enabled=mail_enabled(),
         signup_mode=settings.signup_mode,
         supported_locales=settings.locales,
         default_locale=settings.default_locale,

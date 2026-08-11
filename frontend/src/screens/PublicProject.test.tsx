@@ -1,137 +1,209 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { beforeEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { STATE } from "../test/project";
 import { server } from "../test/server";
 import { renderApp } from "../test/utils";
 
-/**
- * Страница по публичной ссылке.
- *
- * Гость приходит без сессии: ответов про профиль и организацию здесь нет
- * вовсе, и это часть проверки — страница не должна их спрашивать.
- */
+const TOKEN = "sh4re-t0ken";
+const ROUTE = `/p/acme/redizayn?s=${TOKEN}`;
 
-// Внутренней заметки в ответе сервера гостю нет: он её не присылает. Здесь она
-// убрана из оснастки ровно поэтому, а не для удобства.
-const { internal_note: _hidden, ...GUEST_TASK } = STATE.tasks[0];
-
-const PUBLIC = {
-  ...STATE,
-  tasks: [GUEST_TASK],
-  org_name: "Şəhər Studiyası",
+const STATE = {
+  id: "p1",
+  name: "Редизайн",
+  slug: "redizayn",
+  deadline: "2026-06-01",
+  project_end: "2026-06-08",
+  calendar: { working_days: 31, holidays: [], extra_workdays: [] },
+  categories: [{ id: "c1", name: "Дизайн", color: "#3b82f6", position: 0 }],
+  tasks: [
+    {
+      id: "t1",
+      category_id: "c1",
+      name: "Логотип",
+      description: "",
+      start_date: "2026-03-04",
+      end_date: "2026-03-10",
+      duration_days: 5,
+      criticality: "high",
+      progress_pct: 40,
+      position: 0,
+      assignee_ids: [],
+    },
+  ],
+  dependencies: [],
+  org: { name: "Şəhər Studiyası", slug: "acme" },
   comments_enabled: true,
 };
 
 /**
- * Гость по ссылке — это человек без сессии.
- *
- * Приложение всё равно спрашивает, кто вошёл, и получает честное «никто»:
- * страница обязана работать именно в этом состоянии, а не только у того, кто
- * случайно оказался залогинен.
+ * Гость — человек без сессии: `/api/auth/me` отвечает ему отказом. Это не
+ * оформление теста, а суть проверки: публичная страница обязана открыться
+ * именно в таком состоянии, а не «если вдруг кто-то залогинен».
  */
-beforeEach(() => {
-  server.use(
-    http.get("/api/auth/me", () =>
-      HttpResponse.json({ detail: "not_authenticated" }, { status: 401 }),
-    ),
-  );
-});
+function guestSession() {
+  return http.get("/api/auth/me", () => new HttpResponse(null, { status: 401 }));
+}
 
-function publicFixtures(overrides: Partial<typeof PUBLIC> = {}) {
-  const posted: Record<string, unknown>[] = [];
-  const comments = [
-    {
-      id: "c1",
-      task_id: null,
-      body: "Держим сроки",
-      created_at: "2026-03-05T10:00:00+00:00",
-      author_name: "Алексей",
-      is_guest: false,
-    },
-  ];
-  server.use(
-    http.get("/api/public/tok", () => HttpResponse.json({ ...PUBLIC, ...overrides })),
-    http.get("/api/public/tok/comments", () => HttpResponse.json(comments)),
-    http.post("/api/public/tok/comments", async ({ request }) => {
-      const body = (await request.json()) as Record<string, unknown>;
-      posted.push(body);
-      const entry = {
-        id: "c2",
-        task_id: null,
-        body: String(body.body),
-        created_at: "2026-03-05T11:00:00+00:00",
-        author_name: String(body.guest_name),
-        is_guest: true,
-      };
-      comments.push(entry);
-      return HttpResponse.json(entry, { status: 201 });
-    }),
-  );
-  return posted;
+function publicProject(state: object = STATE) {
+  return http.get("/api/public/acme/redizayn", ({ request }) => {
+    // Токен обязан доехать до сервера: без него ссылка ничем не отличается
+    // от угаданного адреса.
+    if (new URL(request.url).searchParams.get("s") !== TOKEN) {
+      return HttpResponse.json({ detail: "link_not_found" }, { status: 404 });
+    }
+    return HttpResponse.json(state);
+  });
+}
+
+function noComments() {
+  return http.get("/api/public/acme/redizayn/comments", () => HttpResponse.json([]));
 }
 
 describe("публичная страница", () => {
-  it("показывает диаграмму и комментарии, но не внутренние заметки", async () => {
-    publicFixtures();
-    renderApp({ route: "/p/seher-studiyasi/redizayn?s=tok" });
+  it("открывает проект гостю без входа", async () => {
+    server.use(guestSession(), publicProject(), noComments());
 
-    expect(await screen.findByRole("heading", { name: "Редизайн" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Логотип/ })).toBeInTheDocument();
-    expect(await screen.findByText("Держим сроки")).toBeInTheDocument();
-    // Поля заметки нет вовсе: сервер её не прислал, и рисовать нечего.
-    expect(screen.queryByLabelText(/заметка/i)).toBeNull();
+    renderApp({ route: ROUTE, locale: "ru" });
+
+    expect(await screen.findByRole("heading", { name: "Редизайн", level: 1 })).toBeInTheDocument();
+    // Название организации подписывает страницу: гость должен видеть, чей
+    // это план. И оно не переводится — это содержимое пользователя.
+    expect(screen.getByText("Şəhər Studiyası")).toBeInTheDocument();
+    expect(screen.getAllByText("Логотип").length).toBeGreaterThan(0);
+    // На вход его не увели: адрес остался публичным.
+    expect(screen.getByTestId("location")).toHaveTextContent("/p/acme/redizayn");
   });
 
-  it("не даёт инструментов правки", async () => {
-    publicFixtures();
-    renderApp({ route: "/p/seher-studiyasi/redizayn?s=tok" });
-    await screen.findByRole("button", { name: /Логотип/ });
+  it("не предлагает гостю ничего менять", async () => {
+    server.use(guestSession(), publicProject(), noComments());
 
-    // Ни создания категорий, ни утверждения плана, ни отмены: гость смотрит.
-    expect(screen.queryByRole("button", { name: /Утвердить/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Отменить/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: /Добавить задачу/ })).toBeNull();
+    renderApp({ route: ROUTE, locale: "ru" });
+    await screen.findAllByText("Логотип");
+
+    expect(screen.queryByRole("button", { name: "Новая категория" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Новая задача" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Публичная ссылка" })).not.toBeInTheDocument();
   });
 
-  it("гость подписывается именем, и его реплика отличается от реплики участника", async () => {
-    const posted = publicFixtures();
-    renderApp({ route: "/p/seher-studiyasi/redizayn?s=tok" });
-
-    await userEvent.type(await screen.findByLabelText("Ваше имя"), "Мария");
-    await userEvent.type(screen.getByLabelText("Комментарий"), "А успеем до июня?");
-    await userEvent.click(screen.getByRole("button", { name: "Отправить" }));
-
-    await waitFor(() =>
-      expect(posted).toEqual([{ body: "А успеем до июня?", guest_name: "Мария" }]),
-    );
-    expect(await screen.findByText("(гость)")).toBeInTheDocument();
-  });
-
-  it("с выключенными комментариями форма не показывается", async () => {
-    publicFixtures({ comments_enabled: false });
-    renderApp({ route: "/p/seher-studiyasi/redizayn?s=tok" });
-
-    expect(await screen.findByText(/комментарии по этой ссылке выключены/i)).toBeInTheDocument();
-    expect(screen.queryByLabelText("Комментарий")).toBeNull();
-  });
-
-  it("отозванная ссылка объясняется словами", async () => {
+  it("объясняет отозванную ссылку, а не показывает пустой экран", async () => {
     server.use(
-      http.get("/api/public/tok", () =>
-        HttpResponse.json({ detail: "share_not_found" }, { status: 404 }),
+      guestSession(),
+      http.get("/api/public/acme/redizayn", () =>
+        HttpResponse.json({ detail: "link_not_found" }, { status: 404 }),
       ),
     );
-    renderApp({ route: "/p/seher-studiyasi/redizayn?s=tok" });
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/не работает или отозвана/);
+    renderApp({ route: ROUTE, locale: "ru" });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Ссылка не работает: её отозвали или в адресе опечатка",
+    );
   });
 
-  it("адрес без токена не притворяется работающим", async () => {
-    renderApp({ route: "/p/seher-studiyasi/redizayn" });
+  it("гость подписывает реплику именем и оно запоминается в браузере", async () => {
+    const sent: Array<Record<string, unknown>> = [];
+    server.use(
+      guestSession(),
+      publicProject(),
+      noComments(),
+      http.post("/api/public/acme/redizayn/comments", async ({ request }) => {
+        const body = (await request.json()) as Record<string, unknown>;
+        sent.push(body);
+        return HttpResponse.json(
+          {
+            id: "cm1",
+            task_id: null,
+            author: { name: body.name, guest: true },
+            body: body.body,
+            created_at: "2026-03-05T10:00:00+00:00",
+          },
+          { status: 201 },
+        );
+      }),
+    );
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/не работает или отозвана/);
+    renderApp({ route: ROUTE, locale: "ru" });
+    await screen.findAllByText("Логотип");
+
+    await userEvent.type(screen.getByLabelText("Ваше имя"), "Нигяр");
+    await userEvent.type(screen.getByLabelText("Комментарий"), "Сроки устраивают");
+    await userEvent.click(screen.getByRole("button", { name: "Отправить" }));
+
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toEqual({ name: "Нигяр", body: "Сроки устраивают" });
+    // Имя запоминается в браузере: второй раз гость его не вводит.
+    expect(localStorage.getItem("flowline.guest_name")).toBe("Нигяр");
+  });
+
+  it("гостевая реплика видна с пометкой «гость»", async () => {
+    server.use(
+      guestSession(),
+      publicProject(),
+      http.get("/api/public/acme/redizayn/comments", () =>
+        HttpResponse.json([
+          {
+            id: "cm1",
+            task_id: null,
+            author: { name: "Нигяр", guest: true },
+            body: "Когда будет макет?",
+            created_at: "2026-03-05T10:00:00+00:00",
+          },
+          {
+            id: "cm2",
+            task_id: null,
+            author: { name: "Алексей", guest: false },
+            body: "К пятнице",
+            created_at: "2026-03-05T11:00:00+00:00",
+          },
+        ]),
+      ),
+    );
+
+    renderApp({ route: ROUTE, locale: "ru" });
+
+    const guest = await screen.findByText("Когда будет макет?");
+    // Пометка стоит у гостя и только у него: реплика человека с аккаунтом
+    // отличается по смыслу, и различие должно быть словом, а не оттенком.
+    expect(guest.closest("li")).toHaveTextContent("гость");
+    expect(screen.getByText("К пятнице").closest("li")).not.toHaveTextContent("гость");
+  });
+
+  it("выключенные комментарии закрывают форму, но не ленту", async () => {
+    server.use(
+      guestSession(),
+      publicProject({ ...STATE, comments_enabled: false }),
+      http.get("/api/public/acme/redizayn/comments", () =>
+        HttpResponse.json([
+          {
+            id: "cm1",
+            task_id: null,
+            author: { name: "Нигяр", guest: true },
+            body: "Сказанное вчера",
+            created_at: "2026-03-05T10:00:00+00:00",
+          },
+        ]),
+      ),
+    );
+
+    renderApp({ route: ROUTE, locale: "ru" });
+
+    expect(await screen.findByText("Сказанное вчера")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Отправить" })).not.toBeInTheDocument();
+    expect(screen.getByText("Владелец проекта закрыл комментарии")).toBeInTheDocument();
+  });
+
+  it("язык переключается прямо на странице", async () => {
+    server.use(guestSession(), publicProject(), noComments());
+
+    renderApp({ route: ROUTE, locale: "ru" });
+    await screen.findAllByText("Логотип");
+
+    await userEvent.click(screen.getByRole("button", { name: "EN" }));
+
+    // У гостя нет профиля, из которого можно было бы взять язык, а клиент
+    // может не совпадать по языку с командой.
+    expect(await screen.findByText("Comments")).toBeInTheDocument();
   });
 });
