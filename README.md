@@ -7,15 +7,24 @@
 
 ## Запуск
 
-Нужен Docker с плагином `compose`.
+Из зависимостей нужен только Docker с плагином `compose` — ни Python, ни Node
+на машине ставить не нужно, всё собирается внутри образов.
 
 ```sh
+git clone https://github.com/aspacev1/flowline.git
+cd flowline
 cp .env.example .env      # отредактируй APP_SECRET и учётные данные Postgres
-docker compose up
+docker compose up --build
 ```
 
+Первый запуск занимает несколько минут: собираются образы бэкенда и фронтенда,
+поднимается Postgres и накатывается схема. Дальше `docker compose up` стартует
+за секунды. Остановка — `docker compose down`, вместе с данными —
+`docker compose down -v`.
+
 Интерфейс открывается на <http://localhost:8080> — там регистрация, вход и
-список проектов. Порт меняется переменной `WEB_PORT`.
+список проектов. Порты меняются переменными `WEB_PORT` и `API_PORT` в `.env`,
+если 8080 или 8000 уже заняты.
 
 Фронтенд и API живут за одним доменом: Caddy отдаёт статику с корня, а всё,
 что начинается с `/api/`, проксирует в бэкенд. Это не украшательство —
@@ -32,7 +41,31 @@ API доступен и напрямую на <http://localhost:8000>, пров�
 ставит куку сессии, и с ней доступны `POST /api/projects`,
 `GET /api/projects/{id}` и `POST /api/projects/{id}/mutations`.
 
-## Разработка интерфейса
+## Разработка в контейнерах
+
+Обычный запуск запекает код в образы: правка файла ничего не меняет, пока не
+пересоберёшь. Наложение `docker-compose.dev.yml` монтирует рабочую копию с
+хоста, и оба сервера следят за файлами сами — uvicorn с `--reload`, интерфейс
+на Vite вместо статики за Caddy.
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+```
+
+Адрес прежний — <http://localhost:8080>, и `/api` там проксирует уже Vite, а не
+Caddy. Правка `.tsx` видна в браузере сразу, правка Python перезапускает
+сервер. Пересборка нужна только при смене зависимостей: после правки
+`package.json` — с `--renew-anon-volumes web`, иначе в контейнере останется
+старый `node_modules`.
+
+Образ бэкенда в этом режиме ставит и dev-зависимости, поэтому тесты можно
+гонять прямо в контейнере, без Python на хосте:
+
+```sh
+docker compose exec api pytest
+```
+
+## Разработка интерфейса без Docker
 
 ```sh
 cd frontend && npm install && npm run dev
@@ -52,9 +85,16 @@ Dev-сервер поднимается на <http://localhost:5173> и прок
 
 Тесты работают только с базой `<имя из DATABASE_URL>_test` и никогда с базой
 из `DATABASE_URL` — `backend/tests/conftest.py` это проверяет и отказывается
-запускаться иначе. Тестовую базу нужно создать один раз:
+запускаться иначе. Эта база создаётся сама при первом запуске Postgres
+(`docker/postgres-init/10-create-test-db.sh`), отдельного шага нет:
+
+```sh
+cd backend && uv run pytest
+```
+
+Если том `pgdata` появился раньше этого скрипта, Postgres его уже не выполнит —
+такую базу нужно создать один раз руками:
 
 ```sh
 docker compose exec db createdb -U flowline flowline_test
-cd backend && uv run pytest
 ```
