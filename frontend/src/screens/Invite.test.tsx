@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
@@ -64,7 +64,11 @@ describe("экран приглашения", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: /принять приглашение/i }));
 
-    expect(await screen.findByTestId("location")).toHaveTextContent("/projects");
+    // Не findByTestId: элемент с адресом существует с первого кадра, так что
+    // findBy находит его мгновенно — ещё до того, как мутация завершится и
+    // случится переход, — и разовый assert мигал под нагрузкой полного
+    // прогона. Ждать нужно смены содержимого, это делает waitFor.
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/projects"));
   });
 
   it("вошедшему не под тем аккаунтом говорит, кому приглашение адресовано", async () => {
@@ -143,7 +147,8 @@ describe("регистрация по приглашению", () => {
     await userEvent.type(screen.getByLabelText(/пароль/i), "s3cret-pass");
     await userEvent.click(screen.getByRole("button", { name: /зарегистрироваться/i }));
 
-    expect(await screen.findByTestId("location")).toHaveTextContent("/projects");
+    // См. комментарий к такому же ожиданию выше: waitFor, а не findByTestId.
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/projects"));
     expect(sent).toMatchObject({ email: "a@b.c", invite_token: TOKEN });
   });
 
