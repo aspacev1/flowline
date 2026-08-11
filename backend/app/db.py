@@ -25,9 +25,18 @@ class Base(DeclarativeBase):
 # на себя внешний пулер (у Neon и Supabase это адрес с `-pooler`, его и надо
 # класть в DATABASE_URL на Vercel).
 #
+# prepare_threshold=None выключает серверные prepared statements. psycopg
+# заводит их сам после пятого повтора запроса, но живут они в сессии
+# Postgres, а пулер в режиме транзакции раздаёт разным запросам разные
+# сессии — и запрос находит подготовленным то, чего в его сессии нет
+# («prepared statement _pg3_0 already exists» с другой стороны). Свежие
+# pgbouncer это умеют, но зависеть от версии чужого пулера не за что.
+#
 # VERCEL платформа выставляет сама, вручную её задавать не нужно.
 _engine_options: dict[str, object] = (
-    {"poolclass": NullPool} if os.getenv("VERCEL") else {"pool_pre_ping": True}
+    {"poolclass": NullPool, "connect_args": {"prepare_threshold": None}}
+    if os.getenv("VERCEL")
+    else {"pool_pre_ping": True}
 )
 
 engine = create_engine(get_settings().database_url, **_engine_options)
