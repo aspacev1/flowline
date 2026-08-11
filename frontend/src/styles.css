@@ -110,6 +110,20 @@ body {
   margin: 0;
 }
 
+/* Лента и карточка рядом. Лента забирает всё, что не заняла карточка, и
+   сжимается ниже своей ширины — иначе открытие карточки выталкивало бы её за
+   край экрана вместо того, чтобы поделить место. */
+.project__body {
+  display: flex;
+  align-items: stretch;
+  gap: var(--gap);
+}
+
+.project__body > .gantt {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .screen__actions {
   display: flex;
   gap: 8px;

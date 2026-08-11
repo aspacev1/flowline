@@ -82,15 +82,20 @@ export function TaskRow({
   late,
   lateLabel,
   title,
+  selected = false,
+  onSelect,
 }: {
   task: Task;
   scale: Scale;
   late: boolean;
   lateLabel: string;
   title: string;
+  /** Открыта ли карточка этой задачи. */
+  selected?: boolean;
+  onSelect?: (taskId: string) => void;
 }) {
   return (
-    <div className="gantt__row">
+    <div className={`gantt__row${selected ? " is-selected" : ""}`}>
       <div className="gantt__label">
         <span className="gantt__label-name">{task.name}</span>
         {late && (
@@ -116,6 +121,8 @@ export function TaskRow({
           // «14 августа — 20 августа» — без названия задачи вовсе.
           aria-label={`${task.name}, ${title}`}
           title={title}
+          aria-expanded={onSelect ? selected : undefined}
+          onClick={() => onSelect?.(task.id)}
         >
           {/* Заливка внутри полоски, а не отдельная полоска рядом: прогресс —
               это часть задачи, а не вторая задача под ней. */}

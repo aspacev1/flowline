@@ -26,19 +26,27 @@ function byPosition<T extends { position: number; id: string }>(rows: T[]): T[] 
 export function Gantt({
   state,
   onAddTask,
+  selectedTaskId = null,
+  onSelectTask,
 }: {
   state: ProjectState;
   /** Плюс на строке категории. Без него диаграмма остаётся на чтение. */
   onAddTask?: (categoryId: string) => void;
+  /** Задача, карточка которой открыта. */
+  selectedTaskId?: string | null;
+  onSelectTask?: (taskId: string) => void;
 }) {
   const { t } = useLocale();
   const scroller = useRef<HTMLDivElement>(null);
 
   const today = toISO(Date.now());
-  const scale = useMemo(() => {
-    const { from, to } = projectWindow(state);
-    return buildScale({ from, to, dayWidth: DAY_WIDTH });
-  }, [state]);
+  // Зависимость — границы окна, а не само состояние: после каждого изменения
+  // сервер присылает новый объект состояния, и шкала, привязанная к его
+  // тождеству, пересобиралась бы всякий раз. Ниже она сама — зависимость
+  // прокрутки к сегодняшнему дню, и лента прыгала бы к сегодня после каждой
+  // правки, унося с экрана ту задачу, которую только что двигали.
+  const { from, to } = projectWindow(state);
+  const scale = useMemo(() => buildScale({ from, to, dayWidth: DAY_WIDTH }), [from, to]);
 
   const formatDay = (iso: string) => formatDate(t, iso);
 
@@ -112,6 +120,8 @@ export function Gantt({
                           late={isLate(task)}
                           lateLabel={t("gantt.late")}
                           title={`${formatDay(task.start_date)} — ${formatDay(task.end_date)}`}
+                          selected={task.id === selectedTaskId}
+                          onSelect={onSelectTask}
                         />
                       ))}
                     </div>

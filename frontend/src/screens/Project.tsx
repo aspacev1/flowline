@@ -6,6 +6,7 @@ import { errorKey } from "../api/errors";
 import { getProject, projectQueryKey } from "../api/projects";
 import { Gantt } from "../gantt/Gantt";
 import { useLocale } from "../i18n/LocaleProvider";
+import { TaskPanel } from "../task/TaskPanel";
 import { CategoryForm, suggestColor } from "./CategoryForm";
 import { TaskForm } from "./TaskForm";
 
@@ -23,6 +24,10 @@ export function Project() {
   const [addingCategory, setAddingCategory] = useState(false);
   // Категория, из строки которой открыли форму задачи. `null` — форма закрыта.
   const [addingTaskIn, setAddingTaskIn] = useState<string | null>(null);
+  // Задача, карточка которой открыта. Держится идентификатором, а не самой
+  // задачей: после каждого изменения состояние приходит с сервера заново, и
+  // карточка, помнящая объект, показывала бы устаревшие данные.
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   const query = useQuery({
     queryKey: projectQueryKey(projectId),
@@ -47,6 +52,10 @@ export function Project() {
       </main>
     );
   }
+
+  // Задача могла исчезнуть между открытием карточки и следующим ответом
+  // сервера: её удалили в соседней вкладке. Карточка тогда просто не рисуется.
+  const selectedTask = query.data.tasks.find((task) => task.id === selectedTaskId) ?? null;
 
   return (
     <main className="screen screen--wide">
@@ -73,7 +82,29 @@ export function Project() {
         </div>
       </div>
 
-      <Gantt state={query.data} onAddTask={setAddingTaskIn} />
+      {/* Диаграмма занимает всю ширину, пока карточка закрыта: пустая колонка
+          справа отнимает у ленты треть экрана ради ничего. */}
+      <div className="project__body">
+        <Gantt
+          state={query.data}
+          onAddTask={setAddingTaskIn}
+          selectedTaskId={selectedTaskId}
+          // Повторный щелчок по той же полоске закрывает карточку: люди
+          // делают так не задумываясь, и без этого щелчок выглядит
+          // бездействием.
+          onSelectTask={(taskId) =>
+            setSelectedTaskId((current) => (current === taskId ? null : taskId))
+          }
+        />
+
+        {selectedTask && (
+          <TaskPanel
+            task={selectedTask}
+            categories={query.data.categories}
+            onClose={() => setSelectedTaskId(null)}
+          />
+        )}
+      </div>
 
       {addingCategory && (
         <CategoryForm

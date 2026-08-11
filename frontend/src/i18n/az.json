@@ -13,7 +13,22 @@
   },
   "calendar": {
     "date": "{day} {month}",
+    "date_short": "{day} {month}",
     "month_year": "{month} {year}",
+    "month_short": {
+      "1": "yan",
+      "2": "fev",
+      "3": "mar",
+      "4": "apr",
+      "5": "may",
+      "6": "iyn",
+      "7": "iyl",
+      "8": "avq",
+      "9": "sen",
+      "10": "okt",
+      "11": "noy",
+      "12": "dek"
+    },
     "month": {
       "1": "yanvar",
       "2": "fevral",
@@ -131,6 +146,21 @@
       "normal": "Adi",
       "high": "Yüksək",
       "critical": "Kritik"
+    },
+    "panel": {
+      "aria": "«{name}» tapşırığı",
+      "close": "Kartı bağla",
+      "name": "Ad",
+      "description": "Təsvir",
+      "category": "Kateqoriya",
+      "criticality": "Kritiklik",
+      "start": "Başlanğıc",
+      "duration": "Müddət, iş günü",
+      "end": "Son",
+      "progress": "Tamamlanıb, %",
+      "assignees": "İcraçılar",
+      "internal_note": "Daxili qeyd",
+      "history": "Tarixçə"
     },
     "new": {
       "title": "Yeni tapşırıq",

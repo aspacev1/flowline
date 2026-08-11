@@ -1,0 +1,143 @@
+import { HttpResponse, http } from "msw";
+
+import type { ProjectState } from "../api/projects";
+import type { Locale } from "../i18n";
+import { server } from "./server";
+import { ORG, USER, renderApp } from "./utils";
+
+/**
+ * Оснастка экрана проекта: одно состояние, одни ответы сервера, один способ
+ * его нарисовать.
+ *
+ * Карточку задачи, перетаскивание и перестановку строк проверяют четыре разных
+ * файла, и каждому нужен один и тот же проект с теми же датами. Скопированное
+ * в четыре места состояние расходится на второй правке, и тесты начинают
+ * проверять четыре разных проекта под одними названиями.
+ */
+
+export const MEMBERS = [
+  { id: "u1", name: "Алексей", email: "a@b.c", role: "owner" },
+  { id: "u2", name: "Мария", email: "m@b.c", role: "editor" },
+];
+
+export const STATE: ProjectState = {
+  id: "p1",
+  name: "Редизайн",
+  slug: "redizayn",
+  deadline: "2026-06-01",
+  project_end: "2026-06-08",
+  calendar: { working_days: 31, holidays: ["2026-03-20"], extra_workdays: [] },
+  settings: { shift_threshold_days: 2, timezone: "Asia/Baku" },
+  categories: [
+    { id: "c1", name: "Дизайн", color: "#3b82f6", position: 0 },
+    { id: "c2", name: "Разработка", color: "#a855f7", position: 1 },
+  ],
+  tasks: [
+    {
+      id: "t1",
+      category_id: "c1",
+      name: "Логотип",
+      description: "Знак",
+      start_date: "2026-03-04",
+      end_date: "2026-03-10",
+      duration_days: 5,
+      criticality: "high",
+      progress_pct: 40,
+      position: 0,
+      assignee_ids: [],
+      internal_note: "",
+    },
+  ],
+  dependencies: [],
+};
+
+/** Тот же проект: обе категории на месте и в базовом состоянии. */
+export const TWO_CATEGORIES = STATE;
+
+/** Три задачи в одной категории — для перестановки строк. */
+export const THREE_TASKS: ProjectState = {
+  ...STATE,
+  tasks: [
+    { ...STATE.tasks[0], id: "t1", name: "Первая", position: 0 },
+    {
+      ...STATE.tasks[0],
+      id: "t2",
+      name: "Вторая",
+      position: 1,
+      start_date: "2026-03-11",
+      end_date: "2026-03-17",
+    },
+    {
+      ...STATE.tasks[0],
+      id: "t3",
+      name: "Третья",
+      position: 2,
+      start_date: "2026-03-18",
+      end_date: "2026-03-24",
+    },
+  ],
+};
+
+/** Два задания со стрелкой между ними. */
+export const WITH_DEPENDENCY: ProjectState = {
+  ...THREE_TASKS,
+  tasks: THREE_TASKS.tasks.slice(0, 2),
+  dependencies: [{ from_task_id: "t1", to_task_id: "t2" }],
+};
+
+export type Sent = { op: Record<string, unknown>; reason?: string };
+
+// Состояние оснастки. Живёт в модуле, а не в замыкании renderProject, потому
+// что обработчики регистрируются раньше — в beforeEach, — и обязаны видеть то,
+// что тест выберет позже.
+let state: ProjectState = STATE;
+let role = "owner";
+const sent: Sent[] = [];
+
+/**
+ * Ответы сервера по умолчанию. Ставятся в `beforeEach`, а не внутри
+ * `renderProject`, и это важно: msw отдаёт предпочтение обработчику,
+ * зарегистрированному последним. Тест, объявляющий отказ через `server.use` в
+ * своём теле, обязан перебить оснастку — а перебивает он только то, что
+ * зарегистрировано до него.
+ */
+export function projectFixtures() {
+  state = STATE;
+  role = "owner";
+  sent.length = 0;
+
+  server.use(
+    http.get("/api/auth/me", () => HttpResponse.json(USER)),
+    http.get("/api/org", () => HttpResponse.json({ ...ORG, role })),
+    http.get("/api/org/members", () => HttpResponse.json(MEMBERS)),
+    http.get("/api/projects/p1", () => HttpResponse.json(state)),
+    http.post("/api/projects/p1/mutations", async ({ request }) => {
+      const body = (await request.json()) as Sent;
+      sent.push(body);
+      return HttpResponse.json({ seq: sent.length, op: body.op, inverse: {} }, { status: 201 });
+    }),
+  );
+}
+
+/**
+ * Операции, ушедшие на сервер с начала теста.
+ *
+ * Массив живой: он наполняется по ходу, и его не нужно перезапрашивать. Один и
+ * тот же массив на весь тест — поэтому вызвать это можно и до отрисовки, как
+ * оно и читается в тестах.
+ */
+export function captureMutations(): Sent[] {
+  return sent;
+}
+
+export function renderProject(
+  next: ProjectState = STATE,
+  options: { canWrite?: boolean; locale?: Locale } = {},
+) {
+  const { canWrite = true, locale = "ru" } = options;
+  state = next;
+  // Гость по спеку — это роль без права писать, а не человек без сессии:
+  // диаграмму он видит, трогать её не может.
+  role = canWrite ? "owner" : "viewer";
+  return renderApp({ route: "/projects/p1", locale });
+}

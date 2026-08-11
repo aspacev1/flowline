@@ -13,7 +13,22 @@
   },
   "calendar": {
     "date": "{month} {day}",
+    "date_short": "{month} {day}",
     "month_year": "{month} {year}",
+    "month_short": {
+      "1": "Jan",
+      "2": "Feb",
+      "3": "Mar",
+      "4": "Apr",
+      "5": "May",
+      "6": "Jun",
+      "7": "Jul",
+      "8": "Aug",
+      "9": "Sep",
+      "10": "Oct",
+      "11": "Nov",
+      "12": "Dec"
+    },
     "month": {
       "1": "January",
       "2": "February",
@@ -131,6 +146,21 @@
       "normal": "Normal",
       "high": "High",
       "critical": "Critical"
+    },
+    "panel": {
+      "aria": "Task “{name}”",
+      "close": "Close the card",
+      "name": "Name",
+      "description": "Description",
+      "category": "Category",
+      "criticality": "Criticality",
+      "start": "Start",
+      "duration": "Duration, working days",
+      "end": "End",
+      "progress": "Done, %",
+      "assignees": "Assignees",
+      "internal_note": "Internal note",
+      "history": "History"
     },
     "new": {
       "title": "New task",
