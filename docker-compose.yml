@@ -1,12 +1,19 @@
 services:
   db:
     image: postgres:16
+    restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-flowline}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-flowline}
       POSTGRES_DB: ${POSTGRES_DB:-flowline}
     ports: ["${DB_PORT:-5432}:5432"]
-    volumes: ["pgdata:/var/lib/postgresql/data"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Скрипты отсюда Postgres выполняет один раз — при инициализации пустого
+      # тома. Здесь создаётся база для тестов: без неё первый же прогон падает
+      # на «database flowline_test does not exist», а починка требует помнить
+      # отдельную команду createdb, которую негде подсмотреть в момент падения.
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-flowline}"]
       interval: 5s
@@ -14,6 +21,7 @@ services:
 
   api:
     build: ./backend
+    restart: unless-stopped
     env_file: .env
     environment:
       # Переопределяет DATABASE_URL из .env: тот адрес — для запуска с хоста
@@ -27,13 +35,23 @@ services:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-flowline}:${POSTGRES_PASSWORD:-flowline}@db:5432/${POSTGRES_DB:-flowline}
     depends_on:
       db: {condition: service_healthy}
-    ports: ["8000:8000"]
+    ports: ["${API_PORT:-8000}:8000"]
     # Схема накатывается перед стартом сервера, а не «когда-нибудь руками»:
     # иначе свежая установка поднимает uvicorn поверх пустой базы, и это
     # незаметно, потому что единственный маршрут, который не ходит в базу
     # (/api/health), продолжает отвечать «ok». `&&` обязателен: если миграция
     # не прошла, сервер не должен подняться и делать вид, что всё в порядке.
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    # Проверка живости идёт через python, а не curl или wget: в python-slim нет
+    # ни того, ни другого, и healthcheck на них молча висел бы в unhealthy.
+    # start_period покрывает время миграций — до их конца сервер не отвечает,
+    # и без запаса контейнер успел бы объявить себя больным на здоровом старте.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 30s
 
   web:
     # Контекст сборки — корень, а не ./frontend: в образ нужен и Caddyfile,
@@ -41,7 +59,11 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
-    depends_on: [api]
+    restart: unless-stopped
+    # Ожидание готовности, а не просто старта: Caddy проксирует /api в api, и
+    # запросы, пришедшие до конца миграций, получили бы 502 на пустом месте.
+    depends_on:
+      api: {condition: service_healthy}
     ports: ["${WEB_PORT:-8080}:8080"]
 
 volumes:
