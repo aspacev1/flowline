@@ -93,6 +93,7 @@ export type Op =
       criticality?: Criticality;
       progress_pct?: number;
     }
+  | { type: "move_task"; task_id: string; start_date: string }
   | { type: "assign_user"; task_id: string; user_id: string };
 
 /** Ответ на применённую операцию. Номер ревизии — то, чем она отличается от соседних. */
