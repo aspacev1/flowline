@@ -16,6 +16,10 @@ services:
     ports: ["${DB_PORT:-5432}:5432"]
 
   api:
+    # Прямой доступ к бэкенду, минуя Caddy: /docs, /redoc и curl по адресам
+    # API, а ещё `npm run dev` на хосте — его прокси по умолчанию смотрит
+    # именно на localhost:8000. Занят другим — задай API_PORT в .env.
+    ports: ["${API_PORT:-8000}:8000"]
     build:
       context: ./backend
       args:
