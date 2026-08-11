@@ -7,12 +7,21 @@ from sqlalchemy.orm import Session as DbSession
 
 from app.access import Action, can, parse_role, visible_op
 from app.auth import current_user
-from app.calendar import end_date
+from app.calendar import CalendarError, end_date
 from app.db import get_db
-from app.models import Category, Membership, Organization, Project, Task, User
+from app.models import (
+    Category,
+    Dependency,
+    Membership,
+    Organization,
+    Project,
+    Task,
+    TaskAssignee,
+    User,
+)
 from app.mutations import InvalidOperation, NotFoundInProject, PublicOp, apply_op, to_internal
 from app.projects import create_project as create_project_entity
-from app.settings_resolution import project_calendar
+from app.settings_resolution import project_calendar, resolve_shift_threshold, resolve_timezone
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
@@ -100,10 +109,51 @@ def get_project(
         select(Task).where(Task.project_id == project.id).order_by(Task.position, Task.id)
     ).all()
 
+    # Один запрос на весь проект, а не по запросу на задачу: на сотне задач
+    # второе дало бы сотню запросов ради одного экрана.
+    assignees: dict[str, list[str]] = {str(t.id): [] for t in tasks}
+    for task_id, user_id in db.execute(
+        select(TaskAssignee.task_id, TaskAssignee.user_id)
+        .join(Task, Task.id == TaskAssignee.task_id)
+        .where(Task.project_id == project.id)
+        .order_by(TaskAssignee.user_id)
+    ).all():
+        assignees[str(task_id)].append(str(user_id))
+
+    dependencies = db.execute(
+        select(Dependency.from_task_id, Dependency.to_task_id)
+        .where(Dependency.project_id == project.id)
+        .order_by(Dependency.from_task_id, Dependency.to_task_id)
+    ).all()
+
+    try:
+        ends = [end_date(t.start_date, t.duration_days, calendar) for t in tasks]
+    except CalendarError as error:
+        # Той же формы, что и отказы мутаций: 422 с машинным кодом. Раньше
+        # здесь была голая пятисотка — вырожденную маску задаёт человек, и
+        # проект переставал читаться без объяснения.
+        raise HTTPException(status_code=422, detail=error.code)
+
     return {
         "id": str(project.id),
         "name": project.name,
         "slug": project.slug,
+        "deadline": project.deadline.isoformat() if project.deadline else None,
+        # Максимум по датам окончания задач; пустой проект не имеет конца.
+        "project_end": max(ends).isoformat() if ends else None,
+        # Календарь едет вместе с состоянием: интерфейс заливает нерабочие дни
+        # и рисует выходные ещё до первого клика, а не догадывается о них.
+        "calendar": {
+            "working_days": calendar.working_days,
+            "holidays": sorted(d.isoformat() for d in calendar.holidays),
+            "extra_workdays": sorted(d.isoformat() for d in calendar.extra_workdays),
+        },
+        # Разрешённые значения, а не сырые nullable-колонки проекта: кто их
+        # унаследовал от организации, а кто задал сам — не дело интерфейса.
+        "settings": {
+            "shift_threshold_days": resolve_shift_threshold(project, org),
+            "timezone": resolve_timezone(project, org),
+        },
         "categories": [
             {"id": str(c.id), "name": c.name, "color": c.color, "position": c.position}
             for c in categories
@@ -116,13 +166,18 @@ def get_project(
                 "description": t.description,
                 "start_date": t.start_date.isoformat(),
                 "duration_days": t.duration_days,
-                "end_date": end_date(t.start_date, t.duration_days, calendar).isoformat(),
+                "end_date": task_end.isoformat(),
                 "criticality": t.criticality,
                 "progress_pct": t.progress_pct,
                 "position": t.position,
+                "assignee_ids": assignees[str(t.id)],
                 **({"internal_note": t.internal_note} if show_notes else {}),
             }
-            for t in tasks
+            for t, task_end in zip(tasks, ends)
+        ],
+        "dependencies": [
+            {"from_task_id": str(source), "to_task_id": str(target)}
+            for source, target in dependencies
         ],
     }
 

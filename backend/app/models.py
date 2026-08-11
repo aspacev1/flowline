@@ -36,6 +36,12 @@ class Criticality(StrEnum):
     CRITICAL = "critical"
 
 
+# Выведен из Criticality, а не выписан вторым списком: два списка одних и тех
+# же значений однажды разъедутся при добавлении уровня — ровно так же, как
+# разъехался бы CHECK на роли, будь он выписан руками.
+CRITICALITY_LEVELS: tuple[str, ...] = tuple(level.value for level in Criticality)
+
+
 def _uuid_pk() -> Mapped[uuid.UUID]:
     return mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 

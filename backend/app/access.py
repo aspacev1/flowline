@@ -72,6 +72,30 @@ def require(role: Role | None, action: Action, *, project_granted: bool = False)
 _NOTE_FIELD = "internal_note"
 
 
+def _carries_note(payload: dict) -> bool:
+    """Есть ли заметка где-нибудь в записи, включая вложенные словари."""
+    return any(
+        key == _NOTE_FIELD or (isinstance(value, dict) and _carries_note(value))
+        for key, value in payload.items()
+    )
+
+
+def _without_note(payload: dict) -> dict:
+    """Копия записи без заметки — на любой глубине вложенности.
+
+    Плоской проверки «есть ли такой ключ в корне» не хватает: set_task_fields
+    кладёт заметку не в корень, а внутрь from и to, и на нём такая проверка
+    молча не срабатывает — заметка уезжает в ответ. Обход по вложенным
+    словарям делает правило нечувствительным к форме записи, а значит и к
+    форме операций, которых ещё нет.
+    """
+    return {
+        key: _without_note(value) if isinstance(value, dict) else value
+        for key, value in payload.items()
+        if key != _NOTE_FIELD
+    }
+
+
 def visible_op(payload: dict, role: Role | None, *, project_granted: bool = False) -> dict:
     """Запись журнала в том виде, в каком её вправе увидеть эта роль.
 
@@ -79,13 +103,13 @@ def visible_op(payload: dict, role: Role | None, *, project_granted: bool = Fals
     истории изменений на карточке задачи, и её автор не должен заново
     выяснять, какие операции несут заметку. create_task кладёт internal_note
     в op наравне с остальными полями, delete_task — в inverse (снимок для
-    отмены).
+    отмены), set_task_fields — внутрь обеих границ.
 
     Возвращает новый словарь: revision.op / revision.inverse на самой записи
     не трогаются, иначе будущая отмена восстановила бы задачу без заметки.
     """
-    if _NOTE_FIELD not in payload:
+    if not _carries_note(payload):
         return payload
     if can(role, Action.READ_INTERNAL_NOTE, project_granted=project_granted):
         return payload
-    return {key: value for key, value in payload.items() if key != _NOTE_FIELD}
+    return _without_note(payload)

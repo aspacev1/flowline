@@ -1,9 +1,22 @@
 from datetime import date
 
 import pytest
+from sqlalchemy import func, select
 
-from app.models import Category, Organization, Project, Revision, Task
+from app.models import (
+    Category,
+    Dependency,
+    Membership,
+    Organization,
+    Project,
+    Revision,
+    Task,
+    TaskAssignee,
+    User,
+)
 from app.mutations import (
+    AddDependency,
+    AssignUser,
     CreateCategory,
     CreateTask,
     DeleteCategory,
@@ -13,7 +26,15 @@ from app.mutations import (
     NotFoundInProject,
     PublicCreateCategory,
     PublicCreateTask,
+    RemoveDependency,
+    RenameCategory,
+    ReorderTask,
+    SetCategoryColor,
+    SetCriticality,
     SetDuration,
+    SetProgress,
+    SetTaskFields,
+    UnassignUser,
     apply_op,
     to_internal,
     undo,
@@ -622,3 +643,348 @@ def test_the_journal_is_queryable_by_payload_containment(db, project, category):
         select(Revision).where(Revision.op.contains({"type": "create_task", "name": "Logo"}))
     ).all()
     assert len(found) == 1
+
+
+def test_set_task_fields_records_previous_and_new_values(db, project, category):
+    created = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="Logo",
+        start_date=date(2026, 3, 4), duration_days=5), actor_id=None)
+    task_id = created.op["task_id"]
+
+    revision = apply_op(db, project, SetTaskFields(
+        task_id=task_id, name="Logo redesign",
+        description="Mark and wordmark", internal_note="client is picky"), actor_id=None)
+
+    assert revision.op["from"] == {
+        "name": "Logo", "description": "", "internal_note": ""}
+    assert revision.op["to"] == {
+        "name": "Logo redesign", "description": "Mark and wordmark",
+        "internal_note": "client is picky"}
+    assert revision.inverse["to"] == revision.op["from"]
+
+    task = db.get(Task, task_id)
+    assert task.name == "Logo redesign"
+
+
+def test_undo_of_set_task_fields_restores_every_field(db, project, category):
+    created = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="Logo",
+        start_date=date(2026, 3, 4), duration_days=5,
+        description="old", internal_note="old note"), actor_id=None)
+    task_id = created.op["task_id"]
+
+    changed = apply_op(db, project, SetTaskFields(
+        task_id=task_id, name="New", description="new", internal_note="new note"),
+        actor_id=None)
+    undo(db, project, changed, actor_id=None)
+
+    task = db.get(Task, task_id)
+    assert (task.name, task.description, task.internal_note) == ("Logo", "old", "old note")
+
+
+def test_set_progress_rejects_a_value_outside_the_range(db, project, category):
+    created = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="Logo",
+        start_date=date(2026, 3, 4), duration_days=5), actor_id=None)
+
+    with pytest.raises(InvalidOperation):
+        apply_op(db, project, SetProgress(task_id=created.op["task_id"], progress_pct=101),
+                 actor_id=None)
+
+
+def test_rename_category_round_trips(db, project, category):
+    revision = apply_op(db, project, RenameCategory(
+        category_id=str(category.id), name="Дизайн и бренд"), actor_id=None)
+    assert db.get(Category, category.id).name == "Дизайн и бренд"
+
+    undo(db, project, revision, actor_id=None)
+    assert db.get(Category, category.id).name == "Design"
+
+
+def test_set_criticality_rejects_an_unknown_level(db, project, category):
+    created = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="Logo",
+        start_date=date(2026, 3, 4), duration_days=5), actor_id=None)
+
+    with pytest.raises(InvalidOperation):
+        apply_op(db, project, SetCriticality(
+            task_id=created.op["task_id"], criticality="urgent"), actor_id=None)
+
+
+def test_set_criticality_and_progress_and_colour_round_trip(db, project, category):
+    """Оставшиеся три операции той же формы: обе границы в журнале, отмена возвращает прежнее."""
+    created = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="Logo",
+        start_date=date(2026, 3, 4), duration_days=5), actor_id=None)
+    task_id = created.op["task_id"]
+
+    criticality = apply_op(db, project, SetCriticality(
+        task_id=task_id, criticality="high"), actor_id=None)
+    assert criticality.op == {
+        "type": "set_criticality", "task_id": task_id, "from": "normal", "to": "high"}
+    undo(db, project, criticality, actor_id=None)
+    assert db.get(Task, task_id).criticality == "normal"
+
+    progress = apply_op(db, project, SetProgress(task_id=task_id, progress_pct=40), actor_id=None)
+    assert db.get(Task, task_id).progress_pct == 40
+    undo(db, project, progress, actor_id=None)
+    assert db.get(Task, task_id).progress_pct == 0
+
+    colour = apply_op(db, project, SetCategoryColor(
+        category_id=str(category.id), color="#22c55e"), actor_id=None)
+    assert db.get(Category, category.id).color == "#22c55e"
+    undo(db, project, colour, actor_id=None)
+    assert db.get(Category, category.id).color == "#3b82f6"
+
+
+def _positions(db, project) -> dict[str, int]:
+    rows = db.scalars(select(Task).where(Task.project_id == project.id)).all()
+    return {str(row.id): row.position for row in rows}
+
+
+def test_reorder_shifts_neighbours_and_records_the_whole_map(db, project, category):
+    ids = [apply_op(db, project, CreateTask(
+        category_id=str(category.id), name=f"T{i}",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+        for i in range(3)]
+
+    revision = apply_op(db, project, ReorderTask(
+        task_id=ids[2], category_id=str(category.id), position=0), actor_id=None)
+
+    after = _positions(db, project)
+    assert after[ids[2]] == 0
+    assert after[ids[0]] == 1
+    assert after[ids[1]] == 2
+    # в журнале лежит карта, а не один сдвиг
+    assert set(revision.op["from"]) == set(ids)
+    assert revision.op["to"][ids[0]] == 1
+
+
+def test_undo_of_a_reorder_restores_every_neighbour(db, project, category):
+    ids = [apply_op(db, project, CreateTask(
+        category_id=str(category.id), name=f"T{i}",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+        for i in range(3)]
+    before = _positions(db, project)
+
+    revision = apply_op(db, project, ReorderTask(
+        task_id=ids[2], category_id=str(category.id), position=0), actor_id=None)
+    undo(db, project, revision, actor_id=None)
+
+    assert _positions(db, project) == before
+
+
+def test_reorder_into_another_category_moves_and_renumbers(db, project, category):
+    other = db.get(Category, apply_op(db, project, CreateCategory(
+        name="Development", color="#22c55e"), actor_id=None).op["category_id"])
+    task_id = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="Logo",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+
+    apply_op(db, project, ReorderTask(
+        task_id=task_id, category_id=str(other.id), position=0), actor_id=None)
+
+    task = db.get(Task, task_id)
+    assert task.category_id == other.id
+    assert task.position == 0
+
+
+def test_reorder_rejects_a_category_from_another_project(db, project, category, other_category):
+    task_id = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="Logo",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+
+    with pytest.raises(NotFoundInProject):
+        apply_op(db, project, ReorderTask(
+            task_id=task_id, category_id=str(other_category.id), position=0),
+            actor_id=None)
+
+
+def test_undo_of_a_reorder_across_categories_restores_the_category_too(db, project, category):
+    """Карта в журнале несёт и категорию, а не только номер.
+
+    Без categories_from отмена вернула бы позиции, но оставила задачу в
+    новой категории — то есть отменила бы половину перестановки.
+    """
+    other = db.get(Category, apply_op(db, project, CreateCategory(
+        name="Development", color="#22c55e"), actor_id=None).op["category_id"])
+    task_id = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="Logo",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+
+    revision = apply_op(db, project, ReorderTask(
+        task_id=task_id, category_id=str(other.id), position=0), actor_id=None)
+    undo(db, project, revision, actor_id=None)
+
+    assert db.get(Task, task_id).category_id == category.id
+
+
+def test_reorder_refuses_a_negative_position(db, project, category):
+    task_id = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="Logo",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+
+    with pytest.raises(InvalidOperation) as error:
+        apply_op(db, project, ReorderTask(
+            task_id=task_id, category_id=str(category.id), position=-1), actor_id=None)
+    assert error.value.code == "negative_position"
+
+
+def test_reorder_is_not_accepted_over_the_wire_as_apply_positions():
+    """ApplyPositions существует только как обратная операция.
+
+    В публичном реестре её нет: иначе клиент мог бы прислать произвольную
+    карту позиций и расставить строки в обход всякой проверки порядка.
+    """
+    from app.mutations import PublicOp
+
+    accepted = {
+        model.model_fields["type"].default
+        for model in PublicOp.__args__[0].__args__
+    }
+    assert "reorder_task" in accepted
+    assert "apply_positions" not in accepted
+
+
+def test_dependency_round_trips(db, project, category):
+    a, b = [apply_op(db, project, CreateTask(
+        category_id=str(category.id), name=n,
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+        for n in ("A", "B")]
+
+    added = apply_op(db, project, AddDependency(from_task_id=a, to_task_id=b), actor_id=None)
+    assert db.scalar(select(func.count()).select_from(Dependency)) == 1
+
+    undo(db, project, added, actor_id=None)
+    assert db.scalar(select(func.count()).select_from(Dependency)) == 0
+
+
+def test_a_task_cannot_depend_on_itself(db, project, category):
+    a = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="A",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+
+    with pytest.raises(InvalidOperation):
+        apply_op(db, project, AddDependency(from_task_id=a, to_task_id=a), actor_id=None)
+
+
+def test_the_same_dependency_cannot_be_added_twice(db, project, category):
+    a, b = [apply_op(db, project, CreateTask(
+        category_id=str(category.id), name=n,
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+        for n in ("A", "B")]
+    apply_op(db, project, AddDependency(from_task_id=a, to_task_id=b), actor_id=None)
+
+    with pytest.raises(InvalidOperation):
+        apply_op(db, project, AddDependency(from_task_id=a, to_task_id=b), actor_id=None)
+
+
+def test_removing_a_dependency_that_does_not_exist_is_refused(db, project, category):
+    a, b = [apply_op(db, project, CreateTask(
+        category_id=str(category.id), name=n,
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+        for n in ("A", "B")]
+
+    with pytest.raises(NotFoundInProject):
+        apply_op(db, project, RemoveDependency(from_task_id=a, to_task_id=b), actor_id=None)
+
+
+def test_a_dependency_to_a_task_of_another_project_is_refused(
+    db, project, category, other_project, other_category
+):
+    """Обе стороны связи проходят через _require_task.
+
+    Иначе стрелку можно протянуть в чужой проект — и сам факт существования
+    той задачи стал бы наблюдаемым.
+    """
+    mine = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="A",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+    foreign = apply_op(db, other_project, CreateTask(
+        category_id=str(other_category.id), name="Foreign",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+
+    with pytest.raises(NotFoundInProject):
+        apply_op(db, project, AddDependency(from_task_id=mine, to_task_id=foreign), actor_id=None)
+
+
+def test_undo_of_a_dependency_removal_brings_the_arrow_back(db, project, category):
+    a, b = [apply_op(db, project, CreateTask(
+        category_id=str(category.id), name=n,
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+        for n in ("A", "B")]
+    apply_op(db, project, AddDependency(from_task_id=a, to_task_id=b), actor_id=None)
+
+    removed = apply_op(db, project, RemoveDependency(from_task_id=a, to_task_id=b), actor_id=None)
+    assert db.scalar(select(func.count()).select_from(Dependency)) == 0
+
+    undo(db, project, removed, actor_id=None)
+    assert db.scalar(select(func.count()).select_from(Dependency)) == 1
+
+
+@pytest.fixture
+def insider(db, project):
+    """Человек из той же организации, что и проект, — кандидат в исполнители."""
+    user = User(name="Insider", email="insider@example.com", password_hash="x")
+    db.add(user)
+    db.flush()
+    db.add(Membership(org_id=project.org_id, user_id=user.id, role="editor"))
+    db.flush()
+    return user
+
+
+@pytest.fixture
+def outsider(db, other_project):
+    """Человек из другой организации: назначать его нельзя."""
+    user = User(name="Outsider", email="outsider@example.com", password_hash="x")
+    db.add(user)
+    db.flush()
+    db.add(Membership(org_id=other_project.org_id, user_id=user.id, role="editor"))
+    db.flush()
+    return user
+
+
+def test_assigning_a_user_from_another_organization_is_refused(db, project, category, outsider):
+    task_id = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="Logo",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+
+    with pytest.raises(InvalidOperation):
+        apply_op(db, project, AssignUser(task_id=task_id, user_id=str(outsider.id)),
+                 actor_id=None)
+
+
+def test_assignment_round_trips(db, project, category, insider):
+    task_id = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="Logo",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+
+    assigned = apply_op(db, project, AssignUser(task_id=task_id, user_id=str(insider.id)),
+                        actor_id=None)
+    assert assigned.inverse["type"] == "unassign_user"
+    assert db.scalar(select(func.count()).select_from(TaskAssignee)) == 1
+
+    undo(db, project, assigned, actor_id=None)
+    assert db.scalar(select(func.count()).select_from(TaskAssignee)) == 0
+
+
+def test_assigning_the_same_person_twice_is_refused(db, project, category, insider):
+    task_id = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="Logo",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+    apply_op(db, project, AssignUser(task_id=task_id, user_id=str(insider.id)), actor_id=None)
+
+    with pytest.raises(InvalidOperation) as error:
+        apply_op(db, project, AssignUser(task_id=task_id, user_id=str(insider.id)), actor_id=None)
+    assert error.value.code == "already_assigned"
+
+
+def test_unassigning_someone_who_is_not_assigned_is_refused(db, project, category, insider):
+    task_id = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="Logo",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+
+    with pytest.raises(NotFoundInProject) as error:
+        apply_op(db, project, UnassignUser(task_id=task_id, user_id=str(insider.id)),
+                 actor_id=None)
+    assert error.value.code == "assignment_not_found"
