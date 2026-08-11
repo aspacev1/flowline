@@ -16,6 +16,7 @@ from app.models import (
     Membership,
     Organization,
     Project,
+    ProjectAccess,
     Revision,
     Task,
     TaskAssignee,
@@ -64,6 +65,24 @@ def _membership(db: DbSession, user: User) -> Membership:
     return membership
 
 
+def _granted(db: DbSession, user: User, project_id: uuid.UUID) -> bool:
+    """Позвали ли этого человека именно в этот проект.
+
+    Спрашивается только ради роли `client`: остальные видят все проекты
+    организации, и строка доступа для них ничего не значит. Но спрашивается
+    всегда — ветка «если роль client» здесь означала бы, что правило живёт в
+    двух местах: в матрице прав и в условии перед ней.
+    """
+    return (
+        db.scalar(
+            select(ProjectAccess.id).where(
+                ProjectAccess.project_id == project_id, ProjectAccess.user_id == user.id
+            )
+        )
+        is not None
+    )
+
+
 def _load_project(db: DbSession, user: User, project_id: uuid.UUID) -> tuple[Project, Membership]:
     membership = _membership(db, user)
     project = db.get(Project, project_id)
@@ -73,12 +92,12 @@ def _load_project(db: DbSession, user: User, project_id: uuid.UUID) -> tuple[Pro
     return project, membership
 
 
-def _require_project_read(membership: Membership) -> None:
+def _require_project_read(membership: Membership, *, granted: bool = False) -> None:
     """Единственное место, где решается право на чтение: спрашивает access,
     не сравнивает роль напрямую. Отказ — 404, а не 403, тем же принципом,
     что и в _load_project: клиент без выданного доступа к проекту не должен
     отличить существующий проект от несуществующего."""
-    if not can(parse_role(membership.role), Action.PROJECT_READ):
+    if not can(parse_role(membership.role), Action.PROJECT_READ, project_granted=granted):
         raise HTTPException(status_code=404, detail="project_not_found")
 
 
@@ -97,8 +116,23 @@ def create_project(
 @router.get("", response_model=list[ProjectOut])
 def list_projects(user: User = Depends(current_user), db: DbSession = Depends(get_db)):
     membership = _membership(db, user)
-    _require_project_read(membership)
-    projects = db.scalars(select(Project).where(Project.org_id == membership.org_id)).all()
+    role = parse_role(membership.role)
+    query = select(Project).where(Project.org_id == membership.org_id)
+
+    if not can(role, Action.PROJECT_READ):
+        # Роль без общего права чтения видит не пустой список, а только те
+        # проекты, куда её позвали явно. Пустой список тем, у кого доступов
+        # нет, — это то же самое, но сказанное данными, а не отказом: клиент
+        # не должен узнавать о существовании остальных проектов.
+        query = query.where(
+            Project.id.in_(
+                select(ProjectAccess.project_id).where(ProjectAccess.user_id == user.id)
+            )
+        )
+        if not can(role, Action.PROJECT_READ, project_granted=True):
+            raise HTTPException(status_code=404, detail="project_not_found")
+
+    projects = db.scalars(query).all()
     return [ProjectOut(id=str(p.id), name=p.name, slug=p.slug) for p in projects]
 
 
@@ -107,10 +141,16 @@ def get_project(
     project_id: uuid.UUID, user: User = Depends(current_user), db: DbSession = Depends(get_db)
 ):
     project, membership = _load_project(db, user, project_id)
-    _require_project_read(membership)
+    granted = _granted(db, user, project.id)
+    _require_project_read(membership, granted=granted)
     org = db.get(Organization, project.org_id)
     calendar = project_calendar(project, org)
-    show_notes = can(parse_role(membership.role), Action.READ_INTERNAL_NOTE)
+    # Заметка — единственное поле с ограниченной видимостью. Выданный доступ к
+    # проекту её не открывает: клиент, позванный в проект, читает его, но не
+    # внутренние заметки команды.
+    show_notes = can(
+        parse_role(membership.role), Action.READ_INTERNAL_NOTE, project_granted=granted
+    )
 
     # Позиции могут совпадать в одном крайнем случае (строка, восстановленная
     # отменой на позицию, которую с тех пор занял другой ряд), поэтому id —
@@ -340,7 +380,8 @@ def list_revisions(
     поверхность, на которой заметка может утечь.
     """
     project, membership = _load_project(db, user, project_id)
-    _require_project_read(membership)
+    granted = _granted(db, user, project.id)
+    _require_project_read(membership, granted=granted)
 
     query = select(Revision).where(Revision.project_id == project.id)
     if task_id is not None:
@@ -375,7 +416,7 @@ def list_revisions(
             ),
             # Причина — текст человека: отдаётся как есть и не переводится.
             "reason": revision.reason,
-            "op": visible_op(revision.op, role),
+            "op": visible_op(revision.op, role, project_granted=granted),
         }
         for revision in revisions
     ]
@@ -496,7 +537,7 @@ def list_plan_versions(
     проект.
     """
     project, membership = _load_project(db, user, project_id)
-    _require_project_read(membership)
+    _require_project_read(membership, granted=_granted(db, user, project.id))
 
     versions = plan_versions(db, project)
     approvers = {

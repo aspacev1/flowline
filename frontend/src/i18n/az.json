@@ -71,7 +71,8 @@
     "projects": "Layihələr",
     "logout": "Çıxış",
     "org_settings": "Təşkilat",
-    "profile": "Profil"
+    "profile": "Profil",
+    "members": "İştirakçılar"
   },
   "locale": {
     "switch_label": "İnterfeys dili"
@@ -128,7 +129,16 @@
     "batch_not_found": "Paket tapılmadı",
     "reason_required": "Bu sürüşmə üçün səbəb lazımdır",
     "slug_taken": "Bu ünvan artıq tutulub",
-    "unsupported_locale": "Bu dil dəstəklənmir"
+    "unsupported_locale": "Bu dil dəstəklənmir",
+    "invite_not_found": "Belə dəvət yoxdur",
+    "invite_expired": "Dəvətin vaxtı keçib — yenisini istəyin",
+    "invite_revoked": "Dəvət ləğv edilib",
+    "invite_accepted": "Dəvət artıq qəbul edilib — sadəcə daxil olun",
+    "invite_for_another_address": "Dəvət başqa ünvana ünvanlanıb",
+    "invite_rate_limited": "Bir saat ərzində çox dəvət — bir az sonra",
+    "email_not_verified": "Əvvəlcə öz ünvanınızı təsdiqləyin",
+    "role_not_invitable": "Bu rolu keçidlə vermək olmaz",
+    "verification_not_found": "Təsdiq keçidi işləmir"
   },
   "projects": {
     "title": "Layihələr",
@@ -284,5 +294,46 @@
       "locale": "İnterfeys dili",
       "locale_hint": "Profildə saxlanılır: başqa kompüterdən girəndə də eyni dil olacaq"
     }
+  },
+  "members": {
+    "title": "İştirakçılar və dəvətlər",
+    "invite": "Yeni dəvət",
+    "emails": "Ünvanlar",
+    "emails_hint": "Hər sətirdə bir ünvan. Boş buraxsanız — sadəcə keçid çıxarılacaq, onu kim açsa, o da qəbul edəcək",
+    "role_label": "Rol",
+    "projects": "Layihələr",
+    "invite_and_send": "Dəvət et və məktub göndər",
+    "invite_link_only": "Keçid çıxar",
+    "issued": "Çıxarılmış keçidlər",
+    "issued_hint": "Keçid yalnız indi görünür: server onu yadda saxlamır, bazada yalnız hash var",
+    "copy": "Kopyala",
+    "sent": "Məktub göndərildi",
+    "mail_failed": "Məktub getmədi — keçidi kopyalayın",
+    "by_link": "Keçidlə (təqdim edənə)",
+    "people": "İştirakçılar",
+    "invitations": "Dəvətlər",
+    "no_invitations": "Hələ dəvət yoxdur",
+    "reissue": "Keçidi yenidən çıxar",
+    "revoke": "Ləğv et",
+    "role": {
+      "owner": "Sahib",
+      "editor": "Redaktor",
+      "viewer": "Müşahidəçi",
+      "client": "Müştəri"
+    },
+    "status": {
+      "pending": "gözləyir",
+      "accepted": "qəbul edilib",
+      "revoked": "ləğv edilib",
+      "expired": "vaxtı keçib"
+    }
+  },
+  "invite": {
+    "title": "«{org}» sizi dəvət edir",
+    "role": "Rol: {role}",
+    "bearer": "Bu dəvət ünvana bağlı deyil: kim keçidi açsa, o da qəbul edir",
+    "sign_in_first": "Qəbul etmək üçün daxil olun və ya qeydiyyatdan keçin — sonra bu keçidə qayıdın",
+    "another_account": "Dəvət {email} ünvanına ünvanlanıb. Başqa hesabla girmisiniz — çıxın və düzgün hesabla daxil olun",
+    "accept": "Dəvəti qəbul et"
   }
 }

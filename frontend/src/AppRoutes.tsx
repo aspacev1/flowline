@@ -1,7 +1,9 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import { RequireAuth } from "./auth/RequireAuth";
+import { AcceptInvite } from "./screens/AcceptInvite";
 import { Login } from "./screens/Login";
+import { Members } from "./screens/Members";
 import { OrgSettings } from "./screens/OrgSettings";
 import { Profile } from "./screens/Profile";
 import { Project } from "./screens/Project";
@@ -20,6 +22,9 @@ export function AppRoutes() {
       <Route path="/" element={<Navigate to="/projects" replace />} />
       <Route path="/register" element={<Register />} />
       <Route path="/login" element={<Login />} />
+      {/* Приём приглашения — снаружи RequireAuth: человек с ссылкой на руках
+          должен увидеть, куда его зовут, прежде чем заводить аккаунт. */}
+      <Route path="/invite/:token" element={<AcceptInvite />} />
       <Route element={<RequireAuth />}>
         <Route path="/projects" element={<Projects />} />
         <Route path="/projects/:projectId" element={<Project />} />
@@ -28,6 +33,7 @@ export function AppRoutes() {
             того, что настраиваешь, показывает результат наполовину. */}
         <Route path="/projects/:projectId/settings" element={<ProjectSettings />} />
         <Route path="/settings/organization" element={<OrgSettings />} />
+        <Route path="/settings/members" element={<Members />} />
         <Route path="/settings/profile" element={<Profile />} />
       </Route>
       {/* Неизвестный адрес ведёт внутрь, а оттуда — на вход, если человек не

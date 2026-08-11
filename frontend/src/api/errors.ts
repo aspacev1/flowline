@@ -38,6 +38,20 @@ const PLAIN_CODES = new Set([
   "negative_position",
   "nothing_to_undo",
   "batch_not_found",
+  "slug_taken",
+  "unsupported_locale",
+  // Приглашения. Просроченное, отозванное и уже принятое — три разных кода и
+  // три разных сообщения: человек должен понимать, просить ли новую ссылку
+  // или он уже в системе и достаточно войти.
+  "invite_not_found",
+  "invite_expired",
+  "invite_revoked",
+  "invite_accepted",
+  "invite_for_another_address",
+  "invite_rate_limited",
+  "email_not_verified",
+  "role_not_invitable",
+  "verification_not_found",
   // Обычно этот отказ не доходит до человека: интерфейс спрашивает причину и
   // повторяет операцию. Перевод нужен для того случая, когда спросить негде —
   // например, окно закрыли до ответа сервера.

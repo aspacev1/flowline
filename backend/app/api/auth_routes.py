@@ -1,5 +1,8 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Response
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
@@ -15,7 +18,9 @@ from app.auth import (
 from app.config import get_settings
 from app.db import get_db
 from app.locales import locale_from_request
+from app.mail import MailError, get_mailer
 from app.models import User
+from app.security import hash_token, new_token
 from app.settings_input import check_locale
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -93,6 +98,10 @@ def register_route(
         # клиент получил бы 500 вместо честного «адрес занят».
         db.rollback()
         raise HTTPException(status_code=409, detail="email_taken")
+    # Подтверждение адреса спрашивается, только если в установке настроена
+    # почта. Оно не блокирует работу: до подтверждения нельзя приглашать
+    # других, всё остальное доступно.
+    _start_verification(db, user)
     _set_cookie(response, open_session(db, user))
     return _to_out(user)
 
@@ -120,6 +129,62 @@ def logout_route(
 @router.get("/me", response_model=UserOut)
 def me_route(user: User = Depends(current_user)):
     return _to_out(user)
+
+
+def _start_verification(db: DbSession, user: User) -> bool:
+    """Выпускает токен подтверждения и отправляет письмо.
+
+    Возвращает, ушло ли письмо. Неудача не отменяет регистрации: аккаунт
+    работает, не работает только приглашение других — и человек может
+    попросить письмо заново.
+
+    В установке без почты подтверждать нечем и незачем: аккаунт работает
+    сразу, иначе установка без почтового сервера превращается в неработающую.
+    """
+    mailer = get_mailer()
+    if not mailer.enabled:
+        return False
+
+    raw, hashed = new_token()
+    user.verification_token_hash = hashed
+    db.flush()
+    try:
+        mailer.send(
+            user.email,
+            "verify_email",
+            user.locale,
+            {"link": f"{get_settings().public_base_url.rstrip('/')}/verify/{raw}"},
+        )
+    except MailError:
+        # Письмо не ушло — токен всё равно выпущен, и повторная отправка
+        # попробует ещё раз. Молча притворяться, что письмо доставлено, хуже.
+        return False
+    return True
+
+
+@router.post("/verify/{token}", response_model=UserOut)
+def verify_email(token: str, db: DbSession = Depends(get_db)):
+    """Подтверждение адреса по ссылке из письма.
+
+    Сессии не требует: по ссылке приходят из почтового клиента, который
+    открывает её в чём угодно, включая браузер без сессии. Токен здесь и есть
+    доказательство — он одноразовый и лежит в базе хешем.
+    """
+    user = db.scalar(select(User).where(User.verification_token_hash == hash_token(token)))
+    if user is None:
+        raise HTTPException(status_code=404, detail="verification_not_found")
+    user.email_verified_at = datetime.now(timezone.utc)
+    user.verification_token_hash = None
+    db.flush()
+    return _to_out(user)
+
+
+@router.post("/verify", status_code=202)
+def resend_verification(user: User = Depends(current_user), db: DbSession = Depends(get_db)):
+    """Прислать письмо с подтверждением заново."""
+    if user.email_verified_at is not None:
+        return {"sent": False, "already_verified": True}
+    return {"sent": _start_verification(db, user), "already_verified": False}
 
 
 class ProfileIn(BaseModel):

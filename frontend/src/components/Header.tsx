@@ -31,7 +31,10 @@ export function Header() {
             маршрут открылся бы на выключенных полях, то есть обещал бы
             действие, которого нет. */}
         {org.data?.role === "owner" && (
-          <Link to="/settings/organization">{t("nav.org_settings")}</Link>
+          <>
+            <Link to="/settings/members">{t("nav.members")}</Link>
+            <Link to="/settings/organization">{t("nav.org_settings")}</Link>
+          </>
         )}
         {user && <Link to="/settings/profile">{t("nav.profile")}</Link>}
         <LocaleSwitch />

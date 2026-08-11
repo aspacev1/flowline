@@ -27,6 +27,8 @@ class Settings(BaseSettings):
 
     mail_transport: str = "none"
     smtp_url: str = ""
+    mail_api_url: str = ""
+    mail_api_key: str = ""
     mail_from: str = ""
     invite_ttl_days: int = 7
     invite_rate_limit: int = 20

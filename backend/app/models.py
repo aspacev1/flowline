@@ -72,6 +72,10 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(200))
     locale: Mapped[str] = mapped_column(String(5), default="az")
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Хешем, как и все прочие токены: утечка дампа не должна раздавать
+    # возможность подтвердить чужой адрес. Пустой — подтверждать нечего
+    # (установка без почты) или уже подтверждено.
+    verification_token_hash: Mapped[str | None] = mapped_column(String(128))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -106,6 +110,69 @@ class Session(Base):
     token_hash: Mapped[str] = mapped_column(String(128), unique=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Invitation(Base):
+    """Приглашение в уже существующую организацию.
+
+    Одна сущность, два способа доставки: письмо и скопированная ссылка. Второй
+    путь — не запасной вариант на случай поломки почты, а равноправный:
+    инструмент, где единственный способ позвать человека — надеяться на
+    доставку письма, регулярно оказывается неработающим в самый неподходящий
+    момент.
+
+    Живёт в базе и после принятия: это журнал того, кто кого привёл, а
+    `accepted_at` заодно служит признаком «токен больше не работает».
+    """
+
+    __tablename__ = "invitations"
+    __table_args__ = (
+        CheckConstraint(
+            "role IN (" + ", ".join(f"'{role.value}'" for role in Role) + ")",
+            name="ck_invitations_role",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), index=True
+    )
+    # null — приглашение только по ссылке: оно достаётся предъявителю. Это
+    # осознанный размен, и в интерфейсе он назван словами.
+    email: Mapped[str | None] = mapped_column(String(320))
+    role: Mapped[str] = mapped_column(String(16))
+    # Проекты, к которым роль client получает доступ сразу.
+    project_ids: Mapped[list] = mapped_column(JSON, default=list)
+    # Хешем, как пароль: утечка дампа базы не должна раздавать доступ к
+    # организациям. Прямое следствие, которое надо принять сознательно —
+    # ссылку показываем один раз, в момент создания.
+    token_hash: Mapped[str] = mapped_column(String(128), unique=True)
+    invited_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    accepted_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Заполняется только при отправке письма: приглашение, созданное ради
+    # копирования ссылки, писем не видело вовсе.
+    last_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ProjectAccess(Base):
+    """Проекты, куда позвали роль `client`.
+
+    Нужна только для неё: остальные роли видят все проекты организации, и
+    строка здесь для них ничего не значила бы.
+    """
+
+    __tablename__ = "project_access"
+    __table_args__ = (UniqueConstraint("project_id", "user_id"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"))
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
 
 
 class Project(Base):

@@ -431,3 +431,30 @@ button:disabled {
 .nudge__dismiss {
   margin-left: auto;
 }
+
+/* Список участников и приглашений. Строки, а не таблица: колонок мало, они
+   разной природы, и таблица здесь дала бы разметку ради разметки. */
+.members__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.members__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Ссылка приглашения показывается один раз, поэтому переносится целиком, а не
+   обрезается: обрезанную нельзя ни прочитать, ни продиктовать. */
+.members__link {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
