@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 
+import { AI_CREDENTIAL_QUERY_KEY, readCredential, saveCredential } from "../api/ai";
 import { errorKey } from "../api/errors";
 import { ORG_QUERY_KEY, checkOrgSlug, organization, updateOrganization } from "../api/org";
 import type { Organization, OrganizationSettings } from "../api/org";
@@ -173,6 +175,8 @@ export function OrgSettings() {
           <label htmlFor="org-sharing">{t("settings.org.public_sharing")}</label>
         </p>
 
+        <LlmConnection readOnly={readOnly} />
+
         <p className="field field--inline">
           <input
             id="org-comments"
@@ -186,5 +190,106 @@ export function OrgSettings() {
         </p>
       </section>
     </main>
+  );
+}
+
+/**
+ * Подключение LLM: провайдер, адрес, модель, ключ.
+ *
+ * Ключ наружу не отдаётся никогда — только признак «настроен». Поэтому пустое
+ * поле ключа означает «оставить прежний»: требовать его при правке адреса
+ * значило бы требовать невозможного, потому что взять его человеку неоткуда.
+ */
+function LlmConnection({ readOnly }: { readOnly: boolean }) {
+  const { t } = useLocale();
+  const queryClient = useQueryClient();
+  const [key, setKey] = useState("");
+
+  const credential = useQuery({
+    queryKey: AI_CREDENTIAL_QUERY_KEY,
+    queryFn: readCredential,
+    retry: false,
+  });
+
+  const save = useMutation({
+    mutationFn: saveCredential,
+    onSuccess: (result) => {
+      queryClient.setQueryData(AI_CREDENTIAL_QUERY_KEY, result);
+      setKey("");
+    },
+  });
+
+  // Отказ 403 здесь — не поломка: не владелец этот блок просто не видит.
+  if (credential.error || !credential.data) return null;
+  const current = credential.data;
+
+  return (
+    <form
+      className="settings__fieldset"
+      onSubmit={(event) => {
+        event.preventDefault();
+        const form = new FormData(event.currentTarget as HTMLFormElement);
+        save.mutate({
+          provider: String(form.get("llm-provider") ?? "openai"),
+          base_url: String(form.get("llm-base-url") ?? ""),
+          model: String(form.get("llm-model") ?? ""),
+          api_key: key,
+        });
+      }}
+    >
+      <h2>{t("settings.llm.title")}</h2>
+      <p className="muted">{t("settings.llm.hint")}</p>
+
+      <p className="field">
+        <label htmlFor="llm-provider">{t("settings.llm.provider")}</label>
+        <input
+          id="llm-provider"
+          name="llm-provider"
+          defaultValue={current.provider || "openai"}
+          disabled={readOnly}
+        />
+      </p>
+
+      <p className="field">
+        <label htmlFor="llm-base-url">{t("settings.llm.base_url")}</label>
+        <input
+          id="llm-base-url"
+          name="llm-base-url"
+          defaultValue={current.base_url}
+          disabled={readOnly}
+        />
+      </p>
+
+      <p className="field">
+        <label htmlFor="llm-model">{t("settings.llm.model")}</label>
+        <input id="llm-model" name="llm-model" defaultValue={current.model} disabled={readOnly} />
+      </p>
+
+      <p className="field">
+        <label htmlFor="llm-key">{t("settings.llm.key")}</label>
+        <span className="muted">
+          {current.configured ? t("settings.llm.key_set") : t("settings.llm.key_missing")}
+        </span>
+        <input
+          id="llm-key"
+          name="llm-key"
+          type="password"
+          autoComplete="off"
+          value={key}
+          disabled={readOnly}
+          onChange={(event) => setKey(event.target.value)}
+        />
+      </p>
+
+      {save.error !== null && (
+        <p className="error" role="alert">
+          {t(errorKey(save.error))}
+        </p>
+      )}
+
+      <button type="submit" disabled={readOnly || save.isPending}>
+        {t("settings.llm.save")}
+      </button>
+    </form>
   );
 }

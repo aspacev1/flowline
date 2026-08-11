@@ -138,7 +138,21 @@
     "invite_rate_limited": "Too many invitations this hour — try later",
     "email_not_verified": "Confirm your own address first",
     "role_not_invitable": "That role cannot be handed out by a link",
-    "verification_not_found": "That confirmation link no longer works"
+    "verification_not_found": "That confirmation link no longer works",
+    "llm_not_configured": "No LLM is connected",
+    "llm_unreachable": "The model is unreachable",
+    "llm_refused": "The model refused the request",
+    "llm_schema_mismatch": "The model did not answer in the expected shape — try again",
+    "llm_bad_json": "The model's answer could not be read",
+    "llm_bad_shape": "The model's answer is missing expected fields",
+    "llm_key_unreadable": "The key cannot be decrypted: APP_SECRET changed",
+    "llm_failed": "The model did not answer",
+    "api_key_required": "A key is required for the first connection",
+    "wrong_step": "That step is not finished yet",
+    "already_applied": "The draft has already been applied",
+    "ai_session_not_found": "Session not found",
+    "interview_exhausted": "No questions left — move on to the summary",
+    "nothing_asked": "Nothing has been asked yet"
   },
   "projects": {
     "title": "Projects",
@@ -150,7 +164,8 @@
     "new": {
       "title": "New project",
       "name": "Name"
-    }
+    },
+    "create_with_ai": "Create through an interview"
   },
   "category": {
     "create": "New category",
@@ -293,6 +308,17 @@
       "title": "Profile",
       "locale": "Interface language",
       "locale_hint": "Kept in your profile: the same language greets you on any computer"
+    },
+    "llm": {
+      "title": "LLM connection",
+      "hint": "The address and the model are settings: a local model works too",
+      "provider": "Provider",
+      "base_url": "Address (base URL)",
+      "model": "Model",
+      "key": "Key",
+      "key_set": "A key is set. Leave empty to keep it",
+      "key_missing": "No key yet",
+      "save": "Save the connection"
     }
   },
   "members": {
@@ -335,5 +361,31 @@
     "sign_in_first": "Sign in or register to accept — then come back to this link",
     "another_account": "This invitation is addressed to {email}. You are signed in as someone else — sign out and back in",
     "accept": "Accept the invitation"
+  },
+  "ai": {
+    "title": "New project through an interview",
+    "intro": "The system asks one question at a time and ends with a draft of categories and tasks. Nothing is written into a project until you apply it",
+    "start": "Start the interview",
+    "answer": "Your answer",
+    "reply": "Answer",
+    "enough": "Enough, generate",
+    "progress": "Questions: {asked}. Tokens: {tokens}",
+    "not_configured": "No LLM is connected: the key is set in the organization settings",
+    "summary": {
+      "title": "What I understood",
+      "hint": "This is the cheapest place to catch a misunderstanding — before it turns into a hundred wrong tasks",
+      "theses": "Theses, one per line",
+      "next": "Generate the plan"
+    },
+    "draft": {
+      "title": "Draft plan",
+      "hint": "Nothing is written into a project until you press Apply",
+      "task_name": "Name of “{name}”",
+      "task_start": "Start of “{name}”",
+      "task_duration": "Duration of “{name}”",
+      "drop": "Remove",
+      "project_name": "Project name",
+      "apply": "Apply to a project"
+    }
   }
 }

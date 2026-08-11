@@ -25,6 +25,11 @@ function orgFixtures(role = "owner") {
   // общий ответ про организацию перебил бы этот.
   server.use(
     http.get("/api/org", () => HttpResponse.json(org)),
+    // Блок подключения LLM живёт на этом же экране: без ответа про ключ он
+    // просто не рисуется, но запрос всё равно уходит.
+    http.get("/api/ai/credential", () =>
+      HttpResponse.json({ provider: "openai", base_url: "", model: "", configured: false }),
+    ),
     http.patch("/api/org", async ({ request }) => {
       const patch = (await request.json()) as Patch;
       patches.push(patch);

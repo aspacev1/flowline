@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import { RequireAuth } from "./auth/RequireAuth";
 import { AcceptInvite } from "./screens/AcceptInvite";
+import { AiIntake } from "./screens/AiIntake";
 import { Login } from "./screens/Login";
 import { Members } from "./screens/Members";
 import { OrgSettings } from "./screens/OrgSettings";
@@ -27,6 +28,9 @@ export function AppRoutes() {
       <Route path="/invite/:token" element={<AcceptInvite />} />
       <Route element={<RequireAuth />}>
         <Route path="/projects" element={<Projects />} />
+        {/* Интервью доступно только при создании нового проекта: запуск
+            внутри существующего — следующий этап, не первая версия. */}
+        <Route path="/projects/new/ai" element={<AiIntake />} />
         <Route path="/projects/:projectId" element={<Project />} />
         {/* Настройки проекта — отдельным адресом, а не окном поверх
             диаграммы: их открывают редко, надолго и обсуждая, а окно поверх
