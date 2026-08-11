@@ -8,6 +8,9 @@ import { useCanWrite } from "../auth/permissions";
 import { Gantt } from "../gantt/Gantt";
 import { usePrefersReducedMotion } from "../gantt/motion";
 import { useLocale } from "../i18n/LocaleProvider";
+import { LiveProvider } from "../live/LiveProvider";
+import { OfflineBar } from "../live/OfflineBar";
+import { useProjectLive } from "../live/useProjectLive";
 import { TaskPanel } from "../task/TaskPanel";
 import { CategoryForm, suggestColor } from "./CategoryForm";
 import { TaskForm } from "./TaskForm";
@@ -41,6 +44,10 @@ export function Project() {
     retry: false,
   });
 
+  // Живая связь открывается вместе с экраном и живёт, пока он открыт: ревизии
+  // соседей приезжают сами, а обрыв — единственное, что запирает редактирование.
+  const live = useProjectLive(projectId);
+
   if (query.isPending) {
     return (
       <main className="screen">
@@ -63,79 +70,97 @@ export function Project() {
   // сервера: её удалили в соседней вкладке. Карточка тогда просто не рисуется.
   const selectedTask = query.data.tasks.find((task) => task.id === selectedTaskId) ?? null;
 
-  return (
-    <main className="screen screen--wide">
-      <div className="screen__head">
-        {/* Название проекта — содержимое пользователя: приходит с сервера как
-            есть и не переводится ни при каком языке интерфейса. */}
-        <h1>{query.data.name}</h1>
+  const offline = live.status === "offline";
+  // Пока связи нет, показанное устарело неизвестно насколько, и любое изменение
+  // легло бы поверх чужих правок вслепую. Право при этом никуда не делось —
+  // поэтому признаки разные: `canWrite` отвечает на «кому можно», а этот — на
+  // «можно ли сейчас».
+  const editable = canWrite && !offline;
 
-        {/* Гостю кнопки не показываются вовсе: они обещали бы действие,
-            которое сервер отклонит. */}
-        <div className="screen__actions">
-          {canWrite && (
-            <button type="button" onClick={() => setAddingCategory(true)}>
-              {t("category.create")}
-            </button>
-          )}
-          {/* Задачу некуда класть, пока нет ни одной категории: кнопка,
-              открывающая форму с пустым списком категорий, обещает действие,
-              которое не может состояться. */}
-          {canWrite && query.data.categories.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setAddingTaskIn(query.data.categories[0].id)}
-            >
-              {t("task.create")}
-            </button>
+  return (
+    <LiveProvider live={live}>
+      <main className="screen screen--wide">
+        <div className="screen__head">
+          {/* Название проекта — содержимое пользователя: приходит с сервера как
+              есть и не переводится ни при каком языке интерфейса. */}
+          <h1>{query.data.name}</h1>
+
+          {/* Гостю кнопки не показываются вовсе: они обещали бы действие,
+              которое сервер отклонит. При обрыве связи — не прячутся, а
+              выключаются: право никуда не делось, и исчезающая шапка выглядела
+              бы поломкой, а не временным запретом. */}
+          <div className="screen__actions">
+            {canWrite && (
+              <button type="button" disabled={offline} onClick={() => setAddingCategory(true)}>
+                {t("category.create")}
+              </button>
+            )}
+            {/* Задачу некуда класть, пока нет ни одной категории: кнопка,
+                открывающая форму с пустым списком категорий, обещает действие,
+                которое не может состояться. */}
+            {canWrite && query.data.categories.length > 0 && (
+              <button
+                type="button"
+                disabled={offline}
+                onClick={() => setAddingTaskIn(query.data.categories[0].id)}
+              >
+                {t("task.create")}
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Время последнего успешного ответа берётся у самого запроса, а не
+            записывается отдельно: react-query уже помнит, когда состояние
+            обновилось в последний раз, и второй счётчик того же самого разошёлся
+            бы с ним при первом же перезапросе. */}
+        {offline && <OfflineBar syncedAt={query.dataUpdatedAt || null} />}
+
+        {/* Диаграмма занимает всю ширину, пока карточка закрыта: пустая колонка
+            справа отнимает у ленты треть экрана ради ничего. */}
+        <div className={`project__body${reducedMotion ? " motion-off" : ""}`}>
+          <Gantt
+            projectId={projectId}
+            state={query.data}
+            canWrite={editable}
+            onAddTask={editable ? setAddingTaskIn : undefined}
+            selectedTaskId={selectedTaskId}
+            // Повторный щелчок по той же полоске закрывает карточку: люди
+            // делают так не задумываясь, и без этого щелчок выглядит
+            // бездействием.
+            onSelectTask={(taskId) =>
+              setSelectedTaskId((current) => (current === taskId ? null : taskId))
+            }
+          />
+
+          {selectedTask && (
+            <TaskPanel
+              projectId={projectId}
+              task={selectedTask}
+              state={query.data}
+              canWrite={editable}
+              onClose={() => setSelectedTaskId(null)}
+            />
           )}
         </div>
-      </div>
 
-      {/* Диаграмма занимает всю ширину, пока карточка закрыта: пустая колонка
-          справа отнимает у ленты треть экрана ради ничего. */}
-      <div className={`project__body${reducedMotion ? " motion-off" : ""}`}>
-        <Gantt
-          projectId={projectId}
-          state={query.data}
-          canWrite={canWrite}
-          onAddTask={canWrite ? setAddingTaskIn : undefined}
-          selectedTaskId={selectedTaskId}
-          // Повторный щелчок по той же полоске закрывает карточку: люди
-          // делают так не задумываясь, и без этого щелчок выглядит
-          // бездействием.
-          onSelectTask={(taskId) =>
-            setSelectedTaskId((current) => (current === taskId ? null : taskId))
-          }
-        />
-
-        {selectedTask && (
-          <TaskPanel
+        {addingCategory && (
+          <CategoryForm
             projectId={projectId}
-            task={selectedTask}
-            state={query.data}
-            canWrite={canWrite}
-            onClose={() => setSelectedTaskId(null)}
+            suggested={suggestColor(query.data.categories.length)}
+            onClose={() => setAddingCategory(false)}
           />
         )}
-      </div>
 
-      {addingCategory && (
-        <CategoryForm
-          projectId={projectId}
-          suggested={suggestColor(query.data.categories.length)}
-          onClose={() => setAddingCategory(false)}
-        />
-      )}
-
-      {addingTaskIn !== null && (
-        <TaskForm
-          projectId={projectId}
-          categories={query.data.categories}
-          initialCategoryId={addingTaskIn}
-          onClose={() => setAddingTaskIn(null)}
-        />
-      )}
-    </main>
+        {addingTaskIn !== null && (
+          <TaskForm
+            projectId={projectId}
+            categories={query.data.categories}
+            initialCategoryId={addingTaskIn}
+            onClose={() => setAddingTaskIn(null)}
+          />
+        )}
+      </main>
+    </LiveProvider>
   );
 }

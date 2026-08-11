@@ -90,15 +90,36 @@ def close_session(db: DbSession, raw_token: str) -> None:
         db.delete(record)
 
 
+def user_for_token(db: DbSession, raw_token: str | None) -> User | None:
+    """Владелец сессии по сырому токену куки. `None` — токена нет, он не
+    находится или просрочен.
+
+    Отдельно от current_user, потому что у WebSocket нет ни статуса ответа, ни
+    заголовков: отказ там — это код закрытия сокета. Общая часть обязана быть
+    одной функцией, иначе однажды разойдётся проверка срока годности, и
+    просроченная сессия будет отбиваться в HTTP, но проходить в сокет.
+    """
+    if not raw_token:
+        return None
+
+    record = db.scalar(select(Session).where(Session.token_hash == hash_token(raw_token)))
+    if record is None or record.expires_at < datetime.now(timezone.utc):
+        return None
+
+    return db.get(User, record.user_id)
+
+
 def current_user(
     flowline_session: str | None = Cookie(default=None, alias=SESSION_COOKIE),
     db: DbSession = Depends(get_db),
 ) -> User:
+    # Отсутствие куки и негодная кука — разные коды: первое значит «войди»,
+    # второе — «войди заново», и человеку это разные сообщения.
     if not flowline_session:
         raise HTTPException(status_code=401, detail="not_authenticated")
 
-    record = db.scalar(select(Session).where(Session.token_hash == hash_token(flowline_session)))
-    if record is None or record.expires_at < datetime.now(timezone.utc):
+    user = user_for_token(db, flowline_session)
+    if user is None:
         raise HTTPException(status_code=401, detail="session_expired")
 
-    return db.get(User, record.user_id)
+    return user

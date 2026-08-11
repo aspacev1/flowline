@@ -121,7 +121,12 @@
     "unknown_criticality": "Belə kritiklik səviyyəsi yoxdur",
     "already_assigned": "Bu adam tapşırığa artıq təyin olunub",
     "assignment_not_found": "Bu adam onsuz da tapşırığa təyin olunmayıb",
-    "negative_position": "Sətri qoymağa yer yoxdur: mövqe mənfidir"
+    "negative_position": "Sətri qoymağa yer yoxdur: mövqe mənfidir",
+    "offline": "Serverlə əlaqə yoxdur: dəyişiklik göndərilmədi"
+  },
+  "live": {
+    "offline": "Serverlə əlaqə yoxdur. Redaktə mümkün deyil",
+    "offline_since": "Əlaqə yoxdur, saat {time} vəziyyətindəki məlumatlar göstərilir. Redaktə mümkün deyil"
   },
   "projects": {
     "title": "Layihələr",

@@ -121,7 +121,12 @@
     "unknown_criticality": "There is no such criticality level",
     "already_assigned": "This person is already assigned to the task",
     "assignment_not_found": "This person is not assigned to the task anyway",
-    "negative_position": "Nowhere to put the row: the position is negative"
+    "negative_position": "Nowhere to put the row: the position is negative",
+    "offline": "No connection to the server: the change was not sent"
+  },
+  "live": {
+    "offline": "No connection to the server. Editing is unavailable",
+    "offline_since": "No connection, showing data as of {time}. Editing is unavailable"
   },
   "projects": {
     "title": "Projects",
