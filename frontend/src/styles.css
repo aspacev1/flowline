@@ -10,6 +10,7 @@
   --accent-text: #ffffff;
   --danger: #b3261e;
   --radius: 8px;
+  --gap: 16px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -36,4 +37,157 @@ body {
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   font-size: 16px;
   line-height: 1.5;
+}
+
+/* --- шапка --- */
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap);
+  padding: 12px 24px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.header__brand {
+  font-weight: 600;
+}
+
+.header__side {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  flex-wrap: wrap;
+}
+
+.locale-switch {
+  display: flex;
+  gap: 4px;
+}
+
+/* --- экраны --- */
+
+.screen {
+  max-width: 880px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+.screen--narrow {
+  max-width: 380px;
+}
+
+.screen--center {
+  display: flex;
+  justify-content: center;
+}
+
+h1 {
+  font-size: 24px;
+  margin: 0 0 24px;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+/* --- формы --- */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 var(--gap);
+}
+
+.field label {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+input {
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+}
+
+input:focus-visible,
+button:focus-visible {
+  /* Видимый фокус обязателен: без него по интерфейсу нельзя ходить с
+     клавиатуры, не угадывая, где ты сейчас. */
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  padding: 8px 16px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.button--quiet {
+  background: transparent;
+  color: var(--text);
+  border-color: var(--border);
+  padding: 4px 10px;
+}
+
+.button--quiet[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: var(--accent);
+}
+
+.error {
+  color: var(--danger);
+  margin: 0 0 var(--gap);
+}
+
+/* --- список проектов и пустое состояние --- */
+
+.projects {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.projects li {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+}
+
+.empty {
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 32px 24px;
+  text-align: center;
+}
+
+.empty__title {
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+
+.empty button {
+  margin-top: var(--gap);
 }

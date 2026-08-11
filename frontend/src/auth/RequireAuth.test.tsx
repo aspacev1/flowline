@@ -4,7 +4,7 @@ import { HttpResponse, delay, http } from "msw";
 import { describe, expect, it } from "vitest";
 
 import { server } from "../test/server";
-import { USER, renderApp } from "../test/utils";
+import { ORG, USER, renderApp } from "../test/utils";
 
 describe("защищённые маршруты", () => {
   it("не пускает неаутентифицированного и уводит на вход", async () => {
@@ -34,6 +34,7 @@ describe("защищённые маршруты", () => {
   it("выход возвращает на экран входа и забывает пользователя", async () => {
     server.use(
       http.get("/api/auth/me", () => HttpResponse.json(USER)),
+      http.get("/api/org", () => HttpResponse.json(ORG)),
       http.get("/api/projects", () => HttpResponse.json([])),
       http.post("/api/auth/logout", () => new HttpResponse(null, { status: 204 })),
     );

@@ -4,7 +4,7 @@ import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 
 import { server } from "../test/server";
-import { USER, renderApp } from "../test/utils";
+import { ORG, USER, renderApp } from "../test/utils";
 
 async function fillAndSubmit() {
   await userEvent.type(screen.getByLabelText(/почта/i), "a@b.c");
@@ -19,6 +19,7 @@ describe("экран входа", () => {
         HttpResponse.json({ detail: "not_authenticated" }, { status: 401 }),
       ),
       http.post("/api/auth/login", () => HttpResponse.json(USER)),
+      http.get("/api/org", () => HttpResponse.json(ORG)),
       http.get("/api/projects", () => HttpResponse.json([])),
     );
 

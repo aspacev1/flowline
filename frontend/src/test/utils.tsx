@@ -50,6 +50,18 @@ export function renderWithProviders(
  */
 export const USER = { id: "u1", name: "Алексей", email: "a@b.c", locale: "ru" };
 
+/**
+ * Организация для тестов. Название нарочно азербайджанское: содержимое
+ * пользователя не переводится ни при каком языке интерфейса, и заметно это
+ * только на названии, которое не совпадает с языком экрана.
+ */
+export const ORG = {
+  id: "o1",
+  name: "Şəhər Studiyası",
+  slug: "seher-studiyasi",
+  role: "owner",
+};
+
 /** Всё приложение целиком: маршруты, аутентификация, языки — как в бою. */
 export function renderApp(options: { route?: string; locale?: Locale } = {}) {
   const { route = "/", locale = "ru" } = options;
