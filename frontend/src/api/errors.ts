@@ -47,6 +47,7 @@ const PLAIN_CODES = new Set([
   "nothing_to_undo",
   "batch_not_found",
   "slug_taken",
+  "slug_empty",
   "unsupported_locale",
   // Приглашения. Просроченное, отозванное и уже принятое — три разных кода и
   // три разных сообщения: человек должен понимать, просить ли новую ссылку

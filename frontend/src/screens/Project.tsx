@@ -202,7 +202,7 @@ export function Project() {
               comments={comments.data ?? []}
               loading={comments.isPending}
               error={comments.error}
-              onSend={(input) => send.mutate({ body: input.body })}
+              onSend={(input) => send.mutateAsync({ body: input.body })}
               sending={send.isPending}
               sendError={send.error}
             />

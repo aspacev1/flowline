@@ -11,6 +11,7 @@ import { isShiftCancelled } from "../project/ShiftReason";
 import { useProjectMutation } from "../project/useProjectMutation";
 import { formatShortDate } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
+import { Comments } from "./Comments";
 import { SelectField, TextField, ValueField } from "./fields";
 import { History } from "./History";
 
@@ -296,6 +297,8 @@ export function TaskPanel({
       )}
 
       <History projectId={projectId} taskId={task.id} />
+
+      <Comments projectId={projectId} taskId={task.id} />
     </aside>
   );
 }

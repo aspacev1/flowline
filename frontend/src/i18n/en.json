@@ -187,7 +187,10 @@
     "share_not_found": "The link does not work or was revoked",
     "comments_disabled": "Comments are off",
     "comment_rate_limited": "Too fast — wait a little",
-    "public_sharing_disabled": "Public links are switched off in this installation"
+    "public_sharing_disabled": "Public links are switched off in this installation",
+    "comment_author_required": "There is no one to sign this comment",
+    "slug_empty": "That makes no address — use letters or digits",
+    "not_published": "The project is not published"
   },
   "live": {
     "offline": "No connection to the server. Editing is unavailable",
@@ -317,10 +320,16 @@
     "body": "Comment",
     "send": "Send",
     "closed": "The project owner has closed comments",
-    "disabled": "Comments are off for this link"
+    "disabled": "Comments are off for this link",
+    "field": "Comment",
+    "submit": "Send"
   },
   "public": {
-    "badge": "Public page"
+    "badge": "Public page",
+    "revoked": "This link no longer works",
+    "revoked_hint": "Ask whoever sent it to you for a new one",
+    "guest_name": "Your name",
+    "guest_mark": "{name} (guest)"
   },
   "org": {
     "switch_label": "Organization"
@@ -473,6 +482,24 @@
       "key_set": "A key is set. Leave empty to keep it",
       "key_missing": "No key yet",
       "save": "Save the connection"
+    },
+    "link": "Settings",
+    "title": "Project settings",
+    "back": "Back to the chart",
+    "share": {
+      "title": "Public link",
+      "address": "Page address",
+      "copy": "Copy",
+      "copied": "Copied",
+      "published": "Public link",
+      "comments": "Comments on the public page"
+    },
+    "slug": {
+      "title": "Project address",
+      "field": "Address inside the link",
+      "taken": "Taken. Free:",
+      "save": "Save the address",
+      "warning": "Changing the address stops the old one from opening — you will have to send the link again."
     }
   },
   "ai": {

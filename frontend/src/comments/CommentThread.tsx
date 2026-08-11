@@ -35,7 +35,12 @@ export function CommentThread({
   askName?: boolean;
   /** Выключенные комментарии закрывают форму, но не саму ленту. */
   canComment?: boolean;
-  onSend: (input: { body: string; name: string }) => void;
+  /**
+   * Отправка. Обещание, если вызывающий его отдаёт: поле очищается только
+   * после подтверждения — отказ сервера это повод исправить реплику, а не
+   * набрать её заново.
+   */
+  onSend: (input: { body: string; name: string }) => void | Promise<unknown>;
   sending?: boolean;
   sendError?: unknown;
 }) {
@@ -86,8 +91,14 @@ export function CommentThread({
             event.preventDefault();
             if (!ready) return;
             if (askName) rememberGuestName(trimmedName);
-            onSend({ body: trimmedBody, name: trimmedName });
-            setBody("");
+            const sent = onSend({ body: trimmedBody, name: trimmedName });
+            // Отказ показывается через sendError, здесь он только оставляет
+            // текст на месте; необработанное отклонение обещания при этом
+            // всплыло бы в консоль само по себе.
+            void Promise.resolve(sent).then(
+              () => setBody(""),
+              () => undefined,
+            );
           }}
         >
           {askName && (

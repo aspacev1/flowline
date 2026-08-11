@@ -187,7 +187,10 @@
     "share_not_found": "Keçid işləmir və ya ləğv edilib",
     "comments_disabled": "Şərhlər bağlıdır",
     "comment_rate_limited": "Çox tez-tez — bir az gözləyin",
-    "public_sharing_disabled": "Açıq keçidlər bu quraşdırmada bağlıdır"
+    "public_sharing_disabled": "Açıq keçidlər bu quraşdırmada bağlıdır",
+    "comment_author_required": "Şərhi imzalayacaq kimsə yoxdur",
+    "slug_empty": "Bundan ünvan alınmır — hərf və ya rəqəm işlədin",
+    "not_published": "Layihə dərc olunmayıb"
   },
   "live": {
     "offline": "Serverlə əlaqə yoxdur. Redaktə mümkün deyil",
@@ -317,10 +320,16 @@
     "body": "Şərh",
     "send": "Göndər",
     "closed": "Layihənin sahibi şərhləri bağlayıb",
-    "disabled": "Bu keçiddə şərhlər bağlıdır"
+    "disabled": "Bu keçiddə şərhlər bağlıdır",
+    "field": "Şərh",
+    "submit": "Göndər"
   },
   "public": {
-    "badge": "İctimai səhifə"
+    "badge": "İctimai səhifə",
+    "revoked": "Bu keçid artıq işləmir",
+    "revoked_hint": "Keçidi sizə göndərəndən yenisini istəyin",
+    "guest_name": "Adınız",
+    "guest_mark": "{name} (qonaq)"
   },
   "org": {
     "switch_label": "Təşkilat"
@@ -473,6 +482,24 @@
       "key_set": "Açar təyin edilib. Boş buraxsanız — dəyişmir",
       "key_missing": "Açar hələ yoxdur",
       "save": "Qoşulmanı saxla"
+    },
+    "link": "Tənzimləmələr",
+    "title": "Layihə tənzimləmələri",
+    "back": "Diaqrama qayıt",
+    "share": {
+      "title": "Public keçid",
+      "address": "Səhifə ünvanı",
+      "copy": "Kopyala",
+      "copied": "Kopyalandı",
+      "published": "Public keçid",
+      "comments": "Public səhifədə şərhlər"
+    },
+    "slug": {
+      "title": "Layihə ünvanı",
+      "field": "Keçiddəki ünvan",
+      "taken": "Tutulub. Boş variant:",
+      "save": "Ünvanı saxla",
+      "warning": "Ünvan dəyişəndən sonra köhnə ünvan açılmayacaq — keçidi yenidən göndərmək lazım gələcək."
     }
   },
   "ai": {

@@ -13,12 +13,18 @@ export type Comment = {
   created_at: string;
 };
 
-export function commentsQueryKey(projectId: string) {
-  return ["project", projectId, "comments"] as const;
+export function commentsQueryKey(projectId: string, taskId?: string) {
+  // Задача в конце ключа, а не отдельным ключом: лента задачи — это та же
+  // лента проекта, отфильтрованная сервером, и обновление одной обязано
+  // задевать другую.
+  return taskId === undefined
+    ? (["project", projectId, "comments"] as const)
+    : (["project", projectId, "comments", taskId] as const);
 }
 
-export function listComments(projectId: string): Promise<Comment[]> {
-  return request<Comment[]>(`/api/projects/${projectId}/comments`);
+export function listComments(projectId: string, taskId?: string): Promise<Comment[]> {
+  const query = taskId === undefined ? "" : `?task_id=${encodeURIComponent(taskId)}`;
+  return request<Comment[]>(`/api/projects/${projectId}/comments${query}`);
 }
 
 export function addComment(

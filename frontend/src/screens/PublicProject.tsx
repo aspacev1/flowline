@@ -106,7 +106,7 @@ export function PublicProject() {
           error={comments.error}
           askName
           canComment={project.data.comments_enabled}
-          onSend={(input) => send.mutate(input)}
+          onSend={(input) => send.mutateAsync(input)}
           sending={send.isPending}
           sendError={send.error}
         />

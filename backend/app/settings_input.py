@@ -13,6 +13,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from app.config import get_settings
+from app.text import slugify
 
 # Маска рабочих дней — семь бит. Ноль запрещён: календарь без единого рабочего
 # дня не позволяет посчитать ни одну дату окончания, и проект перестаёт
@@ -125,6 +126,20 @@ class OrganizationSettingsIn(SettingsInput):
     def _holidays(cls, value: list | None) -> list | None:
         return None if value is None else check_dates(value)
 
+    @field_validator("slug")
+    @classmethod
+    def _slug(cls, value: str | None) -> str | None:
+        """Слаг приводится к своей форме здесь, а не у вызывающего.
+
+        Иначе `slug-check` и сохранение расходятся: поле ввода показывает
+        `redizayn-2026`, а в базу ложится «Редизайн 2026» — и публичный адрес
+        оказывается не тем, который человеку только что показали. Пустая форма
+        («...», одни пробелы) заменяется запасным словом: адрес без слага не
+        открывается вовсе.
+        """
+        return None if value is None else slugify(value, fallback="org")
+
+
     @field_validator("name", "slug")
     @classmethod
     def _not_blank(cls, value: str | None) -> str | None:
@@ -170,6 +185,19 @@ class ProjectSettingsIn(SettingsInput):
         if value is not None and value < 0:
             raise ValueError("порог не может быть отрицательным")
         return value
+
+    @field_validator("slug")
+    @classmethod
+    def _slug(cls, value: str | None) -> str | None:
+        """Слаг приводится к своей форме здесь, а не у вызывающего.
+
+        Иначе `slug-check` и сохранение расходятся: поле ввода показывает
+        `redizayn-2026`, а в базу ложится «Редизайн 2026» — и публичный адрес
+        оказывается не тем, который человеку только что показали. Пустая форма
+        («...», одни пробелы) заменяется запасным словом: адрес без слага не
+        открывается вовсе.
+        """
+        return None if value is None else slugify(value, fallback="project")
 
     @field_validator("holidays_extra", "workdays_extra")
     @classmethod
