@@ -41,9 +41,19 @@ def public_path(org: Organization, project: Project) -> str:
     return f"/p/{org.slug}/{project.slug}"
 
 
+def stored_link(db: DbSession, project: Project) -> ShareLink | None:
+    """Ряд публикации как он есть, включая отозванный.
+
+    Нужен настройкам: отозванная ссылка помнит, был ли включён переключатель
+    комментариев, и показывать его выключенным только потому, что публикация
+    снята, значит терять решение владельца у него на глазах.
+    """
+    return db.scalar(select(ShareLink).where(ShareLink.project_id == project.id))
+
+
 def link_of(db: DbSession, project: Project) -> ShareLink | None:
     """Действующая ссылка проекта. Отозванная — это отсутствие ссылки."""
-    link = db.scalar(select(ShareLink).where(ShareLink.project_id == project.id))
+    link = stored_link(db, project)
     if link is None or link.revoked_at is not None:
         return None
     return link

@@ -14,11 +14,20 @@ from app.comments import (
     add_comment,
     list_comments,
 )
+from app.config import get_settings
 from app.db import get_db
-from app.models import Comment, Membership, Organization, Project, Revision, User
+from app.models import Comment, Membership, Organization, Project, Revision, ShareLink, User
 from app.mutations import InvalidOperation, NotFoundInProject, PublicOp, apply_op, to_internal
 from app.project_state import build_state
 from app.projects import create_project as create_project_entity
+from app.sharing import (
+    SharingRefused,
+    public_path,
+    publish,
+    revoke,
+    set_comments_enabled,
+    stored_link,
+)
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
@@ -31,6 +40,24 @@ class ProjectOut(BaseModel):
     id: str
     name: str
     slug: str
+
+
+class ShareIn(BaseModel):
+    published: bool
+    comments_enabled: bool
+
+
+def _share_out(link: ShareLink | None) -> dict:
+    """Состояние публикации по ряду, включая отозванный.
+
+    Отозванная ссылка помнит положение переключателя комментариев, и показать
+    его иначе значило бы потерять решение владельца у него на глазах: снял
+    публикацию — переключатель прыгнул сам собой.
+    """
+    return {
+        "published": link is not None and link.revoked_at is None,
+        "comments_enabled": link.comments_enabled if link else True,
+    }
 
 
 class CommentIn(BaseModel):
@@ -122,6 +149,56 @@ def get_project(
         show_notes=can(parse_role(membership.role), Action.READ_INTERNAL_NOTE),
         show_assignees=True,
     )
+
+
+@router.get("/{project_id}/settings")
+def project_settings(
+    project_id: uuid.UUID, user: User = Depends(current_user), db: DbSession = Depends(get_db)
+):
+    project, membership = _load_project(db, user, project_id)
+    if not can(parse_role(membership.role), Action.PROJECT_ADMIN):
+        raise HTTPException(status_code=403, detail="forbidden")
+    org = db.get(Organization, project.org_id)
+
+    return {
+        "slug": project.slug,
+        # Полный адрес собирает сервер: PUBLIC_BASE_URL знает он, а браузер
+        # знает только тот адрес, по которому открыт сам, — за обратным
+        # прокси это разные вещи.
+        "public_url": get_settings().public_base_url.rstrip("/") + public_path(org, project),
+        "public_sharing_enabled": org.public_sharing_enabled,
+        "share": _share_out(stored_link(db, project)),
+    }
+
+
+@router.put("/{project_id}/share")
+def set_share(
+    project_id: uuid.UUID,
+    payload: ShareIn,
+    user: User = Depends(current_user),
+    db: DbSession = Depends(get_db),
+):
+    """Желаемое состояние публикации целиком, а не три отдельных действия.
+
+    Повторный вызов с тем же телом ничего не меняет, поэтому кнопка публикации
+    и переключатель комментариев шлют одно и то же, а гонка двух вкладок
+    заканчивается последним состоянием, а не ошибкой.
+    """
+    project, membership = _load_project(db, user, project_id)
+    if not can(parse_role(membership.role), Action.PROJECT_ADMIN):
+        raise HTTPException(status_code=403, detail="forbidden")
+    org = db.get(Organization, project.org_id)
+
+    try:
+        if payload.published:
+            publish(db, project, org)
+            set_comments_enabled(db, project, payload.comments_enabled)
+        else:
+            revoke(db, project)
+    except SharingRefused as error:
+        raise HTTPException(status_code=422, detail=error.code)
+
+    return _share_out(stored_link(db, project))
 
 
 @router.get("/{project_id}/revisions")
