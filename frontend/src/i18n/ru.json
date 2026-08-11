@@ -227,7 +227,9 @@
     "beyond_plan": "Сверх первоначального плана",
     "baseline": "По плану: {from} — {to}",
     "deviation_late": "+{days}",
-    "deviation_early": "−{days}"
+    "deviation_early": "−{days}",
+    "nudge": "Подвинуть «{name}» на {days}?",
+    "nudge_dismiss": "Закрыть предложение"
   },
   "plan": {
     "approve": "Утвердить план",

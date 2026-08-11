@@ -225,7 +225,9 @@
     "beyond_plan": "İlkin plandan əlavə",
     "baseline": "Plan üzrə: {from} — {to}",
     "deviation_late": "+{days}",
-    "deviation_early": "−{days}"
+    "deviation_early": "−{days}",
+    "nudge": "«{name}» tapşırığını {days} irəli çəkim?",
+    "nudge_dismiss": "Təklifi bağla"
   },
   "plan": {
     "approve": "Planı təsdiqlə",

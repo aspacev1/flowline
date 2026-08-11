@@ -8,6 +8,7 @@ import { useCanWrite, useOrgRole } from "../auth/permissions";
 import { Gantt } from "../gantt/Gantt";
 import { usePrefersReducedMotion } from "../gantt/motion";
 import { useLocale } from "../i18n/LocaleProvider";
+import { DependencyNudge, DependencyNudgeProvider } from "../project/DependencyNudge";
 import { PlanApproval } from "../project/PlanApproval";
 import { ShiftReasonProvider } from "../project/ShiftReason";
 import { UndoButton } from "../project/UndoButton";
@@ -71,6 +72,7 @@ export function Project() {
     // Провайдер обнимает и ленту, и карточку: окно с причиной одно на все
     // способы сдвинуть задачу — мышью по полоске и полем в карточке.
     <ShiftReasonProvider>
+    <DependencyNudgeProvider>
     <main className="screen screen--wide">
       <div className="screen__head">
         {/* Название проекта — содержимое пользователя: приходит с сервера как
@@ -112,6 +114,11 @@ export function Project() {
           )}
         </div>
       </div>
+
+      {/* Предложение подвинуть связанную задачу — над лентой, а не поверх
+          неё: оно ненавязчивое и не должно закрывать то, что человек только
+          что подвинул. */}
+      {canWrite && <DependencyNudge projectId={projectId} state={query.data} />}
 
       {/* Диаграмма занимает всю ширину, пока карточка закрыта: пустая колонка
           справа отнимает у ленты треть экрана ради ничего. */}
@@ -158,6 +165,7 @@ export function Project() {
         />
       )}
     </main>
+    </DependencyNudgeProvider>
     </ShiftReasonProvider>
   );
 }

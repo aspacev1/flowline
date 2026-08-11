@@ -411,3 +411,23 @@ button:disabled {
   align-items: center;
   gap: 8px;
 }
+
+/* Предложение подвинуть связанную задачу. Ненавязчивое: приглушённая полоска
+   над лентой, а не окно поверх неё — отказ ничего не ломает, и требовать
+   ответа здесь не за что. */
+.nudge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: var(--gap);
+  padding: 6px 10px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 13px;
+}
+
+.nudge__dismiss {
+  margin-left: auto;
+}

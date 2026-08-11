@@ -225,7 +225,9 @@
     "beyond_plan": "Beyond the original plan",
     "baseline": "Planned: {from} — {to}",
     "deviation_late": "+{days}",
-    "deviation_early": "−{days}"
+    "deviation_early": "−{days}",
+    "nudge": "Move “{name}” by {days}?",
+    "nudge_dismiss": "Dismiss the suggestion"
   },
   "plan": {
     "approve": "Approve plan",

@@ -6,6 +6,7 @@ import { applyOp, projectQueryKey } from "../api/projects";
 import type { Op, ProjectState, Revision } from "../api/projects";
 import { shiftNeedingReason, thresholdOf } from "./baseline";
 import type { ShiftRequest } from "./baseline";
+import { useNoteMovedTask } from "./DependencyNudge";
 import { ShiftCancelled, useAskShiftReason } from "./ShiftReason";
 
 /**
@@ -57,6 +58,7 @@ function refusalRequest(state: ProjectState, op: Op, error: unknown): ShiftReque
 export function useProjectMutation(projectId: string) {
   const queryClient = useQueryClient();
   const askReason = useAskShiftReason();
+  const noteMoved = useNoteMovedTask();
   const key = projectQueryKey(projectId);
 
   const apply = useCallback(
@@ -95,6 +97,12 @@ export function useProjectMutation(projectId: string) {
           // Версия сервера единственно верная: даты окончания считает он, и
           // оптимистичное состояние в лучшем случае совпадает с его ответом.
           await queryClient.invalidateQueries({ queryKey: key });
+          // Сроки задачи изменились — значит, связанные с ней могли поехать.
+          // Отметка ставится после перезапроса: предложение считается по
+          // датам, посчитанным сервером, а не по догадке.
+          if (noteMoved && (op.type === "move_task" || op.type === "set_duration")) {
+            noteMoved(op.task_id);
+          }
           return revision;
         } catch (error) {
           if (snapshot) queryClient.setQueryData(key, snapshot);
@@ -117,7 +125,7 @@ export function useProjectMutation(projectId: string) {
         return commit(answer);
       }
     },
-    [projectId, queryClient, key, askReason],
+    [projectId, queryClient, key, askReason, noteMoved],
   );
 
   return { apply };
