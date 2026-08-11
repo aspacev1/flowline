@@ -116,7 +116,12 @@
     "category_not_empty": "The category still has tasks — move them out first",
     "user_not_in_organization": "This person is not in your organization",
     "calendar_has_no_working_days": "The project calendar has no working days at all",
-    "calendar_too_few_working_days": "The project calendar has too few working days for this duration"
+    "calendar_too_few_working_days": "The project calendar has too few working days for this duration",
+    "progress_out_of_range": "Progress goes from 0 to 100",
+    "unknown_criticality": "There is no such criticality level",
+    "already_assigned": "This person is already assigned to the task",
+    "assignment_not_found": "This person is not assigned to the task anyway",
+    "negative_position": "Nowhere to put the row: the position is negative"
   },
   "projects": {
     "title": "Projects",

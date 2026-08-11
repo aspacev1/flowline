@@ -4,6 +4,7 @@ import { useParams } from "react-router-dom";
 
 import { errorKey } from "../api/errors";
 import { getProject, projectQueryKey } from "../api/projects";
+import { useCanWrite } from "../auth/permissions";
 import { Gantt } from "../gantt/Gantt";
 import { useLocale } from "../i18n/LocaleProvider";
 import { TaskPanel } from "../task/TaskPanel";
@@ -21,6 +22,7 @@ import { TaskForm } from "./TaskForm";
 export function Project() {
   const { t } = useLocale();
   const { projectId = "" } = useParams();
+  const canWrite = useCanWrite();
   const [addingCategory, setAddingCategory] = useState(false);
   // Категория, из строки которой открыли форму задачи. `null` — форма закрыта.
   const [addingTaskIn, setAddingTaskIn] = useState<string | null>(null);
@@ -64,14 +66,18 @@ export function Project() {
             есть и не переводится ни при каком языке интерфейса. */}
         <h1>{query.data.name}</h1>
 
+        {/* Гостю кнопки не показываются вовсе: они обещали бы действие,
+            которое сервер отклонит. */}
         <div className="screen__actions">
-          <button type="button" onClick={() => setAddingCategory(true)}>
-            {t("category.create")}
-          </button>
+          {canWrite && (
+            <button type="button" onClick={() => setAddingCategory(true)}>
+              {t("category.create")}
+            </button>
+          )}
           {/* Задачу некуда класть, пока нет ни одной категории: кнопка,
               открывающая форму с пустым списком категорий, обещает действие,
               которое не может состояться. */}
-          {query.data.categories.length > 0 && (
+          {canWrite && query.data.categories.length > 0 && (
             <button
               type="button"
               onClick={() => setAddingTaskIn(query.data.categories[0].id)}
@@ -87,7 +93,7 @@ export function Project() {
       <div className="project__body">
         <Gantt
           state={query.data}
-          onAddTask={setAddingTaskIn}
+          onAddTask={canWrite ? setAddingTaskIn : undefined}
           selectedTaskId={selectedTaskId}
           // Повторный щелчок по той же полоске закрывает карточку: люди
           // делают так не задумываясь, и без этого щелчок выглядит
@@ -99,8 +105,10 @@ export function Project() {
 
         {selectedTask && (
           <TaskPanel
+            projectId={projectId}
             task={selectedTask}
-            categories={query.data.categories}
+            state={query.data}
+            canWrite={canWrite}
             onClose={() => setSelectedTaskId(null)}
           />
         )}

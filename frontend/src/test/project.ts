@@ -2,6 +2,7 @@ import { HttpResponse, http } from "msw";
 
 import type { ProjectState } from "../api/projects";
 import type { Locale } from "../i18n";
+import { reorderTask } from "../project/optimistic";
 import { server } from "./server";
 import { ORG, USER, renderApp } from "./utils";
 
@@ -87,6 +88,51 @@ export const WITH_DEPENDENCY: ProjectState = {
 
 export type Sent = { op: Record<string, unknown>; reason?: string };
 
+/**
+ * Принятая операция, отражённая в состоянии.
+ *
+ * Без этого сервер-заглушка отвечал бы «принято» и продолжал отдавать прежний
+ * проект: перезапрос после успеха возвращал бы изменение назад, и тест на
+ * второй щелчок по исполнителю проверял бы не то, что написано в его названии.
+ *
+ * Дата окончания здесь не пересчитывается намеренно — календаря у заглушки
+ * нет. Это и хорошо: тест, ожидающий пересчитанный конец, обязан объявить его
+ * сам, а не получить его от подделки под сервер.
+ */
+function applied(state: ProjectState, op: Record<string, unknown>): ProjectState {
+  const id = op.task_id as string;
+  const patch = (fields: Partial<ProjectState["tasks"][number]>) => ({
+    ...state,
+    tasks: state.tasks.map((task) => (task.id === id ? { ...task, ...fields } : task)),
+  });
+  const assignees = state.tasks.find((task) => task.id === id)?.assignee_ids ?? [];
+
+  switch (op.type) {
+    case "move_task":
+      return patch({ start_date: op.start_date as string });
+    case "set_duration":
+      return patch({ duration_days: op.duration_days as number });
+    case "set_progress":
+      return patch({ progress_pct: op.progress_pct as number });
+    case "set_criticality":
+      return patch({ criticality: op.criticality as ProjectState["tasks"][number]["criticality"] });
+    case "set_task_fields":
+      return patch({
+        name: op.name as string,
+        description: op.description as string,
+        internal_note: op.internal_note as string,
+      });
+    case "assign_user":
+      return patch({ assignee_ids: [...assignees, op.user_id as string] });
+    case "unassign_user":
+      return patch({ assignee_ids: assignees.filter((user) => user !== op.user_id) });
+    case "reorder_task":
+      return reorderTask(state, id, op.category_id as string, op.position as number);
+    default:
+      return state;
+  }
+}
+
 // Состояние оснастки. Живёт в модуле, а не в замыкании renderProject, потому
 // что обработчики регистрируются раньше — в beforeEach, — и обязаны видеть то,
 // что тест выберет позже.
@@ -114,6 +160,7 @@ export function projectFixtures() {
     http.post("/api/projects/p1/mutations", async ({ request }) => {
       const body = (await request.json()) as Sent;
       sent.push(body);
+      state = applied(state, body.op);
       return HttpResponse.json({ seq: sent.length, op: body.op, inverse: {} }, { status: 201 });
     }),
   );

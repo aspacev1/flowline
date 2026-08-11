@@ -94,7 +94,19 @@ export type Op =
       progress_pct?: number;
     }
   | { type: "move_task"; task_id: string; start_date: string }
-  | { type: "assign_user"; task_id: string; user_id: string };
+  | { type: "set_duration"; task_id: string; duration_days: number }
+  | {
+      type: "set_task_fields";
+      task_id: string;
+      name: string;
+      description: string;
+      internal_note: string;
+    }
+  | { type: "set_criticality"; task_id: string; criticality: Criticality }
+  | { type: "set_progress"; task_id: string; progress_pct: number }
+  | { type: "reorder_task"; task_id: string; category_id: string; position: number }
+  | { type: "assign_user"; task_id: string; user_id: string }
+  | { type: "unassign_user"; task_id: string; user_id: string };
 
 /** Ответ на применённую операцию. Номер ревизии — то, чем она отличается от соседних. */
 export type Revision = {

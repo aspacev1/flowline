@@ -116,7 +116,12 @@
     "category_not_empty": "Kateqoriyada hələ tapşırıqlar var — əvvəlcə onları köçürün",
     "user_not_in_organization": "Bu şəxs sizin təşkilatınızda deyil",
     "calendar_has_no_working_days": "Layihə təqvimində bir dənə də iş günü yoxdur",
-    "calendar_too_few_working_days": "Layihə təqvimində bu müddət üçün kifayət qədər iş günü yoxdur"
+    "calendar_too_few_working_days": "Layihə təqvimində bu müddət üçün kifayət qədər iş günü yoxdur",
+    "progress_out_of_range": "Tamamlanma faizi 0-dan 100-ə qədərdir",
+    "unknown_criticality": "Belə kritiklik səviyyəsi yoxdur",
+    "already_assigned": "Bu adam tapşırığa artıq təyin olunub",
+    "assignment_not_found": "Bu adam onsuz da tapşırığa təyin olunmayıb",
+    "negative_position": "Sətri qoymağa yer yoxdur: mövqe mənfidir"
   },
   "projects": {
     "title": "Layihələr",

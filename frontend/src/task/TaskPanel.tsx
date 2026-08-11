@@ -1,11 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
+import { errorKey } from "../api/errors";
 import { MEMBERS_QUERY_KEY, members as fetchMembers } from "../api/org";
 import { CRITICALITY_LEVELS } from "../api/projects";
-import type { Category, Criticality, Task } from "../api/projects";
+import type { Criticality, Op, ProjectState, Task } from "../api/projects";
+import { patchTask, reorderTask } from "../project/optimistic";
+import { useProjectMutation } from "../project/useProjectMutation";
 import { formatShortDate } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
+import { SelectField, TextField, ValueField } from "./fields";
 
 import "./panel.css";
 
@@ -23,15 +27,27 @@ import "./panel.css";
  * бездействием.
  */
 export function TaskPanel({
+  projectId,
   task,
-  categories,
+  state,
+  canWrite,
   onClose,
 }: {
+  projectId: string;
   task: Task;
-  categories: Category[];
+  /** Весь проект: карточке нужны и категории, и соседи по ним. */
+  state: ProjectState;
+  canWrite: boolean;
   onClose: () => void;
 }) {
+  const categories = state.categories;
   const { t } = useLocale();
+  const { apply } = useProjectMutation(projectId);
+  const [error, setError] = useState<unknown>(null);
+  // Счётчик отказов. Служит полям знаком «вернись к состоянию»: сравнивать
+  // значения им недостаточно — догадка и откат часто укладываются в один кадр,
+  // и с точки зрения поля значение не менялось.
+  const [refusals, setRefusals] = useState(0);
 
   // Отказ здесь — не ошибка карточки: роль `client` состава организации не
   // получает вовсе, и блок исполнителей просто не рисуется. Тот же довод, что
@@ -52,6 +68,52 @@ export function TaskPanel({
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
+
+  const send = (op: Op, optimistic: (state: ProjectState) => ProjectState) => {
+    setError(null);
+    // Отказ уже откачен внутри `apply`: здесь остаётся объяснить его словами и
+    // вернуть поле к тому, что осталось в состоянии.
+    apply(op, optimistic).catch((refusal: unknown) => {
+      setError(refusal);
+      setRefusals((count) => count + 1);
+    });
+  };
+
+  const patch = (fields: Partial<Task>) => (state: ProjectState) =>
+    patchTask(state, task.id, fields);
+
+  // Заметка — единственное поле с ограниченной видимостью, и `set_task_fields`
+  // несёт все три текстовых поля разом. Значит, не видя заметки, послать эту
+  // операцию нельзя: она стёрла бы её пустой строкой. По матрице прав такой
+  // роли не существует — писать может лишь тот, кто заметку видит, — но
+  // рассчитывать на совпадение двух списков прав не стоит.
+  const editsText = canWrite && "internal_note" in task;
+
+  const commitFields = (changed: Partial<Task>) => {
+    const fields = {
+      name: task.name,
+      description: task.description ?? "",
+      internal_note: task.internal_note ?? "",
+      ...changed,
+    };
+    send({ type: "set_task_fields", task_id: task.id, ...fields }, patch(fields));
+  };
+
+  const toggleAssignee = (userId: string) => {
+    const assigned = task.assignee_ids.includes(userId);
+    send(
+      {
+        type: assigned ? "unassign_user" : "assign_user",
+        task_id: task.id,
+        user_id: userId,
+      },
+      patch({
+        assignee_ids: assigned
+          ? task.assignee_ids.filter((id) => id !== userId)
+          : [...task.assignee_ids, userId],
+      }),
+    );
+  };
 
   return (
     <aside
@@ -75,13 +137,131 @@ export function TaskPanel({
         </button>
       </div>
 
-      <TaskFields key={task.id} task={task} categories={categories} />
+      {error !== null && (
+        <p className="error" role="alert">
+          {t(errorKey(error))}
+        </p>
+      )}
 
-      <div className="panel__row">
-        <span className="panel__key">{t("task.panel.end")}</span>
-        {/* Дата окончания только показывается: её считает сервер по календарю
-            проекта, и поле для правки обещало бы влияние, которого нет. */}
-        <span className="panel__value">{formatShortDate(t, task.end_date)}</span>
+      {/* `key` по задаче: переход к соседней начинает поля заново, а не доносит
+          в новую карточку недописанный текст из прежней. */}
+      <div key={task.id} className="panel__fields">
+        <TextField
+          id="panel-name"
+          label={t("task.panel.name")}
+          value={task.name}
+          disabled={!editsText}
+          resetToken={refusals}
+          onCommit={(name) => commitFields({ name })}
+        />
+
+        <TextField
+          id="panel-description"
+          label={t("task.panel.description")}
+          value={task.description ?? ""}
+          rows={3}
+          disabled={!editsText}
+          resetToken={refusals}
+          onCommit={(description) => commitFields({ description })}
+        />
+
+        <SelectField
+          id="panel-category"
+          label={t("task.panel.category")}
+          value={task.category_id}
+          disabled={!canWrite}
+          // Название категории — содержимое пользователя: не переводится.
+          options={categories.map((category) => ({
+            value: category.id,
+            label: category.name,
+          }))}
+          onCommit={(categoryId) => {
+            // В конец выбранной категории: перенос списком — это смена
+            // принадлежности, а не выбор места внутри. Место выбирают
+            // перетаскиванием строки.
+            const position = state.tasks.filter(
+              (row) => row.category_id === categoryId && row.id !== task.id,
+            ).length;
+            send(
+              { type: "reorder_task", task_id: task.id, category_id: categoryId, position },
+              (state) => reorderTask(state, task.id, categoryId, position),
+            );
+          }}
+        />
+
+        <SelectField
+          id="panel-criticality"
+          label={t("task.panel.criticality")}
+          value={task.criticality}
+          disabled={!canWrite}
+          options={CRITICALITY_LEVELS.map((level) => ({
+            value: level,
+            label: t(`task.criticality.${level}`),
+          }))}
+          onCommit={(value) => {
+            const criticality = value as Criticality;
+            send({ type: "set_criticality", task_id: task.id, criticality }, patch({ criticality }));
+          }}
+        />
+
+        <ValueField
+          id="panel-start"
+          label={t("task.panel.start")}
+          type="date"
+          value={task.start_date}
+          disabled={!canWrite}
+          resetToken={refusals}
+          onCommit={(start_date) =>
+            send({ type: "move_task", task_id: task.id, start_date }, patch({ start_date }))
+          }
+        />
+
+        <ValueField
+          id="panel-duration"
+          label={t("task.panel.duration")}
+          type="number"
+          value={String(task.duration_days)}
+          disabled={!canWrite}
+          resetToken={refusals}
+          onCommit={(value) => {
+            const duration_days = Number(value);
+            send({ type: "set_duration", task_id: task.id, duration_days }, patch({ duration_days }));
+          }}
+        />
+
+        <ValueField
+          id="panel-progress"
+          label={t("task.panel.progress")}
+          type="number"
+          value={String(task.progress_pct)}
+          disabled={!canWrite}
+          resetToken={refusals}
+          onCommit={(value) => {
+            const progress_pct = Number(value);
+            send({ type: "set_progress", task_id: task.id, progress_pct }, patch({ progress_pct }));
+          }}
+        />
+
+        <div className="panel__row">
+          <span className="panel__key">{t("task.panel.end")}</span>
+          {/* Дата окончания только показывается: её считает сервер по календарю
+              проекта, и поле для правки обещало бы влияние, которого нет. */}
+          <span className="panel__value">{formatShortDate(t, task.end_date)}</span>
+        </div>
+
+        {/* Единственное поле с ограниченной видимостью. Показывать его или нет,
+            решает сервер: если заметки нет в ответе, блока нет в интерфейсе. */}
+        {"internal_note" in task && (
+          <TextField
+            id="panel-note"
+            label={t("task.panel.internal_note")}
+            value={task.internal_note ?? ""}
+            rows={3}
+            disabled={!editsText}
+          resetToken={refusals}
+            onCommit={(internal_note) => commitFields({ internal_note })}
+          />
+        )}
       </div>
 
       {membersQuery.data && membersQuery.data.length > 0 && (
@@ -89,11 +269,15 @@ export function TaskPanel({
           <legend>{t("task.panel.assignees")}</legend>
           <div className="panel__chips">
             {membersQuery.data.map((member) => (
+              // Каждый исполнитель — своя операция: их и снимают по одному, и
+              // в истории они читаются как отдельные события.
               <button
                 key={member.id}
                 type="button"
                 className="panel__chip"
                 aria-pressed={task.assignee_ids.includes(member.id)}
+                disabled={!canWrite}
+                onClick={() => toggleAssignee(member.id)}
               >
                 {/* Имя человека — содержимое, а не чрома. */}
                 {member.name}
@@ -103,130 +287,5 @@ export function TaskPanel({
         </fieldset>
       )}
     </aside>
-  );
-}
-
-/**
- * Поля карточки.
- *
- * Вынесены отдельным компонентом ради `key={task.id}`: при переходе к соседней
- * задаче состояние полей обязано начаться заново, а не донести в новую карточку
- * недописанный текст из прежней.
- */
-function TaskFields({ task, categories }: { task: Task; categories: Category[] }) {
-  const { t } = useLocale();
-
-  const [name, setName] = useState(task.name);
-  const [description, setDescription] = useState(task.description ?? "");
-  const [note, setNote] = useState(task.internal_note ?? "");
-  const [progress, setProgress] = useState(String(task.progress_pct));
-  const [categoryId, setCategoryId] = useState(task.category_id);
-  const [criticality, setCriticality] = useState<Criticality>(task.criticality);
-  const [start, setStart] = useState(task.start_date);
-  const [duration, setDuration] = useState(String(task.duration_days));
-
-  return (
-    <>
-      <p className="panel__field">
-        <label htmlFor="panel-name">{t("task.panel.name")}</label>
-        <input
-          id="panel-name"
-          name="panel-name"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-        />
-      </p>
-
-      <p className="panel__field">
-        <label htmlFor="panel-description">{t("task.panel.description")}</label>
-        <textarea
-          id="panel-description"
-          name="panel-description"
-          rows={3}
-          value={description}
-          onChange={(event) => setDescription(event.target.value)}
-        />
-      </p>
-
-      <p className="panel__field">
-        <label htmlFor="panel-category">{t("task.panel.category")}</label>
-        <select
-          id="panel-category"
-          name="panel-category"
-          value={categoryId}
-          onChange={(event) => setCategoryId(event.target.value)}
-        >
-          {categories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
-            </option>
-          ))}
-        </select>
-      </p>
-
-      <p className="panel__field">
-        <label htmlFor="panel-criticality">{t("task.panel.criticality")}</label>
-        <select
-          id="panel-criticality"
-          name="panel-criticality"
-          value={criticality}
-          onChange={(event) => setCriticality(event.target.value as Criticality)}
-        >
-          {CRITICALITY_LEVELS.map((level) => (
-            <option key={level} value={level}>
-              {t(`task.criticality.${level}`)}
-            </option>
-          ))}
-        </select>
-      </p>
-
-      <p className="panel__field">
-        <label htmlFor="panel-start">{t("task.panel.start")}</label>
-        <input
-          id="panel-start"
-          name="panel-start"
-          type="date"
-          value={start}
-          onChange={(event) => setStart(event.target.value)}
-        />
-      </p>
-
-      <p className="panel__field">
-        <label htmlFor="panel-duration">{t("task.panel.duration")}</label>
-        <input
-          id="panel-duration"
-          name="panel-duration"
-          type="number"
-          value={duration}
-          onChange={(event) => setDuration(event.target.value)}
-        />
-      </p>
-
-      <p className="panel__field">
-        <label htmlFor="panel-progress">{t("task.panel.progress")}</label>
-        <input
-          id="panel-progress"
-          name="panel-progress"
-          type="number"
-          value={progress}
-          onChange={(event) => setProgress(event.target.value)}
-        />
-      </p>
-
-      {/* Единственное поле с ограниченной видимостью. Показывать его или нет,
-          решает сервер: если заметки нет в ответе, блока нет в интерфейсе. */}
-      {"internal_note" in task && (
-        <p className="panel__field">
-          <label htmlFor="panel-note">{t("task.panel.internal_note")}</label>
-          <textarea
-            id="panel-note"
-            name="panel-note"
-            rows={3}
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
-          />
-        </p>
-      )}
-    </>
   );
 }
