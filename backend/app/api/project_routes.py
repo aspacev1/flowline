@@ -8,9 +8,17 @@ from sqlalchemy.orm import Session as DbSession
 from app.access import Action, can, parse_role, visible_op
 from app.auth import current_user
 from app.calendar import CalendarError, end_date
+from app.comments import (
+    MAX_COMMENT_LEN,
+    CommentRefused,
+    TaskNotInProject,
+    add_comment,
+    list_comments,
+)
 from app.db import get_db
 from app.models import (
     Category,
+    Comment,
     Dependency,
     Membership,
     Organization,
@@ -35,6 +43,29 @@ class ProjectOut(BaseModel):
     id: str
     name: str
     slug: str
+
+
+class CommentIn(BaseModel):
+    body: str = Field(min_length=1, max_length=MAX_COMMENT_LEN)
+    # null и отсутствие ключа — одно и то же: реплика к проекту целиком.
+    task_id: uuid.UUID | None = None
+
+
+def _comment_out(comment: Comment, actors: dict[uuid.UUID, str]) -> dict:
+    return {
+        "id": str(comment.id),
+        "task_id": str(comment.task_id) if comment.task_id else None,
+        "body": comment.body,
+        "created_at": comment.created_at.isoformat(),
+        # Автор объектом или null — как в ленте ревизий. Гость приходит
+        # именем: подписывают их по-разному, и различить их обязан ответ.
+        "author": (
+            {"id": str(comment.author_user_id), "name": actors[comment.author_user_id]}
+            if comment.author_user_id in actors
+            else None
+        ),
+        "guest_name": comment.guest_name,
+    }
 
 
 def _membership(db: DbSession, user: User) -> Membership:
@@ -270,3 +301,59 @@ def apply_mutation(
         "op": visible_op(revision.op, role),
         "inverse": visible_op(revision.inverse, role),
     }
+
+
+@router.get("/{project_id}/comments")
+def list_project_comments(
+    project_id: uuid.UUID,
+    task_id: uuid.UUID | None = None,
+    limit: int = Query(default=200, ge=1, le=1000),
+    user: User = Depends(current_user),
+    db: DbSession = Depends(get_db),
+):
+    """Обсуждение задачи или проекта целиком.
+
+    Читать вправе каждый, кто вправе читать проект: комментарий — не заметка,
+    ограниченной видимости у него нет.
+    """
+    project, membership = _load_project(db, user, project_id)
+    _require_project_read(membership)
+
+    comments = list_comments(db, project, task_id=task_id, limit=limit)
+    # Один запрос на всю ветку, а не по запросу на реплику: тот же довод, что
+    # и у авторов ревизий.
+    actors = {
+        row.id: row.name
+        for row in db.scalars(
+            select(User).where(
+                User.id.in_({c.author_user_id for c in comments if c.author_user_id})
+            )
+        ).all()
+    }
+    return [_comment_out(comment, actors) for comment in comments]
+
+
+@router.post("/{project_id}/comments", status_code=201)
+def create_comment(
+    project_id: uuid.UUID,
+    payload: CommentIn,
+    user: User = Depends(current_user),
+    db: DbSession = Depends(get_db),
+):
+    """Реплика от участника с аккаунтом.
+
+    Право спрашивается у матрицы: `viewer` и `client` комментируют, не имея
+    права менять план, и второго списка ролей здесь не заводится.
+    """
+    project, membership = _load_project(db, user, project_id)
+    if not can(parse_role(membership.role), Action.COMMENT):
+        raise HTTPException(status_code=403, detail="forbidden")
+
+    try:
+        comment = add_comment(db, project, body=payload.body, task_id=payload.task_id, author=user)
+    except TaskNotInProject as error:
+        raise HTTPException(status_code=404, detail=error.code)
+    except CommentRefused as error:
+        raise HTTPException(status_code=422, detail=error.code)
+
+    return _comment_out(comment, {user.id: user.name})
