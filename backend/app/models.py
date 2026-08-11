@@ -161,6 +161,33 @@ class Task(Base):
     baseline_duration: Mapped[int | None] = mapped_column(Integer)
 
 
+class PlanVersion(Base):
+    """Утверждённый план: снимок дат и длительностей на момент утверждения.
+
+    Отдельная таблица, а не только baseline_* у задачи: базовые поля задачи
+    хранят последнюю версию, а летопись «что обещали в январе, что в марте»
+    требует всех предыдущих. Версии нумеруются внутри проекта, и уникальное
+    ограничение держит эту нумерацию: два одновременных утверждения иначе
+    получили бы один номер.
+    """
+
+    __tablename__ = "plan_versions"
+    __table_args__ = (UniqueConstraint("project_id", "version"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    version: Mapped[int] = mapped_column(Integer)
+    approved_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    approved_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    # jsonb по той же причине, что и журнал ревизий: снимок читается целиком,
+    # но по нему же ищут задачу при сравнении версий.
+    snapshot: Mapped[dict] = mapped_column(JSONB)
+
+
 class TaskAssignee(Base):
     __tablename__ = "task_assignees"
     __table_args__ = (UniqueConstraint("task_id", "user_id"),)

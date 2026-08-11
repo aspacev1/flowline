@@ -13,11 +13,14 @@ from app.models import (
     Criticality,
     Dependency,
     Membership,
+    Organization,
     Project,
     Revision,
     Task,
     TaskAssignee,
 )
+from app.plans import deviation_days
+from app.settings_resolution import resolve_shift_threshold
 
 
 class MutationError(Exception):
@@ -45,6 +48,25 @@ class NotFoundInProject(MutationError):
 
 class InvalidOperation(MutationError):
     """Операция составлена так, что применить её нельзя."""
+
+
+class ReasonRequired(MutationError):
+    """Правка уводит задачу от базового плана дальше порога, а причина не названа.
+
+    Отдельный класс, потому что это не ошибка составления операции: операция
+    верна, и стоит человеку объяснить сдвиг — та же самая операция пройдёт.
+    Числа отклонения и порога несёт с собой: интерфейс считает их и сам, но
+    последнее слово о них — за сервером, и расхождение должно быть видно, а не
+    молча разрешаться в пользу клиента.
+    """
+
+    def __init__(self, deviation_days: int, threshold_days: int):
+        super().__init__(
+            "reason_required",
+            f"отклонение {deviation_days} дн. при пороге {threshold_days} дн. требует причины",
+        )
+        self.deviation_days = deviation_days
+        self.threshold_days = threshold_days
 
 
 # --- внутреннее представление ------------------------------------------------
@@ -821,6 +843,47 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
     raise InvalidOperation("unknown_operation", f"неизвестная операция: {op!r}")
 
 
+def _guard_shift_threshold(db: DbSession, project: Project, op, reason: str | None) -> None:
+    """Проверка «отклонение от базового плана больше порога → причина обязательна».
+
+    Живёт в слое мутаций, а не в маршруте, ровно по той причине, по которой
+    спецификация называет правило одним независимо от способа ввода:
+    перетаскивание мышью, правка поля в карточке и применение пачки от AI
+    приходят сюда одной дорогой, а в маршруте их было бы три.
+
+    Проверка идёт до применения: промежуточного состояния «сдвинуто, но не
+    объяснено» в системе не существует, и получиться оно не должно даже на
+    время одной транзакции.
+
+    Отмена (undo) проходит через ту же проверку сознательно. Она не
+    привилегированное действие: если возврат к прежнему значению уводит задачу
+    от базового плана дальше порога, объяснение нужно ровно так же, как при
+    любом другом способе туда попасть.
+    """
+    if reason:
+        return
+
+    if isinstance(op, MoveTask):
+        task = _require_task(db, project, op.task_id)
+        deviation = deviation_days(task, start_date=op.start_date)
+    elif isinstance(op, SetDuration):
+        task = _require_task(db, project, op.task_id)
+        deviation = deviation_days(task, duration_days=op.duration_days)
+    else:
+        # Остальные операции базового плана не касаются. Создание задачи —
+        # тоже: у созданной после утверждения задачи базового плана нет, она
+        # помечается «сверх первоначального плана» и от объяснений свободна.
+        return
+
+    if deviation is None:
+        return
+
+    org = db.get(Organization, project.org_id)
+    threshold = resolve_shift_threshold(project, org)
+    if deviation > threshold:
+        raise ReasonRequired(deviation, threshold)
+
+
 def apply_op(
     db: DbSession,
     project: Project,
@@ -838,6 +901,11 @@ def apply_op(
     # редактирование одного проекта — нормальный режим этого продукта, а не
     # редкий случай; когда конкуренции нет, блокировка не стоит ничего.
     db.execute(select(Project.id).where(Project.id == project.id).with_for_update())
+    # Причина из одних пробелов — это отсутствие причины. Нормализуется здесь,
+    # а не в маршруте: правило порога живёт в этом слое, и проверять здесь
+    # одно, а хранить другое означало бы две разные истины об одном значении.
+    reason = reason.strip() or None if reason else None
+    _guard_shift_threshold(db, project, op, reason)
     forward, inverse = _apply(db, project, op)
     revision = Revision(
         project_id=project.id,

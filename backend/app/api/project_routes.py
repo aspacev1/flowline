@@ -20,7 +20,15 @@ from app.models import (
     TaskAssignee,
     User,
 )
-from app.mutations import InvalidOperation, NotFoundInProject, PublicOp, apply_op, to_internal
+from app.mutations import (
+    InvalidOperation,
+    NotFoundInProject,
+    PublicOp,
+    ReasonRequired,
+    apply_op,
+    to_internal,
+)
+from app.plans import approve_plan, plan_versions
 from app.projects import create_project as create_project_entity
 from app.settings_resolution import project_calendar, resolve_shift_threshold, resolve_timezone
 
@@ -129,6 +137,16 @@ def get_project(
 
     try:
         ends = [end_date(t.start_date, t.duration_days, calendar) for t in tasks]
+        # Конец базового плана считает сервер по тому же календарю, что и
+        # текущий: призрак под полоской обязан стоять там же, где стояла бы
+        # настоящая полоска с теми датами, а клиент календарной арифметики не
+        # повторяет.
+        baseline_ends = [
+            end_date(t.baseline_start, t.baseline_duration, calendar)
+            if t.baseline_start is not None and t.baseline_duration is not None
+            else None
+            for t in tasks
+        ]
     except CalendarError as error:
         # Той же формы, что и отказы мутаций: 422 с машинным кодом. Раньше
         # здесь была голая пятисотка — вырожденную маску задаёт человек, и
@@ -140,6 +158,13 @@ def get_project(
         "name": project.name,
         "slug": project.slug,
         "deadline": project.deadline.isoformat() if project.deadline else None,
+        # План: утверждён ли и какой версией. По этим двум значениям интерфейс
+        # отличает черновик (правки свободны) от утверждённого плана и знает,
+        # какую кнопку показать — «Утвердить» или «Переутвердить».
+        "plan_approved_at": (
+            project.plan_approved_at.isoformat() if project.plan_approved_at else None
+        ),
+        "plan_version": project.plan_version,
         # Максимум по датам окончания задач; пустой проект не имеет конца.
         "project_end": max(ends).isoformat() if ends else None,
         # Календарь едет вместе с состоянием: интерфейс заливает нерабочие дни
@@ -172,9 +197,21 @@ def get_project(
                 "progress_pct": t.progress_pct,
                 "position": t.position,
                 "assignee_ids": assignees[str(t.id)],
+                # Базовый план едет с задачей всегда, а не по отдельному
+                # запросу: под каждой полоской рисуется его призрак, и второй
+                # поход к серверу ради него означал бы диаграмму, которая
+                # дорисовывается через кадр после появления.
+                #
+                # Пустые baseline_* при утверждённом плане — это и есть
+                # признак «сверх первоначального плана»: отдельного флага нет,
+                # потому что он был бы вычислим из этих же двух полей и однажды
+                # разошёлся бы с ними.
+                "baseline_start": t.baseline_start.isoformat() if t.baseline_start else None,
+                "baseline_duration": t.baseline_duration,
+                "baseline_end": baseline_end.isoformat() if baseline_end else None,
                 **({"internal_note": t.internal_note} if show_notes else {}),
             }
-            for t, task_end in zip(tasks, ends)
+            for t, task_end, baseline_end in zip(tasks, ends, baseline_ends)
         ],
         "dependencies": [
             {"from_task_id": str(source), "to_task_id": str(target)}
@@ -243,6 +280,68 @@ def list_revisions(
     ]
 
 
+@router.post("/{project_id}/plan/approvals", status_code=201)
+def approve_plan_route(
+    project_id: uuid.UUID, user: User = Depends(current_user), db: DbSession = Depends(get_db)
+):
+    """Утверждение плана, оно же переутверждение.
+
+    Один маршрут, а не два: действие ровно одно — снять снимок и обновить
+    базовые значения, — а различие в том, кому оно позволено. Второй маршрут
+    отличался бы от первого только проверкой права, и разъехались бы они на
+    первой же правке снимка.
+    """
+    project, membership = _load_project(db, user, project_id)
+    role = parse_role(membership.role)
+
+    first_time = project.plan_version == 0
+    needed = Action.PLAN_APPROVE if first_time else Action.PLAN_REAPPROVE
+    if not can(role, needed):
+        raise HTTPException(status_code=403, detail="forbidden")
+
+    version = approve_plan(db, project, actor_id=user.id)
+    return {
+        "version": version.version,
+        "approved_at": version.approved_at.isoformat(),
+        "tasks": len(version.snapshot),
+    }
+
+
+@router.get("/{project_id}/plan/approvals")
+def list_plan_versions(
+    project_id: uuid.UUID, user: User = Depends(current_user), db: DbSession = Depends(get_db)
+):
+    """Летопись утверждений: что обещали в январе, что в марте.
+
+    Снимок отдаётся целиком — в нём нет внутренних заметок, только даты,
+    длительности и названия, а названия видит всякий, кто вправе читать
+    проект.
+    """
+    project, membership = _load_project(db, user, project_id)
+    _require_project_read(membership)
+
+    versions = plan_versions(db, project)
+    approvers = {
+        row.id: row.name
+        for row in db.scalars(
+            select(User).where(User.id.in_({v.approved_by for v in versions if v.approved_by}))
+        ).all()
+    }
+    return [
+        {
+            "version": version.version,
+            "approved_at": version.approved_at.isoformat(),
+            "approved_by": (
+                {"id": str(version.approved_by), "name": approvers[version.approved_by]}
+                if version.approved_by in approvers
+                else None
+            ),
+            "snapshot": version.snapshot,
+        }
+        for version in versions
+    ]
+
+
 @router.post("/{project_id}/mutations", status_code=201)
 def apply_mutation(
     project_id: uuid.UUID,
@@ -261,6 +360,19 @@ def apply_mutation(
         # Сущность чужого проекта — не ошибка формата запроса: 404 тем же
         # принципом, что и в _load_project.
         raise HTTPException(status_code=404, detail=error.code)
+    except ReasonRequired as error:
+        # 409, а не 422: тело запроса верно, отказ снимается тем же запросом с
+        # добавленной причиной. Числа едут в заголовках, потому что `detail`
+        # обязан остаться машинным кодом — его переводит клиент, и подмешивать
+        # в него числа значило бы заставить клиент разбирать строку.
+        raise HTTPException(
+            status_code=409,
+            detail=error.code,
+            headers={
+                "X-Shift-Deviation-Days": str(error.deviation_days),
+                "X-Shift-Threshold-Days": str(error.threshold_days),
+            },
+        )
     except InvalidOperation as error:
         raise HTTPException(status_code=422, detail=error.code)
 
