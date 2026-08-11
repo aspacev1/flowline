@@ -1,0 +1,173 @@
+"""Публичная страница проекта: чтение по ссылке и гостевые комментарии.
+
+Единственная часть API, которая работает без сессии. Отсюда три правила,
+которые в этом файле не обсуждаются, а соблюдаются:
+
+1. Право спрашивается у `access.py` с ролью `None` — гость. Ссылка и есть тот
+   самый грант на проект, о котором знает матрица прав; собственных решений
+   «гостю можно вот это» здесь нет.
+2. Внутренние заметки и состав организации наружу не выходят вовсе
+   (см. `project_state`).
+3. Отказ всегда один и тот же — 404 `link_not_found`. Отличать «нет такого
+   проекта» от «ссылка отозвана» нельзя: разница превращает адрес в способ
+   перебирать чужие проекты по слагам.
+"""
+
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel, Field
+from sqlalchemy.orm import Session as DbSession
+
+from app.access import Action, can
+from app.api.serialization import comments_out, project_state
+from app.calendar import CalendarError
+from app.comments import CommentRejected, add_comment, list_comments
+from app.config import get_settings
+from app.db import get_db
+from app.models import Organization, Project, ShareLink
+from app.rate_limit import SlidingWindow
+from app.sharing import TOKEN_PARAM, resolve
+
+router = APIRouter(prefix="/api/public", tags=["public"])
+
+_HOUR = 3600.0
+_guest_comments: SlidingWindow | None = None
+
+
+def guest_comment_limiter() -> SlidingWindow:
+    """Счётчик гостевых комментариев, собранный по первому требованию.
+
+    Не на уровне модуля: `GUEST_COMMENT_RATE_LIMIT` читается из настроек, а
+    настройки на момент импорта могут быть ещё не собраны — и тогда потолок
+    навсегда застыл бы на значении по умолчанию.
+    """
+    global _guest_comments
+    if _guest_comments is None:
+        _guest_comments = SlidingWindow(
+            limit=get_settings().guest_comment_rate_limit, window=_HOUR
+        )
+    return _guest_comments
+
+
+def client_key(request: Request) -> str:
+    """Кого считать одним гостем.
+
+    Прямой адрес соединения здесь бесполезен: и Caddy, и Vercel стоят перед
+    приложением, и все гости приходят с одного и того же адреса — потолок в
+    десять комментариев в час стал бы общим на всю установку. Поэтому
+    предпочитается `X-Forwarded-For`.
+
+    Подделать заголовок может кто угодно, и это принято сознательно: цена
+    подделки — обойденный предохранитель от заливки ленты, то есть ровно то
+    состояние, в котором мы оказались бы, не считая вовсе. Правами заголовок
+    не распоряжается ничем.
+    """
+    forwarded = request.headers.get("x-forwarded-for", "")
+    first = forwarded.split(",")[0].strip()
+    if first:
+        return first
+    return request.client.host if request.client else "unknown"
+
+
+class GuestCommentIn(BaseModel):
+    # Имя гостя — обязательное поле: неподписанная реплика на публичной
+    # странице неотличима от чужой.
+    name: str = Field(min_length=1, max_length=80)
+    body: str = Field(min_length=1)
+    task_id: uuid.UUID | None = None
+
+
+class SharedProject:
+    """Проект, открытый по действующей ссылке."""
+
+    def __init__(self, org: Organization, project: Project, link: ShareLink) -> None:
+        self.org = org
+        self.project = project
+        self.link = link
+
+
+def shared_project(
+    org_slug: str,
+    project_slug: str,
+    token: str = Query(default="", alias=TOKEN_PARAM),
+    db: DbSession = Depends(get_db),
+) -> SharedProject:
+    found = resolve(db, org_slug=org_slug, project_slug=project_slug, token=token)
+    if found is None:
+        raise HTTPException(status_code=404, detail="link_not_found")
+    if not can(None, Action.PROJECT_READ, project_granted=True):
+        # Матрица прав — единственное место, где решается «можно ли»: если
+        # гостю однажды закроют чтение, этот маршрут закроется вместе с ней,
+        # а не останется дырой, о которой все забыли.
+        raise HTTPException(status_code=404, detail="link_not_found")
+    return SharedProject(*found)
+
+
+@router.get("/{org_slug}/{project_slug}")
+def public_project(
+    shared: SharedProject = Depends(shared_project), db: DbSession = Depends(get_db)
+):
+    """Та же раскладка, что и на рабочем экране, но без внутренних заметок и
+    без исполнителей."""
+    try:
+        state = project_state(
+            db,
+            shared.project,
+            shared.org,
+            show_notes=can(None, Action.READ_INTERNAL_NOTE, project_granted=True),
+            show_people=False,
+        )
+    except CalendarError as error:
+        raise HTTPException(status_code=422, detail=error.code)
+
+    return {
+        **state,
+        # Название организации подписывает страницу: гость должен видеть, чей
+        # это план, прежде чем что-то в нём комментировать.
+        "org": {"name": shared.org.name, "slug": shared.org.slug},
+        "comments_enabled": shared.link.comments_enabled
+        and can(None, Action.COMMENT, project_granted=True),
+    }
+
+
+@router.get("/{org_slug}/{project_slug}/comments")
+def public_comments(
+    task_id: uuid.UUID | None = None,
+    shared: SharedProject = Depends(shared_project),
+    db: DbSession = Depends(get_db),
+):
+    """Лента видна и при выключенных комментариях.
+
+    Выключенные комментарии — это запрет писать, а не приказ спрятать уже
+    сказанное: разговор, который клиент видел вчера, не должен исчезнуть от
+    щелчка переключателем.
+    """
+    return comments_out(db, list_comments(db, shared.project, task_id=task_id))
+
+
+@router.post("/{org_slug}/{project_slug}/comments", status_code=201)
+def add_public_comment(
+    payload: GuestCommentIn,
+    request: Request,
+    shared: SharedProject = Depends(shared_project),
+    db: DbSession = Depends(get_db),
+):
+    if not can(None, Action.COMMENT, project_granted=True) or not shared.link.comments_enabled:
+        raise HTTPException(status_code=403, detail="comments_closed")
+
+    if not guest_comment_limiter().allow(client_key(request)):
+        raise HTTPException(status_code=429, detail="too_many_comments")
+
+    try:
+        comment = add_comment(
+            db,
+            shared.project,
+            body=payload.body,
+            task_id=payload.task_id,
+            guest_name=payload.name,
+        )
+    except CommentRejected as error:
+        status = 404 if error.code == "task_not_found" else 422
+        raise HTTPException(status_code=status, detail=error.code)
+    return comments_out(db, [comment])[0]

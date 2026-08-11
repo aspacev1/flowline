@@ -54,6 +54,16 @@ def parse_role(raw: str | None) -> Role | str | None:
         return UNKNOWN_ROLE
 
 
+def needs_project_grant(role: Role | str | None) -> bool:
+    """Видит ли эта роль только те проекты, куда её позвали явно.
+
+    Спрашивается там, где строится список проектов: `client` не должен видеть
+    в нём чужие названия, а перебирать список и спрашивать `can()` по каждой
+    строке значило бы вытащить из базы ровно то, что скрывается.
+    """
+    return role in _NEEDS_GRANT
+
+
 def can(role: Role | None, action: Action, *, project_granted: bool = False) -> bool:
     if role in _NEEDS_GRANT and not project_granted:
         return False

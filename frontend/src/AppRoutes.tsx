@@ -4,6 +4,7 @@ import { RequireAuth } from "./auth/RequireAuth";
 import { Login } from "./screens/Login";
 import { Project } from "./screens/Project";
 import { Projects } from "./screens/Projects";
+import { PublicProject } from "./screens/PublicProject";
 import { Register } from "./screens/Register";
 
 /**
@@ -17,6 +18,10 @@ export function AppRoutes() {
       <Route path="/" element={<Navigate to="/projects" replace />} />
       <Route path="/register" element={<Register />} />
       <Route path="/login" element={<Login />} />
+      {/* Публичная страница живёт вне RequireAuth: у гостя нет и не будет
+          сессии, а обёртка увела бы его на вход — то есть ссылка, ради
+          которой всё и затевалось, не открывалась бы вовсе. */}
+      <Route path="/p/:orgSlug/:projectSlug" element={<PublicProject />} />
       <Route element={<RequireAuth />}>
         <Route path="/projects" element={<Projects />} />
         <Route path="/projects/:projectId" element={<Project />} />

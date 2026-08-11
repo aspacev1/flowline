@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
 from app.access import Action, can, parse_role
+from app.api.deps import current_membership
 from app.auth import current_user
 from app.db import get_db
 from app.models import Membership, Organization, User
@@ -28,17 +29,6 @@ class OrganizationOut(BaseModel):
     role: str
 
 
-def _current_membership(db: DbSession, user: User) -> Membership:
-    # Та же «первая по порядку» организация, что и в маршрутах проекта:
-    # переключателя между организациями ещё нет.
-    membership = db.scalar(
-        select(Membership).where(Membership.user_id == user.id).order_by(Membership.id)
-    )
-    if membership is None:
-        raise HTTPException(status_code=403, detail="no_organization")
-    return membership
-
-
 @router.get("", response_model=OrganizationOut)
 def current_organization(user: User = Depends(current_user), db: DbSession = Depends(get_db)):
     """Организация, в которой человек находится прямо сейчас.
@@ -47,7 +37,7 @@ def current_organization(user: User = Depends(current_user), db: DbSession = Dep
     участник, включая роль `client`. Скрывать его не от кого — оно подписывает
     каждый экран, на который человек и так имеет право войти.
     """
-    membership = _current_membership(db, user)
+    membership = current_membership(db, user)
     org = db.get(Organization, membership.org_id)
     return OrganizationOut(id=str(org.id), name=org.name, slug=org.slug, role=membership.role)
 
@@ -62,7 +52,7 @@ def list_members(user: User = Depends(current_user), db: DbSession = Depends(get
     организации не получает вовсе — и отсутствие у неё PROJECT_READ без
     выданного доступа к проекту ровно это и означает.
     """
-    membership = _current_membership(db, user)
+    membership = current_membership(db, user)
     if not can(parse_role(membership.role), Action.PROJECT_READ):
         raise HTTPException(status_code=403, detail="forbidden")
 

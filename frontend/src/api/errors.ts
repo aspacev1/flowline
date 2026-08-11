@@ -36,6 +36,15 @@ const PLAIN_CODES = new Set([
   "already_assigned",
   "assignment_not_found",
   "negative_position",
+  // Публичный доступ и комментарии.
+  "link_not_found",
+  "sharing_disabled",
+  "share_link_not_found",
+  "comments_closed",
+  "comment_empty",
+  "comment_too_long",
+  "guest_name_required",
+  "too_many_comments",
 ]);
 
 /** Ключ словаря, которым объясняется ошибка. Сырой код наружу не выходит. */

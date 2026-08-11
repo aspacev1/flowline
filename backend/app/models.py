@@ -9,11 +9,13 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -127,6 +129,107 @@ class Project(Base):
 
     holidays_extra: Mapped[list] = mapped_column(JSON, default=list)
     workdays_extra: Mapped[list] = mapped_column(JSON, default=list)
+
+
+class ProjectAccess(Base):
+    """Проект, куда позвали конкретного человека.
+
+    Нужна только роли `client`: она видит не все проекты организации, а ровно
+    те, что перечислены здесь. Остальные роли этой таблицы не касаются —
+    им доступ даёт членство, и запись здесь для них ничего не меняет.
+    """
+
+    __tablename__ = "project_access"
+    __table_args__ = (UniqueConstraint("project_id", "user_id"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    # Спрашивается с той стороны: «какие проекты видит этот человек».
+    # Составной (project_id, user_id) ведёт не с той колонки.
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+
+
+class ShareLink(Base):
+    """Публичная ссылка на проект.
+
+    Токен лежит открытым текстом — сознательно, в отличие от приглашения,
+    где хранится хеш. Приглашение показывается один раз и уходит адресату;
+    публичную ссылку владелец копирует снова и снова, из настроек проекта,
+    и сервер, забывший её, оставил бы единственный способ «показать ссылку
+    ещё раз» — выпустить новую и убить действующую. Цена размена названа
+    прямо: утёкший дамп базы отдаёт чтение опубликованных проектов, а не
+    доступ к организациям.
+
+    Отозванная ссылка не удаляется, а помечается `revoked_at`: старый адрес
+    обязан отвечать «ссылка больше не действует», а не «такого проекта нет».
+    """
+
+    __tablename__ = "share_links"
+    __table_args__ = (
+        # Действующая ссылка у проекта одна. Частичный индекс, а не обычное
+        # ограничение уникальности: отозванных ссылок у проекта сколько
+        # угодно — это журнал того, какой адрес когда умер.
+        Index(
+            "uq_share_links_active_project",
+            "project_id",
+            unique=True,
+            postgresql_where=text("revoked_at IS NULL"),
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    token: Mapped[str] = mapped_column(String(64), unique=True)
+    comments_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Comment(Base):
+    """Реплика к проекту или к одной его задаче.
+
+    Автор — либо участник с аккаунтом, либо гость по ссылке, назвавший себя
+    именем. Ровно один из двух: комментарий без автора не подписан никем, а
+    комментарий с обоими — это участник, притворившийся гостем. Держит это
+    ограничение база, а не проверка в маршруте: маршрутов, создающих
+    комментарий, уже два.
+    """
+
+    __tablename__ = "comments"
+    __table_args__ = (
+        CheckConstraint(
+            "num_nonnulls(author_user_id, guest_name) = 1",
+            name="ck_comments_single_author",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    # null — комментарий к проекту целиком, а не к задаче.
+    task_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"))
+    # CASCADE, а не SET NULL: обнулённый автор оставил бы запись без подписи
+    # вовсе — ни аккаунта, ни имени гостя, — то есть нарушил бы ограничение
+    # ниже прямо в момент удаления человека.
+    author_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE")
+    )
+    guest_name: Mapped[str | None] = mapped_column(String(80))
+    body: Mapped[str] = mapped_column(Text)
+    # clock_timestamp(), а не now(): now() отдаёт время начала транзакции, и
+    # две реплики, вставленные в одной, получают одинаковую метку — а
+    # порядок в разговоре держится именно на ней. У журнала ревизий для
+    # этого есть seq, у комментариев его нет и заводить его незачем.
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.clock_timestamp()
+    )
 
 
 class Category(Base):
