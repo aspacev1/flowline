@@ -1,0 +1,9 @@
+# Зависимости и артефакты ставятся внутри образа, а не приезжают с хоста:
+# node_modules, собранный под macOS, в linux-образе просто не работает.
+node_modules/
+dist/
+.venv/
+__pycache__/
+.git/
+.worktrees/
+.env

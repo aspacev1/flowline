@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session as DbSession
 from app.access import Action, can, parse_role
 from app.auth import current_user
 from app.db import get_db
-from app.models import Membership, User
+from app.models import Membership, Organization, User
 
 router = APIRouter(prefix="/api/org", tags=["org"])
 
@@ -16,6 +16,40 @@ class MemberOut(BaseModel):
     name: str
     email: str
     role: str
+
+
+class OrganizationOut(BaseModel):
+    id: str
+    name: str
+    slug: str
+    #: Роль спрашивающего в этой организации, а не свойство самой организации:
+    #: интерфейс всё равно спросит её следующим запросом, чтобы решить, что
+    #: показывать, и второй поход к серверу ради одного слова ничего не даёт.
+    role: str
+
+
+def _current_membership(db: DbSession, user: User) -> Membership:
+    # Та же «первая по порядку» организация, что и в маршрутах проекта:
+    # переключателя между организациями ещё нет.
+    membership = db.scalar(
+        select(Membership).where(Membership.user_id == user.id).order_by(Membership.id)
+    )
+    if membership is None:
+        raise HTTPException(status_code=403, detail="no_organization")
+    return membership
+
+
+@router.get("", response_model=OrganizationOut)
+def current_organization(user: User = Depends(current_user), db: DbSession = Depends(get_db)):
+    """Организация, в которой человек находится прямо сейчас.
+
+    Права здесь не проверяются: название своей организации видит любой её
+    участник, включая роль `client`. Скрывать его не от кого — оно подписывает
+    каждый экран, на который человек и так имеет право войти.
+    """
+    membership = _current_membership(db, user)
+    org = db.get(Organization, membership.org_id)
+    return OrganizationOut(id=str(org.id), name=org.name, slug=org.slug, role=membership.role)
 
 
 @router.get("/members", response_model=list[MemberOut])
@@ -28,13 +62,7 @@ def list_members(user: User = Depends(current_user), db: DbSession = Depends(get
     организации не получает вовсе — и отсутствие у неё PROJECT_READ без
     выданного доступа к проекту ровно это и означает.
     """
-    # Та же «первая по порядку» организация, что и в маршрутах проекта:
-    # переключателя между организациями ещё нет.
-    membership = db.scalar(
-        select(Membership).where(Membership.user_id == user.id).order_by(Membership.id)
-    )
-    if membership is None:
-        raise HTTPException(status_code=403, detail="no_organization")
+    membership = _current_membership(db, user)
     if not can(parse_role(membership.role), Action.PROJECT_READ):
         raise HTTPException(status_code=403, detail="forbidden")
 

@@ -31,6 +31,37 @@ def authed(client):
     return client
 
 
+def test_current_organization_is_named(authed):
+    """Шапка интерфейса подписана названием организации, и взять его больше
+    неоткуда: состав участников про саму организацию ничего не говорит."""
+    response = authed.get("/api/org")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["name"] == "Alex"
+    assert body["slug"] == "alex"
+    assert body["role"] == "owner"
+
+
+def test_current_organization_requires_authentication(client):
+    assert client.get("/api/org").status_code == 401
+
+
+def test_a_client_still_knows_which_organization_they_are_in(authed, db):
+    """В отличие от состава участников, само название организации от её
+    участника не скрывается: он видит его в шапке на каждом экране, и роль
+    `client` здесь ничего не меняет."""
+    from app.models import Membership
+
+    user_id = authed.get("/api/auth/me").json()["id"]
+    membership = db.scalar(select(Membership).where(Membership.user_id == user_id))
+    membership.role = "client"
+    db.flush()
+
+    response = authed.get("/api/org")
+    assert response.status_code == 200
+    assert response.json()["role"] == "client"
+
+
 def test_members_lists_only_this_organization(authed, db):
     from app.auth import register
 

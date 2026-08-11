@@ -1,0 +1,63 @@
+{
+  "app": {
+    "title": "Flowline"
+  },
+  "common": {
+    "loading": "Loading…",
+    "days": {
+      "one": "{count} day",
+      "other": "{count} days"
+    }
+  },
+  "nav": {
+    "projects": "Projects",
+    "logout": "Log out"
+  },
+  "locale": {
+    "switch_label": "Interface language"
+  },
+  "auth": {
+    "greeting": "Hello, {name}",
+    "field": {
+      "name": "Name",
+      "email": "Email",
+      "password": "Password"
+    },
+    "register": {
+      "title": "Register",
+      "submit": "Register",
+      "have_account": "Already have an account?",
+      "link_login": "Log in"
+    },
+    "login": {
+      "title": "Log in",
+      "submit": "Log in",
+      "no_account": "No account yet?",
+      "link_register": "Register"
+    },
+    "error": {
+      "email_taken": "This address is already taken",
+      "bad_credentials": "Wrong email or password",
+      "signup_disabled": "Open registration is closed on this installation",
+      "not_authenticated": "Log in to continue",
+      "session_expired": "Your session has expired, log in again",
+      "validation_error": "Check the form: some fields are filled in incorrectly",
+      "password_too_short": "The password must be at least 8 characters long"
+    }
+  },
+  "error": {
+    "network": "The server is unavailable. Check your connection and try again",
+    "unknown": "Something unexpected went wrong",
+    "no_organization": "You do not belong to any organization",
+    "forbidden": "You are not allowed to do this"
+  },
+  "projects": {
+    "title": "Projects",
+    "empty": {
+      "title": "No projects yet",
+      "hint": "Create the first project — categories and tasks will live inside it"
+    },
+    "create": "Create project",
+    "create_soon": "The project creation wizard is on its way"
+  }
+}
