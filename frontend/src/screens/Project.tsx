@@ -6,6 +6,7 @@ import { errorKey } from "../api/errors";
 import { getProject, projectQueryKey } from "../api/projects";
 import { useCanWrite } from "../auth/permissions";
 import { Gantt } from "../gantt/Gantt";
+import { usePrefersReducedMotion } from "../gantt/motion";
 import { useLocale } from "../i18n/LocaleProvider";
 import { TaskPanel } from "../task/TaskPanel";
 import { CategoryForm, suggestColor } from "./CategoryForm";
@@ -23,6 +24,9 @@ export function Project() {
   const { t } = useLocale();
   const { projectId = "" } = useParams();
   const canWrite = useCanWrite();
+  // Тот же признак, что и у ленты: выезд карточки — такое же движение, как
+  // переезд полоски, и выключаться они обязаны вместе.
+  const reducedMotion = usePrefersReducedMotion();
   const [addingCategory, setAddingCategory] = useState(false);
   // Категория, из строки которой открыли форму задачи. `null` — форма закрыта.
   const [addingTaskIn, setAddingTaskIn] = useState<string | null>(null);
@@ -90,7 +94,7 @@ export function Project() {
 
       {/* Диаграмма занимает всю ширину, пока карточка закрыта: пустая колонка
           справа отнимает у ленты треть экрана ради ничего. */}
-      <div className="project__body">
+      <div className={`project__body${reducedMotion ? " motion-off" : ""}`}>
         <Gantt
           projectId={projectId}
           state={query.data}

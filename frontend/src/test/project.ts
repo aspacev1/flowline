@@ -79,10 +79,20 @@ export const THREE_TASKS: ProjectState = {
   ],
 };
 
-/** Два задания со стрелкой между ними. */
+/** Две задачи со стрелкой между ними. */
 export const WITH_DEPENDENCY: ProjectState = {
-  ...THREE_TASKS,
-  tasks: THREE_TASKS.tasks.slice(0, 2),
+  ...STATE,
+  tasks: [
+    STATE.tasks[0],
+    {
+      ...STATE.tasks[0],
+      id: "t2",
+      name: "Макет",
+      position: 1,
+      start_date: "2026-03-11",
+      end_date: "2026-03-17",
+    },
+  ],
   dependencies: [{ from_task_id: "t1", to_task_id: "t2" }],
 };
 

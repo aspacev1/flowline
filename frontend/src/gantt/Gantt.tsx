@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useRef } from "react";
+import type { CSSProperties } from "react";
 
 import type { Category, ProjectState, Task } from "../api/projects";
 import { formatDate, formatMonth, weekdayNarrow } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
 import { Grid } from "./Grid";
 import { Header } from "./Header";
+import { Arrows } from "./Arrows";
 import { CategoryRow, TaskRow } from "./Row";
+import { usePrefersReducedMotion } from "./motion";
 import { useReorder } from "./useReorder";
-import { DAY_WIDTH, projectWindow } from "./scale";
+import { DAY_WIDTH, ROW_HEIGHT, projectWindow } from "./scale";
 import { buildScale, daysBetween, toISO } from "./timescale";
 
 import "./gantt.css";
@@ -45,6 +48,7 @@ export function Gantt({
   const { t } = useLocale();
   const scroller = useRef<HTMLDivElement>(null);
   const reorder = useReorder({ projectId, state, canWrite });
+  const reducedMotion = usePrefersReducedMotion();
 
   const today = toISO(Date.now());
   // Зависимость — границы окна, а не само состояние: после каждого изменения
@@ -76,8 +80,29 @@ export function Gantt({
 
   const isLate = (task: Task) => state.deadline !== null && task.end_date > state.deadline;
 
+  // Номера строк в том же порядке, в каком они ниже и рисуются: строка
+  // категории, затем её задачи. Нужны стрелкам — им неоткуда узнать, на какой
+  // высоте оказалась задача.
+  const rowOf = new Map<string, number>();
+  let rowCount = 0;
+  for (const category of categories) {
+    rowCount += 1;
+    for (const task of tasksByCategory.get(category.id) ?? []) {
+      rowOf.set(task.id, rowCount);
+      rowCount += 1;
+    }
+  }
+
   return (
-    <div className={`gantt${reorder.active ? " is-reordering" : ""}`}>
+    <div
+      className={`gantt${reorder.active ? " is-reordering" : ""}${
+        reducedMotion ? " motion-off" : ""
+      }`}
+      // Высота строки задаётся отсюда: стрелки считают по ней вертикальные
+      // координаты, и второе такое же число в стилях однажды разошлось бы с
+      // этим.
+      style={{ "--gantt-row": `${ROW_HEIGHT}px` } as CSSProperties}
+    >
       <Summary state={state} formatDay={formatDay} />
 
       {categories.length === 0 ? (
@@ -105,6 +130,14 @@ export function Gantt({
                   state.deadline ? t("gantt.deadline", { date: formatDay(state.deadline) }) : ""
                 }
                 todayLabel={t("gantt.today")}
+              />
+
+              <Arrows
+                scale={scale}
+                tasks={state.tasks}
+                dependencies={state.dependencies}
+                rowOf={rowOf}
+                rows={rowCount}
               />
 
               <div className="gantt__rows">
