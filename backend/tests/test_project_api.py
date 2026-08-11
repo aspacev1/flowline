@@ -449,3 +449,75 @@ def test_two_projects_with_the_same_name_get_distinct_slugs(authed):
     second = authed.post("/api/projects", json={"name": "Redesign"}).json()
     assert first["slug"] == "redesign"
     assert second["slug"].startswith("redesign-")
+
+
+def test_project_state_carries_assignees_dependencies_and_calendar(authed, db):
+    project_id = authed.post("/api/projects", json={"name": "Redesign"}).json()["id"]
+    category_id = authed.post(f"/api/projects/{project_id}/mutations", json={"op": {
+        "type": "create_category", "name": "Design", "color": "#3b82f6"}}).json()["op"]["category_id"]
+    first = authed.post(f"/api/projects/{project_id}/mutations", json={"op": {
+        "type": "create_task", "category_id": category_id, "name": "A",
+        "start_date": "2026-03-04", "duration_days": 2}}).json()["op"]["task_id"]
+    second = authed.post(f"/api/projects/{project_id}/mutations", json={"op": {
+        "type": "create_task", "category_id": category_id, "name": "B",
+        "start_date": "2026-03-10", "duration_days": 2}}).json()["op"]["task_id"]
+    authed.post(f"/api/projects/{project_id}/mutations", json={"op": {
+        "type": "add_dependency", "from_task_id": first, "to_task_id": second}})
+
+    me = authed.get("/api/auth/me").json()
+    authed.post(f"/api/projects/{project_id}/mutations", json={"op": {
+        "type": "assign_user", "task_id": first, "user_id": me["id"]}})
+
+    state = authed.get(f"/api/projects/{project_id}").json()
+
+    assert state["dependencies"] == [{"from_task_id": first, "to_task_id": second}]
+    task = next(t for t in state["tasks"] if t["id"] == first)
+    assert task["assignee_ids"] == [me["id"]]
+    assert state["calendar"]["working_days"] == 31        # пн–пт
+    assert state["calendar"]["holidays"] == []
+    assert state["settings"]["shift_threshold_days"] == 2
+
+
+def test_project_state_reports_the_deadline_and_project_end(authed):
+    project_id = authed.post("/api/projects", json={"name": "Redesign"}).json()["id"]
+    state = authed.get(f"/api/projects/{project_id}").json()
+    assert state["deadline"] is None
+    assert state["project_end"] is None
+
+
+def test_project_end_is_the_latest_task_end(authed):
+    project_id, category_id, _ = _project_with_task(authed)  # 2026-03-06 + 3 → 2026-03-10
+    authed.post(f"/api/projects/{project_id}/mutations", json={"op": {
+        "type": "create_task", "category_id": category_id, "name": "Later",
+        "start_date": "2026-03-16", "duration_days": 2}})
+
+    state = authed.get(f"/api/projects/{project_id}").json()
+    # пн 16 + 2 рабочих дня = вт 17 — позже, чем 10 марта у первой задачи
+    assert state["project_end"] == "2026-03-17"
+
+
+def test_a_task_with_no_assignees_reports_an_empty_list(authed):
+    project_id, _, task_id = _project_with_task(authed)
+    state = authed.get(f"/api/projects/{project_id}").json()
+    assert next(t for t in state["tasks"] if t["id"] == task_id)["assignee_ids"] == []
+
+
+def test_the_calendar_reports_the_project_exceptions(authed, db):
+    """Исключения проекта видны интерфейсу до первого клика.
+
+    Он заливает нерабочие дни на шкале и рисует выходные — без этого блока
+    ему пришлось бы догадываться о них по маске недели.
+    """
+    import uuid as uuid_module
+
+    from app.models import Project
+
+    project_id, _, _ = _project_with_task(authed)
+    project = db.get(Project, uuid_module.UUID(project_id))
+    project.holidays_extra = ["2026-03-09"]
+    project.workdays_extra = ["2026-03-07"]
+    db.flush()
+
+    calendar = authed.get(f"/api/projects/{project_id}").json()["calendar"]
+    assert calendar["holidays"] == ["2026-03-09"]
+    assert calendar["extra_workdays"] == ["2026-03-07"]
