@@ -572,3 +572,39 @@ def test_a_calendar_too_short_for_the_duration_is_also_explained(authed, db):
     response = authed.get(f"/api/projects/{project_id}")
     assert response.status_code == 422
     assert response.json()["detail"] == "calendar_too_few_working_days"
+
+
+def test_set_task_fields_does_not_leak_the_note_to_a_role_that_cannot_read_it(
+    authed, monkeypatch
+):
+    """Заметка спрятана и когда она лежит во вложенном словаре.
+
+    set_task_fields — первая операция, кладущая internal_note не в корень
+    записи, а внутрь from/to. Проверка «есть ли такой ключ на верхнем
+    уровне» на ней молча не срабатывает, и заметка уезжает в ответ.
+    """
+    import app.access as access
+
+    project_id, _, task_id = _project_with_task(authed)
+
+    real_can = access.can
+
+    def fake_can(role, action, *, project_granted=False):
+        from app.access import Action
+
+        if action is Action.READ_INTERNAL_NOTE:
+            return False
+        return real_can(role, action, project_granted=project_granted)
+
+    monkeypatch.setattr(access, "can", fake_can)
+
+    response = authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={"op": {
+            "type": "set_task_fields", "task_id": task_id, "name": "Logo redesign",
+            "description": "Mark and wordmark", "internal_note": "тайный план"}},
+    ).json()
+
+    assert "internal_note" not in response["op"]["to"]
+    assert "internal_note" not in response["op"]["from"]
+    assert "internal_note" not in response["inverse"]["to"]
