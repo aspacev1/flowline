@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.calendar import WEEKDAYS_MON_FRI
-from app.models import Category, Membership, Organization, Project, Task, User
+from app.models import Category, Comment, Membership, Organization, Project, Task, User
 from app.security import hash_password
 
 
@@ -78,3 +78,58 @@ def test_membership_role_outside_the_enum_is_refused_by_the_database(db):
 
     db.add(Membership(org_id=org.id, user_id=user.id, role="owner"))
     db.flush()
+
+
+def test_comment_has_exactly_one_kind_of_author(db):
+    """Автор либо участник, либо гость — и никогда оба сразу или ни одного.
+
+    Обе колонки nullable по отдельности, поэтому «ровно один» держит только
+    CHECK. Без него запись без автора вообще проходит в таблицу и всплывает
+    в ленте пустой подписью.
+    """
+    org = Organization(name="Acme", slug="acme")
+    db.add(org)
+    db.flush()
+    project = Project(org_id=org.id, name="Redesign", slug="redesign")
+    db.add(project)
+    db.flush()
+    user = User(email="a@b.c", password_hash=hash_password("s3cret-pass"), name="Alex")
+    db.add(user)
+    db.flush()
+
+    db.add(Comment(project_id=project.id, author_user_id=user.id, body="ok"))
+    db.flush()
+
+    with pytest.raises(IntegrityError):
+        with db.begin_nested():
+            db.add(Comment(project_id=project.id, body="ничей"))
+            db.flush()
+
+    with pytest.raises(IntegrityError):
+        with db.begin_nested():
+            db.add(
+                Comment(
+                    project_id=project.id,
+                    author_user_id=user.id,
+                    guest_name="Гость",
+                    body="оба сразу",
+                )
+            )
+            db.flush()
+
+
+def test_comment_without_a_task_belongs_to_the_project(db):
+    """task_id nullable: реплика бывает к проекту целиком, а не к строке."""
+    org = Organization(name="Acme", slug="acme")
+    db.add(org)
+    db.flush()
+    project = Project(org_id=org.id, name="Redesign", slug="redesign")
+    db.add(project)
+    db.flush()
+
+    comment = Comment(project_id=project.id, guest_name="Гость", body="привет")
+    db.add(comment)
+    db.flush()
+
+    assert comment.task_id is None
+    assert comment.created_at is not None

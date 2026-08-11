@@ -9,6 +9,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -199,3 +200,39 @@ class Revision(Base):
     # Пакет ревизий читается целиком при отмене групповой операции.
     batch_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Comment(Base):
+    __tablename__ = "comments"
+    __table_args__ = (
+        # Ровно один автор. Обе колонки nullable по отдельности — гость
+        # подписан именем, участник ссылкой на аккаунт, — и без этого
+        # ограничения в таблицу проходит реплика вообще без подписи.
+        CheckConstraint(
+            "(author_user_id IS NULL) <> (guest_name IS NULL)",
+            name="ck_comments_single_author",
+        ),
+        # Ветку читают целиком и всегда в одном и том же порядке: проект или
+        # задача, дальше по времени. Составной индекс отвечает на этот запрос
+        # один; два отдельных по колонкам заставили бы сортировать выборку.
+        Index("ix_comments_thread", "project_id", "task_id", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"))
+    # null — реплика к проекту целиком, а не к строке.
+    task_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"))
+    # Без ondelete: SET NULL оставил бы запись без обоих видов автора и
+    # нарушил бы CHECK выше, а CASCADE стёр бы чужую переписку заодно с
+    # аккаунтом. Удаление автора, у которого есть реплики, должно упасть
+    # громко — сегодня людей не удаляют вовсе.
+    author_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    guest_name: Mapped[str | None] = mapped_column(String(100))
+    body: Mapped[str] = mapped_column(Text)
+    # clock_timestamp(), а не now(): now() — это время начала транзакции, одно
+    # на все записи внутри неё. Комментарии — единственные строки, чей порядок
+    # чтения и есть порядок записи, и на одинаковых отметках он разваливается
+    # в случайный порядок идентификаторов. У ревизий ту же работу делает seq.
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.clock_timestamp()
+    )
