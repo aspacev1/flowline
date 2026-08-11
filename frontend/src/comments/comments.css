@@ -1,22 +1,43 @@
+/* Обсуждение проекта — лента комментариев Notion: реплики идут подряд без
+   рамок, а форма ответа стоит под ними и выглядит полем, а не панелью.
+
+   Блок не обведён коробкой: он и так последний на странице, и рамка вокруг
+   него сообщила бы, что это отдельный виджет, а не продолжение той же
+   страницы. */
 .comments {
-  margin-top: var(--gap);
-  padding: var(--gap);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--border);
 }
 
 .comments__title {
-  margin: 0 0 8px;
-  font-size: 18px;
+  margin: 0 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
 }
 
 .comments__list {
   list-style: none;
   margin: 0 0 var(--gap);
   padding: 0;
-  display: grid;
-  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Реплика подсвечивается при наведении целиком: так видно её границы, когда
+   в ленте подряд идут короткие ответы одного человека. */
+.comment {
+  padding: 8px;
+  border-radius: var(--radius);
+  transition: background 20ms ease-in;
+}
+
+.comment:hover {
+  background: var(--hover);
 }
 
 .comment__head {
@@ -24,22 +45,26 @@
   align-items: baseline;
   gap: 8px;
   margin: 0;
-  font-size: 14px;
+  font-size: 13px;
+  color: var(--text-faint);
 }
 
 .comment__author {
-  font-weight: 600;
+  color: var(--text);
+  font-weight: 500;
+  font-size: 14px;
 }
 
 /* Пометка «гость» видна словом, а не только цветом: реплика человека без
    аккаунта отличается от реплики участника по смыслу, и различие обязано
-   пережить чёрно-белую печать и дальтонизм. */
+   пережить чёрно-белую печать и дальтонизм. Оформлена меткой Notion — тем
+   же, чем в карточке набраны исполнители. */
 .comment__guest {
-  font-size: 12px;
   padding: 1px 6px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
+  background: var(--tag-gray);
   color: var(--text-muted);
+  font-size: 11px;
 }
 
 .comment__body {
@@ -50,7 +75,10 @@
   overflow-wrap: anywhere;
 }
 
+/* Поле ответа. Заливка вместо рамки — как у поля «Написать комментарий» в
+   Notion: пустое поле не должно выглядеть незаполненной формой. */
 .comments textarea {
   width: 100%;
+  min-height: 72px;
   resize: vertical;
 }

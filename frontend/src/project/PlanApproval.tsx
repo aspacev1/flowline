@@ -64,8 +64,13 @@ export function PlanApproval({
 
   return (
     <>
+      {/* Приглушённая, как и остальные действия шапки проекта: заливку там
+          получает только создание задачи. Утверждение плана — действие
+          редкое, и постоянная синяя плашка ради него звала бы нажать себя
+          каждый раз, когда человек открыл проект посмотреть. */}
       <button
         type="button"
+        className="button--quiet"
         onClick={() => (approved ? setConfirming(true) : mutation.mutate())}
         disabled={mutation.isPending}
       >

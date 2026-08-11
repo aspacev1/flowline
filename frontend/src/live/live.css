@@ -5,15 +5,18 @@
    состоянии, в котором экран находится сейчас, — и обязана оставаться на виду
    всё время, пока оно длится.
 
-   Цвет — `--danger` по светлой подложке того же тона, а не заливка целиком:
-   красное полотно над диаграммой перекрикивает саму диаграмму, ради которой
-   человек и смотрит на экран. */
+   Оформлена как красная выноска Notion: тонкая заливка тем же цветом, каким
+   набран текст. Полотно в полную силу цвета над диаграммой перекрикивало бы
+   саму диаграмму, ради которой человек и смотрит на экран. */
 .offline-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
   margin: 0 0 var(--gap);
-  padding: 8px 12px;
-  border: 1px solid var(--danger);
+  padding: 10px 14px;
   border-radius: var(--radius);
-  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+  background: var(--danger-soft);
   color: var(--danger);
-  font-size: 14px;
+  font-size: 13px;
 }

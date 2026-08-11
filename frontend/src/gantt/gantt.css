@@ -1,8 +1,14 @@
-/* Диаграмма Ганта. Переменные — те же, что и у остального интерфейса: тёмная
-   тема переопределяет палитру в одном месте и сюда не заглядывает. */
+/* Диаграмма Ганта — представление «таймлайн» базы Notion. Переменные те же,
+   что и у остального интерфейса: тёмная тема переопределяет палитру в одном
+   месте и сюда не заглядывает.
+
+   Общий приём тот же, что и на странице: линии тонкие и редкие, заливок нет,
+   а сама лента — не таблица в рамке, а поле, по которому разложены полоски.
+   Чем меньше линий, тем заметнее единственное, что здесь действительно важно:
+   где полоска начинается и где кончается. */
 
 .gantt {
-  --gantt-label: 220px;
+  --gantt-label: 240px;
   /* --gantt-row приходит из разметки: по этой же величине считаются стрелки
      связей, и второе число здесь разошлось бы с ними при первой правке. */
   --gantt-row: 32px;
@@ -14,22 +20,28 @@
    интерфейса, а не для одной диаграммы. Здесь только признак на корне ленты —
    его же ставит разметка, узнав настройку системы. */
 
+/* Итог по срокам — выноска над лентой, как callout в Notion: одна строка,
+   тонкая заливка, никакой рамки. */
 .gantt__summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
   margin: 0 0 var(--gap);
-  padding: 8px 12px;
+  padding: 10px 14px;
   border-radius: var(--radius);
-  border: 1px solid var(--border);
-  font-weight: 600;
+  background: var(--hover);
+  font-weight: 500;
 }
 
 .gantt__summary.is-late {
+  background: var(--danger-soft);
   color: var(--danger);
-  border-color: var(--danger);
 }
 
 .gantt__summary.is-fine {
+  background: var(--ok-soft);
   color: var(--ok);
-  border-color: var(--ok);
 }
 
 .gantt__empty {
@@ -40,8 +52,10 @@
    месте, и sticky работает только внутри своего прокручиваемого предка. */
 .gantt__scroll {
   overflow-x: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
+  /* Рамка тенью внутрь, а не border: рамка вошла бы в ширину и сдвинула бы
+     на пиксель всю сетку относительно закреплённой колонки. */
+  box-shadow: inset 0 0 0 1px var(--border);
   background: var(--surface);
 }
 
@@ -80,9 +94,20 @@
   align-items: center;
   justify-content: center;
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--text-faint);
   border-left: 1px solid var(--border);
   overflow: hidden;
+}
+
+/* Месяц — заголовок колонок, и набран он как заголовок свойства в Notion:
+   мелко, вразрядку, приглушённо. */
+.gantt__month-label {
+  padding: 0 6px;
+  white-space: nowrap;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 .gantt__day {
@@ -93,12 +118,8 @@
 }
 
 .gantt__day-number {
-  color: var(--text);
-}
-
-.gantt__month-label {
-  padding: 0 6px;
-  white-space: nowrap;
+  color: var(--text-muted);
+  font-weight: 500;
 }
 
 .gantt__body {
@@ -155,7 +176,7 @@
 
 .arrows polyline {
   fill: none;
-  stroke: var(--text-muted);
+  stroke: var(--text-faint);
   stroke-width: 1.5;
   /* Скруглённые углы: на изломе в один пиксель острый угол читается как
      артефакт отрисовки. */
@@ -168,25 +189,35 @@
   z-index: 1;
 }
 
-/* Появление и исчезновение строки: новая задача не возникает из ниоткуда
-   посреди списка, а проявляется на своём месте. */
-.gantt__row {
-  transition: background var(--motion) ease;
-}
-
-/* Линия вставки при перетаскивании: она появляется и переезжает по строкам
-   вслед за курсором, и без перехода это мигание, а не движение. */
-.gantt__row.drop-before .gantt__label,
-.gantt__row.drop-before .gantt__lane,
-.gantt__row.drop-after .gantt__label,
-.gantt__row.drop-after .gantt__lane {
-  transition: box-shadow var(--motion) ease;
-}
-
 .gantt__row {
   display: flex;
   align-items: center;
   height: var(--gantt-row);
+  transition: background var(--motion) ease;
+}
+
+/* Строка подсвечивается целиком при наведении — как строка базы Notion: так
+   видно, какой задаче принадлежит полоска, отъехавшая на месяц вправо от
+   своего названия. */
+.gantt__row:hover .gantt__lane {
+  background: var(--hover);
+}
+
+.gantt__row:hover .gantt__label {
+  /* Закреплённой колонке нужна непрозрачная заливка — сквозь полупрозрачную
+     просвечивали бы уезжающие под неё полоски. Поэтому подсветка здесь
+     подмешана в цвет поверхности, а не положена поверх. */
+  background: color-mix(in srgb, var(--text) 6%, var(--surface));
+}
+
+/* Открытая карточка — это состояние строки, а не наведение: она держится,
+   пока карточка открыта, и должна отличаться от подсветки под курсором. */
+.gantt__row.is-selected .gantt__lane {
+  background: var(--accent-soft);
+}
+
+.gantt__row.is-selected .gantt__label {
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
 }
 
 .gantt__label {
@@ -199,10 +230,10 @@
   flex: 0 0 var(--gantt-label);
   width: var(--gantt-label);
   height: 100%;
-  padding: 0 12px;
+  padding: 0 8px 0 12px;
   background: var(--surface);
   border-right: 1px solid var(--border);
-  font-size: 14px;
+  transition: background var(--motion) ease;
 }
 
 .gantt__corner {
@@ -215,8 +246,14 @@
   white-space: nowrap;
 }
 
+/* Категория — заголовок группы, как в сгруппированной базе: полужирно и в
+   полную плотность чернил, задачи под ней — обычным начертанием. */
 .gantt__row--category .gantt__label-name {
   font-weight: 600;
+}
+
+.gantt__row:not(.gantt__row--category) .gantt__label-name {
+  color: var(--text-muted);
 }
 
 .gantt__dot {
@@ -236,15 +273,23 @@
    она есть всегда — видимость не влияет на доступное дерево. */
 .gantt__handle {
   flex: 0 0 auto;
-  padding: 0 2px;
+  width: 16px;
+  height: 20px;
+  padding: 0;
   background: transparent;
   border: 0;
-  color: var(--text-muted);
+  box-shadow: none;
+  color: var(--text-faint);
   line-height: 1;
   cursor: grab;
   opacity: 0;
   /* Строку тащат пальцем: без этого браузер принимает жест за прокрутку. */
   touch-action: none;
+}
+
+.gantt__handle:hover {
+  background: var(--hover);
+  color: var(--text-muted);
 }
 
 .gantt__row:hover .gantt__handle,
@@ -254,6 +299,15 @@
 
 .gantt.is-reordering .gantt__handle {
   cursor: grabbing;
+}
+
+/* Линия вставки при перетаскивании: она появляется и переезжает по строкам
+   вслед за курсором, и без перехода это мигание, а не движение. */
+.gantt__row.drop-before .gantt__label,
+.gantt__row.drop-before .gantt__lane,
+.gantt__row.drop-after .gantt__label,
+.gantt__row.drop-after .gantt__lane {
+  transition: box-shadow var(--motion) ease;
 }
 
 /* Линия вставки. Тень внутрь, а не рамка: рамка добавила бы строке высоту, и
@@ -270,22 +324,43 @@
 
 .gantt__row.drop-into .gantt__label,
 .gantt__row.drop-into .gantt__lane {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  background: var(--accent-soft);
 }
 
+/* Плюс на строке категории — тот же приём, что и у ручки: молчит, пока на
+   строку не навели. В Notion так же ведёт себя «+» под последней строкой
+   группы. */
 .gantt__add {
   margin-left: auto;
   flex: 0 0 auto;
-  padding: 0 6px;
-  line-height: 1.2;
+  width: 20px;
+  height: 20px;
+  padding: 0;
   background: transparent;
-  color: var(--text-muted);
-  border-color: var(--border);
+  color: var(--text-faint);
+  box-shadow: none;
+  font-size: 16px;
+  line-height: 1;
+  opacity: 0;
+  transition:
+    opacity 20ms ease-in,
+    background 20ms ease-in;
+}
+
+.gantt__row:hover .gantt__add,
+.gantt__add:focus-visible {
+  opacity: 1;
+}
+
+.gantt__add:hover {
+  background: var(--hover);
+  color: var(--text);
 }
 
 .gantt__lane {
   position: relative;
   height: 100%;
+  transition: background var(--motion) ease;
 }
 
 .gantt__span {
@@ -294,25 +369,30 @@
   height: 4px;
   transform: translateY(-50%);
   border-radius: 2px;
-  opacity: 0.6;
+  opacity: 0.5;
 }
 
+/* Полоска — метка Notion, лёгшая на шкалу времени: заливка цветом свойства,
+   скругление в три пикселя, подпись в 12 пикселей и никакой рамки. Рамка
+   вокруг каждой полоски на ленте из полусотни строк даёт рябь. */
 .gantt__bar {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  height: 20px;
-  padding: 0 6px;
+  height: 22px;
+  padding: 0 8px;
   display: flex;
   align-items: center;
   overflow: hidden;
   white-space: nowrap;
-  border: 1px solid var(--border);
-  border-radius: 4px;
+  border: 0;
+  border-radius: var(--radius-sm);
   background: var(--bar);
   color: var(--text);
   font-size: 12px;
+  font-weight: 500;
   text-align: left;
+  box-shadow: none;
   /* Сдвиг после подтверждения сервером — переездом, а не прыжком: иначе
      непонятно, та же это полоска встала на новое место или другая. */
   transition:
@@ -321,11 +401,23 @@
     opacity var(--motion) ease;
 }
 
+.gantt__bar:hover {
+  background: var(--bar);
+  /* Обводка цветом текста в четверть силы: полоска приподнимается, но не
+     меняет цвет — цвет здесь означает критичность и врать не может. */
+  box-shadow: inset 0 0 0 1px rgb(var(--ink) / 25%);
+}
+
 /* Полоска под пальцем — единственное, что не анимируется никогда: она обязана
    идти за курсором без задержки, иначе жест ощущается вязким, будто интерфейс
    не успевает. */
 .gantt__bar.is-dragging {
   transition: none;
+  cursor: grabbing;
+  /* Над соседями, пока её тащат: иначе она уезжает под соседнюю полоску и
+     теряется ровно в тот момент, когда за ней следят. */
+  z-index: 2;
+  box-shadow: var(--shadow-sm);
 }
 
 /* Полоску тащат пальцем, и браузер не должен принимать это за прокрутку ленты.
@@ -336,29 +428,25 @@
   cursor: grab;
 }
 
-.gantt__bar.is-dragging {
-  cursor: grabbing;
-  /* Над соседями, пока её тащат: иначе она уезжает под соседнюю полоску и
-     теряется ровно в тот момент, когда за ней следят. */
-  z-index: 2;
-}
-
 /* Критичность — цвет из темы, а не из данных: уровней четыре, они заданы
    перечислением, и подбирать им цвета на сервере незачем. */
-.gantt__bar[data-criticality="low"] {
+.gantt__bar[data-criticality="low"],
+.gantt__bar[data-criticality="low"]:hover {
   background: var(--bar-low);
 }
 
-.gantt__bar[data-criticality="high"] {
+.gantt__bar[data-criticality="high"],
+.gantt__bar[data-criticality="high"]:hover {
   background: var(--bar-high);
 }
 
-.gantt__bar[data-criticality="critical"] {
+.gantt__bar[data-criticality="critical"],
+.gantt__bar[data-criticality="critical"]:hover {
   background: var(--bar-critical);
 }
 
 .gantt__bar.is-late {
-  border-color: var(--danger);
+  box-shadow: inset 0 0 0 1px var(--danger);
   color: var(--danger);
 }
 
@@ -367,7 +455,7 @@
   left: 0;
   top: 0;
   bottom: 0;
-  background: rgb(0 0 0 / 18%);
+  background: rgb(var(--ink) / 14%);
   pointer-events: none;
 }
 
@@ -378,11 +466,10 @@
    целиком. */
 .gantt__ghost {
   position: absolute;
-  top: calc(50% + 11px);
+  top: calc(50% + 12px);
   height: 3px;
   border-radius: 2px;
-  background: var(--text-muted);
-  opacity: 0.45;
+  background: var(--text-faint);
   pointer-events: none;
 }
 
@@ -409,6 +496,6 @@
 /* «Сверх первоначального плана». Приглушённая, а не тревожная: добавление
    работы — это нормально, тревожен скрытый перенос сроков. */
 .gantt__beyond {
-  color: var(--text-muted);
+  color: var(--text-faint);
   font-weight: 700;
 }
