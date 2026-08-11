@@ -29,7 +29,7 @@ from app.invitations import (
     status_of,
 )
 from app.invitations import by_token as invitation_by_token
-from app.mail import MailError, invitation_letter, mail_enabled, send
+from app.mail import mail_enabled, role_name, send as send_mail
 from app.models import Invitation, Membership, Organization, Session, User
 from app.orgs import current_membership, switch
 
@@ -163,21 +163,29 @@ def _deliver(
     """
     if invitation.email is None or not mail_enabled():
         return False, None
-    letter = invitation_letter(
+    # Язык письма — язык организации: о языке получателя, который ещё ничего в
+    # этой установке не открывал, неизвестно ничего.
+    locale = org.default_locale
+    sent = send_mail(
         to=invitation.email,
-        # Язык письма — язык организации: о языке получателя, который ещё
-        # ничего в этой установке не открывал, неизвестно ничего.
-        locale=org.default_locale,
-        org_name=org.name,
-        inviter_name=inviter_name,
-        role=invitation.role,
-        url=url,
-        expires_at=invitation.expires_at,
+        template="invitation",
+        locale=locale,
+        params={
+            "org": org.name,
+            "inviter": inviter_name,
+            "role": role_name(invitation.role, locale),
+            "link": url,
+            # Дата, а не дата со временем: час и минуты в чужом часовом поясе
+            # ничего читателю не говорят, а ISO-форма читается на всех трёх
+            # языках одинаково.
+            "expires": invitation.expires_at.date().isoformat(),
+        },
     )
-    try:
-        send(letter)
-    except MailError as error:
-        return False, error.code
+    if not sent:
+        # Причина отказа уже в журнале со стеком: наружу уходит один код —
+        # разбирать по нему, чем именно ответил чужой почтовый сервер, всё
+        # равно некому, а совет на экране от этого не меняется.
+        return False, "mail_failed"
     invitation.last_sent_at = now
     db.flush()
     return True, None

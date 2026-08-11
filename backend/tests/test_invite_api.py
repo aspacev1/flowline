@@ -14,7 +14,6 @@ from sqlalchemy import select
 
 from app.config import get_settings
 from app.db import get_db
-from app.mail import MailError
 from app.main import app
 from app.models import Invitation, Membership
 
@@ -172,10 +171,12 @@ def test_a_letter_that_did_not_go_out_does_not_undo_the_invitation(owner, mail_o
     нет: интерфейсу остаётся сказать «письмо не ушло, скопируйте ссылку»."""
     import app.api.invite_routes as routes
 
-    def refuse(letter):
-        raise MailError()
+    def refuse(**kwargs) -> bool:
+        # Транспорт не поднимает отказ наверх исключением: он пишет причину в
+        # журнал и возвращает False (см. app.mail.send).
+        return False
 
-    monkeypatch.setattr(routes, "send", refuse)
+    monkeypatch.setattr(routes, "send_mail", refuse)
 
     response = _invite(owner)
 

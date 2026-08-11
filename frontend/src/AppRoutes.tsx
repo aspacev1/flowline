@@ -7,6 +7,7 @@ import { Members } from "./screens/Members";
 import { Project } from "./screens/Project";
 import { Projects } from "./screens/Projects";
 import { Register } from "./screens/Register";
+import { VerifyEmail } from "./screens/VerifyEmail";
 
 /**
  * Маршруты отдельно от `App`, потому что в бою их оборачивает
@@ -19,6 +20,10 @@ export function AppRoutes() {
       <Route path="/" element={<Navigate to="/projects" replace />} />
       <Route path="/register" element={<Register />} />
       <Route path="/login" element={<Login />} />
+      {/* Вне RequireAuth: ссылку из письма открывают в том браузере, куда
+          пришла почта, и требовать там вход значило бы ломать самый обычный
+          сценарий — письмо на телефоне, работа на ноутбуке. */}
+      <Route path="/verify-email" element={<VerifyEmail />} />
       {/* Снаружи RequireAuth: приглашённый ещё не в системе, и отправлять его
           на вход прежде, чем он узнает, куда его зовут, — значит просить
           подписать не глядя. */}

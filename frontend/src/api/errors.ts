@@ -13,6 +13,10 @@ const AUTH_CODES = new Set([
   "session_expired",
   "validation_error",
   "password_too_short",
+  "invalid_token",
+  "token_expired",
+  "already_verified",
+  "too_many_requests",
 ]);
 
 const PLAIN_CODES = new Set([

@@ -17,10 +17,18 @@ _LOCAL_BASE_URL = "http://localhost:8000"
 #: приглашению, `closed` — вход есть, регистрации нет.
 SIGNUP_MODES = ("open", "invite_only", "closed")
 
-#: Транспорты почты, которые умеет эта установка. `api` из спецификации здесь
-#: нет: реализации нет, и молчаливое превращение неизвестного значения в
-#: заглушку означало бы, что приглашения «отправляются» в никуда.
-MAIL_TRANSPORTS = ("none", "log", "smtp")
+# Что обязано быть задано при каждом транспорте почты. Транспортов без
+# требований в списке нет: у выключенной почты и у записи в журнал требований
+# нет по определению.
+_MAIL_REQUIREMENTS: dict[str, tuple[str, ...]] = {
+    "smtp": ("smtp_url", "mail_from"),
+    "api": ("mail_api_url", "mail_api_key", "mail_from"),
+}
+#: Транспорты почты, которые умеет эта установка. `none` — писем нет вовсе, и
+#: интерфейс не показывает кнопку отправки; `log` — та же запись в журнал, но
+#: установка считается почтовой (кнопка на месте, письмо ищется в логе) —
+#: разница нужна при разработке.
+MAIL_TRANSPORTS: tuple[str, ...] = ("none", "log", *_MAIL_REQUIREMENTS)
 
 
 class Settings(BaseSettings):
@@ -36,6 +44,8 @@ class Settings(BaseSettings):
 
     mail_transport: str = "none"
     smtp_url: str = ""
+    mail_api_key: str = ""
+    mail_api_url: str = ""
     mail_from: str = ""
     invite_ttl_days: int = 7
     invite_rate_limit: int = 20
@@ -72,21 +82,20 @@ class Settings(BaseSettings):
                 return f"postgresql+psycopg://{value[len(prefix):]}"
         return value
 
-    @field_validator("signup_mode", "mail_transport")
+    @field_validator("signup_mode")
     @classmethod
-    def _reject_a_value_nobody_implements(cls, value: str, info) -> str:
+    def _reject_a_value_nobody_implements(cls, value: str) -> str:
         """Отвергает незнакомое значение рубильника при старте, а не при первом
         обращении к нему.
 
         Опечатка в `SIGNUP_MODE` иначе тихо превращает установку в закрытую
-        (сравнение с `open` не сходится), а опечатка в `MAIL_TRANSPORT` — в
-        такую, где кнопка отправки есть, а письма не уходят. Оба отказа
-        неотличимы от задуманного поведения и ищутся часами; отказ стартовать
-        находится за секунду.
+        (сравнение с `open` не сходится) — отказ, неотличимый от задуманного
+        поведения и потому ищущийся часами; отказ стартовать находится за
+        секунду. То же самое про `MAIL_TRANSPORT` проверяется ниже, вместе с
+        переменными, которых транспорт требует.
         """
-        allowed = SIGNUP_MODES if info.field_name == "signup_mode" else MAIL_TRANSPORTS
-        if value not in allowed:
-            raise ValueError(f"допустимые значения: {', '.join(allowed)}")
+        if value not in SIGNUP_MODES:
+            raise ValueError(f"допустимые значения: {', '.join(SIGNUP_MODES)}")
         return value
 
     @model_validator(mode="after")
@@ -114,6 +123,47 @@ class Settings(BaseSettings):
         if host:
             self.public_base_url = f"https://{host}"
         return self
+
+    @model_validator(mode="after")
+    def _refuse_a_mail_setup_that_cannot_send(self) -> Self:
+        """Не даёт приложению стартовать с наполовину заданной почтой.
+
+        Без этой проверки `MAIL_TRANSPORT=smtp` при пустом `SMTP_URL`
+        обнаружился бы только на первом письме — то есть на регистрации
+        первого же пользователя, и молча: письмо не ушло, в журнале строчка,
+        которую никто не читает. Опечатка в самом значении (`MAIL_TRANSPORT=
+        stmp`) тем более не должна тихо превращаться в «почта выключена».
+
+        Выключенная почта проверок не требует: установка без почтового
+        сервера — законный вариант развёртывания, а не недонастроенный.
+        """
+        if self.mail_transport not in MAIL_TRANSPORTS:
+            raise ValueError(
+                f"MAIL_TRANSPORT={self.mail_transport!r}: допустимы "
+                f"{', '.join(MAIL_TRANSPORTS)}"
+            )
+
+        missing = [
+            name.upper()
+            for name in _MAIL_REQUIREMENTS.get(self.mail_transport, ())
+            if not getattr(self, name)
+        ]
+        if missing:
+            raise ValueError(
+                f"MAIL_TRANSPORT={self.mail_transport}, но не задано: {', '.join(missing)}"
+            )
+        return self
+
+    @property
+    def mail_enabled(self) -> bool:
+        """Есть ли куда отправлять письма.
+
+        При `none` интерфейс не показывает кнопку отправки вовсе — остаётся
+        копирование ссылки, а само письмо уходит в журнал. `log` пишет туда
+        же, но установка считается почтовой: при разработке кнопка нужна на
+        месте, а письмо читается в логе.
+        """
+        return self.mail_transport != "none"
 
     @property
     def locales(self) -> list[str]:

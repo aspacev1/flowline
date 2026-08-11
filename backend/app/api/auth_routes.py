@@ -17,6 +17,12 @@ from app.auth import (
 )
 from app.config import get_settings
 from app.db import get_db
+from app.email_verification import (
+    VerificationError,
+    confirm_email,
+    send_verification,
+    sent_recently,
+)
 from app.invitations import InvitationError, Status, by_token, check_recipient, status_of
 from app.models import Invitation, User
 
@@ -38,11 +44,25 @@ class LoginIn(BaseModel):
     password: str
 
 
+class VerifyEmailIn(BaseModel):
+    token: str = Field(min_length=1, max_length=200)
+
+
 class UserOut(BaseModel):
     id: str
     name: str
     email: str
     locale: str
+    # Не дата, а признак: интерфейсу нужно решить, показывать ли полоску
+    # «подтвердите адрес», а точное время подтверждения ему не нужно ни для
+    # чего — и не стоит того, чтобы разбирать формат даты на клиенте.
+    email_verified: bool
+
+
+class MailResultOut(BaseModel):
+    """Ушло письмо или нет. Врать «отправлено» нельзя: человек будет ждать."""
+
+    sent: bool
 
 
 def _cookie_is_secure() -> bool:
@@ -68,7 +88,13 @@ def _set_cookie(response: Response, token: str) -> None:
 
 
 def _to_out(user: User) -> UserOut:
-    return UserOut(id=str(user.id), name=user.name, email=user.email, locale=user.locale)
+    return UserOut(
+        id=str(user.id),
+        name=user.name,
+        email=user.email,
+        locale=user.locale,
+        email_verified=user.email_verified_at is not None,
+    )
 
 
 def _invitation_for_signup(db: DbSession, payload: RegisterIn) -> Invitation | None:
@@ -135,6 +161,11 @@ def register_route(payload: RegisterIn, response: Response, db: DbSession = Depe
         response,
         open_session(db, user, active_org_id=invitation.org_id if invitation else None),
     )
+    # Письмо уходит синхронно, но регистрацию не решает: недоступный
+    # почтовый сервер не повод не пускать человека в только что созданную
+    # организацию. Отказ уже записан в журнал внутри mail.send, повторная
+    # отправка доступна отдельным маршрутом.
+    send_verification(db, user)
     return _to_out(user)
 
 
@@ -161,3 +192,31 @@ def logout_route(
 @router.get("/me", response_model=UserOut)
 def me_route(user: User = Depends(current_user)):
     return _to_out(user)
+
+
+@router.post("/verify-email", status_code=204)
+def verify_email_route(payload: VerifyEmailIn, db: DbSession = Depends(get_db)):
+    """Погашение ссылки из письма. Куки не требует.
+
+    Ссылку открывают в том браузере, куда пришла почта, а не обязательно в
+    том, где открыта сессия. Требовать вход значило бы ломать самый обычный
+    сценарий — письмо на телефоне, работа на ноутбуке; сам токен при этом
+    одноразовый, живёт сутки и достаточно длинный, чтобы его нельзя было
+    подобрать.
+    """
+    try:
+        confirm_email(db, payload.token)
+    except VerificationError as exc:
+        raise HTTPException(status_code=400, detail=exc.code)
+
+
+@router.post("/verify-email/resend", response_model=MailResultOut)
+def resend_verification_route(
+    user: User = Depends(current_user),
+    db: DbSession = Depends(get_db),
+):
+    if user.email_verified_at is not None:
+        raise HTTPException(status_code=409, detail="already_verified")
+    if sent_recently(db, user):
+        raise HTTPException(status_code=429, detail="too_many_requests")
+    return MailResultOut(sent=send_verification(db, user))
