@@ -1,6 +1,7 @@
 from datetime import date
 
 import pytest
+from sqlalchemy import select
 
 from app.models import Category, Organization, Project, Revision, Task
 from app.mutations import (
@@ -14,6 +15,7 @@ from app.mutations import (
     PublicCreateCategory,
     PublicCreateTask,
     RenameCategory,
+    ReorderTask,
     SetCategoryColor,
     SetCriticality,
     SetDuration,
@@ -719,3 +721,112 @@ def test_set_criticality_and_progress_and_colour_round_trip(db, project, categor
     assert db.get(Category, category.id).color == "#22c55e"
     undo(db, project, colour, actor_id=None)
     assert db.get(Category, category.id).color == "#3b82f6"
+
+
+def _positions(db, project) -> dict[str, int]:
+    rows = db.scalars(select(Task).where(Task.project_id == project.id)).all()
+    return {str(row.id): row.position for row in rows}
+
+
+def test_reorder_shifts_neighbours_and_records_the_whole_map(db, project, category):
+    ids = [apply_op(db, project, CreateTask(
+        category_id=str(category.id), name=f"T{i}",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+        for i in range(3)]
+
+    revision = apply_op(db, project, ReorderTask(
+        task_id=ids[2], category_id=str(category.id), position=0), actor_id=None)
+
+    after = _positions(db, project)
+    assert after[ids[2]] == 0
+    assert after[ids[0]] == 1
+    assert after[ids[1]] == 2
+    # в журнале лежит карта, а не один сдвиг
+    assert set(revision.op["from"]) == set(ids)
+    assert revision.op["to"][ids[0]] == 1
+
+
+def test_undo_of_a_reorder_restores_every_neighbour(db, project, category):
+    ids = [apply_op(db, project, CreateTask(
+        category_id=str(category.id), name=f"T{i}",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+        for i in range(3)]
+    before = _positions(db, project)
+
+    revision = apply_op(db, project, ReorderTask(
+        task_id=ids[2], category_id=str(category.id), position=0), actor_id=None)
+    undo(db, project, revision, actor_id=None)
+
+    assert _positions(db, project) == before
+
+
+def test_reorder_into_another_category_moves_and_renumbers(db, project, category):
+    other = db.get(Category, apply_op(db, project, CreateCategory(
+        name="Development", color="#22c55e"), actor_id=None).op["category_id"])
+    task_id = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="Logo",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+
+    apply_op(db, project, ReorderTask(
+        task_id=task_id, category_id=str(other.id), position=0), actor_id=None)
+
+    task = db.get(Task, task_id)
+    assert task.category_id == other.id
+    assert task.position == 0
+
+
+def test_reorder_rejects_a_category_from_another_project(db, project, category, other_category):
+    task_id = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="Logo",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+
+    with pytest.raises(NotFoundInProject):
+        apply_op(db, project, ReorderTask(
+            task_id=task_id, category_id=str(other_category.id), position=0),
+            actor_id=None)
+
+
+def test_undo_of_a_reorder_across_categories_restores_the_category_too(db, project, category):
+    """Карта в журнале несёт и категорию, а не только номер.
+
+    Без categories_from отмена вернула бы позиции, но оставила задачу в
+    новой категории — то есть отменила бы половину перестановки.
+    """
+    other = db.get(Category, apply_op(db, project, CreateCategory(
+        name="Development", color="#22c55e"), actor_id=None).op["category_id"])
+    task_id = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="Logo",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+
+    revision = apply_op(db, project, ReorderTask(
+        task_id=task_id, category_id=str(other.id), position=0), actor_id=None)
+    undo(db, project, revision, actor_id=None)
+
+    assert db.get(Task, task_id).category_id == category.id
+
+
+def test_reorder_refuses_a_negative_position(db, project, category):
+    task_id = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="Logo",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+
+    with pytest.raises(InvalidOperation) as error:
+        apply_op(db, project, ReorderTask(
+            task_id=task_id, category_id=str(category.id), position=-1), actor_id=None)
+    assert error.value.code == "negative_position"
+
+
+def test_reorder_is_not_accepted_over_the_wire_as_apply_positions():
+    """ApplyPositions существует только как обратная операция.
+
+    В публичном реестре её нет: иначе клиент мог бы прислать произвольную
+    карту позиций и расставить строки в обход всякой проверки порядка.
+    """
+    from app.mutations import PublicOp
+
+    accepted = {
+        model.model_fields["type"].default
+        for model in PublicOp.__args__[0].__args__
+    }
+    assert "reorder_task" in accepted
+    assert "apply_positions" not in accepted

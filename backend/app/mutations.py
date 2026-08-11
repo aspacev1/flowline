@@ -133,6 +133,26 @@ class SetCategoryColor(BaseModel):
     color: str
 
 
+class ReorderTask(BaseModel):
+    type: Literal["reorder_task"] = "reorder_task"
+    task_id: uuid.UUID
+    category_id: uuid.UUID
+    position: int
+
+
+class ApplyPositions(BaseModel):
+    """Внутренняя операция: расставить позиции по готовой карте.
+
+    Существует только как обратная к reorder_task. По проводу не принимается —
+    в публичном реестре её нет: иначе клиент прислал бы произвольную карту и
+    расставил строки в обход всякой проверки порядка.
+    """
+
+    type: Literal["apply_positions"] = "apply_positions"
+    positions: dict[uuid.UUID, int]
+    categories: dict[uuid.UUID, uuid.UUID]
+
+
 Op = Annotated[
     CreateCategory
     | CreateTask
@@ -144,7 +164,9 @@ Op = Annotated[
     | SetCriticality
     | SetProgress
     | RenameCategory
-    | SetCategoryColor,
+    | SetCategoryColor
+    | ReorderTask
+    | ApplyPositions,
     Field(discriminator="type"),
 ]
 
@@ -160,6 +182,8 @@ _MODELS = {
     "set_progress": SetProgress,
     "rename_category": RenameCategory,
     "set_category_color": SetCategoryColor,
+    "reorder_task": ReorderTask,
+    "apply_positions": ApplyPositions,
 }
 
 
@@ -253,6 +277,16 @@ class PublicSetCategoryColor(_Wire):
     color: str = Field(min_length=1, max_length=9)
 
 
+class PublicReorderTask(_Wire):
+    type: Literal["reorder_task"] = "reorder_task"
+    task_id: uuid.UUID
+    category_id: uuid.UUID
+    position: int = Field(ge=0)
+
+
+# ApplyPositions публичного зеркала не имеет и иметь не должна: она внутренняя.
+
+
 PublicOp = Annotated[
     PublicCreateCategory
     | PublicCreateTask
@@ -264,7 +298,8 @@ PublicOp = Annotated[
     | PublicSetCriticality
     | PublicSetProgress
     | PublicRenameCategory
-    | PublicSetCategoryColor,
+    | PublicSetCategoryColor
+    | PublicReorderTask,
     Field(discriminator="type"),
 ]
 
@@ -509,6 +544,76 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
         category.color = op.color
         db.flush()
         return forward, _swap(forward)
+
+    if isinstance(op, ReorderTask):
+        if op.position < 0:
+            raise InvalidOperation("negative_position", "позиция не может быть отрицательной")
+        task = _require_task(db, project, op.task_id)
+        _require_category(db, project, op.category_id)
+
+        # Снимок по всему проекту, а не по одной категории: перенос между
+        # категориями меняет обе, и половинчатая карта отменялась бы
+        # наполовину.
+        rows = db.scalars(
+            select(Task).where(Task.project_id == project.id).order_by(Task.position, Task.id)
+        ).all()
+        before_pos = {str(row.id): row.position for row in rows}
+        before_cat = {str(row.id): str(row.category_id) for row in rows}
+
+        siblings = [
+            row for row in rows if row.category_id == op.category_id and row.id != task.id
+        ]
+        # Позиция за концом списка — не отказ: перетаскивание в самый низ
+        # присылает индекс, равный длине, и это нормальный жест.
+        index = min(op.position, len(siblings))
+        ordered = siblings[:index] + [task] + siblings[index:]
+
+        task.category_id = op.category_id
+        for slot, row in enumerate(ordered):
+            row.position = slot
+        db.flush()
+
+        after_pos = {str(row.id): row.position for row in rows}
+        after_cat = {str(row.id): str(row.category_id) for row in rows}
+        forward = {
+            "type": "reorder_task",
+            "task_id": str(task.id),
+            "from": before_pos,
+            "to": after_pos,
+            "categories_from": before_cat,
+            "categories_to": after_cat,
+        }
+        inverse = {
+            "type": "apply_positions",
+            "positions": before_pos,
+            "categories": before_cat,
+        }
+        return forward, inverse
+
+    if isinstance(op, ApplyPositions):
+        before_pos: dict[str, int] = {}
+        before_cat: dict[str, str] = {}
+        for raw_id, position in op.positions.items():
+            row = _require_task(db, project, raw_id)
+            before_pos[str(row.id)] = row.position
+            before_cat[str(row.id)] = str(row.category_id)
+            row.position = position
+            row.category_id = op.categories[raw_id]
+        db.flush()
+        # Ключи приводятся к строкам: в модели они uuid.UUID, а json.dumps
+        # на пути в jsonb на таком ключе падает — запись журнала не легла бы
+        # вовсе.
+        forward = {
+            "type": "apply_positions",
+            "positions": {str(key): value for key, value in op.positions.items()},
+            "categories": {str(key): str(value) for key, value in op.categories.items()},
+        }
+        inverse = {
+            "type": "apply_positions",
+            "positions": before_pos,
+            "categories": before_cat,
+        }
+        return forward, inverse
 
     if isinstance(op, DeleteCategory):
         category = _require_category(db, project, op.category_id)
