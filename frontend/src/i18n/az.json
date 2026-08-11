@@ -69,7 +69,8 @@
   },
   "nav": {
     "projects": "Layihələr",
-    "logout": "Çıxış"
+    "logout": "Çıxış",
+    "members": "İştirakçılar"
   },
   "locale": {
     "switch_label": "İnterfeys dili"
@@ -121,7 +122,20 @@
     "unknown_criticality": "Belə kritiklik səviyyəsi yoxdur",
     "already_assigned": "Bu adam tapşırığa artıq təyin olunub",
     "assignment_not_found": "Bu adam onsuz da tapşırığa təyin olunmayıb",
-    "negative_position": "Sətri qoymağa yer yoxdur: mövqe mənfidir"
+    "negative_position": "Sətri qoymağa yer yoxdur: mövqe mənfidir",
+    "invite_not_found": "Belə dəvət yoxdur — keçidi bütöv yoxlayın",
+    "invite_expired": "Keçidin vaxtı keçib — yenisini istəyin",
+    "invite_revoked": "Dəvət geri alınıb — yenisini istəyin",
+    "invite_accepted": "Dəvət artıq qəbul edilib — sadəcə daxil olun",
+    "invite_wrong_email": "Dəvət başqa ünvana yazılıb",
+    "invite_rate_limited": "Bir saatda həddindən çox dəvət — bir azdan yenidən cəhd edin",
+    "invalid_email": "Ünvanları yoxlayın: biri boşdur və ya poçt ünvanına oxşamır",
+    "unknown_role": "Belə rol yoxdur",
+    "project_ids_need_client_role": "Layihələr yalnız «Müştəri» rolu üçün seçilir",
+    "organization_not_found": "Təşkilat tapılmadı",
+    "mail_failed": "Məktub getmədi — keçidi köçürüb özünüz göndərin",
+    "mail_not_configured": "Bu quraşdırmada poçt konfiqurasiya olunmayıb",
+    "mail_disabled": "Bu quraşdırmada poçt söndürülüb"
   },
   "projects": {
     "title": "Layihələr",
@@ -214,6 +228,66 @@
     "summary": {
       "late": "Layihə {end} tarixində bitir — son tarixdən ({deadline}) {days} gec",
       "fits": "{deadline} tarixinə çatırıq — ehtiyat {days}"
+    }
+  },
+  "org": {
+    "switch_label": "Təşkilat"
+  },
+  "members": {
+    "title": "İştirakçılar",
+    "invite": "Dəvət et",
+    "role": {
+      "owner": "Sahib",
+      "editor": "Redaktor",
+      "viewer": "İzləyici",
+      "client": "Müştəri"
+    }
+  },
+  "invite": {
+    "title": "Təşkilata dəvət",
+    "emails": "Ünvanlar",
+    "emails_hint": "Bir neçəsini birdən yazmaq olar — vergüllə və ya yeni sətirdə",
+    "link_only": "Ünvansız keçid",
+    "link_only_hint": "Ünvan yazmasanız, keçid-dəvət alınır: onu kim açsa, ona çatacaq",
+    "role": "Rol",
+    "projects": "Layihələr",
+    "projects_hint": "Müştəri yalnız burada seçilmiş layihələri görür",
+    "deliver": "Məktub göndər",
+    "submit": "Dəvəti yarat",
+    "list": {
+      "title": "Dəvətlər",
+      "empty": "Hələ heç kim dəvət olunmayıb"
+    },
+    "status": {
+      "pending": "Gözləyir",
+      "accepted": "Qəbul edilib",
+      "revoked": "Geri alınıb",
+      "expired": "Vaxtı keçib"
+    },
+    "action": {
+      "link": "Yeni keçid",
+      "resend": "Yenidən göndər",
+      "revoke": "Geri al"
+    },
+    "issued": {
+      "link": "Dəvət keçidi",
+      "once": "Keçidi indi köçürün: ikinci dəfə onu heç yerdən götürmək olmayacaq — server yalnız izini saxlayır",
+      "copy": "Köçür",
+      "copied": "Köçürüldü",
+      "sent": "Məktub göndərildi",
+      "done": "Hazırdır"
+    },
+    "accept": {
+      "title": "Dəvət",
+      "summary": "Sizi «{org}» təşkilatına dəvət edirlər — rol: {role}",
+      "inviter": "Dəvət edən: {name}",
+      "bearer": "Bu, keçid-dəvətdir: onu kim açıbsa, ona işləyir",
+      "register": "Qeydiyyatdan keç",
+      "login": "Daxil ol",
+      "submit": "Dəvəti qəbul et",
+      "wrong_account": "Dəvət {email} ünvanına yazılıb. Çıxın və həmin ünvanla daxil olun",
+      "logout": "Çıx",
+      "go_home": "Layihələrə"
     }
   }
 }

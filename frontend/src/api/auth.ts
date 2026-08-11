@@ -14,6 +14,12 @@ export type RegisterInput = {
   name: string;
   email: string;
   password: string;
+  /**
+   * Приглашение, по которому человек пришёл. С ним аккаунт заводится сразу
+   * внутри позвавшей организации — и заводится даже там, где свободная
+   * регистрация выключена.
+   */
+  invite_token?: string;
 };
 
 export type LoginInput = {
