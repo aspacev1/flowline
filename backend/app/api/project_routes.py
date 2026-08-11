@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Body, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
@@ -15,6 +15,7 @@ from app.models import (
     Membership,
     Organization,
     Project,
+    Revision,
     Task,
     TaskAssignee,
     User,
@@ -180,6 +181,66 @@ def get_project(
             for source, target in dependencies
         ],
     }
+
+
+@router.get("/{project_id}/revisions")
+def list_revisions(
+    project_id: uuid.UUID,
+    task_id: uuid.UUID | None = None,
+    limit: int = Query(default=200, ge=1, le=1000),
+    user: User = Depends(current_user),
+    db: DbSession = Depends(get_db),
+):
+    """Журнал изменений проекта, при желании — одной задачи.
+
+    Запись отдаётся параметрами, а не готовой фразой: язык читателя решается в
+    браузере, и один и тот же перенос обязан читаться на трёх языках. Сервер
+    словарей сообщений не держит сознательно (см. MutationError).
+
+    Обратная операция наружу не выходит: она нужна отмене, а отмены пока нет.
+    Отдавать её «на будущее» значило бы удваивать вес ленты и заодно удваивать
+    поверхность, на которой заметка может утечь.
+    """
+    project, membership = _load_project(db, user, project_id)
+    _require_project_read(membership)
+
+    query = select(Revision).where(Revision.project_id == project.id)
+    if task_id is not None:
+        # Поиск по содержимому jsonb — то, ради чего колонка и объявлена jsonb:
+        # выбирать все ревизии проекта и отсеивать их в Python значило бы
+        # тащить журнал целиком ради одной карточки.
+        query = query.where(Revision.op["task_id"].astext == str(task_id))
+    # Новые сверху: ленту читают с последнего события. seq, а не created_at, —
+    # две операции одной секунды по времени неразличимы, а по номеру всегда.
+    revisions = db.scalars(query.order_by(Revision.seq.desc()).limit(limit)).all()
+
+    actors = {
+        row.id: row.name
+        for row in db.scalars(
+            select(User).where(
+                User.id.in_({r.actor_user_id for r in revisions if r.actor_user_id})
+            )
+        ).all()
+    }
+
+    role = parse_role(membership.role)
+    return [
+        {
+            "seq": revision.seq,
+            "created_at": revision.created_at.isoformat(),
+            # Автора может не быть: операции AI и системные записи идут без
+            # человека, и выдумывать им автора нельзя.
+            "actor": (
+                {"id": str(revision.actor_user_id), "name": actors[revision.actor_user_id]}
+                if revision.actor_user_id in actors
+                else None
+            ),
+            # Причина — текст человека: отдаётся как есть и не переводится.
+            "reason": revision.reason,
+            "op": visible_op(revision.op, role),
+        }
+        for revision in revisions
+    ]
 
 
 @router.post("/{project_id}/mutations", status_code=201)

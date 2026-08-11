@@ -1,4 +1,7 @@
 import type { Category, Task } from "../api/projects";
+import { useDragDates } from "./useDragDates";
+import { halfOf } from "./useReorder";
+import type { Reorder } from "./useReorder";
 import type { Scale } from "./timescale";
 
 /**
@@ -15,12 +18,14 @@ export function CategoryRow({
   scale,
   addLabel,
   onAddTask,
+  reorder,
 }: {
   category: Category;
   tasks: Task[];
   scale: Scale;
   addLabel: string;
   onAddTask?: (categoryId: string) => void;
+  reorder?: Reorder;
 }) {
   const span =
     tasks.length === 0
@@ -31,7 +36,13 @@ export function CategoryRow({
         };
 
   return (
-    <div className="gantt__row gantt__row--category">
+    <div
+      className={`gantt__row gantt__row--category ${reorder?.markFor("category", category.id) ?? ""}`.trimEnd()}
+      // Заголовок категории — тоже цель броска: перенести задачу в другую
+      // категорию иначе можно было бы только через список в карточке.
+      onPointerMove={() => reorder?.over({ kind: "category", id: category.id, half: "bottom" })}
+      onPointerUp={() => reorder?.drop()}
+    >
       <div className="gantt__label">
         <span className="gantt__dot" style={{ background: category.color }} aria-hidden="true" />
         <span className="gantt__label-name">{category.name}</span>
@@ -77,21 +88,65 @@ export function CategoryRow({
  * забыть половину.
  */
 export function TaskRow({
+  projectId,
   task,
   scale,
   late,
   lateLabel,
   title,
+  canWrite = false,
+  selected = false,
+  onSelect,
+  reorder,
+  handleLabel,
 }: {
+  projectId: string;
   task: Task;
   scale: Scale;
   late: boolean;
   lateLabel: string;
   title: string;
+  canWrite?: boolean;
+  /** Открыта ли карточка этой задачи. */
+  selected?: boolean;
+  onSelect?: (taskId: string) => void;
+  reorder?: Reorder;
+  handleLabel?: string;
 }) {
+  const { offset, handlers } = useDragDates({ projectId, task, scale, enabled: canWrite });
+
   return (
-    <div className="gantt__row">
+    <div
+      className={`gantt__row${selected ? " is-selected" : ""} ${
+        reorder?.markFor("task", task.id) ?? ""
+      }`.trimEnd()}
+      onPointerMove={(event) => reorder?.over({ kind: "task", id: task.id, half: halfOf(event) })}
+      onPointerUp={() => reorder?.drop()}
+    >
       <div className="gantt__label">
+        {reorder?.enabled && (
+          // Ручка отдельно от полоски: за неё меняют порядок, за полоску —
+          // даты.
+          //
+          // Не кнопка и скрыта от чтения с экрана намеренно. Кнопка обещала бы
+          // работу с клавиатуры, а перестановка строк с клавиатуры в этот план
+          // не входит: объявить десять кнопок, ни одна из которых не
+          // срабатывает по Enter, хуже, чем не объявлять их вовсе. Полоска
+          // задачи при этом остаётся кнопкой и по-прежнему двигается стрелками.
+          <span
+            className="gantt__handle"
+            aria-hidden="true"
+            title={handleLabel}
+            onPointerDown={(event) => {
+              // Без этого нажатие уводит фокус и начинает выделение текста
+              // вместо перетаскивания.
+              event.preventDefault();
+              reorder.start(task.id);
+            }}
+          >
+            ⠿
+          </span>
+        )}
         <span className="gantt__label-name">{task.name}</span>
         {late && (
           <span className="gantt__flag" title={lateLabel} role="img" aria-label={lateLabel}>
@@ -103,12 +158,18 @@ export function TaskRow({
       <div className="gantt__lane" style={{ width: scale.width }}>
         <button
           type="button"
-          className={`gantt__bar${late ? " is-late" : ""}`}
+          className={`gantt__bar${late ? " is-late" : ""}${canWrite ? " is-draggable" : ""}${
+            offset === 0 ? "" : " is-dragging"
+          }`}
           data-criticality={task.criticality}
           style={{
-            left: scale.xOf(task.start_date),
+            // Пока полоску тащат, она стоит там, где палец, — а не там, где
+            // ей полагается по датам. Сами даты меняются только по ответу
+            // сервера.
+            left: scale.xOf(task.start_date) + offset,
             width: scale.widthOf(task.start_date, task.end_date),
           }}
+          {...handlers}
           // Имя названо явно вместе с датами, а не оставлено содержимому
           // кнопки: у полоски есть и `title`, и обрезаемый по ширине текст, и
           // браузеры расходятся в том, что из этого станет доступным именем.
@@ -116,6 +177,8 @@ export function TaskRow({
           // «14 августа — 20 августа» — без названия задачи вовсе.
           aria-label={`${task.name}, ${title}`}
           title={title}
+          aria-expanded={onSelect ? selected : undefined}
+          onClick={() => onSelect?.(task.id)}
         >
           {/* Заливка внутри полоски, а не отдельная полоска рядом: прогресс —
               это часть задачи, а не вторая задача под ней. */}

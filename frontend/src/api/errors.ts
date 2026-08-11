@@ -31,6 +31,11 @@ const PLAIN_CODES = new Set([
   "user_not_in_organization",
   "calendar_has_no_working_days",
   "calendar_too_few_working_days",
+  "progress_out_of_range",
+  "unknown_criticality",
+  "already_assigned",
+  "assignment_not_found",
+  "negative_position",
 ]);
 
 /** Ключ словаря, которым объясняется ошибка. Сырой код наружу не выходит. */

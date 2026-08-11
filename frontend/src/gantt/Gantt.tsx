@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useRef } from "react";
+import type { CSSProperties } from "react";
 
 import type { Category, ProjectState, Task } from "../api/projects";
 import { formatDate, formatMonth, weekdayNarrow } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
 import { Grid } from "./Grid";
 import { Header } from "./Header";
+import { Arrows } from "./Arrows";
 import { CategoryRow, TaskRow } from "./Row";
-import { DAY_WIDTH, projectWindow } from "./scale";
+import { usePrefersReducedMotion } from "./motion";
+import { useReorder } from "./useReorder";
+import { DAY_WIDTH, ROW_HEIGHT, projectWindow } from "./scale";
 import { buildScale, daysBetween, toISO } from "./timescale";
 
 import "./gantt.css";
@@ -24,21 +28,36 @@ function byPosition<T extends { position: number; id: string }>(rows: T[]): T[] 
 }
 
 export function Gantt({
+  projectId,
   state,
+  canWrite = false,
   onAddTask,
+  selectedTaskId = null,
+  onSelectTask,
 }: {
+  projectId: string;
   state: ProjectState;
+  /** Может ли этот человек менять проект. Гость только смотрит. */
+  canWrite?: boolean;
   /** Плюс на строке категории. Без него диаграмма остаётся на чтение. */
   onAddTask?: (categoryId: string) => void;
+  /** Задача, карточка которой открыта. */
+  selectedTaskId?: string | null;
+  onSelectTask?: (taskId: string) => void;
 }) {
   const { t } = useLocale();
   const scroller = useRef<HTMLDivElement>(null);
+  const reorder = useReorder({ projectId, state, canWrite });
+  const reducedMotion = usePrefersReducedMotion();
 
   const today = toISO(Date.now());
-  const scale = useMemo(() => {
-    const { from, to } = projectWindow(state);
-    return buildScale({ from, to, dayWidth: DAY_WIDTH });
-  }, [state]);
+  // Зависимость — границы окна, а не само состояние: после каждого изменения
+  // сервер присылает новый объект состояния, и шкала, привязанная к его
+  // тождеству, пересобиралась бы всякий раз. Ниже она сама — зависимость
+  // прокрутки к сегодняшнему дню, и лента прыгала бы к сегодня после каждой
+  // правки, унося с экрана ту задачу, которую только что двигали.
+  const { from, to } = projectWindow(state);
+  const scale = useMemo(() => buildScale({ from, to, dayWidth: DAY_WIDTH }), [from, to]);
 
   const formatDay = (iso: string) => formatDate(t, iso);
 
@@ -61,8 +80,29 @@ export function Gantt({
 
   const isLate = (task: Task) => state.deadline !== null && task.end_date > state.deadline;
 
+  // Номера строк в том же порядке, в каком они ниже и рисуются: строка
+  // категории, затем её задачи. Нужны стрелкам — им неоткуда узнать, на какой
+  // высоте оказалась задача.
+  const rowOf = new Map<string, number>();
+  let rowCount = 0;
+  for (const category of categories) {
+    rowCount += 1;
+    for (const task of tasksByCategory.get(category.id) ?? []) {
+      rowOf.set(task.id, rowCount);
+      rowCount += 1;
+    }
+  }
+
   return (
-    <div className="gantt">
+    <div
+      className={`gantt${reorder.active ? " is-reordering" : ""}${
+        reducedMotion ? " motion-off" : ""
+      }`}
+      // Высота строки задаётся отсюда: стрелки считают по ней вертикальные
+      // координаты, и второе такое же число в стилях однажды разошлось бы с
+      // этим.
+      style={{ "--gantt-row": `${ROW_HEIGHT}px` } as CSSProperties}
+    >
       <Summary state={state} formatDay={formatDay} />
 
       {categories.length === 0 ? (
@@ -92,6 +132,14 @@ export function Gantt({
                 todayLabel={t("gantt.today")}
               />
 
+              <Arrows
+                scale={scale}
+                tasks={state.tasks}
+                dependencies={state.dependencies}
+                rowOf={rowOf}
+                rows={rowCount}
+              />
+
               <div className="gantt__rows">
                 {categories.map((category: Category) => {
                   const tasks = tasksByCategory.get(category.id) ?? [];
@@ -103,15 +151,22 @@ export function Gantt({
                         scale={scale}
                         addLabel={t("task.add_to", { category: category.name })}
                         onAddTask={onAddTask}
+                        reorder={reorder}
                       />
                       {tasks.map((task) => (
                         <TaskRow
                           key={task.id}
+                          projectId={projectId}
                           task={task}
                           scale={scale}
+                          canWrite={canWrite}
                           late={isLate(task)}
                           lateLabel={t("gantt.late")}
                           title={`${formatDay(task.start_date)} — ${formatDay(task.end_date)}`}
+                          selected={task.id === selectedTaskId}
+                          onSelect={onSelectTask}
+                          reorder={reorder}
+                          handleLabel={t("gantt.reorder", { name: task.name })}
                         />
                       ))}
                     </div>

@@ -42,6 +42,32 @@
   box-sizing: border-box;
 }
 
+/* Человек попросил меньше движения — переходов нет вовсе, а не «покороче»:
+   быстрое движение остаётся движением, и для части людей это не «менее
+   приятно», а тошнота и головная боль.
+
+   Два способа узнать об этом, потому что у них разные сроки. Медиа-запрос
+   действует сразу, ещё до первого кадра разметки, и покрывает всё подряд.
+   Класс ставит разметка, спросив ту же настройку, — он нужен там, где от неё
+   зависит не только оформление. Правила одинаковы, и порядок между ними
+   значения не имеет. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition: none !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.motion-off *,
+.motion-off *::before,
+.motion-off *::after {
+  transition: none !important;
+  animation: none !important;
+}
+
 body {
   margin: 0;
   background: var(--bg);
@@ -108,6 +134,20 @@ body {
 
 .screen__head h1 {
   margin: 0;
+}
+
+/* Лента и карточка рядом. Лента забирает всё, что не заняла карточка, и
+   сжимается ниже своей ширины — иначе открытие карточки выталкивало бы её за
+   край экрана вместо того, чтобы поделить место. */
+.project__body {
+  display: flex;
+  align-items: stretch;
+  gap: var(--gap);
+}
+
+.project__body > .gantt {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .screen__actions {

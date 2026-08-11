@@ -29,6 +29,21 @@ export function formatDate(t: Translate, iso: string): string {
   });
 }
 
+/**
+ * «15 сен» — та же дата в тесноте.
+ *
+ * Отдельная форма, а не обрезка полной: в карточке и в ленте истории дата
+ * стоит рядом с другими словами и в узкой колонке, и «15 сентября» там
+ * переносится на вторую строку. Сокращения тоже из словарей — по той же
+ * причине, что и полные названия.
+ */
+export function formatShortDate(t: Translate, iso: string): string {
+  return t("calendar.date_short", {
+    day: Number(iso.slice(8, 10)),
+    month: t(`calendar.month_short.${monthNumber(iso)}`),
+  });
+}
+
 /** «сентябрь 2026» — подпись месяца в шапке ленты. */
 export function formatMonth(t: Translate, iso: string): string {
   return t("calendar.month_year", {

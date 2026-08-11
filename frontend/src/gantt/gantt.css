@@ -3,9 +3,16 @@
 
 .gantt {
   --gantt-label: 220px;
+  /* --gantt-row приходит из разметки: по этой же величине считаются стрелки
+     связей, и второе число здесь разошлось бы с ними при первой правке. */
   --gantt-row: 32px;
   --gantt-head: 48px;
+  --motion: 180ms;
 }
+
+/* Само правило «меньше движения» живёт в styles.css: оно общее для всего
+   интерфейса, а не для одной диаграммы. Здесь только признак на корне ленты —
+   его же ставит разметка, узнав настройку системы. */
 
 .gantt__summary {
   margin: 0 0 var(--gap);
@@ -135,9 +142,45 @@
   border-left: 2px solid var(--accent);
 }
 
+/* Слой стрелок. Поверх сетки, но под строками: полоска, на которую стрелка
+   указывает, не должна оказаться под линией. Событий не принимает — сквозь
+   него тащат полоски. */
+.arrows {
+  position: absolute;
+  top: 0;
+  left: var(--gantt-label);
+  pointer-events: none;
+  overflow: visible;
+}
+
+.arrows polyline {
+  fill: none;
+  stroke: var(--text-muted);
+  stroke-width: 1.5;
+  /* Скруглённые углы: на изломе в один пиксель острый угол читается как
+     артефакт отрисовки. */
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
 .gantt__rows {
   position: relative;
   z-index: 1;
+}
+
+/* Появление и исчезновение строки: новая задача не возникает из ниоткуда
+   посреди списка, а проявляется на своём месте. */
+.gantt__row {
+  transition: background var(--motion) ease;
+}
+
+/* Линия вставки при перетаскивании: она появляется и переезжает по строкам
+   вслед за курсором, и без перехода это мигание, а не движение. */
+.gantt__row.drop-before .gantt__label,
+.gantt__row.drop-before .gantt__lane,
+.gantt__row.drop-after .gantt__label,
+.gantt__row.drop-after .gantt__lane {
+  transition: box-shadow var(--motion) ease;
 }
 
 .gantt__row {
@@ -188,6 +231,48 @@
   font-weight: 700;
 }
 
+/* Ручка перетаскивания: появляется при наведении на строку. Постоянно видимая
+   она превратила бы левую колонку в частокол из точек, а при чтении с экрана
+   она есть всегда — видимость не влияет на доступное дерево. */
+.gantt__handle {
+  flex: 0 0 auto;
+  padding: 0 2px;
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  line-height: 1;
+  cursor: grab;
+  opacity: 0;
+  /* Строку тащат пальцем: без этого браузер принимает жест за прокрутку. */
+  touch-action: none;
+}
+
+.gantt__row:hover .gantt__handle,
+.gantt__handle:focus-visible {
+  opacity: 1;
+}
+
+.gantt.is-reordering .gantt__handle {
+  cursor: grabbing;
+}
+
+/* Линия вставки. Тень внутрь, а не рамка: рамка добавила бы строке высоту, и
+   соседи дёргались бы на пиксель при каждом движении курсора. */
+.gantt__row.drop-before .gantt__label,
+.gantt__row.drop-before .gantt__lane {
+  box-shadow: inset 0 2px 0 0 var(--accent);
+}
+
+.gantt__row.drop-after .gantt__label,
+.gantt__row.drop-after .gantt__lane {
+  box-shadow: inset 0 -2px 0 0 var(--accent);
+}
+
+.gantt__row.drop-into .gantt__label,
+.gantt__row.drop-into .gantt__lane {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
 .gantt__add {
   margin-left: auto;
   flex: 0 0 auto;
@@ -228,6 +313,34 @@
   color: var(--text);
   font-size: 12px;
   text-align: left;
+  /* Сдвиг после подтверждения сервером — переездом, а не прыжком: иначе
+     непонятно, та же это полоска встала на новое место или другая. */
+  transition:
+    left var(--motion) ease,
+    width var(--motion) ease,
+    opacity var(--motion) ease;
+}
+
+/* Полоска под пальцем — единственное, что не анимируется никогда: она обязана
+   идти за курсором без задержки, иначе жест ощущается вязким, будто интерфейс
+   не успевает. */
+.gantt__bar.is-dragging {
+  transition: none;
+}
+
+/* Полоску тащат пальцем, и браузер не должен принимать это за прокрутку ленты.
+   Правило действует только там, где перетаскивание разрешено: у гостя лента
+   обязана прокручиваться, даже если палец опустился на полоску. */
+.gantt__bar.is-draggable {
+  touch-action: none;
+  cursor: grab;
+}
+
+.gantt__bar.is-dragging {
+  cursor: grabbing;
+  /* Над соседями, пока её тащат: иначе она уезжает под соседнюю полоску и
+     теряется ровно в тот момент, когда за ней следят. */
+  z-index: 2;
 }
 
 /* Критичность — цвет из темы, а не из данных: уровней четыре, они заданы

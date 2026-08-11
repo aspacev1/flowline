@@ -608,3 +608,91 @@ def test_set_task_fields_does_not_leak_the_note_to_a_role_that_cannot_read_it(
     assert "internal_note" not in response["op"]["to"]
     assert "internal_note" not in response["op"]["from"]
     assert "internal_note" not in response["inverse"]["to"]
+
+
+def test_revision_log_reads_newest_first_and_names_the_author(authed):
+    project_id, _, task_id = _project_with_task(authed)
+    authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={"op": {"type": "move_task", "task_id": task_id, "start_date": "2026-03-11"},
+              "reason": "заказчик передвинул показ"},
+    )
+
+    response = authed.get(f"/api/projects/{project_id}/revisions")
+    assert response.status_code == 200
+
+    entries = response.json()
+    # Новые сверху: ленту читают с последнего события, а не листают к нему.
+    assert [entry["op"]["type"] for entry in entries] == [
+        "move_task", "create_task", "create_category",
+    ]
+    assert entries[0]["reason"] == "заказчик передвинул показ"
+    assert entries[0]["actor"]["name"] == "Alex"
+    assert entries[0]["op"]["from"] == "2026-03-06"
+    assert entries[0]["op"]["to"] == "2026-03-11"
+
+
+def test_revision_log_filtered_by_task_leaves_out_everything_else(authed):
+    project_id, category_id, task_id = _project_with_task(authed)
+    other_task_id = authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={"op": {"type": "create_task", "category_id": category_id, "name": "Guide",
+                     "start_date": "2026-03-06", "duration_days": 2}},
+    ).json()["op"]["task_id"]
+    authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={"op": {"type": "move_task", "task_id": other_task_id,
+                     "start_date": "2026-03-11"}},
+    )
+
+    entries = authed.get(
+        f"/api/projects/{project_id}/revisions", params={"task_id": task_id}
+    ).json()
+
+    # Ни создание категории, ни чужая задача: карточка показывает историю
+    # своей задачи, а не всего проекта.
+    assert [entry["op"]["type"] for entry in entries] == ["create_task"]
+    assert entries[0]["op"]["task_id"] == task_id
+
+
+def test_revision_log_does_not_leak_the_note_to_a_role_that_cannot_read_it(
+    authed, monkeypatch
+):
+    import app.access as access
+
+    project_id, category_id, _ = _project_with_task(authed)
+    authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={"op": {"type": "create_task", "category_id": category_id, "name": "Guide",
+                     "start_date": "2026-03-06", "duration_days": 2,
+                     "internal_note": "тайный план"}},
+    )
+
+    real_can = access.can
+
+    def fake_can(role, action, *, project_granted=False):
+        from app.access import Action
+
+        if action is Action.READ_INTERNAL_NOTE:
+            return False
+        return real_can(role, action, project_granted=project_granted)
+
+    monkeypatch.setattr(access, "can", fake_can)
+
+    entries = authed.get(f"/api/projects/{project_id}/revisions").json()
+    assert all("internal_note" not in entry["op"] for entry in entries)
+
+
+def test_revision_log_of_a_foreign_project_is_not_found(authed, db):
+    from app.models import Organization, Project
+
+    other_org = Organization(name="Other", slug="other")
+    db.add(other_org)
+    db.flush()
+    foreign = Project(org_id=other_org.id, name="Theirs", slug="theirs")
+    db.add(foreign)
+    db.flush()
+
+    response = authed.get(f"/api/projects/{foreign.id}/revisions")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "project_not_found"

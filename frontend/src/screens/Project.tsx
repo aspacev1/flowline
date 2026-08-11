@@ -4,8 +4,11 @@ import { useParams } from "react-router-dom";
 
 import { errorKey } from "../api/errors";
 import { getProject, projectQueryKey } from "../api/projects";
+import { useCanWrite } from "../auth/permissions";
 import { Gantt } from "../gantt/Gantt";
+import { usePrefersReducedMotion } from "../gantt/motion";
 import { useLocale } from "../i18n/LocaleProvider";
+import { TaskPanel } from "../task/TaskPanel";
 import { CategoryForm, suggestColor } from "./CategoryForm";
 import { TaskForm } from "./TaskForm";
 
@@ -20,9 +23,17 @@ import { TaskForm } from "./TaskForm";
 export function Project() {
   const { t } = useLocale();
   const { projectId = "" } = useParams();
+  const canWrite = useCanWrite();
+  // Тот же признак, что и у ленты: выезд карточки — такое же движение, как
+  // переезд полоски, и выключаться они обязаны вместе.
+  const reducedMotion = usePrefersReducedMotion();
   const [addingCategory, setAddingCategory] = useState(false);
   // Категория, из строки которой открыли форму задачи. `null` — форма закрыта.
   const [addingTaskIn, setAddingTaskIn] = useState<string | null>(null);
+  // Задача, карточка которой открыта. Держится идентификатором, а не самой
+  // задачей: после каждого изменения состояние приходит с сервера заново, и
+  // карточка, помнящая объект, показывала бы устаревшие данные.
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 
   const query = useQuery({
     queryKey: projectQueryKey(projectId),
@@ -48,6 +59,10 @@ export function Project() {
     );
   }
 
+  // Задача могла исчезнуть между открытием карточки и следующим ответом
+  // сервера: её удалили в соседней вкладке. Карточка тогда просто не рисуется.
+  const selectedTask = query.data.tasks.find((task) => task.id === selectedTaskId) ?? null;
+
   return (
     <main className="screen screen--wide">
       <div className="screen__head">
@@ -55,14 +70,18 @@ export function Project() {
             есть и не переводится ни при каком языке интерфейса. */}
         <h1>{query.data.name}</h1>
 
+        {/* Гостю кнопки не показываются вовсе: они обещали бы действие,
+            которое сервер отклонит. */}
         <div className="screen__actions">
-          <button type="button" onClick={() => setAddingCategory(true)}>
-            {t("category.create")}
-          </button>
+          {canWrite && (
+            <button type="button" onClick={() => setAddingCategory(true)}>
+              {t("category.create")}
+            </button>
+          )}
           {/* Задачу некуда класть, пока нет ни одной категории: кнопка,
               открывающая форму с пустым списком категорий, обещает действие,
               которое не может состояться. */}
-          {query.data.categories.length > 0 && (
+          {canWrite && query.data.categories.length > 0 && (
             <button
               type="button"
               onClick={() => setAddingTaskIn(query.data.categories[0].id)}
@@ -73,7 +92,33 @@ export function Project() {
         </div>
       </div>
 
-      <Gantt state={query.data} onAddTask={setAddingTaskIn} />
+      {/* Диаграмма занимает всю ширину, пока карточка закрыта: пустая колонка
+          справа отнимает у ленты треть экрана ради ничего. */}
+      <div className={`project__body${reducedMotion ? " motion-off" : ""}`}>
+        <Gantt
+          projectId={projectId}
+          state={query.data}
+          canWrite={canWrite}
+          onAddTask={canWrite ? setAddingTaskIn : undefined}
+          selectedTaskId={selectedTaskId}
+          // Повторный щелчок по той же полоске закрывает карточку: люди
+          // делают так не задумываясь, и без этого щелчок выглядит
+          // бездействием.
+          onSelectTask={(taskId) =>
+            setSelectedTaskId((current) => (current === taskId ? null : taskId))
+          }
+        />
+
+        {selectedTask && (
+          <TaskPanel
+            projectId={projectId}
+            task={selectedTask}
+            state={query.data}
+            canWrite={canWrite}
+            onClose={() => setSelectedTaskId(null)}
+          />
+        )}
+      </div>
 
       {addingCategory && (
         <CategoryForm
