@@ -7,30 +7,30 @@ from sqlalchemy.orm import Session as DbSession
 
 from app.access import Action, can, parse_role, visible_op
 from app.auth import current_user
-from app.calendar import CalendarError, end_date
 from app.comments import (
     MAX_COMMENT_LEN,
     CommentRefused,
     TaskNotInProject,
     add_comment,
+    author_names,
+    comment_out,
     list_comments,
 )
+from app.config import get_settings
 from app.db import get_db
-from app.models import (
-    Category,
-    Comment,
-    Dependency,
-    Membership,
-    Organization,
-    Project,
-    Revision,
-    Task,
-    TaskAssignee,
-    User,
-)
+from app.models import Comment, Membership, Organization, Project, Revision, ShareLink, User
 from app.mutations import InvalidOperation, NotFoundInProject, PublicOp, apply_op, to_internal
+from app.project_state import build_state
+from app.projects import SlugRefused, free_slug, rename_slug
 from app.projects import create_project as create_project_entity
-from app.settings_resolution import project_calendar, resolve_shift_threshold, resolve_timezone
+from app.sharing import (
+    SharingRefused,
+    public_path,
+    publish,
+    revoke,
+    set_comments_enabled,
+    stored_link,
+)
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
@@ -45,27 +45,32 @@ class ProjectOut(BaseModel):
     slug: str
 
 
+class ShareIn(BaseModel):
+    published: bool
+    comments_enabled: bool
+
+
+class SlugIn(BaseModel):
+    slug: str = Field(min_length=1, max_length=100)
+
+
+def _share_out(link: ShareLink | None) -> dict:
+    """Состояние публикации по ряду, включая отозванный.
+
+    Отозванная ссылка помнит положение переключателя комментариев, и показать
+    его иначе значило бы потерять решение владельца у него на глазах: снял
+    публикацию — переключатель прыгнул сам собой.
+    """
+    return {
+        "published": link is not None and link.revoked_at is None,
+        "comments_enabled": link.comments_enabled if link else True,
+    }
+
+
 class CommentIn(BaseModel):
     body: str = Field(min_length=1, max_length=MAX_COMMENT_LEN)
     # null и отсутствие ключа — одно и то же: реплика к проекту целиком.
     task_id: uuid.UUID | None = None
-
-
-def _comment_out(comment: Comment, actors: dict[uuid.UUID, str]) -> dict:
-    return {
-        "id": str(comment.id),
-        "task_id": str(comment.task_id) if comment.task_id else None,
-        "body": comment.body,
-        "created_at": comment.created_at.isoformat(),
-        # Автор объектом или null — как в ленте ревизий. Гость приходит
-        # именем: подписывают их по-разному, и различить их обязан ответ.
-        "author": (
-            {"id": str(comment.author_user_id), "name": actors[comment.author_user_id]}
-            if comment.author_user_id in actors
-            else None
-        ),
-        "guest_name": comment.guest_name,
-    }
 
 
 def _membership(db: DbSession, user: User) -> Membership:
@@ -126,91 +131,109 @@ def get_project(
     project, membership = _load_project(db, user, project_id)
     _require_project_read(membership)
     org = db.get(Organization, project.org_id)
-    calendar = project_calendar(project, org)
-    show_notes = can(parse_role(membership.role), Action.READ_INTERNAL_NOTE)
 
-    # Позиции могут совпадать в одном крайнем случае (строка, восстановленная
-    # отменой на позицию, которую с тех пор занял другой ряд), поэтому id —
-    # обязательный второй ключ сортировки, а не только position.
-    categories = db.scalars(
-        select(Category)
-        .where(Category.project_id == project.id)
-        .order_by(Category.position, Category.id)
-    ).all()
-    tasks = db.scalars(
-        select(Task).where(Task.project_id == project.id).order_by(Task.position, Task.id)
-    ).all()
+    return build_state(
+        db,
+        project,
+        org,
+        show_notes=can(parse_role(membership.role), Action.READ_INTERNAL_NOTE),
+        show_assignees=True,
+    )
 
-    # Один запрос на весь проект, а не по запросу на задачу: на сотне задач
-    # второе дало бы сотню запросов ради одного экрана.
-    assignees: dict[str, list[str]] = {str(t.id): [] for t in tasks}
-    for task_id, user_id in db.execute(
-        select(TaskAssignee.task_id, TaskAssignee.user_id)
-        .join(Task, Task.id == TaskAssignee.task_id)
-        .where(Task.project_id == project.id)
-        .order_by(TaskAssignee.user_id)
-    ).all():
-        assignees[str(task_id)].append(str(user_id))
 
-    dependencies = db.execute(
-        select(Dependency.from_task_id, Dependency.to_task_id)
-        .where(Dependency.project_id == project.id)
-        .order_by(Dependency.from_task_id, Dependency.to_task_id)
-    ).all()
-
-    try:
-        ends = [end_date(t.start_date, t.duration_days, calendar) for t in tasks]
-    except CalendarError as error:
-        # Той же формы, что и отказы мутаций: 422 с машинным кодом. Раньше
-        # здесь была голая пятисотка — вырожденную маску задаёт человек, и
-        # проект переставал читаться без объяснения.
-        raise HTTPException(status_code=422, detail=error.code)
+@router.get("/{project_id}/settings")
+def project_settings(
+    project_id: uuid.UUID, user: User = Depends(current_user), db: DbSession = Depends(get_db)
+):
+    project, membership = _load_project(db, user, project_id)
+    if not can(parse_role(membership.role), Action.PROJECT_ADMIN):
+        raise HTTPException(status_code=403, detail="forbidden")
+    org = db.get(Organization, project.org_id)
 
     return {
-        "id": str(project.id),
-        "name": project.name,
         "slug": project.slug,
-        "deadline": project.deadline.isoformat() if project.deadline else None,
-        # Максимум по датам окончания задач; пустой проект не имеет конца.
-        "project_end": max(ends).isoformat() if ends else None,
-        # Календарь едет вместе с состоянием: интерфейс заливает нерабочие дни
-        # и рисует выходные ещё до первого клика, а не догадывается о них.
-        "calendar": {
-            "working_days": calendar.working_days,
-            "holidays": sorted(d.isoformat() for d in calendar.holidays),
-            "extra_workdays": sorted(d.isoformat() for d in calendar.extra_workdays),
-        },
-        # Разрешённые значения, а не сырые nullable-колонки проекта: кто их
-        # унаследовал от организации, а кто задал сам — не дело интерфейса.
-        "settings": {
-            "shift_threshold_days": resolve_shift_threshold(project, org),
-            "timezone": resolve_timezone(project, org),
-        },
-        "categories": [
-            {"id": str(c.id), "name": c.name, "color": c.color, "position": c.position}
-            for c in categories
-        ],
-        "tasks": [
-            {
-                "id": str(t.id),
-                "category_id": str(t.category_id),
-                "name": t.name,
-                "description": t.description,
-                "start_date": t.start_date.isoformat(),
-                "duration_days": t.duration_days,
-                "end_date": task_end.isoformat(),
-                "criticality": t.criticality,
-                "progress_pct": t.progress_pct,
-                "position": t.position,
-                "assignee_ids": assignees[str(t.id)],
-                **({"internal_note": t.internal_note} if show_notes else {}),
-            }
-            for t, task_end in zip(tasks, ends)
-        ],
-        "dependencies": [
-            {"from_task_id": str(source), "to_task_id": str(target)}
-            for source, target in dependencies
-        ],
+        # Полный адрес собирает сервер: PUBLIC_BASE_URL знает он, а браузер
+        # знает только тот адрес, по которому открыт сам, — за обратным
+        # прокси это разные вещи.
+        "public_url": get_settings().public_base_url.rstrip("/") + public_path(org, project),
+        "public_sharing_enabled": org.public_sharing_enabled,
+        "share": _share_out(stored_link(db, project)),
+    }
+
+
+@router.put("/{project_id}/share")
+def set_share(
+    project_id: uuid.UUID,
+    payload: ShareIn,
+    user: User = Depends(current_user),
+    db: DbSession = Depends(get_db),
+):
+    """Желаемое состояние публикации целиком, а не три отдельных действия.
+
+    Повторный вызов с тем же телом ничего не меняет, поэтому кнопка публикации
+    и переключатель комментариев шлют одно и то же, а гонка двух вкладок
+    заканчивается последним состоянием, а не ошибкой.
+    """
+    project, membership = _load_project(db, user, project_id)
+    if not can(parse_role(membership.role), Action.PROJECT_ADMIN):
+        raise HTTPException(status_code=403, detail="forbidden")
+    org = db.get(Organization, project.org_id)
+
+    try:
+        if payload.published:
+            publish(db, project, org)
+            set_comments_enabled(db, project, payload.comments_enabled)
+        else:
+            revoke(db, project)
+    except SharingRefused as error:
+        raise HTTPException(status_code=422, detail=error.code)
+
+    return _share_out(stored_link(db, project))
+
+
+@router.get("/{project_id}/slug-check")
+def check_slug(
+    project_id: uuid.UUID,
+    slug: str = Query(min_length=1, max_length=100),
+    user: User = Depends(current_user),
+    db: DbSession = Depends(get_db),
+):
+    """Свободен ли слаг — и что предложить, если занят.
+
+    Отдельный маршрут, а не только отказ на сохранении: спецификация обещает
+    подсказку прямо в поле ввода, то есть до отправки формы.
+    """
+    project, membership = _load_project(db, user, project_id)
+    if not can(parse_role(membership.role), Action.PROJECT_ADMIN):
+        raise HTTPException(status_code=403, detail="forbidden")
+
+    try:
+        available, suggestion = free_slug(db, project.org_id, slug, except_id=project.id)
+    except SlugRefused as error:
+        raise HTTPException(status_code=422, detail=error.code)
+    return {"available": available, "suggestion": suggestion}
+
+
+@router.put("/{project_id}/slug")
+def set_slug(
+    project_id: uuid.UUID,
+    payload: SlugIn,
+    user: User = Depends(current_user),
+    db: DbSession = Depends(get_db),
+):
+    project, membership = _load_project(db, user, project_id)
+    if not can(parse_role(membership.role), Action.PROJECT_ADMIN):
+        raise HTTPException(status_code=403, detail="forbidden")
+
+    try:
+        rename_slug(db, project, payload.slug)
+    except SlugRefused as error:
+        raise HTTPException(status_code=422, detail=error.code)
+
+    org = db.get(Organization, project.org_id)
+    return {
+        "slug": project.slug,
+        "public_url": get_settings().public_base_url.rstrip("/") + public_path(org, project),
     }
 
 
@@ -320,17 +343,10 @@ def list_project_comments(
     _require_project_read(membership)
 
     comments = list_comments(db, project, task_id=task_id, limit=limit)
-    # Один запрос на всю ветку, а не по запросу на реплику: тот же довод, что
-    # и у авторов ревизий.
-    actors = {
-        row.id: row.name
-        for row in db.scalars(
-            select(User).where(
-                User.id.in_({c.author_user_id for c in comments if c.author_user_id})
-            )
-        ).all()
-    }
-    return [_comment_out(comment, actors) for comment in comments]
+    # Имена собираются один раз на всю ветку: внутри списочного выражения этот
+    # вызов стоил бы по запросу на реплику.
+    actors = author_names(db, comments)
+    return [comment_out(comment, actors) for comment in comments]
 
 
 @router.post("/{project_id}/comments", status_code=201)
@@ -356,4 +372,4 @@ def create_comment(
     except CommentRefused as error:
         raise HTTPException(status_code=422, detail=error.code)
 
-    return _comment_out(comment, {user.id: user.name})
+    return comment_out(comment, {user.id: user.name})

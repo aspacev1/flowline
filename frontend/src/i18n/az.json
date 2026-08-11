@@ -123,7 +123,14 @@
     "assignment_not_found": "Bu adam onsuz da tapşırığa təyin olunmayıb",
     "negative_position": "Sətri qoymağa yer yoxdur: mövqe mənfidir",
     "comment_empty": "Boş şərh göndərmək olmaz",
-    "comment_author_required": "Şərhi imzalayacaq kimsə yoxdur"
+    "comment_author_required": "Şərhi imzalayacaq kimsə yoxdur",
+    "slug_taken": "Bu ünvan artıq tutulub",
+    "slug_empty": "Bundan ünvan alınmır — hərf və ya rəqəm işlədin",
+    "public_sharing_disabled": "Public keçidlər təşkilat tənzimləmələrində söndürülüb",
+    "not_published": "Layihə dərc olunmayıb",
+    "comments_disabled": "Bu səhifədə şərhlər söndürülüb",
+    "guest_name_required": "Şərh yazmaq üçün adınızı yazın",
+    "too_many_comments": "Ardıcıl çox şərh. Bir az gözləyin"
   },
   "projects": {
     "title": "Layihələr",
@@ -224,5 +231,31 @@
       "late": "Layihə {end} tarixində bitir — son tarixdən ({deadline}) {days} gec",
       "fits": "{deadline} tarixinə çatırıq — ehtiyat {days}"
     }
+  },
+  "settings": {
+    "link": "Tənzimləmələr",
+    "title": "Layihə tənzimləmələri",
+    "back": "Diaqrama qayıt",
+    "share": {
+      "title": "Public keçid",
+      "address": "Səhifə ünvanı",
+      "copy": "Kopyala",
+      "copied": "Kopyalandı",
+      "published": "Public keçid",
+      "comments": "Public səhifədə şərhlər"
+    },
+    "slug": {
+      "title": "Layihə ünvanı",
+      "field": "Keçiddəki ünvan",
+      "taken": "Tutulub. Boş variant:",
+      "save": "Ünvanı saxla",
+      "warning": "Ünvan dəyişəndən sonra köhnə ünvan açılmayacaq — keçidi yenidən göndərmək lazım gələcək."
+    }
+  },
+  "public": {
+    "revoked": "Bu keçid artıq işləmir",
+    "revoked_hint": "Keçidi sizə göndərəndən yenisini istəyin",
+    "guest_name": "Adınız",
+    "guest_mark": "{name} (qonaq)"
   }
 }

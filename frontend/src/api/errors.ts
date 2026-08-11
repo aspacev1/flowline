@@ -38,6 +38,14 @@ const PLAIN_CODES = new Set([
   "negative_position",
   "comment_empty",
   "comment_author_required",
+  // Публикация и гостевой доступ.
+  "slug_taken",
+  "slug_empty",
+  "public_sharing_disabled",
+  "not_published",
+  "comments_disabled",
+  "guest_name_required",
+  "too_many_comments",
 ]);
 
 /** Ключ словаря, которым объясняется ошибка. Сырой код наружу не выходит. */

@@ -123,7 +123,14 @@
     "assignment_not_found": "This person is not assigned to the task anyway",
     "negative_position": "Nowhere to put the row: the position is negative",
     "comment_empty": "An empty comment cannot be sent",
-    "comment_author_required": "There is no one to sign this comment"
+    "comment_author_required": "There is no one to sign this comment",
+    "slug_taken": "That address is already taken",
+    "slug_empty": "That makes no address — use letters or digits",
+    "public_sharing_disabled": "Public links are switched off in the organisation settings",
+    "not_published": "The project is not published",
+    "comments_disabled": "Comments are switched off on this page",
+    "guest_name_required": "Give your name to leave a comment",
+    "too_many_comments": "Too many comments in a row. Wait a little"
   },
   "projects": {
     "title": "Projects",
@@ -224,5 +231,31 @@
       "late": "The project ends {end} — {days} after the {deadline} deadline",
       "fits": "On track for {deadline} — {days} to spare"
     }
+  },
+  "settings": {
+    "link": "Settings",
+    "title": "Project settings",
+    "back": "Back to the chart",
+    "share": {
+      "title": "Public link",
+      "address": "Page address",
+      "copy": "Copy",
+      "copied": "Copied",
+      "published": "Public link",
+      "comments": "Comments on the public page"
+    },
+    "slug": {
+      "title": "Project address",
+      "field": "Address inside the link",
+      "taken": "Taken. Free:",
+      "save": "Save the address",
+      "warning": "Changing the address stops the old one from opening — you will have to send the link again."
+    }
+  },
+  "public": {
+    "revoked": "This link no longer works",
+    "revoked_hint": "Ask whoever sent it to you for a new one",
+    "guest_name": "Your name",
+    "guest_mark": "{name} (guest)"
   }
 }

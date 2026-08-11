@@ -4,7 +4,16 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.calendar import WEEKDAYS_MON_FRI
-from app.models import Category, Comment, Membership, Organization, Project, Task, User
+from app.models import (
+    Category,
+    Comment,
+    Membership,
+    Organization,
+    Project,
+    ShareLink,
+    Task,
+    User,
+)
 from app.security import hash_password
 
 
@@ -133,3 +142,26 @@ def test_comment_without_a_task_belongs_to_the_project(db):
 
     assert comment.task_id is None
     assert comment.created_at is not None
+
+
+def test_project_has_at_most_one_share_link(db):
+    """Адрес выводится из слагов и потому ровно один. Второй ряд означал бы
+    два разных адреса к одному проекту — и вопрос, какой из них главный."""
+    org = Organization(name="Acme", slug="acme")
+    db.add(org)
+    db.flush()
+    project = Project(org_id=org.id, name="Redesign", slug="redesign")
+    db.add(project)
+    db.flush()
+
+    link = ShareLink(project_id=project.id)
+    db.add(link)
+    db.flush()
+
+    assert link.comments_enabled is True
+    assert link.revoked_at is None
+
+    with pytest.raises(IntegrityError):
+        with db.begin_nested():
+            db.add(ShareLink(project_id=project.id))
+            db.flush()

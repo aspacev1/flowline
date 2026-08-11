@@ -236,3 +236,21 @@ class Comment(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.clock_timestamp()
     )
+
+
+class ShareLink(Base):
+    __tablename__ = "share_links"
+    # Одна ссылка на проект: адрес выводится из слагов организации и проекта,
+    # и второго адреса к тому же проекту просто не существует.
+    __table_args__ = (UniqueConstraint("project_id"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"))
+    # Токена здесь нет, хотя спецификация его перечисляет: адрес собран из
+    # слагов, подставлять секрет некуда. Колонка, которую никто не читает,
+    # обещала бы защиту, которой нет.
+    comments_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Отзыв не удаляет ряд: когда ссылку открывали и когда закрыли — это
+    # журнал, а не мусор. Публикация заново обнуляет отметку.
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

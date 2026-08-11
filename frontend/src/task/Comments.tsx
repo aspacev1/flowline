@@ -2,9 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { commentsQueryKey, listTaskComments, postComment } from "../api/comments";
-import type { Comment } from "../api/comments";
 import { errorKey } from "../api/errors";
-import { formatShortDate } from "../i18n/dates";
+import { CommentThread } from "../comments/CommentThread";
 import { useLocale } from "../i18n/LocaleProvider";
 import { FieldRow } from "./fields";
 
@@ -56,23 +55,10 @@ export function Comments({ projectId, taskId }: { projectId: string; taskId: str
         {t("comments.title")}
       </h3>
 
-      {thread.data && thread.data.length === 0 && <p className="muted">{t("comments.empty")}</p>}
-
-      <ol className="panel__events">
-        {thread.data?.map((comment) => (
-          <li key={comment.id} className="panel__comment">
-            <p className="panel__comment-meta">
-              <span className="panel__event-actor">{signature(comment, t)}</span>
-              <span>{formatShortDate(t, comment.created_at.slice(0, 10))}</span>
-            </p>
-            {/* Текст человека: выводится как есть, без перевода. */}
-            <p className="panel__comment-body">{comment.body}</p>
-          </li>
-        ))}
-      </ol>
+      <CommentThread comments={thread.data} />
 
       <form
-        className="panel__comment-form"
+        className="comments__form"
         onSubmit={(event) => {
           event.preventDefault();
           send.mutate(draft);
@@ -100,19 +86,4 @@ export function Comments({ projectId, taskId }: { projectId: string; taskId: str
       </form>
     </section>
   );
-}
-
-/**
- * Подпись под репликой.
- *
- * Имя — содержимое пользователя и не переводится; пометка «гость» — чрома и
- * переводится. Поэтому они собираются шаблоном с подстановкой, а не склейкой
- * строк: в другом языке пометка встанет по другую сторону имени.
- */
-function signature(
-  comment: Comment,
-  t: (key: string, params?: Record<string, string>) => string,
-): string {
-  if (comment.author) return comment.author.name;
-  return t("comments.guest", { name: comment.guest_name ?? "" });
 }

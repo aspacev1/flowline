@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 
 import { errorKey } from "../api/errors";
 import { getProject, projectQueryKey } from "../api/projects";
@@ -73,6 +73,9 @@ export function Project() {
         {/* Гостю кнопки не показываются вовсе: они обещали бы действие,
             которое сервер отклонит. */}
         <div className="screen__actions">
+          {/* Настройки — там же, где публичная ссылка: делятся проектом с
+              его же экрана, а не из отдельного места приложения. */}
+          {canWrite && <Link to={`/projects/${projectId}/settings`}>{t("settings.link")}</Link>}
           {canWrite && (
             <button type="button" onClick={() => setAddingCategory(true)}>
               {t("category.create")}
