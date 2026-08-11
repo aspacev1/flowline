@@ -13,13 +13,22 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 # не задавал, а угадывать домен поверх заданного руками нельзя.
 _LOCAL_BASE_URL = "http://localhost:8000"
 
-# Что обязано быть задано при каждом транспорте почты. `none` в списке нет:
-# у выключенной почты требований нет по определению.
+#: Режимы регистрации. `open` — кто угодно, `invite_only` — только по
+#: приглашению, `closed` — вход есть, регистрации нет.
+SIGNUP_MODES = ("open", "invite_only", "closed")
+
+# Что обязано быть задано при каждом транспорте почты. Транспортов без
+# требований в списке нет: у выключенной почты и у записи в журнал требований
+# нет по определению.
 _MAIL_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     "smtp": ("smtp_url", "mail_from"),
     "api": ("mail_api_url", "mail_api_key", "mail_from"),
 }
-MAIL_TRANSPORTS: tuple[str, ...] = ("none", *_MAIL_REQUIREMENTS)
+#: Транспорты почты, которые умеет эта установка. `none` — писем нет вовсе, и
+#: интерфейс не показывает кнопку отправки; `log` — та же запись в журнал, но
+#: установка считается почтовой (кнопка на месте, письмо ищется в логе) —
+#: разница нужна при разработке.
+MAIL_TRANSPORTS: tuple[str, ...] = ("none", "log", *_MAIL_REQUIREMENTS)
 
 
 class Settings(BaseSettings):
@@ -71,6 +80,22 @@ class Settings(BaseSettings):
         for prefix in ("postgresql://", "postgres://"):
             if value.startswith(prefix):
                 return f"postgresql+psycopg://{value[len(prefix):]}"
+        return value
+
+    @field_validator("signup_mode")
+    @classmethod
+    def _reject_a_value_nobody_implements(cls, value: str) -> str:
+        """Отвергает незнакомое значение рубильника при старте, а не при первом
+        обращении к нему.
+
+        Опечатка в `SIGNUP_MODE` иначе тихо превращает установку в закрытую
+        (сравнение с `open` не сходится) — отказ, неотличимый от задуманного
+        поведения и потому ищущийся часами; отказ стартовать находится за
+        секунду. То же самое про `MAIL_TRANSPORT` проверяется ниже, вместе с
+        переменными, которых транспорт требует.
+        """
+        if value not in SIGNUP_MODES:
+            raise ValueError(f"допустимые значения: {', '.join(SIGNUP_MODES)}")
         return value
 
     @model_validator(mode="after")
@@ -134,7 +159,9 @@ class Settings(BaseSettings):
         """Есть ли куда отправлять письма.
 
         При `none` интерфейс не показывает кнопку отправки вовсе — остаётся
-        копирование ссылки, а само письмо уходит в журнал.
+        копирование ссылки, а само письмо уходит в журнал. `log` пишет туда
+        же, но установка считается почтовой: при разработке кнопка нужна на
+        месте, а письмо читается в логе.
         """
         return self.mail_transport != "none"
 

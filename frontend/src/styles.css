@@ -260,6 +260,85 @@ button:disabled {
   margin: 0 0 var(--gap);
 }
 
+/* --- участники и приглашения --- */
+
+.header__nav {
+  display: flex;
+  gap: var(--gap);
+}
+
+/* Переключатель организаций стоит рядом с названием, а не вместо: название
+   подписывает экран у всех, а выбор есть далеко не у каждого. */
+.org-switch {
+  padding: 4px 8px;
+}
+
+.members,
+.invites {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 24px;
+  display: grid;
+  gap: 8px;
+}
+
+.members li,
+.invite {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--gap);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 16px;
+}
+
+.invite__who {
+  font-weight: 600;
+}
+
+/* Отозванное, просроченное и принятое приглашение действия не предлагают —
+   и выглядят иначе, чем ждущее ответа. */
+.invite__dead {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.invite__actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.invite__choice {
+  display: flex;
+  gap: var(--gap);
+}
+
+/* Ссылка показывается один раз, поэтому занимает всю ширину строки: её надо
+   успеть скопировать, а не разглядывать обрезанной. */
+.issued {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  margin: 8px 0 0;
+}
+
+.issued__url {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+}
+
+.issued-list > div {
+  margin-bottom: var(--gap);
+}
+
+.ok {
+  color: var(--ok);
+}
+
 /* --- список проектов и пустое состояние --- */
 
 .projects {

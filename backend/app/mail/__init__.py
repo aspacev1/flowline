@@ -15,7 +15,7 @@ import logging
 from collections.abc import Mapping
 
 from app.config import Settings, get_settings
-from app.mail.templates import render
+from app.mail.templates import render, term
 from app.mail.transports import (
     ApiTransport,
     Letter,
@@ -35,8 +35,29 @@ __all__ = [
     "SmtpTransport",
     "Transport",
     "build_transport",
+    "mail_enabled",
+    "role_name",
     "send",
 ]
+
+
+def mail_enabled() -> bool:
+    """Настроена ли в установке почта.
+
+    От этого зависит не только отправка: при `none` интерфейс не показывает
+    кнопку отправки вовсе, оставляя только копирование ссылки. Установка без
+    почтового сервера должна оставаться полноценной, а не показывать кнопку,
+    которая всегда отвечает отказом.
+    """
+    return get_settings().mail_enabled
+
+
+def role_name(role: str, locale: str) -> str:
+    """Название роли на языке письма. Незнакомая роль остаётся как есть."""
+    try:
+        return term("roles", role, locale)
+    except MailError:
+        return role
 
 
 def build_transport(settings: Settings) -> Transport:

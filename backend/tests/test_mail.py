@@ -95,6 +95,7 @@ def test_user_content_cannot_smuggle_a_placeholder_into_the_letter():
     [
         ({}, LogTransport),
         ({"mail_transport": "none"}, LogTransport),
+        ({"mail_transport": "log"}, LogTransport),
         (
             {"mail_transport": "smtp", "smtp_url": "smtp://mail.example.com", "mail_from": "a@b.c"},
             SmtpTransport,
@@ -134,6 +135,12 @@ def test_disabled_mail_is_a_legitimate_setup():
     assert _settings(
         mail_transport="smtp", smtp_url="smtp://mail.example.com", mail_from="a@b.c"
     ).mail_enabled is True
+
+
+def test_the_log_transport_still_counts_as_a_mail_installation():
+    """`none` и `log` пишут письмо в одно и то же место, но различаются тем,
+    показывает ли интерфейс кнопку отправки: при разработке она нужна."""
+    assert _settings(mail_transport="log").mail_enabled is True
 
 
 # ---- Заглушка ---------------------------------------------------------------
@@ -362,3 +369,56 @@ def test_send_hands_the_rendered_letter_to_the_transport(mailbox):
     (letter,) = mailbox
     assert letter.to == "alex@example.com"
     assert "https://x/y" in letter.body
+
+
+# ---- Письмо-приглашение -----------------------------------------------------
+
+# Проверяется и то, что в письме есть, и то, чего в нём быть не должно: оно
+# уходит на адрес, который никто ещё не подтверждал, и всё, что попадёт в его
+# текст, попадёт неизвестно кому.
+
+_INVITE = {
+    "org": "Acme",
+    "inviter": "Мария",
+    "link": "https://flowline.example.com/invite/abc",
+    "expires": "2026-08-18",
+}
+
+
+def _invitation(locale: str = "ru") -> Letter:
+    return render(
+        "invitation",
+        locale,
+        {**_INVITE, "role": mail.role_name("editor", locale)},
+        to="guest@example.com",
+    )
+
+
+def test_the_invitation_says_who_invites_where_and_until_when():
+    letter = _invitation()
+
+    assert letter.to == "guest@example.com"
+    assert "Acme" in letter.subject
+    assert "Мария" in letter.body
+    assert "редактор" in letter.body
+    assert "https://flowline.example.com/invite/abc" in letter.body
+    assert "2026-08-18" in letter.body
+
+
+def test_the_invitation_speaks_the_language_of_the_organization():
+    assert "invites you" in _invitation("en").body
+    assert "dəvət edir" in _invitation("az").body
+    assert "editor" in _invitation("en").body
+    assert "redaktor" in _invitation("az").body
+
+
+def test_an_unknown_organization_language_falls_back_instead_of_failing():
+    """Язык организации — колонка в базе; попавшее в неё незнакомое значение
+    не должно превращать приглашение в исключение."""
+    assert "https://flowline.example.com/invite/abc" in _invitation("kl").body
+
+
+def test_an_unknown_role_reaches_the_letter_as_it_is():
+    """Роль переводится по словарю, но письмо из-за незнакомой не пропадает:
+    она уходит машинным именем, а не срывает отправку приглашения."""
+    assert mail.role_name("auditor", "ru") == "auditor"

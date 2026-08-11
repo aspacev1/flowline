@@ -62,6 +62,17 @@ def _lookup(template: str, field: str, locale: str) -> str:
     raise MailError(f"нет шаблона письма {template}.{field} ни на одном языке")
 
 
+def term(group: str, key: str, locale: str) -> str:
+    """Отдельное слово из словаря писем — с тем же откатом, что и текст письма.
+
+    Нужно там, где в подстановку идёт не пришедшее извне значение, а наше
+    собственное перечислимое: роль в приглашении хранится в базе строкой
+    `editor`, а в письме должна стоять «редактор». Переводить её на стороне
+    вызывающего значило бы завести второй словарь писем рядом с этим.
+    """
+    return _lookup(group, key, locale)
+
+
 def render(template: str, locale: str, params: Mapping[str, object], *, to: str) -> Letter:
     subject = _lookup(template, "subject", locale)
     body = _lookup(template, "body", locale)

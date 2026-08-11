@@ -10,7 +10,7 @@ ondelete=CASCADE — удаление пользователя уносит ег
 владельцу.
 
 Revision ID: 4d44f75a2766
-Revises: 3b3648273b7a
+Revises: 822f5eb3ea88
 Create Date: 2026-08-11 07:51:28.915545
 
 """
@@ -22,7 +22,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '4d44f75a2766'
-down_revision: Union[str, Sequence[str], None] = '3b3648273b7a'
+down_revision: Union[str, Sequence[str], None] = '822f5eb3ea88'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

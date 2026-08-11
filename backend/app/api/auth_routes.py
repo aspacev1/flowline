@@ -1,8 +1,11 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
+from app.api.invite_routes import as_http
 from app.auth import (
     SESSION_COOKIE,
     SESSION_TTL,
@@ -20,7 +23,8 @@ from app.email_verification import (
     send_verification,
     sent_recently,
 )
-from app.models import User
+from app.invitations import InvitationError, Status, by_token, check_recipient, status_of
+from app.models import Invitation, User
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -29,6 +33,10 @@ class RegisterIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     email: EmailStr
     password: str = Field(min_length=8, max_length=200)
+    #: Приглашение, по которому человек пришёл. С ним аккаунт заводится сразу
+    #: внутри позвавшей организации — и заводится даже в установке, где
+    #: свободная регистрация выключена.
+    invite_token: str | None = None
 
 
 class LoginIn(BaseModel):
@@ -89,12 +97,57 @@ def _to_out(user: User) -> UserOut:
     )
 
 
+def _invitation_for_signup(db: DbSession, payload: RegisterIn) -> Invitation | None:
+    """Приглашение из формы регистрации, проверенное до создания аккаунта.
+
+    Проверка идёт здесь, а не внутри register(): человек, чья ссылка
+    просрочена, должен прочитать про ссылку, а не завести аккаунт и получить
+    отказ уже после. Тот же набор кодов, что и у приёма по ссылке, — экран
+    регистрации и экран приглашения объясняют одно и то же одинаково.
+    """
+    if not payload.invite_token:
+        return None
+
+    invitation = by_token(db, payload.invite_token)
+    if invitation is None:
+        raise HTTPException(status_code=404, detail="invite_not_found")
+
+    state = status_of(invitation, datetime.now(timezone.utc))
+    if state is not Status.PENDING:
+        raise HTTPException(status_code=409, detail=f"invite_{state.value}")
+
+    try:
+        # Адрес приглашения не редактируется: форма его подставляет, а сервер
+        # не верит форме. Иначе приглашение с адресом становится приглашением
+        # предъявителю, чего оно как раз и не должно допускать.
+        check_recipient(invitation, str(payload.email))
+    except InvitationError as error:
+        raise as_http(error)
+    return invitation
+
+
 @router.post("/register", response_model=UserOut, status_code=201)
 def register_route(payload: RegisterIn, response: Response, db: DbSession = Depends(get_db)):
-    if get_settings().signup_mode != "open":
+    mode = get_settings().signup_mode
+    # `closed` проверяется до приглашения: в такой установке регистрации нет
+    # вовсе, и отвечать на неё разбором чужой ссылки не за чем.
+    if mode == "closed":
         raise HTTPException(status_code=403, detail="signup_disabled")
+
+    invitation = _invitation_for_signup(db, payload)
+    if mode == "invite_only" and invitation is None:
+        raise HTTPException(status_code=403, detail="signup_disabled")
+
     try:
-        user = register(db, name=payload.name, email=payload.email, password=payload.password)
+        user = register(
+            db,
+            name=payload.name,
+            email=payload.email,
+            password=payload.password,
+            invitation=invitation,
+        )
+    except InvitationError as error:
+        raise as_http(error)
     except ValueError:
         raise HTTPException(status_code=409, detail="email_taken")
     except IntegrityError:
@@ -104,7 +157,10 @@ def register_route(payload: RegisterIn, response: Response, db: DbSession = Depe
         # клиент получил бы 500 вместо честного «адрес занят».
         db.rollback()
         raise HTTPException(status_code=409, detail="email_taken")
-    _set_cookie(response, open_session(db, user))
+    _set_cookie(
+        response,
+        open_session(db, user, active_org_id=invitation.org_id if invitation else None),
+    )
     # Письмо уходит синхронно, но регистрацию не решает: недоступный
     # почтовый сервер не повод не пускать человека в только что созданную
     # организацию. Отказ уже записан в журнал внутри mail.send, повторная

@@ -69,7 +69,8 @@
   },
   "nav": {
     "projects": "Projects",
-    "logout": "Log out"
+    "logout": "Log out",
+    "members": "Members"
   },
   "locale": {
     "switch_label": "Interface language"
@@ -135,7 +136,20 @@
     "unknown_criticality": "There is no such criticality level",
     "already_assigned": "This person is already assigned to the task",
     "assignment_not_found": "This person is not assigned to the task anyway",
-    "negative_position": "Nowhere to put the row: the position is negative"
+    "negative_position": "Nowhere to put the row: the position is negative",
+    "invite_not_found": "No such invitation — check the whole link",
+    "invite_expired": "The link has expired — ask for a new one",
+    "invite_revoked": "The invitation was revoked — ask for a new one",
+    "invite_accepted": "The invitation has already been accepted — just sign in",
+    "invite_wrong_email": "The invitation was issued to a different address",
+    "invite_rate_limited": "Too many invitations this hour — try again later",
+    "invalid_email": "Check the addresses: one of them is empty or is not an email",
+    "unknown_role": "There is no such role",
+    "project_ids_need_client_role": "Projects are chosen for the client role only",
+    "organization_not_found": "Organization not found",
+    "mail_failed": "The email did not go out — copy the link and send it yourself",
+    "mail_not_configured": "Mail is not configured in this installation",
+    "mail_disabled": "Mail is turned off in this installation"
   },
   "projects": {
     "title": "Projects",
@@ -228,6 +242,66 @@
     "summary": {
       "late": "The project ends {end} — {days} after the {deadline} deadline",
       "fits": "On track for {deadline} — {days} to spare"
+    }
+  },
+  "org": {
+    "switch_label": "Organization"
+  },
+  "members": {
+    "title": "Members",
+    "invite": "Invite",
+    "role": {
+      "owner": "Owner",
+      "editor": "Editor",
+      "viewer": "Viewer",
+      "client": "Client"
+    }
+  },
+  "invite": {
+    "title": "Invite to the organization",
+    "emails": "Addresses",
+    "emails_hint": "Several at once — separated by commas or line breaks",
+    "link_only": "Link without an address",
+    "link_only_hint": "With no address you get a link invitation: it belongs to whoever opens it",
+    "role": "Role",
+    "projects": "Projects",
+    "projects_hint": "A client sees only the projects ticked here",
+    "deliver": "Send an email",
+    "submit": "Create the invitation",
+    "list": {
+      "title": "Invitations",
+      "empty": "Nobody has been invited yet"
+    },
+    "status": {
+      "pending": "Waiting",
+      "accepted": "Accepted",
+      "revoked": "Revoked",
+      "expired": "Expired"
+    },
+    "action": {
+      "link": "New link",
+      "resend": "Send again",
+      "revoke": "Revoke"
+    },
+    "issued": {
+      "link": "Invitation link",
+      "once": "Copy the link now: there is nowhere to take it a second time — the server keeps only its fingerprint",
+      "copy": "Copy",
+      "copied": "Copied",
+      "sent": "Email sent",
+      "done": "Done"
+    },
+    "accept": {
+      "title": "Invitation",
+      "summary": "You are invited to “{org}” — role: {role}",
+      "inviter": "Invited by {name}",
+      "bearer": "This is a link invitation: it works for whoever opened it",
+      "register": "Create an account",
+      "login": "Sign in",
+      "submit": "Accept the invitation",
+      "wrong_account": "The invitation was issued to {email}. Sign out and sign in with that address",
+      "logout": "Sign out",
+      "go_home": "To projects"
     }
   }
 }
