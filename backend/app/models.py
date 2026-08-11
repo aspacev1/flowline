@@ -225,4 +225,10 @@ class Revision(Base):
     reason: Mapped[str | None] = mapped_column(Text)
     # Пакет ревизий читается целиком при отмене групповой операции.
     batch_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), index=True)
+    # Номер ревизии, которую эта отменила. Без него «отменить последнее»
+    # означало бы отменить свою же отмену: журнал линеен, и вторая ревизия
+    # сверху после отмены — это она сама. Внешнего ключа нет намеренно:
+    # ссылаться пришлось бы на составной (project_id, seq), а выигрыш от такой
+    # ссылки нулевой — ревизии не удаляются.
+    undoes_seq: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

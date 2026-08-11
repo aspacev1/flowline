@@ -10,6 +10,7 @@ import { usePrefersReducedMotion } from "../gantt/motion";
 import { useLocale } from "../i18n/LocaleProvider";
 import { PlanApproval } from "../project/PlanApproval";
 import { ShiftReasonProvider } from "../project/ShiftReason";
+import { UndoButton } from "../project/UndoButton";
 import { TaskPanel } from "../task/TaskPanel";
 import { CategoryForm, suggestColor } from "./CategoryForm";
 import { TaskForm } from "./TaskForm";
@@ -95,6 +96,9 @@ export function Project() {
               {t("task.create")}
             </button>
           )}
+          {/* Отмена — там же, где остальные действия над проектом, и только
+              тому, кто может писать: гостю она обещала бы отказ сервера. */}
+          {canWrite && <UndoButton projectId={projectId} state={query.data} />}
           <PlanApproval
             projectId={projectId}
             state={query.data}

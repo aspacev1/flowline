@@ -29,6 +29,7 @@ export const STATE: ProjectState = {
   project_end: "2026-06-08",
   plan_approved_at: null,
   plan_version: 0,
+  undoable: null,
   calendar: { working_days: 31, holidays: ["2026-03-20"], extra_workdays: [] },
   settings: { shift_threshold_days: 2, timezone: "Asia/Baku" },
   categories: [

@@ -21,12 +21,15 @@ from app.models import (
     User,
 )
 from app.mutations import (
-    InvalidOperation,
+    MutationError,
     NotFoundInProject,
     PublicOp,
     ReasonRequired,
     apply_op,
+    last_undoable,
     to_internal,
+    undo,
+    undo_batch,
 )
 from app.plans import approve_plan, plan_versions
 from app.projects import create_project as create_project_entity
@@ -165,6 +168,20 @@ def get_project(
             project.plan_approved_at.isoformat() if project.plan_approved_at else None
         ),
         "plan_version": project.plan_version,
+        # То, что отменит кнопка «Отменить», — вместе с состоянием, а не
+        # отдельным запросом: кнопка обязана быть неактивной сразу, а не
+        # оживать через кадр после отрисовки. Запись проходит через
+        # visible_op: снимок удалённой задачи несёт внутреннюю заметку, и
+        # подпись кнопки не должна её выдать.
+        "undoable": (
+            {
+                "seq": undoable.seq,
+                "op": visible_op(undoable.op, parse_role(membership.role)),
+                "batch_id": str(undoable.batch_id) if undoable.batch_id else None,
+            }
+            if (undoable := last_undoable(db, project)) is not None
+            else None
+        ),
         # Максимум по датам окончания задач; пустой проект не имеет конца.
         "project_end": max(ends).isoformat() if ends else None,
         # Календарь едет вместе с состоянием: интерфейс заливает нерабочие дни
@@ -280,6 +297,83 @@ def list_revisions(
     ]
 
 
+def _refuse(error: MutationError):
+    """Отказ мутации → отказ HTTP. Форма одна на все маршруты, которые пишут.
+
+    Три разных статуса не по вкусу, а по смыслу: чужая сущность неотличима от
+    несуществующей (404), непроизнесённая причина снимается тем же запросом с
+    добавленным полем (409), а неверно составленная операция не пройдёт
+    никогда (422).
+    """
+    if isinstance(error, NotFoundInProject):
+        return HTTPException(status_code=404, detail=error.code)
+    if isinstance(error, ReasonRequired):
+        return HTTPException(
+            status_code=409,
+            detail=error.code,
+            headers={
+                "X-Shift-Deviation-Days": str(error.deviation_days),
+                "X-Shift-Threshold-Days": str(error.threshold_days),
+            },
+        )
+    return HTTPException(status_code=422, detail=error.code)
+
+
+@router.post("/{project_id}/undo", status_code=201)
+def undo_last(
+    project_id: uuid.UUID,
+    reason: str | None = Body(default=None, embed=True),
+    user: User = Depends(current_user),
+    db: DbSession = Depends(get_db),
+):
+    """Отмена последнего изменения.
+
+    Номер ревизии в адресе не принимается сознательно: спецификация обещает
+    отмену последнего действия, а произвольная ревизия из середины журнала —
+    это другая функция («вернуть вот это одно»), и её обратная операция
+    построена для того состояния, которого уже нет.
+
+    Причина принимается, потому что отмена проходит ту же проверку порога, что
+    и всякое изменение сроков: возврат, уводящий задачу от базового плана
+    дальше порога, объясняется ровно так же.
+    """
+    project, membership = _load_project(db, user, project_id)
+    if not can(parse_role(membership.role), Action.PROJECT_WRITE):
+        raise HTTPException(status_code=403, detail="forbidden")
+
+    revision = last_undoable(db, project)
+    if revision is None:
+        raise HTTPException(status_code=404, detail="nothing_to_undo")
+
+    try:
+        applied = undo(db, project, revision, actor_id=user.id, reason=reason)
+    except MutationError as error:
+        raise _refuse(error)
+
+    role = parse_role(membership.role)
+    return {"seq": applied.seq, "undone_seq": revision.seq, "op": visible_op(applied.op, role)}
+
+
+@router.post("/{project_id}/batches/{batch_id}/undo", status_code=201)
+def undo_whole_batch(
+    project_id: uuid.UUID,
+    batch_id: uuid.UUID,
+    user: User = Depends(current_user),
+    db: DbSession = Depends(get_db),
+):
+    """Откат пачки целиком — одной кнопкой, как обещано про применение AI."""
+    project, membership = _load_project(db, user, project_id)
+    if not can(parse_role(membership.role), Action.PROJECT_WRITE):
+        raise HTTPException(status_code=403, detail="forbidden")
+
+    try:
+        applied = undo_batch(db, project, batch_id, actor_id=user.id)
+    except MutationError as error:
+        raise _refuse(error)
+
+    return {"undone": len(applied), "seq": applied[-1].seq}
+
+
 @router.post("/{project_id}/plan/approvals", status_code=201)
 def approve_plan_route(
     project_id: uuid.UUID, user: User = Depends(current_user), db: DbSession = Depends(get_db)
@@ -356,25 +450,8 @@ def apply_mutation(
 
     try:
         revision = apply_op(db, project, to_internal(op), actor_id=user.id, reason=reason)
-    except NotFoundInProject as error:
-        # Сущность чужого проекта — не ошибка формата запроса: 404 тем же
-        # принципом, что и в _load_project.
-        raise HTTPException(status_code=404, detail=error.code)
-    except ReasonRequired as error:
-        # 409, а не 422: тело запроса верно, отказ снимается тем же запросом с
-        # добавленной причиной. Числа едут в заголовках, потому что `detail`
-        # обязан остаться машинным кодом — его переводит клиент, и подмешивать
-        # в него числа значило бы заставить клиент разбирать строку.
-        raise HTTPException(
-            status_code=409,
-            detail=error.code,
-            headers={
-                "X-Shift-Deviation-Days": str(error.deviation_days),
-                "X-Shift-Threshold-Days": str(error.threshold_days),
-            },
-        )
-    except InvalidOperation as error:
-        raise HTTPException(status_code=422, detail=error.code)
+    except MutationError as error:
+        raise _refuse(error)
 
     role = parse_role(membership.role)
     return {

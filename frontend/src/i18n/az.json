@@ -121,7 +121,10 @@
     "unknown_criticality": "Belə kritiklik səviyyəsi yoxdur",
     "already_assigned": "Bu adam tapşırığa artıq təyin olunub",
     "assignment_not_found": "Bu adam onsuz da tapşırığa təyin olunmayıb",
-    "negative_position": "Sətri qoymağa yer yoxdur: mövqe mənfidir"
+    "negative_position": "Sətri qoymağa yer yoxdur: mövqe mənfidir",
+    "nothing_to_undo": "Geri alınacaq bir şey yoxdur",
+    "batch_not_found": "Paket tapılmadı",
+    "reason_required": "Bu sürüşmə üçün səbəb lazımdır"
   },
   "projects": {
     "title": "Layihələr",
@@ -234,5 +237,9 @@
     "reason": "Səbəb",
     "revert": "Geri qaytar",
     "save": "Yadda saxla"
+  },
+  "undo": {
+    "last": "Geri al: {what}",
+    "batch": "Bütün paketi geri al"
   }
 }

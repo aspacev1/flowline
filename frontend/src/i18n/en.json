@@ -121,7 +121,10 @@
     "unknown_criticality": "There is no such criticality level",
     "already_assigned": "This person is already assigned to the task",
     "assignment_not_found": "This person is not assigned to the task anyway",
-    "negative_position": "Nowhere to put the row: the position is negative"
+    "negative_position": "Nowhere to put the row: the position is negative",
+    "nothing_to_undo": "There is nothing to undo",
+    "batch_not_found": "That batch was not found",
+    "reason_required": "This shift needs a reason"
   },
   "projects": {
     "title": "Projects",
@@ -234,5 +237,9 @@
     "reason": "Reason",
     "revert": "Revert",
     "save": "Save"
+  },
+  "undo": {
+    "last": "Undo: {what}",
+    "batch": "Undo the whole batch"
   }
 }

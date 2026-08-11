@@ -77,6 +77,13 @@ export type ProjectState = {
   /** `null` — план ещё черновик: правки свободны, ничего не спрашивается. */
   plan_approved_at: string | null;
   plan_version: number;
+  /**
+   * Что отменит кнопка «Отменить». `null` — отменять нечего.
+   *
+   * Приходит вместе с состоянием, а не отдельным запросом: кнопка обязана
+   * быть неактивной сразу, а не оживать через кадр после отрисовки.
+   */
+  undoable: { seq: number; op: Record<string, unknown>; batch_id: string | null } | null;
   calendar: Calendar;
   settings?: { shift_threshold_days: number; timezone: string };
   categories: Category[];
@@ -155,6 +162,25 @@ export function applyOp(projectId: string, op: Op, reason?: string): Promise<Rev
     method: "POST",
     body: JSON.stringify(reason === undefined ? { op } : { op, reason }),
   });
+}
+
+/**
+ * Отменить последнее изменение.
+ *
+ * Номер ревизии не передаётся: сервер сам знает, что было последним, и знает
+ * это в одном месте. Причина нужна, когда отмена уводит задачу от базового
+ * плана дальше порога, — отмена проходит ту же проверку, что и всякий сдвиг.
+ */
+export function undoLast(projectId: string, reason?: string): Promise<{ seq: number }> {
+  return request(`/api/projects/${projectId}/undo`, {
+    method: "POST",
+    body: JSON.stringify(reason === undefined ? {} : { reason }),
+  });
+}
+
+/** Откатить пачку целиком — ту, что применил AI одной кнопкой. */
+export function undoBatch(projectId: string, batchId: string): Promise<{ undone: number }> {
+  return request(`/api/projects/${projectId}/batches/${batchId}/undo`, { method: "POST" });
 }
 
 /** Одна утверждённая версия плана. Снимок — даты и длительности по задачам. */
