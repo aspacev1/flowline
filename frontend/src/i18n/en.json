@@ -70,7 +70,9 @@
   "nav": {
     "projects": "Projects",
     "logout": "Log out",
-    "members": "Members"
+    "members": "Members",
+    "org_settings": "Organization",
+    "profile": "Profile"
   },
   "locale": {
     "switch_label": "Interface language"
@@ -158,7 +160,34 @@
     "mail_failed": "The email did not go out — copy the link and send it yourself",
     "mail_not_configured": "Mail is not configured in this installation",
     "mail_disabled": "Mail is turned off in this installation",
-    "offline": "No connection to the server: the change was not sent"
+    "offline": "No connection to the server: the change was not sent",
+    "nothing_to_undo": "There is nothing to undo",
+    "batch_not_found": "That batch was not found",
+    "reason_required": "This shift needs a reason",
+    "slug_taken": "That address is already taken",
+    "unsupported_locale": "That language is not supported",
+    "invite_for_another_address": "The invitation is addressed to someone else",
+    "email_not_verified": "Confirm your own address first",
+    "role_not_invitable": "That role cannot be handed out by a link",
+    "verification_not_found": "That confirmation link no longer works",
+    "llm_not_configured": "No LLM is connected",
+    "llm_unreachable": "The model is unreachable",
+    "llm_refused": "The model refused the request",
+    "llm_schema_mismatch": "The model did not answer in the expected shape — try again",
+    "llm_bad_json": "The model's answer could not be read",
+    "llm_bad_shape": "The model's answer is missing expected fields",
+    "llm_key_unreadable": "The key cannot be decrypted: APP_SECRET changed",
+    "llm_failed": "The model did not answer",
+    "api_key_required": "A key is required for the first connection",
+    "wrong_step": "That step is not finished yet",
+    "already_applied": "The draft has already been applied",
+    "ai_session_not_found": "Session not found",
+    "interview_exhausted": "No questions left — move on to the summary",
+    "nothing_asked": "Nothing has been asked yet",
+    "share_not_found": "The link does not work or was revoked",
+    "comments_disabled": "Comments are off",
+    "comment_rate_limited": "Too fast — wait a little",
+    "public_sharing_disabled": "Public links are switched off in this installation"
   },
   "live": {
     "offline": "No connection to the server. Editing is unavailable",
@@ -174,7 +203,8 @@
     "new": {
       "title": "New project",
       "name": "Name"
-    }
+    },
+    "create_with_ai": "Create through an interview"
   },
   "category": {
     "create": "New category",
@@ -255,7 +285,13 @@
     "summary": {
       "late": "The project ends {end} — {days} after the {deadline} deadline",
       "fits": "On track for {deadline} — {days} to spare"
-    }
+    },
+    "beyond_plan": "Beyond the original plan",
+    "baseline": "Planned: {from} — {to}",
+    "deviation_late": "+{days}",
+    "deviation_early": "−{days}",
+    "nudge": "Move “{name}” by {days}?",
+    "nudge_dismiss": "Dismiss the suggestion"
   },
   "share": {
     "open": "Public link",
@@ -269,7 +305,9 @@
     "reissue_warning": "A new link kills the old one instantly — an address you already sent will stop opening",
     "revoke": "Close the link",
     "comments_enabled": "Allow comments",
-    "disabled": "Public links are switched off: by the installation or by the organization"
+    "disabled": "Public links are switched off: by the installation or by the organization",
+    "hidden": "The project is not shared",
+    "comments": "Comments are allowed"
   },
   "comments": {
     "title": "Comments",
@@ -278,7 +316,8 @@
     "your_name": "Your name",
     "body": "Comment",
     "send": "Send",
-    "closed": "The project owner has closed comments"
+    "closed": "The project owner has closed comments",
+    "disabled": "Comments are off for this link"
   },
   "public": {
     "badge": "Public page"
@@ -294,6 +333,29 @@
       "editor": "Editor",
       "viewer": "Viewer",
       "client": "Client"
+    },
+    "emails": "Addresses",
+    "emails_hint": "One per line. Leave empty to issue a link only — whoever opens it accepts it",
+    "role_label": "Role",
+    "projects": "Projects",
+    "invite_and_send": "Invite and send email",
+    "invite_link_only": "Issue a link",
+    "issued": "Issued links",
+    "issued_hint": "The link is visible only now: the server does not remember it, only its hash",
+    "copy": "Copy",
+    "sent": "Email sent",
+    "mail_failed": "The email did not go out — copy the link",
+    "by_link": "By link (to the bearer)",
+    "people": "People",
+    "invitations": "Invitations",
+    "no_invitations": "No invitations yet",
+    "reissue": "Issue a new link",
+    "revoke": "Revoke",
+    "status": {
+      "pending": "pending",
+      "accepted": "accepted",
+      "revoked": "revoked",
+      "expired": "expired"
     }
   },
   "invite": {
@@ -341,6 +403,102 @@
       "wrong_account": "The invitation was issued to {email}. Sign out and sign in with that address",
       "logout": "Sign out",
       "go_home": "To projects"
+    },
+    "bearer": "This invitation is not tied to an address: whoever opens the link accepts it",
+    "sign_in_first": "Sign in or register to accept — then come back to this link",
+    "another_account": "This invitation is addressed to {email}. You are signed in as someone else — sign out and back in"
+  },
+  "plan": {
+    "approve": "Approve plan",
+    "reapprove": "Re-approve plan (version {version})",
+    "reapprove_warning": "Re-approving moves the baseline: shifts will be measured from the new dates",
+    "reapprove_confirm": "Re-approve",
+    "beyond_plan_explained": "Added after the plan was approved — there is no baseline to compare with",
+    "deviation_summary": "Deviation from the plan: {days}"
+  },
+  "shift": {
+    "title": "Shift of {days}",
+    "explain": "“{name}” moves further from the approved plan than the {threshold} threshold. Say why — the reason stays in the task history",
+    "reason": "Reason",
+    "revert": "Revert",
+    "save": "Save"
+  },
+  "undo": {
+    "last": "Undo: {what}",
+    "batch": "Undo the whole batch"
+  },
+  "settings": {
+    "timezone": "Time zone",
+    "threshold": "Shift threshold, days",
+    "threshold_hint": "A change that moves further than this from the approved plan needs a reason",
+    "working_days": "Working days",
+    "inherit": "Inherit from the organization ({value})",
+    "slug_taken": "That address is taken. A free one:",
+    "bad_dates": "Dates must look like YYYY-MM-DD: {dates}",
+    "org": {
+      "title": "Organization settings",
+      "read_only": "Only the owner can change these",
+      "name": "Name",
+      "slug": "Address (slug)",
+      "locale": "Default language",
+      "holidays": "Public holiday calendar",
+      "holidays_hint": "Non-working dates, one per line. Applies to every project",
+      "public_sharing": "Public links are allowed",
+      "comments": "Comments on public links are on by default"
+    },
+    "project": {
+      "title": "Settings for “{name}”",
+      "link": "Settings",
+      "back": "Back to the chart",
+      "name": "Name",
+      "slug": "Address (slug)",
+      "deadline": "Target date",
+      "holidays_extra": "Extra non-working days",
+      "holidays_extra_hint": "Applied on top of the organization calendar",
+      "workdays_extra": "Working Saturdays",
+      "workdays_extra_hint": "Brings specific non-working dates back"
+    },
+    "profile": {
+      "title": "Profile",
+      "locale": "Interface language",
+      "locale_hint": "Kept in your profile: the same language greets you on any computer"
+    },
+    "llm": {
+      "title": "LLM connection",
+      "hint": "The address and the model are settings: a local model works too",
+      "provider": "Provider",
+      "base_url": "Address (base URL)",
+      "model": "Model",
+      "key": "Key",
+      "key_set": "A key is set. Leave empty to keep it",
+      "key_missing": "No key yet",
+      "save": "Save the connection"
+    }
+  },
+  "ai": {
+    "title": "New project through an interview",
+    "intro": "The system asks one question at a time and ends with a draft of categories and tasks. Nothing is written into a project until you apply it",
+    "start": "Start the interview",
+    "answer": "Your answer",
+    "reply": "Answer",
+    "enough": "Enough, generate",
+    "progress": "Questions: {asked}. Tokens: {tokens}",
+    "not_configured": "No LLM is connected: the key is set in the organization settings",
+    "summary": {
+      "title": "What I understood",
+      "hint": "This is the cheapest place to catch a misunderstanding — before it turns into a hundred wrong tasks",
+      "theses": "Theses, one per line",
+      "next": "Generate the plan"
+    },
+    "draft": {
+      "title": "Draft plan",
+      "hint": "Nothing is written into a project until you press Apply",
+      "task_name": "Name of “{name}”",
+      "task_start": "Start of “{name}”",
+      "task_duration": "Duration of “{name}”",
+      "drop": "Remove",
+      "project_name": "Project name",
+      "apply": "Apply to a project"
     }
   }
 }

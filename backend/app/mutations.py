@@ -13,11 +13,14 @@ from app.models import (
     Criticality,
     Dependency,
     Membership,
+    Organization,
     Project,
     Revision,
     Task,
     TaskAssignee,
 )
+from app.plans import deviation_days
+from app.settings_resolution import resolve_shift_threshold
 
 
 class MutationError(Exception):
@@ -45,6 +48,25 @@ class NotFoundInProject(MutationError):
 
 class InvalidOperation(MutationError):
     """Операция составлена так, что применить её нельзя."""
+
+
+class ReasonRequired(MutationError):
+    """Правка уводит задачу от базового плана дальше порога, а причина не названа.
+
+    Отдельный класс, потому что это не ошибка составления операции: операция
+    верна, и стоит человеку объяснить сдвиг — та же самая операция пройдёт.
+    Числа отклонения и порога несёт с собой: интерфейс считает их и сам, но
+    последнее слово о них — за сервером, и расхождение должно быть видно, а не
+    молча разрешаться в пользу клиента.
+    """
+
+    def __init__(self, deviation_days: int, threshold_days: int):
+        super().__init__(
+            "reason_required",
+            f"отклонение {deviation_days} дн. при пороге {threshold_days} дн. требует причины",
+        )
+        self.deviation_days = deviation_days
+        self.threshold_days = threshold_days
 
 
 # --- внутреннее представление ------------------------------------------------
@@ -821,6 +843,47 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
     raise InvalidOperation("unknown_operation", f"неизвестная операция: {op!r}")
 
 
+def _guard_shift_threshold(db: DbSession, project: Project, op, reason: str | None) -> None:
+    """Проверка «отклонение от базового плана больше порога → причина обязательна».
+
+    Живёт в слое мутаций, а не в маршруте, ровно по той причине, по которой
+    спецификация называет правило одним независимо от способа ввода:
+    перетаскивание мышью, правка поля в карточке и применение пачки от AI
+    приходят сюда одной дорогой, а в маршруте их было бы три.
+
+    Проверка идёт до применения: промежуточного состояния «сдвинуто, но не
+    объяснено» в системе не существует, и получиться оно не должно даже на
+    время одной транзакции.
+
+    Отмена (undo) проходит через ту же проверку сознательно. Она не
+    привилегированное действие: если возврат к прежнему значению уводит задачу
+    от базового плана дальше порога, объяснение нужно ровно так же, как при
+    любом другом способе туда попасть.
+    """
+    if reason:
+        return
+
+    if isinstance(op, MoveTask):
+        task = _require_task(db, project, op.task_id)
+        deviation = deviation_days(task, start_date=op.start_date)
+    elif isinstance(op, SetDuration):
+        task = _require_task(db, project, op.task_id)
+        deviation = deviation_days(task, duration_days=op.duration_days)
+    else:
+        # Остальные операции базового плана не касаются. Создание задачи —
+        # тоже: у созданной после утверждения задачи базового плана нет, она
+        # помечается «сверх первоначального плана» и от объяснений свободна.
+        return
+
+    if deviation is None:
+        return
+
+    org = db.get(Organization, project.org_id)
+    threshold = resolve_shift_threshold(project, org)
+    if deviation > threshold:
+        raise ReasonRequired(deviation, threshold)
+
+
 def apply_op(
     db: DbSession,
     project: Project,
@@ -829,6 +892,7 @@ def apply_op(
     actor_id: uuid.UUID | None,
     reason: str | None = None,
     batch_id: uuid.UUID | None = None,
+    undoes_seq: int | None = None,
 ) -> Revision:
     # Блокировка строки проекта на всё время применения операции. Без неё два
     # запроса, правящих один проект, считают max(seq)+1 из одного и того же
@@ -838,6 +902,11 @@ def apply_op(
     # редактирование одного проекта — нормальный режим этого продукта, а не
     # редкий случай; когда конкуренции нет, блокировка не стоит ничего.
     db.execute(select(Project.id).where(Project.id == project.id).with_for_update())
+    # Причина из одних пробелов — это отсутствие причины. Нормализуется здесь,
+    # а не в маршруте: правило порога живёт в этом слое, и проверять здесь
+    # одно, а хранить другое означало бы две разные истины об одном значении.
+    reason = reason.strip() or None if reason else None
+    _guard_shift_threshold(db, project, op, reason)
     forward, inverse = _apply(db, project, op)
     revision = Revision(
         project_id=project.id,
@@ -847,6 +916,7 @@ def apply_op(
         inverse=inverse,
         reason=reason,
         batch_id=batch_id,
+        undoes_seq=undoes_seq,
     )
     db.add(revision)
     db.flush()
@@ -889,11 +959,90 @@ def _op_from_dict(payload: dict):
     return model.model_validate(data)
 
 
-def undo(db: DbSession, project: Project, revision: Revision, *, actor_id: uuid.UUID | None) -> Revision:
+def undo(
+    db: DbSession,
+    project: Project,
+    revision: Revision,
+    *,
+    actor_id: uuid.UUID | None,
+    reason: str | None = None,
+    batch_id: uuid.UUID | None = None,
+) -> Revision:
     # Каждый соседний помощник перепроверяет project_id, а undo принимал
-    # ревизию на веру. Сегодня недостижимо — маршрута отмены нет; но маршрут
-    # возьмёт номер ревизии из адреса, и без этой проверки это ровно
-    # межарендная запись: чужая ревизия применилась бы к своему проекту.
+    # ревизию на веру. Маршрут берёт номер ревизии из адреса, и без этой
+    # проверки это ровно межарендная запись: чужая ревизия применилась бы к
+    # своему проекту.
     if revision.project_id != project.id:
         raise NotFoundInProject("revision_not_found", "ревизия не найдена в этом проекте")
-    return apply_op(db, project, _op_from_dict(revision.inverse), actor_id=actor_id)
+    return apply_op(
+        db,
+        project,
+        _op_from_dict(revision.inverse),
+        actor_id=actor_id,
+        reason=reason,
+        batch_id=batch_id,
+        undoes_seq=revision.seq,
+    )
+
+
+def last_undoable(db: DbSession, project: Project) -> Revision | None:
+    """Ревизия, которую отменит кнопка «Отменить».
+
+    Самая новая из тех, что ещё никем не отменены и сами не являются отменой.
+    Без второго условия повторное нажатие возвращало бы отменённое обратно —
+    и человек, нажавший «Отменить» дважды, оказывался бы там же, откуда
+    начал, вместо того чтобы отступить на два шага.
+    """
+    undone = select(Revision.undoes_seq).where(
+        Revision.project_id == project.id, Revision.undoes_seq.is_not(None)
+    )
+    return db.scalar(
+        select(Revision)
+        .where(
+            Revision.project_id == project.id,
+            Revision.undoes_seq.is_(None),
+            Revision.seq.not_in(undone),
+        )
+        .order_by(Revision.seq.desc())
+        .limit(1)
+    )
+
+
+def undo_batch(
+    db: DbSession, project: Project, batch_id: uuid.UUID, *, actor_id: uuid.UUID | None
+) -> list[Revision]:
+    """Откат пачки целиком — той, что применил AI одной кнопкой.
+
+    Порядок обратный: пачка создаёт категорию, потом задачи в ней, и откат
+    с начала упёрся бы в непустую категорию.
+
+    Уже отменённые ревизии пропускаются: повторное нажатие на ту же кнопку —
+    это не приказ применить обратную операцию второй раз. Сами отмены тоже не
+    отменяются — по той же причине, по которой их обходит `last_undoable`;
+    возврата отката («вернуть пачку обратно») в первой версии нет.
+
+    Отмены получают общий свой batch_id: в журнале откат пачки читается одним
+    действием, а не россыпью не связанных между собой записей.
+    """
+    undone = select(Revision.undoes_seq).where(
+        Revision.project_id == project.id, Revision.undoes_seq.is_not(None)
+    )
+    revisions = db.scalars(
+        select(Revision)
+        .where(
+            Revision.project_id == project.id,
+            Revision.batch_id == batch_id,
+            Revision.undoes_seq.is_(None),
+            Revision.seq.not_in(undone),
+        )
+        .order_by(Revision.seq.desc())
+    ).all()
+
+    if not revisions:
+        raise NotFoundInProject("batch_not_found", "пачка не найдена в этом проекте")
+
+    undo_batch_id = uuid.uuid4()
+    return [
+        undo(db, project, revision, actor_id=actor_id, batch_id=undo_batch_id)
+        for revision in revisions
+    ]

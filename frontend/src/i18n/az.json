@@ -70,7 +70,9 @@
   "nav": {
     "projects": "Layihələr",
     "logout": "Çıxış",
-    "members": "İştirakçılar"
+    "members": "İştirakçılar",
+    "org_settings": "Təşkilat",
+    "profile": "Profil"
   },
   "locale": {
     "switch_label": "İnterfeys dili"
@@ -158,7 +160,34 @@
     "mail_failed": "Məktub getmədi — keçidi köçürüb özünüz göndərin",
     "mail_not_configured": "Bu quraşdırmada poçt konfiqurasiya olunmayıb",
     "mail_disabled": "Bu quraşdırmada poçt söndürülüb",
-    "offline": "Serverlə əlaqə yoxdur: dəyişiklik göndərilmədi"
+    "offline": "Serverlə əlaqə yoxdur: dəyişiklik göndərilmədi",
+    "nothing_to_undo": "Geri alınacaq bir şey yoxdur",
+    "batch_not_found": "Paket tapılmadı",
+    "reason_required": "Bu sürüşmə üçün səbəb lazımdır",
+    "slug_taken": "Bu ünvan artıq tutulub",
+    "unsupported_locale": "Bu dil dəstəklənmir",
+    "invite_for_another_address": "Dəvət başqa ünvana ünvanlanıb",
+    "email_not_verified": "Əvvəlcə öz ünvanınızı təsdiqləyin",
+    "role_not_invitable": "Bu rolu keçidlə vermək olmaz",
+    "verification_not_found": "Təsdiq keçidi işləmir",
+    "llm_not_configured": "LLM qoşulmayıb",
+    "llm_unreachable": "Model əlçatan deyil",
+    "llm_refused": "Model sorğunu rədd etdi",
+    "llm_schema_mismatch": "Model gözlənilən formatda cavab vermədi — yenidən cəhd edin",
+    "llm_bad_json": "Modelin cavabını oxumaq olmadı",
+    "llm_bad_shape": "Modelin cavabında gözlənilən sahələr yoxdur",
+    "llm_key_unreadable": "Açar açılmır: APP_SECRET dəyişib",
+    "llm_failed": "Model cavab vermədi",
+    "api_key_required": "İlk qoşulmada açar lazımdır",
+    "wrong_step": "Bu addım hələ tamamlanmayıb",
+    "already_applied": "Qaralama artıq tətbiq edilib",
+    "ai_session_not_found": "Sessiya tapılmadı",
+    "interview_exhausted": "Suallar bitdi — konspektə keçin",
+    "nothing_asked": "Sual hələ verilməyib",
+    "share_not_found": "Keçid işləmir və ya ləğv edilib",
+    "comments_disabled": "Şərhlər bağlıdır",
+    "comment_rate_limited": "Çox tez-tez — bir az gözləyin",
+    "public_sharing_disabled": "Açıq keçidlər bu quraşdırmada bağlıdır"
   },
   "live": {
     "offline": "Serverlə əlaqə yoxdur. Redaktə mümkün deyil",
@@ -174,7 +203,8 @@
     "new": {
       "title": "Yeni layihə",
       "name": "Ad"
-    }
+    },
+    "create_with_ai": "Müsahibə ilə yarat"
   },
   "category": {
     "create": "Yeni kateqoriya",
@@ -255,7 +285,13 @@
     "summary": {
       "late": "Layihə {end} tarixində bitir — son tarixdən ({deadline}) {days} gec",
       "fits": "{deadline} tarixinə çatırıq — ehtiyat {days}"
-    }
+    },
+    "beyond_plan": "İlkin plandan əlavə",
+    "baseline": "Plan üzrə: {from} — {to}",
+    "deviation_late": "+{days}",
+    "deviation_early": "−{days}",
+    "nudge": "«{name}» tapşırığını {days} irəli çəkim?",
+    "nudge_dismiss": "Təklifi bağla"
   },
   "share": {
     "open": "İctimai keçid",
@@ -269,7 +305,9 @@
     "reissue_warning": "Yeni keçid veriləndə köhnəsi dərhal ölür — göndərilmiş ünvan açılmayacaq",
     "revoke": "Keçidi bağla",
     "comments_enabled": "Şərhlərə icazə ver",
-    "disabled": "İctimai keçidlər söndürülüb: quraşdırma və ya təşkilat ayarı"
+    "disabled": "İctimai keçidlər söndürülüb: quraşdırma və ya təşkilat ayarı",
+    "hidden": "Layihə bayıra açıq deyil",
+    "comments": "Şərhlərə icazə verilir"
   },
   "comments": {
     "title": "Şərhlər",
@@ -278,7 +316,8 @@
     "your_name": "Adınız",
     "body": "Şərh",
     "send": "Göndər",
-    "closed": "Layihənin sahibi şərhləri bağlayıb"
+    "closed": "Layihənin sahibi şərhləri bağlayıb",
+    "disabled": "Bu keçiddə şərhlər bağlıdır"
   },
   "public": {
     "badge": "İctimai səhifə"
@@ -294,6 +333,29 @@
       "editor": "Redaktor",
       "viewer": "İzləyici",
       "client": "Müştəri"
+    },
+    "emails": "Ünvanlar",
+    "emails_hint": "Hər sətirdə bir ünvan. Boş buraxsanız — sadəcə keçid çıxarılacaq, onu kim açsa, o da qəbul edəcək",
+    "role_label": "Rol",
+    "projects": "Layihələr",
+    "invite_and_send": "Dəvət et və məktub göndər",
+    "invite_link_only": "Keçid çıxar",
+    "issued": "Çıxarılmış keçidlər",
+    "issued_hint": "Keçid yalnız indi görünür: server onu yadda saxlamır, bazada yalnız hash var",
+    "copy": "Kopyala",
+    "sent": "Məktub göndərildi",
+    "mail_failed": "Məktub getmədi — keçidi kopyalayın",
+    "by_link": "Keçidlə (təqdim edənə)",
+    "people": "İştirakçılar",
+    "invitations": "Dəvətlər",
+    "no_invitations": "Hələ dəvət yoxdur",
+    "reissue": "Keçidi yenidən çıxar",
+    "revoke": "Ləğv et",
+    "status": {
+      "pending": "gözləyir",
+      "accepted": "qəbul edilib",
+      "revoked": "ləğv edilib",
+      "expired": "vaxtı keçib"
     }
   },
   "invite": {
@@ -341,6 +403,102 @@
       "wrong_account": "Dəvət {email} ünvanına yazılıb. Çıxın və həmin ünvanla daxil olun",
       "logout": "Çıx",
       "go_home": "Layihələrə"
+    },
+    "bearer": "Bu dəvət ünvana bağlı deyil: kim keçidi açsa, o da qəbul edir",
+    "sign_in_first": "Qəbul etmək üçün daxil olun və ya qeydiyyatdan keçin — sonra bu keçidə qayıdın",
+    "another_account": "Dəvət {email} ünvanına ünvanlanıb. Başqa hesabla girmisiniz — çıxın və düzgün hesabla daxil olun"
+  },
+  "plan": {
+    "approve": "Planı təsdiqlə",
+    "reapprove": "Planı yenidən təsdiqlə (versiya {version})",
+    "reapprove_warning": "Yenidən təsdiq bazanı dəyişir: bundan sonra sürüşmələr yeni tarixlərdən sayılacaq",
+    "reapprove_confirm": "Yenidən təsdiqlə",
+    "beyond_plan_explained": "Tapşırıq plan təsdiqləndikdən sonra əlavə edilib: müqayisə üçün baza yoxdur",
+    "deviation_summary": "Plandan kənarlaşma: {days}"
+  },
+  "shift": {
+    "title": "{days} sürüşmə",
+    "explain": "«{name}» təsdiqlənmiş plandan {threshold} hüdudundan çox uzaqlaşır. Səbəbi yazın — o, tapşırığın tarixçəsində qalacaq",
+    "reason": "Səbəb",
+    "revert": "Geri qaytar",
+    "save": "Yadda saxla"
+  },
+  "undo": {
+    "last": "Geri al: {what}",
+    "batch": "Bütün paketi geri al"
+  },
+  "settings": {
+    "timezone": "Saat qurşağı",
+    "threshold": "Sürüşmə həddi, gün",
+    "threshold_hint": "Təsdiqlənmiş plandan bundan çox kənara çıxan dəyişiklik səbəb tələb edir",
+    "working_days": "İş günləri",
+    "inherit": "Təşkilatdan miras al ({value})",
+    "slug_taken": "Bu ünvan tutulub. Boş variant:",
+    "bad_dates": "Tarix formatı İİİİ-AA-GG olmalıdır: {dates}",
+    "org": {
+      "title": "Təşkilatın parametrləri",
+      "read_only": "Dəyişiklik etmək yalnız sahibin əlindədir",
+      "name": "Ad",
+      "slug": "Ünvan (slug)",
+      "locale": "Susmaya görə dil",
+      "holidays": "İstehsalat təqvimi",
+      "holidays_hint": "Qeyri-iş günləri, hər sətirdə bir tarix. Bütün layihələrə tətbiq olunur",
+      "public_sharing": "Açıq keçidlərə icazə verilir",
+      "comments": "Açıq keçidlərdə şərhlər susmaya görə açıqdır"
+    },
+    "project": {
+      "title": "«{name}» layihəsinin parametrləri",
+      "link": "Parametrlər",
+      "back": "Diaqrama qayıt",
+      "name": "Ad",
+      "slug": "Ünvan (slug)",
+      "deadline": "Hədəf tarixi",
+      "holidays_extra": "Əlavə qeyri-iş günləri",
+      "holidays_extra_hint": "Təşkilatın təqviminin üstünə əlavə olunur",
+      "workdays_extra": "İşlənən şənbələr",
+      "workdays_extra_hint": "Qeyri-iş günlərini geri qaytarır"
+    },
+    "profile": {
+      "title": "Profil",
+      "locale": "İnterfeys dili",
+      "locale_hint": "Profildə saxlanılır: başqa kompüterdən girəndə də eyni dil olacaq"
+    },
+    "llm": {
+      "title": "LLM qoşulması",
+      "hint": "Ünvan və model parametrdir: yerli modeli də qoşmaq olar",
+      "provider": "Provayder",
+      "base_url": "Ünvan (base URL)",
+      "model": "Model",
+      "key": "Açar",
+      "key_set": "Açar təyin edilib. Boş buraxsanız — dəyişmir",
+      "key_missing": "Açar hələ yoxdur",
+      "save": "Qoşulmanı saxla"
+    }
+  },
+  "ai": {
+    "title": "Müsahibə ilə yeni layihə",
+    "intro": "Sistem bir-bir sual verəcək, sonunda kateqoriya və tapşırıq layihəsi çıxacaq. Siz təsdiqləməyincə layihəyə heç nə yazılmır",
+    "start": "Müsahibəyə başla",
+    "answer": "Cavabınız",
+    "reply": "Cavab ver",
+    "enough": "Bəsdir, generasiya et",
+    "progress": "Sual: {asked}. Token: {tokens}",
+    "not_configured": "LLM qoşulmayıb: açar təşkilat parametrlərində göstərilir",
+    "summary": {
+      "title": "Anladıqlarım",
+      "hint": "Səhv anlaşılanı burada düzəltmək ən ucuzdur — yüz səhv tapşırığa çevrilməmişdən əvvəl",
+      "theses": "Tezislər, hər sətirdə biri",
+      "next": "Layihəni generasiya et"
+    },
+    "draft": {
+      "title": "Layihə (qaralama)",
+      "hint": "«Tətbiq et» düyməsinə qədər layihəyə heç nə yazılmır",
+      "task_name": "«{name}» adı",
+      "task_start": "«{name}» başlanğıcı",
+      "task_duration": "«{name}» müddəti",
+      "drop": "Sil",
+      "project_name": "Layihənin adı",
+      "apply": "Layihəyə tətbiq et"
     }
   }
 }

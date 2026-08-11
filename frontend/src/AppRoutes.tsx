@@ -1,10 +1,14 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import { RequireAuth } from "./auth/RequireAuth";
+import { AiIntake } from "./screens/AiIntake";
 import { Invite } from "./screens/Invite";
 import { Login } from "./screens/Login";
 import { Members } from "./screens/Members";
+import { OrgSettings } from "./screens/OrgSettings";
+import { Profile } from "./screens/Profile";
 import { Project } from "./screens/Project";
+import { ProjectSettings } from "./screens/ProjectSettings";
 import { Projects } from "./screens/Projects";
 import { PublicProject } from "./screens/PublicProject";
 import { Register } from "./screens/Register";
@@ -35,7 +39,19 @@ export function AppRoutes() {
       <Route path="/invite/:token" element={<Invite />} />
       <Route element={<RequireAuth />}>
         <Route path="/projects" element={<Projects />} />
+        {/* Интервью доступно только при создании нового проекта: запуск
+            внутри существующего — следующий этап, не первая версия. */}
+        <Route path="/projects/new/ai" element={<AiIntake />} />
         <Route path="/projects/:projectId" element={<Project />} />
+        {/* Настройки проекта — отдельным адресом, а не окном поверх
+            диаграммы: их открывают редко, надолго и обсуждая, а окно поверх
+            того, что настраиваешь, показывает результат наполовину. */}
+        <Route path="/projects/:projectId/settings" element={<ProjectSettings />} />
+        <Route path="/settings/organization" element={<OrgSettings />} />
+        <Route path="/settings/profile" element={<Profile />} />
+        {/* Состав организации под двумя адресами: короткий — из шапки,
+            длинный — из настроек. Экран один и тот же. */}
+        <Route path="/settings/members" element={<Members />} />
         <Route path="/members" element={<Members />} />
       </Route>
       {/* Неизвестный адрес ведёт внутрь, а оттуда — на вход, если человек не

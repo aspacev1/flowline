@@ -414,3 +414,126 @@ button:disabled {
 .empty button {
   margin-top: var(--gap);
 }
+
+/* Подтверждение переутверждения: предупреждение и две кнопки в строке шапки,
+   а не окно поверх экрана. Окно здесь прерывало бы работу ради решения,
+   которое человек и так принял, нажав кнопку. */
+.plan__confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* --- экраны настроек --- */
+
+/* Одна колонка ограниченной ширины: настройки читают, а не сканируют, и
+   строка длиной в экран для этого не годится. */
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  max-width: 520px;
+}
+
+.settings__fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+
+.settings__days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.settings__day {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Переключатель «наследовать» стоит прежде самого поля: сперва решается, чьё
+   это значение, и только потом — какое. */
+.settings__override {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.settings__override-label {
+  font-weight: 600;
+}
+
+.settings__inherit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+}
+
+.settings__slug-hint {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.field--inline {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Предложение подвинуть связанную задачу. Ненавязчивое: приглушённая полоска
+   над лентой, а не окно поверх неё — отказ ничего не ломает, и требовать
+   ответа здесь не за что. */
+.nudge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: var(--gap);
+  padding: 6px 10px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 13px;
+}
+
+.nudge__dismiss {
+  margin-left: auto;
+}
+
+/* Список участников и приглашений. Строки, а не таблица: колонок мало, они
+   разной природы, и таблица здесь дала бы разметку ради разметки. */
+.members__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.members__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Ссылка приглашения показывается один раз, поэтому переносится целиком, а не
+   обрезается: обрезанную нельзя ни прочитать, ни продиктовать. */
+.members__link {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}

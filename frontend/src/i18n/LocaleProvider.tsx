@@ -16,9 +16,14 @@ type LocaleContextValue = {
   /** Явный выбор человека: запоминается и побеждает всё остальное. */
   setLocale: (locale: Locale) => void;
   /**
-   * Язык из профиля вошедшего. Не спорит с выбором человека: если тот уже
-   * выбрал язык руками, профиль его не перебивает — иначе переключатель в
-   * шапке работал бы ровно до перезагрузки страницы.
+   * Язык из профиля вошедшего — он же главный.
+   *
+   * Спор с локальным выбором невозможен по построению: всякий выбор человека
+   * тут же уходит в профиль (см. LocaleSwitch и экран профиля), и локальная
+   * память — это лишь то, что показать до ответа сервера и что показывать
+   * гостю, у которого профиля нет вовсе. Поэтому пришедшее из профиля
+   * применяется без оговорок: человек, выбравший русский на работе, обязан
+   * увидеть русский и дома.
    */
   adoptProfileLocale: (locale: string) => void;
   t: (key: string, params?: Params) => string;
@@ -69,11 +74,16 @@ export function LocaleProvider({
     }
   }, []);
 
-  const adoptProfileLocale = useCallback((next: string) => {
-    if (!isSupportedLocale(next)) return;
-    if (storedChoice() !== null) return;
-    setLocaleState(next);
-  }, []);
+  const adoptProfileLocale = useCallback(
+    (next: string) => {
+      if (!isSupportedLocale(next)) return;
+      // Через setLocale, а не мимо него: локальная память обязана совпасть с
+      // профилем, иначе следующая загрузка успеет показать прежний язык до
+      // того, как сервер ответит, кто вошёл.
+      setLocale(next);
+    },
+    [setLocale],
+  );
 
   const value = useMemo<LocaleContextValue>(
     () => ({

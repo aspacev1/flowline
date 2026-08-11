@@ -249,7 +249,7 @@ describe("переключатель организаций", () => {
   });
 
   it("переключает организацию и перезапрашивает всё, что от неё зависит", async () => {
-    const other = { id: "o2", name: "Globex", slug: "globex", role: "viewer" };
+    const other = { ...ORG, id: "o2", name: "Globex", slug: "globex", role: "viewer" };
     let current = ORG;
     server.use(
       http.get("/api/org", () => HttpResponse.json(current)),

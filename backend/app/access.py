@@ -10,6 +10,13 @@ class Action(StrEnum):
     ORG_ADMIN = "org_admin"
     COMMENT = "comment"
     READ_INTERNAL_NOTE = "read_internal_note"
+    # Утверждение и переутверждение — разные права, а не одно: первое доступно
+    # редактору, второе спецификация оставляет владельцу. Переутверждение
+    # стирает базовый план, от которого считаются все объяснённые сдвиги, —
+    # то есть обнуляет накопленную летопись отставания, и это решение уровня
+    # владельца, а не рядовая правка сроков.
+    PLAN_APPROVE = "plan_approve"
+    PLAN_REAPPROVE = "plan_reapprove"
 
 
 _MATRIX: dict[Role | None, frozenset[Action]] = {
@@ -21,6 +28,7 @@ _MATRIX: dict[Role | None, frozenset[Action]] = {
             Action.PROJECT_ADMIN,
             Action.COMMENT,
             Action.READ_INTERNAL_NOTE,
+            Action.PLAN_APPROVE,
         }
     ),
     Role.VIEWER: frozenset(

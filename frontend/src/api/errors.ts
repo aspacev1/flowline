@@ -44,6 +44,13 @@ const PLAIN_CODES = new Set([
   "already_assigned",
   "assignment_not_found",
   "negative_position",
+  "nothing_to_undo",
+  "batch_not_found",
+  "slug_taken",
+  "unsupported_locale",
+  // Приглашения. Просроченное, отозванное и уже принятое — три разных кода и
+  // три разных сообщения: человек должен понимать, просить ли новую ссылку
+  // или он уже в системе и достаточно войти.
   // Публичный доступ и комментарии.
   "link_not_found",
   "sharing_disabled",
@@ -71,6 +78,30 @@ const PLAIN_CODES = new Set([
   "mail_failed",
   "mail_not_configured",
   "mail_disabled",
+  "invite_for_another_address",
+  "invite_rate_limited",
+  "email_not_verified",
+  "role_not_invitable",
+  // AI. Сбой модели — состояние, о котором человеку говорят словами:
+  // переписка и черновик при этом сохраняются.
+  "llm_not_configured",
+  "llm_unreachable",
+  "llm_refused",
+  "llm_schema_mismatch",
+  "llm_bad_json",
+  "llm_bad_shape",
+  "llm_key_unreadable",
+  "llm_failed",
+  "api_key_required",
+  "wrong_step",
+  "already_applied",
+  "ai_session_not_found",
+  "interview_exhausted",
+  "nothing_asked",
+  // Обычно этот отказ не доходит до человека: интерфейс спрашивает причину и
+  // повторяет операцию. Перевод нужен для того случая, когда спросить негде —
+  // например, окно закрыли до ответа сервера.
+  "reason_required",
 ]);
 
 /** Ключ словаря, которым объясняется ошибка. Сырой код наружу не выходит. */

@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
-from pydantic import BaseModel, EmailStr, Field
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Response
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
@@ -24,7 +24,9 @@ from app.email_verification import (
     sent_recently,
 )
 from app.invitations import InvitationError, Status, by_token, check_recipient, status_of
+from app.locales import locale_from_request
 from app.models import Invitation, User
+from app.settings_input import check_locale
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -127,7 +129,12 @@ def _invitation_for_signup(db: DbSession, payload: RegisterIn) -> Invitation | N
 
 
 @router.post("/register", response_model=UserOut, status_code=201)
-def register_route(payload: RegisterIn, response: Response, db: DbSession = Depends(get_db)):
+def register_route(
+    payload: RegisterIn,
+    response: Response,
+    db: DbSession = Depends(get_db),
+    accept_language: str | None = Header(default=None),
+):
     mode = get_settings().signup_mode
     # `closed` проверяется до приглашения: в такой установке регистрации нет
     # вовсе, и отвечать на неё разбором чужой ссылки не за чем.
@@ -144,6 +151,9 @@ def register_route(payload: RegisterIn, response: Response, db: DbSession = Depe
             name=payload.name,
             email=payload.email,
             password=payload.password,
+            # Единственное место, где заголовок вообще читается: язык при
+            # первом появлении человека. Дальше он живёт в профиле.
+            locale=locale_from_request(accept_language),
             invitation=invitation,
         )
     except InvitationError as error:
@@ -220,3 +230,38 @@ def resend_verification_route(
     if sent_recently(db, user):
         raise HTTPException(status_code=429, detail="too_many_requests")
     return MailResultOut(sent=send_verification(db, user))
+
+
+class ProfileIn(BaseModel):
+    """Уровень 4 настроек: язык интерфейса. Всё.
+
+    Имя рядом с ним не настройка, а свойство человека, но правится оно там же
+    и тем же запросом: заводить ради одного поля второй маршрут значило бы
+    делать вид, что это разные экраны.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    locale: str | None = None
+
+
+@router.patch("/me", response_model=UserOut)
+def update_me(
+    payload: ProfileIn, user: User = Depends(current_user), db: DbSession = Depends(get_db)
+):
+    """Правка своего профиля.
+
+    Язык проверяется по списку поддерживаемых: непроверенное значение легло бы
+    в профиль, и интерфейс молча падал бы на язык по умолчанию при каждом
+    входе, не объясняя почему.
+    """
+    if payload.locale is not None:
+        try:
+            user.locale = check_locale(payload.locale)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="unsupported_locale")
+    if payload.name is not None:
+        user.name = payload.name.strip()
+    db.flush()
+    return _to_out(user)

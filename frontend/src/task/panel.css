@@ -148,3 +148,26 @@
   color: var(--accent-text);
   border-color: var(--accent);
 }
+
+/* Сводка базового плана. Отдельным блоком над полями: это не поле — править
+   его нельзя, и стоя среди полей оно читалось бы как ещё одно значение,
+   которое кто-то ввёл. */
+.panel__baseline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 var(--gap);
+  font-size: 13px;
+}
+
+.panel__deviation {
+  font-weight: 600;
+}
+
+.panel__deviation.is-late {
+  color: var(--danger);
+}
+
+.panel__deviation.is-early {
+  color: var(--ok);
+}

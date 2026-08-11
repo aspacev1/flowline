@@ -26,8 +26,14 @@ def project_state(
     *,
     show_notes: bool,
     show_people: bool = True,
+    undoable: dict | None = None,
 ) -> dict:
     """Проект целиком: календарь, категории, задачи, связи.
+
+    `undoable` — то, что отменит кнопка «Отменить», уже приведённое к виду,
+    в каком его вправе увидеть спрашивающий. Собирается снаружи: решение «кому
+    что видно» живёт в матрице прав, а не здесь, и снимок удалённой задачи
+    несёт внутреннюю заметку, которую подпись кнопки выдать не должна.
 
     `show_notes` — внутренняя заметка; её не видят ни `client`, ни гость.
     `show_people` — исполнители задач. Гостю они не отдаются даже
@@ -70,12 +76,32 @@ def project_state(
     ).all()
 
     ends = [end_date(t.start_date, t.duration_days, calendar) for t in tasks]
+    # Конец базового плана считает сервер по тому же календарю, что и текущий:
+    # призрак под полоской обязан стоять там же, где стояла бы настоящая
+    # полоска с теми датами, а клиент календарной арифметики не повторяет.
+    baseline_ends = [
+        end_date(t.baseline_start, t.baseline_duration, calendar)
+        if t.baseline_start is not None and t.baseline_duration is not None
+        else None
+        for t in tasks
+    ]
 
     return {
         "id": str(project.id),
         "name": project.name,
         "slug": project.slug,
         "deadline": project.deadline.isoformat() if project.deadline else None,
+        # План: утверждён ли и какой версией. По этим двум значениям интерфейс
+        # отличает черновик (правки свободны) от утверждённого плана и знает,
+        # какую кнопку показать — «Утвердить» или «Переутвердить».
+        "plan_approved_at": (
+            project.plan_approved_at.isoformat() if project.plan_approved_at else None
+        ),
+        "plan_version": project.plan_version,
+        # То, что отменит кнопка «Отменить», — вместе с состоянием, а не
+        # отдельным запросом: кнопка обязана быть неактивной сразу, а не
+        # оживать через кадр после отрисовки.
+        "undoable": undoable,
         # Максимум по датам окончания задач; пустой проект не имеет конца.
         "project_end": max(ends).isoformat() if ends else None,
         # Календарь едет вместе с состоянием: интерфейс заливает нерабочие дни
@@ -90,6 +116,18 @@ def project_state(
         "settings": {
             "shift_threshold_days": resolve_shift_threshold(project, org),
             "timezone": resolve_timezone(project, org),
+        },
+        # Сырые переопределения — рядом с разрешёнными значениями, но отдельно
+        # от них. Экрану настроек нужно именно это различие: `null` там
+        # означает «наследовать», и показать его как унаследованное число
+        # значило бы предложить человеку переопределить то, что он и не
+        # переопределял.
+        "overrides": {
+            "timezone": project.timezone,
+            "working_days": project.working_days,
+            "shift_threshold_days": project.shift_threshold_days,
+            "holidays_extra": list(project.holidays_extra or []),
+            "workdays_extra": list(project.workdays_extra or []),
         },
         "categories": [
             {"id": str(c.id), "name": c.name, "color": c.color, "position": c.position}
@@ -108,9 +146,21 @@ def project_state(
                 "progress_pct": t.progress_pct,
                 "position": t.position,
                 "assignee_ids": assignees[str(t.id)],
+                # Базовый план едет с задачей всегда, а не по отдельному
+                # запросу: под каждой полоской рисуется его призрак, и второй
+                # поход к серверу ради него означал бы диаграмму, которая
+                # дорисовывается через кадр после появления.
+                #
+                # Пустые baseline_* при утверждённом плане — это и есть
+                # признак «сверх первоначального плана»: отдельного флага нет,
+                # потому что он был бы вычислим из этих же двух полей и однажды
+                # разошёлся бы с ними.
+                "baseline_start": t.baseline_start.isoformat() if t.baseline_start else None,
+                "baseline_duration": t.baseline_duration,
+                "baseline_end": baseline_end.isoformat() if baseline_end else None,
                 **({"internal_note": t.internal_note} if show_notes else {}),
             }
-            for t, task_end in zip(tasks, ends)
+            for t, task_end, baseline_end in zip(tasks, ends, baseline_ends)
         ],
         "dependencies": [
             {"from_task_id": str(source), "to_task_id": str(target)}

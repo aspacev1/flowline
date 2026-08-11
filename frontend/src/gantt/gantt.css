@@ -370,3 +370,45 @@
   background: rgb(0 0 0 / 18%);
   pointer-events: none;
 }
+
+/* Призрак базового плана: тонкая серая полоска под текущей.
+   Именно под, а не продлением текущей — иначе начало полоски означало бы
+   плановую дату, а конец фактическую, и полоска перестала бы означать
+   реальные даты задачи. Один раз обманув глаз, диаграмма теряет доверие
+   целиком. */
+.gantt__ghost {
+  position: absolute;
+  top: calc(50% + 11px);
+  height: 3px;
+  border-radius: 2px;
+  background: var(--text-muted);
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* Бейдж отклонения — справа от полоски, а не поверх неё: поверх он закрывал бы
+   название задачи ровно у тех задач, за которыми и следят. */
+.gantt__deviation {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.gantt__deviation.is-late {
+  color: var(--danger);
+}
+
+.gantt__deviation.is-early {
+  color: var(--ok);
+}
+
+/* «Сверх первоначального плана». Приглушённая, а не тревожная: добавление
+   работы — это нормально, тревожен скрытый перенос сроков. */
+.gantt__beyond {
+  color: var(--text-muted);
+  font-weight: 700;
+}

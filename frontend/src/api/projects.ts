@@ -1,4 +1,5 @@
 import { request } from "./client";
+import type { SlugCheck } from "./org";
 
 export const PROJECTS_QUERY_KEY = ["projects"] as const;
 
@@ -49,6 +50,16 @@ export type Task = {
   progress_pct: number;
   position: number;
   assignee_ids: string[];
+  /**
+   * Базовый план: даты на момент утверждения. `null` у всех задач, пока план
+   * не утверждён, и у тех, что созданы после утверждения, — вторые и есть
+   * «сверх первоначального плана». Отдельного флага нет намеренно: он был бы
+   * вычислим из этих же полей и однажды разошёлся бы с ними.
+   */
+  baseline_start: string | null;
+  baseline_duration: number | null;
+  /** Считает сервер по календарю проекта — как и обычную дату окончания. */
+  baseline_end: string | null;
   /** Приходит только тем, у кого есть право её читать. */
   internal_note?: string;
 };
@@ -58,14 +69,39 @@ export type Dependency = {
   to_task_id: string;
 };
 
+export type ProjectOverrides = {
+  timezone: string | null;
+  working_days: number | null;
+  shift_threshold_days: number | null;
+  holidays_extra: string[];
+  workdays_extra: string[];
+};
+
 export type ProjectState = {
   id: string;
   name: string;
   slug: string;
   deadline: string | null;
   project_end: string | null;
+  /** `null` — план ещё черновик: правки свободны, ничего не спрашивается. */
+  plan_approved_at: string | null;
+  plan_version: number;
+  /**
+   * Что отменит кнопка «Отменить». `null` — отменять нечего.
+   *
+   * Приходит вместе с состоянием, а не отдельным запросом: кнопка обязана
+   * быть неактивной сразу, а не оживать через кадр после отрисовки.
+   */
+  undoable: { seq: number; op: Record<string, unknown>; batch_id: string | null } | null;
   calendar: Calendar;
   settings?: { shift_threshold_days: number; timezone: string };
+  /**
+   * Сырые переопределения проекта: `null` означает «наследовать от
+   * организации», а не «пусто». Экрану настроек нужно именно это различие —
+   * показать унаследованное число как своё значит предложить человеку
+   * переопределить то, что он и не переопределял.
+   */
+  overrides?: ProjectOverrides;
   categories: Category[];
   tasks: Task[];
   dependencies: Dependency[];
@@ -142,4 +178,77 @@ export function applyOp(projectId: string, op: Op, reason?: string): Promise<Rev
     method: "POST",
     body: JSON.stringify(reason === undefined ? { op } : { op, reason }),
   });
+}
+
+/**
+ * Правка настроек проекта.
+ *
+ * `null` здесь — значение, а не пропуск: он сбрасывает переопределение обратно
+ * в «наследовать от организации». Поле, которого в объекте нет вовсе, не
+ * меняется.
+ */
+export function updateProject(
+  projectId: string,
+  patch: Partial<{
+    name: string;
+    slug: string;
+    deadline: string | null;
+    timezone: string | null;
+    working_days: number | null;
+    shift_threshold_days: number | null;
+    holidays_extra: string[];
+    workdays_extra: string[];
+  }>,
+): Promise<ProjectState> {
+  return request<ProjectState>(`/api/projects/${projectId}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export function checkProjectSlug(projectId: string, slug: string): Promise<SlugCheck> {
+  return request<SlugCheck>(
+    `/api/projects/${projectId}/slug-check?slug=${encodeURIComponent(slug)}`,
+  );
+}
+
+/**
+ * Отменить последнее изменение.
+ *
+ * Номер ревизии не передаётся: сервер сам знает, что было последним, и знает
+ * это в одном месте. Причина нужна, когда отмена уводит задачу от базового
+ * плана дальше порога, — отмена проходит ту же проверку, что и всякий сдвиг.
+ */
+export function undoLast(projectId: string, reason?: string): Promise<{ seq: number }> {
+  return request(`/api/projects/${projectId}/undo`, {
+    method: "POST",
+    body: JSON.stringify(reason === undefined ? {} : { reason }),
+  });
+}
+
+/** Откатить пачку целиком — ту, что применил AI одной кнопкой. */
+export function undoBatch(projectId: string, batchId: string): Promise<{ undone: number }> {
+  return request(`/api/projects/${projectId}/batches/${batchId}/undo`, { method: "POST" });
+}
+
+/** Одна утверждённая версия плана. Снимок — даты и длительности по задачам. */
+export type PlanApproval = {
+  version: number;
+  approved_at: string;
+  approved_by: { id: string; name: string } | null;
+  snapshot: Record<string, { name: string; start_date: string; duration_days: number }>;
+};
+
+/**
+ * Утвердить план — или переутвердить, если он уже утверждён.
+ *
+ * Маршрут один: действие одно и то же, различие лишь в том, кому оно
+ * позволено, и решает это сервер.
+ */
+export function approvePlan(projectId: string): Promise<{ version: number; approved_at: string }> {
+  return request(`/api/projects/${projectId}/plan/approvals`, { method: "POST" });
+}
+
+export function listPlanApprovals(projectId: string): Promise<PlanApproval[]> {
+  return request<PlanApproval[]>(`/api/projects/${projectId}/plan/approvals`);
 }

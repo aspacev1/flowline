@@ -35,6 +35,7 @@ def register(
     name: str,
     email: str,
     password: str,
+    locale: str | None = None,
     invitation: Invitation | None = None,
 ) -> User:
     """Заводит аккаунт. С приглашением на руках — сразу внутрь позвавшей
@@ -56,7 +57,11 @@ def register(
         email=normalized,
         password_hash=hash_password(password),
         name=name.strip(),
-        locale=settings.default_locale,
+        # Язык при первом появлении — из заголовка браузера, если тот просит
+        # один из поддерживаемых. Дальше это значение меняет только человек:
+        # заголовок больше не спрашивается никогда, иначе смена языка в
+        # браузере молча переписывала бы сделанный выбор.
+        locale=locale or settings.default_locale,
     )
     try:
         # SAVEPOINT: если конкурентный запрос успел вставить тот же адрес

@@ -1,11 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 
 import { addComment, commentsQueryKey, listComments } from "../api/comments";
 import { errorKey } from "../api/errors";
 import { getProject, projectQueryKey } from "../api/projects";
-import { useCanWrite } from "../auth/permissions";
+import { useCanWrite, useOrgRole } from "../auth/permissions";
 import { CommentThread } from "../comments/CommentThread";
 import { Gantt } from "../gantt/Gantt";
 import { usePrefersReducedMotion } from "../gantt/motion";
@@ -13,6 +13,10 @@ import { useLocale } from "../i18n/LocaleProvider";
 import { LiveProvider } from "../live/LiveProvider";
 import { OfflineBar } from "../live/OfflineBar";
 import { useProjectLive } from "../live/useProjectLive";
+import { DependencyNudge, DependencyNudgeProvider } from "../project/DependencyNudge";
+import { PlanApproval } from "../project/PlanApproval";
+import { ShiftReasonProvider } from "../project/ShiftReason";
+import { UndoButton } from "../project/UndoButton";
 import { TaskPanel } from "../task/TaskPanel";
 import { CategoryForm, suggestColor } from "./CategoryForm";
 import { ShareDialog } from "./ShareDialog";
@@ -30,6 +34,7 @@ export function Project() {
   const { t } = useLocale();
   const { projectId = "" } = useParams();
   const canWrite = useCanWrite();
+  const role = useOrgRole();
   // Тот же признак, что и у ленты: выезд карточки — такое же движение, как
   // переезд полоски, и выключаться они обязаны вместе.
   const reducedMotion = usePrefersReducedMotion();
@@ -97,109 +102,132 @@ export function Project() {
   const editable = canWrite && !offline;
 
   return (
-    <LiveProvider live={live}>
-      <main className="screen screen--wide">
-        <div className="screen__head">
-          {/* Название проекта — содержимое пользователя: приходит с сервера как
-              есть и не переводится ни при каком языке интерфейса. */}
-          <h1>{query.data.name}</h1>
+    <ShiftReasonProvider>
+      <DependencyNudgeProvider>
+        <LiveProvider live={live}>
+          <main className="screen screen--wide">
+            <div className="screen__head">
+              {/* Название проекта — содержимое пользователя: приходит с сервера как
+                  есть и не переводится ни при каком языке интерфейса. */}
+              <h1>{query.data.name}</h1>
 
-          {/* Гостю кнопки не показываются вовсе: они обещали бы действие,
-              которое сервер отклонит. */}
-          <div className="screen__actions">
-            {/* Публикация — действие уровня проекта, поэтому кнопка стоит в его
-                шапке, а не в настройках, до которых ещё нет экрана. Гостю и
-                читателю она не показывается: сервер такую попытку отклонит. */}
-            {canWrite && (
-              <button
-                type="button"
-                className="button--quiet"
-                disabled={offline}
-                onClick={() => setSharing(true)}
-              >
-                {t("share.open")}
-              </button>
-            )}
-            {canWrite && (
-              <button type="button" disabled={offline} onClick={() => setAddingCategory(true)}>
-                {t("category.create")}
-              </button>
-            )}
-            {/* Задачу некуда класть, пока нет ни одной категории: кнопка,
-                открывающая форму с пустым списком категорий, обещает действие,
-                которое не может состояться. */}
-            {canWrite && query.data.categories.length > 0 && (
-              <button
-                type="button"
-                disabled={offline}
-                onClick={() => setAddingTaskIn(query.data.categories[0].id)}
-              >
-                {t("task.create")}
-              </button>
-            )}
-          </div>
-        </div>
+              {/* Гостю кнопки не показываются вовсе: они обещали бы действие,
+                  которое сервер отклонит. */}
+              <div className="screen__actions">
+                {/* Публикация — действие уровня проекта, поэтому кнопка стоит в его
+                    шапке, а не в настройках, до которых ещё нет экрана. Гостю и
+                    читателю она не показывается: сервер такую попытку отклонит. */}
+                {canWrite && (
+                  <button
+                    type="button"
+                    className="button--quiet"
+                    disabled={offline}
+                    onClick={() => setSharing(true)}
+                  >
+                    {t("share.open")}
+                  </button>
+                )}
+                {canWrite && (
+                  <button type="button" disabled={offline} onClick={() => setAddingCategory(true)}>
+                    {t("category.create")}
+                  </button>
+                )}
+                {/* Задачу некуда класть, пока нет ни одной категории: кнопка,
+                    открывающая форму с пустым списком категорий, обещает действие,
+                    которое не может состояться. */}
+                {canWrite && query.data.categories.length > 0 && (
+                  <button
+                    type="button"
+                    disabled={offline}
+                    onClick={() => setAddingTaskIn(query.data.categories[0].id)}
+                  >
+                    {t("task.create")}
+                  </button>
+                )}
+                {/* Отмена — там же, где остальные действия над проектом, и только
+                    тому, кто может писать: гостю она обещала бы отказ сервера. */}
+                {editable && <UndoButton projectId={projectId} state={query.data} />}
+                <PlanApproval
+                  projectId={projectId}
+                  state={query.data}
+                  canApprove={editable}
+                  // Переутверждение — право владельца: оно сдвигает базу, от
+                  // которой считаются все объяснённые сдвиги.
+                  canReapprove={role === "owner" && !offline}
+                />
+                {canWrite && (
+                  <Link to={`/projects/${projectId}/settings`}>{t("settings.project.link")}</Link>
+                )}
+              </div>
+            </div>
 
-        {offline && <OfflineBar syncedAt={query.dataUpdatedAt || null} />}
+            {offline && <OfflineBar syncedAt={query.dataUpdatedAt || null} />}
 
-        {/* Диаграмма занимает всю ширину, пока карточка закрыта: пустая колонка
-            справа отнимает у ленты треть экрана ради ничего. */}
-        <div className={`project__body${reducedMotion ? " motion-off" : ""}`}>
-          <Gantt
-            projectId={projectId}
-            state={query.data}
-            canWrite={editable}
-            onAddTask={editable ? setAddingTaskIn : undefined}
-            selectedTaskId={selectedTaskId}
-            // Повторный щелчок по той же полоске закрывает карточку: люди
-            // делают так не задумываясь, и без этого щелчок выглядит
-            // бездействием.
-            onSelectTask={(taskId) =>
-              setSelectedTaskId((current) => (current === taskId ? null : taskId))
-            }
-          />
+            {/* Предложение подвинуть связанную задачу — над лентой, а не поверх
+                неё: оно ненавязчивое и не должно закрывать то, что человек только
+                что подвинул. */}
+            {editable && <DependencyNudge projectId={projectId} state={query.data} />}
 
-          {selectedTask && (
-            <TaskPanel
-              projectId={projectId}
-              task={selectedTask}
-              state={query.data}
-              canWrite={editable}
-              onClose={() => setSelectedTaskId(null)}
+            {/* Диаграмма занимает всю ширину, пока карточка закрыта: пустая колонка
+                справа отнимает у ленты треть экрана ради ничего. */}
+            <div className={`project__body${reducedMotion ? " motion-off" : ""}`}>
+              <Gantt
+                projectId={projectId}
+                state={query.data}
+                canWrite={editable}
+                onAddTask={editable ? setAddingTaskIn : undefined}
+                selectedTaskId={selectedTaskId}
+                // Повторный щелчок по той же полоске закрывает карточку: люди
+                // делают так не задумываясь, и без этого щелчок выглядит
+                // бездействием.
+                onSelectTask={(taskId) =>
+                  setSelectedTaskId((current) => (current === taskId ? null : taskId))
+                }
+              />
+
+              {selectedTask && (
+                <TaskPanel
+                  projectId={projectId}
+                  task={selectedTask}
+                  state={query.data}
+                  canWrite={editable}
+                  onClose={() => setSelectedTaskId(null)}
+                />
+              )}
+            </div>
+
+            {/* Лента под диаграммой — та же самая, что видит клиент по публичной
+                ссылке: разговор живёт в проекте, а не в почте. */}
+            <CommentThread
+              comments={comments.data ?? []}
+              loading={comments.isPending}
+              error={comments.error}
+              onSend={(input) => send.mutate({ body: input.body })}
+              sending={send.isPending}
+              sendError={send.error}
             />
-          )}
-        </div>
 
-        {/* Лента под диаграммой — та же самая, что видит клиент по публичной
-            ссылке: разговор живёт в проекте, а не в почте. */}
-        <CommentThread
-          comments={comments.data ?? []}
-          loading={comments.isPending}
-          error={comments.error}
-          onSend={(input) => send.mutate({ body: input.body })}
-          sending={send.isPending}
-          sendError={send.error}
-        />
+            {sharing && <ShareDialog projectId={projectId} onClose={() => setSharing(false)} />}
 
-        {sharing && <ShareDialog projectId={projectId} onClose={() => setSharing(false)} />}
+            {addingCategory && (
+              <CategoryForm
+                projectId={projectId}
+                suggested={suggestColor(query.data.categories.length)}
+                onClose={() => setAddingCategory(false)}
+              />
+            )}
 
-        {addingCategory && (
-          <CategoryForm
-            projectId={projectId}
-            suggested={suggestColor(query.data.categories.length)}
-            onClose={() => setAddingCategory(false)}
-          />
-        )}
-
-        {addingTaskIn !== null && (
-          <TaskForm
-            projectId={projectId}
-            categories={query.data.categories}
-            initialCategoryId={addingTaskIn}
-            onClose={() => setAddingTaskIn(null)}
-          />
-        )}
-      </main>
-    </LiveProvider>
+            {addingTaskIn !== null && (
+              <TaskForm
+                projectId={projectId}
+                categories={query.data.categories}
+                initialCategoryId={addingTaskIn}
+                onClose={() => setAddingTaskIn(null)}
+              />
+            )}
+          </main>
+        </LiveProvider>
+      </DependencyNudgeProvider>
+    </ShiftReasonProvider>
   );
 }
