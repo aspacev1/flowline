@@ -12,6 +12,8 @@ from app.comments import (
     CommentRefused,
     TaskNotInProject,
     add_comment,
+    author_names,
+    comment_out,
     list_comments,
 )
 from app.config import get_settings
@@ -69,23 +71,6 @@ class CommentIn(BaseModel):
     body: str = Field(min_length=1, max_length=MAX_COMMENT_LEN)
     # null и отсутствие ключа — одно и то же: реплика к проекту целиком.
     task_id: uuid.UUID | None = None
-
-
-def _comment_out(comment: Comment, actors: dict[uuid.UUID, str]) -> dict:
-    return {
-        "id": str(comment.id),
-        "task_id": str(comment.task_id) if comment.task_id else None,
-        "body": comment.body,
-        "created_at": comment.created_at.isoformat(),
-        # Автор объектом или null — как в ленте ревизий. Гость приходит
-        # именем: подписывают их по-разному, и различить их обязан ответ.
-        "author": (
-            {"id": str(comment.author_user_id), "name": actors[comment.author_user_id]}
-            if comment.author_user_id in actors
-            else None
-        ),
-        "guest_name": comment.guest_name,
-    }
 
 
 def _membership(db: DbSession, user: User) -> Membership:
@@ -358,17 +343,10 @@ def list_project_comments(
     _require_project_read(membership)
 
     comments = list_comments(db, project, task_id=task_id, limit=limit)
-    # Один запрос на всю ветку, а не по запросу на реплику: тот же довод, что
-    # и у авторов ревизий.
-    actors = {
-        row.id: row.name
-        for row in db.scalars(
-            select(User).where(
-                User.id.in_({c.author_user_id for c in comments if c.author_user_id})
-            )
-        ).all()
-    }
-    return [_comment_out(comment, actors) for comment in comments]
+    # Имена собираются один раз на всю ветку: внутри списочного выражения этот
+    # вызов стоил бы по запросу на реплику.
+    actors = author_names(db, comments)
+    return [comment_out(comment, actors) for comment in comments]
 
 
 @router.post("/{project_id}/comments", status_code=201)
@@ -394,4 +372,4 @@ def create_comment(
     except CommentRefused as error:
         raise HTTPException(status_code=422, detail=error.code)
 
-    return _comment_out(comment, {user.id: user.name})
+    return comment_out(comment, {user.id: user.name})

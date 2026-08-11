@@ -33,6 +33,39 @@ class TaskNotInProject(CommentRefused):
     """
 
 
+def comment_out(comment: Comment, actors: dict[uuid.UUID, str]) -> dict:
+    """Реплика в том виде, в каком она идёт по проводу.
+
+    Живёт рядом с доменом, а не в маршрутах: её собирают два разных файла
+    маршрутов — для участника и для гостя, — и вторая копия развела бы форму
+    одной и той же реплики по двум лентам.
+    """
+    return {
+        "id": str(comment.id),
+        "task_id": str(comment.task_id) if comment.task_id else None,
+        "body": comment.body,
+        "created_at": comment.created_at.isoformat(),
+        # Автор объектом или null — как в ленте ревизий. Гость приходит
+        # именем: подписывают их по-разному, и различить их обязан ответ.
+        "author": (
+            {"id": str(comment.author_user_id), "name": actors[comment.author_user_id]}
+            if comment.author_user_id in actors
+            else None
+        ),
+        "guest_name": comment.guest_name,
+    }
+
+
+def author_names(db: DbSession, comments: list[Comment]) -> dict[uuid.UUID, str]:
+    """Имена авторов ветки одним запросом, а не по запросу на реплику."""
+    return {
+        row.id: row.name
+        for row in db.scalars(
+            select(User).where(User.id.in_({c.author_user_id for c in comments if c.author_user_id}))
+        ).all()
+    }
+
+
 def add_comment(
     db: DbSession,
     project: Project,
