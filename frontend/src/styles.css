@@ -144,6 +144,30 @@ h1 {
   color: var(--text-muted);
 }
 
+.fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px 12px;
+}
+
+.fieldset legend {
+  font-size: 14px;
+  color: var(--text-muted);
+  padding: 0 4px;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.checkbox input {
+  width: auto;
+}
+
+select,
+textarea,
 input {
   font: inherit;
   color: var(--text);
@@ -154,6 +178,8 @@ input {
 }
 
 input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
 button:focus-visible {
   /* Видимый фокус обязателен: без него по интерфейсу нельзя ходить с
      клавиатуры, не угадывая, где ты сейчас. */

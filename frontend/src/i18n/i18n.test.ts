@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { flattenKeys as flatten, translate } from "./index";
+import { formatDate, formatMonth, weekdayNarrow } from "./dates";
+import { SUPPORTED_LOCALES, flattenKeys as flatten, translate } from "./index";
 
 describe("переводы", () => {
   it("подставляет параметры", () => {
@@ -21,6 +22,40 @@ describe("переводы", () => {
 
   it("возвращает сам ключ, если его нет нигде", () => {
     expect(translate("en", "totally.unknown")).toBe("totally.unknown");
+  });
+});
+
+describe("даты", () => {
+  it("называет месяц словом на каждом языке, а не кодом", () => {
+    // Ловушка живая, а не выдуманная: ICU в браузере знает локаль `az`, но
+    // названий месяцев для неё не содержит и падает на корневую локаль —
+    // `Intl.DateTimeFormat("az", { month: "long" })` отдаёт «M09». Для языка
+    // по умолчанию это половина нечитаемой шкалы, поэтому названия живут в
+    // словарях. Тест ловит возврат к `Intl` и опечатку в номере месяца.
+    for (const locale of SUPPORTED_LOCALES) {
+      const t = (key: string, params?: Record<string, string | number>) =>
+        translate(locale, key, params);
+      expect(formatDate(t, "2026-09-15")).toMatch(/\p{L}{3,}/u);
+      expect(formatDate(t, "2026-09-15")).not.toMatch(/M\d|calendar\./);
+      expect(formatMonth(t, "2026-09-01")).toMatch(/2026/);
+      expect(formatMonth(t, "2026-09-01")).not.toMatch(/M\d|calendar\./);
+    }
+  });
+
+  it("день с числом собирается в порядке, принятом в языке", () => {
+    expect(formatDate((k, p) => translate("ru", k, p), "2026-09-15")).toBe("15 сентября");
+    expect(formatDate((k, p) => translate("en", k, p), "2026-09-15")).toBe("September 15");
+    expect(formatDate((k, p) => translate("az", k, p), "2026-09-15")).toBe("15 sentyabr");
+  });
+
+  it("все семь дней недели подписаны на каждом языке", () => {
+    for (const locale of SUPPORTED_LOCALES) {
+      const labels = [0, 1, 2, 3, 4, 5, 6].map((day) =>
+        weekdayNarrow((k, p) => translate(locale, k, p), day),
+      );
+      expect(new Set(labels).size).toBe(7);
+      expect(labels.some((label) => label.startsWith("calendar."))).toBe(false);
+    }
   });
 });
 

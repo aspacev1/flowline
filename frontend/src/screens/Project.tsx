@@ -7,6 +7,7 @@ import { getProject, projectQueryKey } from "../api/projects";
 import { Gantt } from "../gantt/Gantt";
 import { useLocale } from "../i18n/LocaleProvider";
 import { CategoryForm, suggestColor } from "./CategoryForm";
+import { TaskForm } from "./TaskForm";
 
 /**
  * Экран одного проекта.
@@ -20,6 +21,8 @@ export function Project() {
   const { t } = useLocale();
   const { projectId = "" } = useParams();
   const [addingCategory, setAddingCategory] = useState(false);
+  // Категория, из строки которой открыли форму задачи. `null` — форма закрыта.
+  const [addingTaskIn, setAddingTaskIn] = useState<string | null>(null);
 
   const query = useQuery({
     queryKey: projectQueryKey(projectId),
@@ -56,16 +59,36 @@ export function Project() {
           <button type="button" onClick={() => setAddingCategory(true)}>
             {t("category.create")}
           </button>
+          {/* Задачу некуда класть, пока нет ни одной категории: кнопка,
+              открывающая форму с пустым списком категорий, обещает действие,
+              которое не может состояться. */}
+          {query.data.categories.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setAddingTaskIn(query.data.categories[0].id)}
+            >
+              {t("task.create")}
+            </button>
+          )}
         </div>
       </div>
 
-      <Gantt state={query.data} />
+      <Gantt state={query.data} onAddTask={setAddingTaskIn} />
 
       {addingCategory && (
         <CategoryForm
           projectId={projectId}
           suggested={suggestColor(query.data.categories.length)}
           onClose={() => setAddingCategory(false)}
+        />
+      )}
+
+      {addingTaskIn !== null && (
+        <TaskForm
+          projectId={projectId}
+          categories={query.data.categories}
+          initialCategoryId={addingTaskIn}
+          onClose={() => setAddingTaskIn(null)}
         />
       )}
     </main>

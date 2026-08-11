@@ -188,6 +188,16 @@
   font-weight: 700;
 }
 
+.gantt__add {
+  margin-left: auto;
+  flex: 0 0 auto;
+  padding: 0 6px;
+  line-height: 1.2;
+  background: transparent;
+  color: var(--text-muted);
+  border-color: var(--border);
+}
+
 .gantt__lane {
   position: relative;
   height: 100%;

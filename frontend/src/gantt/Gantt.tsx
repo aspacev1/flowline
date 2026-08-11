@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 
 import type { Category, ProjectState, Task } from "../api/projects";
+import { formatDate, formatMonth, weekdayNarrow } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
 import { Grid } from "./Grid";
 import { Header } from "./Header";
@@ -22,8 +23,15 @@ function byPosition<T extends { position: number; id: string }>(rows: T[]): T[] 
   return [...rows].sort((a, b) => a.position - b.position || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
 
-export function Gantt({ state }: { state: ProjectState }) {
-  const { locale, t } = useLocale();
+export function Gantt({
+  state,
+  onAddTask,
+}: {
+  state: ProjectState;
+  /** Плюс на строке категории. Без него диаграмма остаётся на чтение. */
+  onAddTask?: (categoryId: string) => void;
+}) {
+  const { t } = useLocale();
   const scroller = useRef<HTMLDivElement>(null);
 
   const today = toISO(Date.now());
@@ -32,19 +40,7 @@ export function Gantt({ state }: { state: ProjectState }) {
     return buildScale({ from, to, dayWidth: DAY_WIDTH });
   }, [state]);
 
-  const formats = useMemo(
-    () => ({
-      // timeZone: UTC — тот же принцип, что и в шкале: дата без времени,
-      // отформатированная в местном поясе, к западу от Гринвича называется
-      // вчерашним числом.
-      day: new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", timeZone: "UTC" }),
-      month: new Intl.DateTimeFormat(locale, { month: "long", year: "numeric", timeZone: "UTC" }),
-      weekday: new Intl.DateTimeFormat(locale, { weekday: "narrow", timeZone: "UTC" }),
-    }),
-    [locale],
-  );
-
-  const formatDay = (iso: string) => formats.day.format(new Date(`${iso}T00:00:00Z`));
+  const formatDay = (iso: string) => formatDate(t, iso);
 
   // Прокрутка к сегодняшнему дню при открытии: проект длиной в квартал иначе
   // открывается на своём начале, то есть на том, что уже сделано.
@@ -79,13 +75,8 @@ export function Gantt({ state }: { state: ProjectState }) {
               <Header
                 scale={scale}
                 calendar={state.calendar}
-                monthLabel={(iso) => formats.month.format(new Date(`${iso}T00:00:00Z`))}
-                weekdayLabel={(weekday) =>
-                  // 4 января 2026 — воскресенье, то есть нулевой день недели.
-                  // Опорная неделя вместо словаря из семи ключей на язык:
-                  // названия дней платформа знает лучше, чем мы их перепишем.
-                  formats.weekday.format(new Date(Date.UTC(2026, 0, 4 + weekday)))
-                }
+                monthLabel={(iso) => formatMonth(t, iso)}
+                weekdayLabel={(weekday) => weekdayNarrow(t, weekday)}
               />
             </div>
 
@@ -106,7 +97,13 @@ export function Gantt({ state }: { state: ProjectState }) {
                   const tasks = tasksByCategory.get(category.id) ?? [];
                   return (
                     <div key={category.id} className="gantt__group">
-                      <CategoryRow category={category} tasks={tasks} scale={scale} />
+                      <CategoryRow
+                        category={category}
+                        tasks={tasks}
+                        scale={scale}
+                        addLabel={t("task.add_to", { category: category.name })}
+                        onAddTask={onAddTask}
+                      />
                       {tasks.map((task) => (
                         <TaskRow
                           key={task.id}

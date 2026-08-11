@@ -11,6 +11,47 @@
       "other": "{count} gün"
     }
   },
+  "calendar": {
+    "date": "{day} {month}",
+    "month_year": "{month} {year}",
+    "month": {
+      "1": "yanvar",
+      "2": "fevral",
+      "3": "mart",
+      "4": "aprel",
+      "5": "may",
+      "6": "iyun",
+      "7": "iyul",
+      "8": "avqust",
+      "9": "sentyabr",
+      "10": "oktyabr",
+      "11": "noyabr",
+      "12": "dekabr"
+    },
+    "month_in": {
+      "1": "yanvar",
+      "2": "fevral",
+      "3": "mart",
+      "4": "aprel",
+      "5": "may",
+      "6": "iyun",
+      "7": "iyul",
+      "8": "avqust",
+      "9": "sentyabr",
+      "10": "oktyabr",
+      "11": "noyabr",
+      "12": "dekabr"
+    },
+    "weekday": {
+      "0": "B",
+      "1": "B.e",
+      "2": "Ç.a",
+      "3": "Ç",
+      "4": "C.a",
+      "5": "C",
+      "6": "Ş"
+    }
+  },
   "nav": {
     "projects": "Layihələr",
     "logout": "Çıxış"
@@ -52,7 +93,15 @@
     "unknown": "Gözlənilməz xəta baş verdi",
     "no_organization": "Siz heç bir təşkilata daxil deyilsiniz",
     "forbidden": "Bunun üçün icazəniz yoxdur",
-    "project_not_found": "Layihə tapılmadı"
+    "project_not_found": "Layihə tapılmadı",
+    "category_not_found": "Bu layihədə belə kateqoriya yoxdur",
+    "task_not_found": "Bu layihədə belə tapşırıq yoxdur",
+    "task_limit_reached": "Layihədə tapşırıq sayı həddi doldu",
+    "duration_too_short": "Müddət ən azı bir gün olmalıdır",
+    "category_not_empty": "Kateqoriyada hələ tapşırıqlar var — əvvəlcə onları köçürün",
+    "user_not_in_organization": "Bu şəxs sizin təşkilatınızda deyil",
+    "calendar_has_no_working_days": "Layihə təqvimində bir dənə də iş günü yoxdur",
+    "calendar_too_few_working_days": "Layihə təqvimində bu müddət üçün kifayət qədər iş günü yoxdur"
   },
   "projects": {
     "title": "Layihələr",
@@ -72,6 +121,27 @@
       "title": "Yeni kateqoriya",
       "name": "Ad",
       "color": "Rəng"
+    }
+  },
+  "task": {
+    "create": "Yeni tapşırıq",
+    "add_to": "«{category}» kateqoriyasına tapşırıq əlavə et",
+    "criticality": {
+      "low": "Aşağı",
+      "normal": "Adi",
+      "high": "Yüksək",
+      "critical": "Kritik"
+    },
+    "new": {
+      "title": "Yeni tapşırıq",
+      "name": "Ad",
+      "description": "Təsvir",
+      "category": "Kateqoriya",
+      "criticality": "Kritiklik",
+      "start": "Başlama tarixi",
+      "duration": "Müddət, iş günü",
+      "assignees": "İcraçılar",
+      "submit": "Tapşırıq yarat"
     }
   },
   "gantt": {

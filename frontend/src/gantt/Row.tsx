@@ -13,10 +13,14 @@ export function CategoryRow({
   category,
   tasks,
   scale,
+  addLabel,
+  onAddTask,
 }: {
   category: Category;
   tasks: Task[];
   scale: Scale;
+  addLabel: string;
+  onAddTask?: (categoryId: string) => void;
 }) {
   const span =
     tasks.length === 0
@@ -31,6 +35,20 @@ export function CategoryRow({
       <div className="gantt__label">
         <span className="gantt__dot" style={{ background: category.color }} aria-hidden="true" />
         <span className="gantt__label-name">{category.name}</span>
+        {onAddTask && (
+          // Подпись включает название категории: на десятке категорий десять
+          // кнопок «Добавить задачу» при чтении с экрана неразличимы, и
+          // выбрать нужную нельзя иначе как считая их по порядку.
+          <button
+            type="button"
+            className="gantt__add"
+            aria-label={addLabel}
+            title={addLabel}
+            onClick={() => onAddTask(category.id)}
+          >
+            +
+          </button>
+        )}
       </div>
 
       <div className="gantt__lane" style={{ width: scale.width }}>
@@ -91,6 +109,12 @@ export function TaskRow({
             left: scale.xOf(task.start_date),
             width: scale.widthOf(task.start_date, task.end_date),
           }}
+          // Имя названо явно вместе с датами, а не оставлено содержимому
+          // кнопки: у полоски есть и `title`, и обрезаемый по ширине текст, и
+          // браузеры расходятся в том, что из этого станет доступным именем.
+          // Живая проверка показала полоску, которая читается с экрана как
+          // «14 августа — 20 августа» — без названия задачи вовсе.
+          aria-label={`${task.name}, ${title}`}
           title={title}
         >
           {/* Заливка внутри полоски, а не отдельная полоска рядом: прогресс —
