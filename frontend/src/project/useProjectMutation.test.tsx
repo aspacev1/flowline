@@ -4,8 +4,11 @@ import { HttpResponse, http } from "msw";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { ApiError } from "../api/client";
+import { errorKey } from "../api/errors";
 import { getProject, projectQueryKey } from "../api/projects";
 import type { Op, ProjectState, Task } from "../api/projects";
+import { LiveProvider } from "../live/LiveProvider";
 import { server } from "../test/server";
 import { newQueryClient } from "../test/utils";
 import { useProjectMutation } from "./useProjectMutation";
@@ -88,6 +91,11 @@ function wrapper({ children }: { children: ReactNode }) {
   );
 }
 
+/** То же окружение, но связь оборвана. */
+function offlineWrapper({ children }: { children: ReactNode }) {
+  return <LiveProvider live={{ status: "offline" }}>{wrapper({ children })}</LiveProvider>;
+}
+
 function cachedState(): ProjectState {
   return queryClient.getQueryData<ProjectState>(projectQueryKey("p1"))!;
 }
@@ -160,6 +168,43 @@ describe("оптимистичные изменения", () => {
     });
 
     await waitFor(() => expect(cachedState().tasks[0].end_date).toBe("2026-03-17"));
+  });
+
+  it("при обрыве связи не отправляет ничего и не трогает состояние", async () => {
+    // Ни одного обработчика POST: запрос обязан не уйти вовсе, а не уйти и
+    // получить отказ. Ушедший запрос уронит тест — сеть в наборе перехвачена
+    // и необъявленные запросы предъявляются (см. test/setup.ts).
+    const { result } = renderHook(() => useProjectMutation("p1"), {
+      wrapper: offlineWrapper,
+    });
+
+    let refusal: unknown;
+    await act(async () => {
+      refusal = await result.current.apply(MOVE_OP, moveTaskLocally).catch((error) => error);
+    });
+
+    expect((refusal as ApiError).code).toBe("offline");
+    expect(errorKey(refusal)).toBe("error.offline");
+    // Мигания «показали и убрали» тоже быть не должно: показывать нечего.
+    expect(cachedState().tasks[0].start_date).toBe("2026-03-04");
+  });
+
+  it("не запирает изменения, пока связь просто не открылась", async () => {
+    // Раскладка без WebSocket — не обрыв: живых обновлений там нет, а HTTP
+    // работает, и запирать редактирование не за что.
+    server.use(http.post("/api/projects/p1/mutations", () => HttpResponse.json(OK, { status: 201 })));
+
+    const { result } = renderHook(() => useProjectMutation("p1"), {
+      wrapper: ({ children }) => (
+        <LiveProvider live={{ status: "unavailable" }}>{wrapper({ children })}</LiveProvider>
+      ),
+    });
+
+    await act(async () => {
+      await result.current.apply(MOVE_OP, moveTaskLocally);
+    });
+
+    expect(cachedState().tasks[0].start_date).toBe("2026-03-11");
   });
 
   it("два изменения подряд откатываются каждое к своему состоянию", async () => {

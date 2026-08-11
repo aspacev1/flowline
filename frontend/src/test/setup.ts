@@ -1,8 +1,9 @@
 import "@testing-library/jest-dom/vitest";
 import { configure } from "@testing-library/dom";
-import { afterAll, afterEach, beforeAll } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach } from "vitest";
 
 import { server } from "./server";
+import { installFakeWebSocket } from "./socket";
 
 // Секунда по умолчанию у Testing Library рассчитана на один компонент, а
 // защищённый экран рисуется в два последовательных похода к серверу: сперва
@@ -28,6 +29,13 @@ beforeAll(() =>
     },
   }),
 );
+
+// Сокет подменяется на управляемый до каждого теста, а не один раз: список
+// открытых соединений обязан начинаться пустым, иначе тест видит чужие.
+// Подключение при этом не открывается само — экран проекта, которому живая
+// связь не нужна, остаётся в состоянии «подключаемся», как и в жизни в первые
+// миллисекунды.
+beforeEach(installFakeWebSocket);
 
 afterEach(() => {
   server.resetHandlers();

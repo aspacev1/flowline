@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
@@ -12,6 +12,7 @@ from app.auth import current_user
 from app.calendar import CalendarError
 from app.comments import CommentRejected, add_comment, list_comments
 from app.db import get_db
+from app.live import hub
 from app.models import Membership, Project, ProjectAccess, Revision, User
 from app.mutations import InvalidOperation, NotFoundInProject, PublicOp, apply_op, to_internal
 from app.orgs import current_membership
@@ -92,6 +93,33 @@ def get_project(
         raise HTTPException(status_code=422, detail=error.code)
 
 
+def _revision_entry(revision: Revision, actor_name: str | None, op: dict) -> dict:
+    """Запись журнала в том виде, в каком её читает клиент.
+
+    Одна форма на два пути: ленту истории запрашивают по HTTP, а новые ревизии
+    приходят в сокет. Собранные порознь, они разойдутся на первом же добавленном
+    поле, и клиенту придётся разбирать две формы одного события.
+
+    `op` приходит параметром, а не берётся из ревизии: кому что видно, решается
+    у получателя (в HTTP — по роли спрашивающего, в сокете — по роли каждого
+    подписчика отдельно), и решать это здесь значило бы решать дважды.
+    """
+    return {
+        "seq": revision.seq,
+        "created_at": revision.created_at.isoformat(),
+        # Автора может не быть: операции AI и системные записи идут без
+        # человека, и выдумывать им автора нельзя.
+        "actor": (
+            {"id": str(revision.actor_user_id), "name": actor_name}
+            if actor_name is not None
+            else None
+        ),
+        # Причина — текст человека: отдаётся как есть и не переводится.
+        "reason": revision.reason,
+        "op": op,
+    }
+
+
 @router.get("/{project_id}/revisions")
 def list_revisions(
     task_id: uuid.UUID | None = None,
@@ -129,26 +157,18 @@ def list_revisions(
     }
 
     return [
-        {
-            "seq": revision.seq,
-            "created_at": revision.created_at.isoformat(),
-            # Автора может не быть: операции AI и системные записи идут без
-            # человека, и выдумывать им автора нельзя.
-            "actor": (
-                {"id": str(revision.actor_user_id), "name": actors[revision.actor_user_id]}
-                if revision.actor_user_id in actors
-                else None
-            ),
-            # Причина — текст человека: отдаётся как есть и не переводится.
-            "reason": revision.reason,
-            "op": visible_op(revision.op, context.role, project_granted=context.granted),
-        }
+        _revision_entry(
+            revision,
+            actors.get(revision.actor_user_id),
+            visible_op(revision.op, context.role, project_granted=context.granted),
+        )
         for revision in revisions
     ]
 
 
 @router.post("/{project_id}/mutations", status_code=201)
 def apply_mutation(
+    background: BackgroundTasks,
     op: PublicOp = Body(..., embed=True),
     reason: str | None = Body(default=None),
     context: ProjectContext = Depends(project_context),
@@ -166,6 +186,20 @@ def apply_mutation(
         raise HTTPException(status_code=404, detail=error.code)
     except InvalidOperation as error:
         raise HTTPException(status_code=422, detail=error.code)
+
+    # Заметка внутрь события кладётся как есть: кому её видно, решает каждый
+    # сокет отдельно — в одной комнате сидят и редактор, и клиент.
+    event = {"type": "revision", **_revision_entry(revision, context.user.name, revision.op)}
+
+    # Коммит явный, до постановки рассылки в очередь, и это не перестраховка.
+    # Разослать можно только то, что уже лежит в базе: получив сигнал, клиент
+    # перезапрашивает проект целиком — и, придя раньше коммита, не увидел бы
+    # изменения, а второго сигнала не будет. Полагаться здесь на коммит из
+    # get_db нельзя: фоновые задачи выполняются раньше, чем закрывается
+    # зависимость с yield. Повторный коммит на выходе безвреден — коммитить
+    # уже нечего.
+    db.commit()
+    background.add_task(hub.publish, context.project.id, event)
 
     seen = {"role": context.role, "project_granted": context.granted}
     return {

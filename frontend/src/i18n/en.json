@@ -157,7 +157,12 @@
     "organization_not_found": "Organization not found",
     "mail_failed": "The email did not go out — copy the link and send it yourself",
     "mail_not_configured": "Mail is not configured in this installation",
-    "mail_disabled": "Mail is turned off in this installation"
+    "mail_disabled": "Mail is turned off in this installation",
+    "offline": "No connection to the server: the change was not sent"
+  },
+  "live": {
+    "offline": "No connection to the server. Editing is unavailable",
+    "offline_since": "No connection, showing data as of {time}. Editing is unavailable"
   },
   "projects": {
     "title": "Projects",

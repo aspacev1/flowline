@@ -157,7 +157,12 @@
     "organization_not_found": "Təşkilat tapılmadı",
     "mail_failed": "Məktub getmədi — keçidi köçürüb özünüz göndərin",
     "mail_not_configured": "Bu quraşdırmada poçt konfiqurasiya olunmayıb",
-    "mail_disabled": "Bu quraşdırmada poçt söndürülüb"
+    "mail_disabled": "Bu quraşdırmada poçt söndürülüb",
+    "offline": "Serverlə əlaqə yoxdur: dəyişiklik göndərilmədi"
+  },
+  "live": {
+    "offline": "Serverlə əlaqə yoxdur. Redaktə mümkün deyil",
+    "offline_since": "Əlaqə yoxdur, saat {time} vəziyyətindəki məlumatlar göstərilir. Redaktə mümkün deyil"
   },
   "projects": {
     "title": "Layihələr",

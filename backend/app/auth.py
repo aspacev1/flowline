@@ -117,17 +117,47 @@ def close_session(db: DbSession, raw_token: str) -> None:
         db.delete(record)
 
 
+def session_for_token(db: DbSession, raw_token: str | None) -> Session | None:
+    """Запись сессии по сырому токену куки. `None` — токена нет, он не
+    находится или просрочен.
+
+    Отдельно от current_session, потому что у WebSocket нет ни статуса ответа,
+    ни заголовков: отказ там — это код закрытия сокета. Общая часть обязана
+    быть одной функцией, иначе однажды разойдётся проверка срока годности, и
+    просроченная сессия будет отбиваться в HTTP, но проходить в сокет.
+
+    Отдаётся запись, а не только её владелец: на ней живёт выбранная
+    организация, и сокету она нужна ровно затем же, зачем HTTP-маршрутам, —
+    чтобы отвечать в той организации, которую человек выбрал.
+    """
+    if not raw_token:
+        return None
+
+    record = db.scalar(select(Session).where(Session.token_hash == hash_token(raw_token)))
+    if record is None or record.expires_at < datetime.now(timezone.utc):
+        return None
+
+    return record
+
+
+def user_for_token(db: DbSession, raw_token: str | None) -> User | None:
+    record = session_for_token(db, raw_token)
+    return None if record is None else db.get(User, record.user_id)
+
+
 def current_session(
     flowline_session: str | None = Cookie(default=None, alias=SESSION_COOKIE),
     db: DbSession = Depends(get_db),
 ) -> Session:
     """Запись сессии, а не только её владелец: на ней живёт выбранная
     организация, и переключателю нужна сама запись, чтобы её переписать."""
+    # Отсутствие куки и негодная кука — разные коды: первое значит «войди»,
+    # второе — «войди заново», и человеку это разные сообщения.
     if not flowline_session:
         raise HTTPException(status_code=401, detail="not_authenticated")
 
-    record = db.scalar(select(Session).where(Session.token_hash == hash_token(flowline_session)))
-    if record is None or record.expires_at < datetime.now(timezone.utc):
+    record = session_for_token(db, flowline_session)
+    if record is None:
         raise HTTPException(status_code=401, detail="session_expired")
 
     return record

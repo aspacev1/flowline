@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from app.api import (
     auth_routes,
     invite_routes,
+    live_routes,
     org_routes,
     project_routes,
     public_routes,
@@ -17,6 +18,7 @@ app.include_router(invite_routes.public_router)
 app.include_router(project_routes.router)
 app.include_router(share_routes.router)
 app.include_router(public_routes.router)
+app.include_router(live_routes.router)
 
 
 @app.get("/api/health")
