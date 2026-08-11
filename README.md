@@ -82,6 +82,7 @@ Postgres нужен внешний (Neon, Supabase, любой другой уп
    | `DATABASE_URL` | строка из шага 2, если её не вписала интеграция |
    | `APP_SECRET` | длинная случайная строка, не из `.env.example` |
    | `DEFAULT_LOCALE`, `SUPPORTED_LOCALES`, `SIGNUP_MODE` | по вкусу, умолчания в `backend/app/config.py` |
+   | `MAIL_TRANSPORT`, `SMTP_URL`, `MAIL_FROM` | почта для приглашений; без неё остаётся копирование ссылки |
 
    Секрет сгенерируй, а не придумывай: `openssl rand -hex 32`.
 
