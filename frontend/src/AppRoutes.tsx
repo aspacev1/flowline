@@ -6,6 +6,7 @@ import { Login } from "./screens/Login";
 import { Members } from "./screens/Members";
 import { Project } from "./screens/Project";
 import { Projects } from "./screens/Projects";
+import { PublicProject } from "./screens/PublicProject";
 import { Register } from "./screens/Register";
 import { VerifyEmail } from "./screens/VerifyEmail";
 
@@ -20,6 +21,10 @@ export function AppRoutes() {
       <Route path="/" element={<Navigate to="/projects" replace />} />
       <Route path="/register" element={<Register />} />
       <Route path="/login" element={<Login />} />
+      {/* Публичная страница живёт вне RequireAuth: у гостя нет и не будет
+          сессии, а обёртка увела бы его на вход — то есть ссылка, ради
+          которой всё и затевалось, не открывалась бы вовсе. */}
+      <Route path="/p/:orgSlug/:projectSlug" element={<PublicProject />} />
       {/* Вне RequireAuth: ссылку из письма открывают в том браузере, куда
           пришла почта, и требовать там вход значило бы ломать самый обычный
           сценарий — письмо на телефоне, работа на ноутбуке. */}

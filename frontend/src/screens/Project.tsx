@@ -1,15 +1,18 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useParams } from "react-router-dom";
 
+import { addComment, commentsQueryKey, listComments } from "../api/comments";
 import { errorKey } from "../api/errors";
 import { getProject, projectQueryKey } from "../api/projects";
 import { useCanWrite } from "../auth/permissions";
+import { CommentThread } from "../comments/CommentThread";
 import { Gantt } from "../gantt/Gantt";
 import { usePrefersReducedMotion } from "../gantt/motion";
 import { useLocale } from "../i18n/LocaleProvider";
 import { TaskPanel } from "../task/TaskPanel";
 import { CategoryForm, suggestColor } from "./CategoryForm";
+import { ShareDialog } from "./ShareDialog";
 import { TaskForm } from "./TaskForm";
 
 /**
@@ -28,6 +31,8 @@ export function Project() {
   // переезд полоски, и выключаться они обязаны вместе.
   const reducedMotion = usePrefersReducedMotion();
   const [addingCategory, setAddingCategory] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const queryClient = useQueryClient();
   // Категория, из строки которой открыли форму задачи. `null` — форма закрыта.
   const [addingTaskIn, setAddingTaskIn] = useState<string | null>(null);
   // Задача, карточка которой открыта. Держится идентификатором, а не самой
@@ -39,6 +44,20 @@ export function Project() {
     queryKey: projectQueryKey(projectId),
     queryFn: () => getProject(projectId),
     retry: false,
+  });
+
+  const comments = useQuery({
+    queryKey: commentsQueryKey(projectId),
+    queryFn: () => listComments(projectId),
+    retry: false,
+    // Тот же порядок, что и на публичной странице: пока проект не открылся,
+    // спрашивать его ленту не о чем.
+    enabled: query.isSuccess,
+  });
+
+  const send = useMutation({
+    mutationFn: (input: { body: string }) => addComment(projectId, input.body),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: commentsQueryKey(projectId) }),
   });
 
   if (query.isPending) {
@@ -73,6 +92,14 @@ export function Project() {
         {/* Гостю кнопки не показываются вовсе: они обещали бы действие,
             которое сервер отклонит. */}
         <div className="screen__actions">
+          {/* Публикация — действие уровня проекта, поэтому кнопка стоит в его
+              шапке, а не в настройках, до которых ещё нет экрана. Гостю и
+              читателю она не показывается: сервер такую попытку отклонит. */}
+          {canWrite && (
+            <button type="button" className="button--quiet" onClick={() => setSharing(true)}>
+              {t("share.open")}
+            </button>
+          )}
           {canWrite && (
             <button type="button" onClick={() => setAddingCategory(true)}>
               {t("category.create")}
@@ -119,6 +146,19 @@ export function Project() {
           />
         )}
       </div>
+
+      {/* Лента под диаграммой — та же самая, что видит клиент по публичной
+          ссылке: разговор живёт в проекте, а не в почте. */}
+      <CommentThread
+        comments={comments.data ?? []}
+        loading={comments.isPending}
+        error={comments.error}
+        onSend={(input) => send.mutate({ body: input.body })}
+        sending={send.isPending}
+        sendError={send.error}
+      />
+
+      {sharing && <ShareDialog projectId={projectId} onClose={() => setSharing(false)} />}
 
       {addingCategory && (
         <CategoryForm

@@ -40,6 +40,15 @@ const PLAIN_CODES = new Set([
   "already_assigned",
   "assignment_not_found",
   "negative_position",
+  // Публичный доступ и комментарии.
+  "link_not_found",
+  "sharing_disabled",
+  "share_link_not_found",
+  "comments_closed",
+  "comment_empty",
+  "comment_too_long",
+  "guest_name_required",
+  "too_many_comments",
   // Приглашения. Три состояния мёртвой ссылки названы порознь, а не одним
   // «ссылка недействительна»: по «просрочено» человек просит новую, по
   // «принято» просто входит, по «отозвано» идёт к тому, кто звал.

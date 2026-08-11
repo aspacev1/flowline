@@ -1,0 +1,56 @@
+.comments {
+  margin-top: var(--gap);
+  padding: var(--gap);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.comments__title {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.comments__list {
+  list-style: none;
+  margin: 0 0 var(--gap);
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.comment__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  font-size: 14px;
+}
+
+.comment__author {
+  font-weight: 600;
+}
+
+/* Пометка «гость» видна словом, а не только цветом: реплика человека без
+   аккаунта отличается от реплики участника по смыслу, и различие обязано
+   пережить чёрно-белую печать и дальтонизм. */
+.comment__guest {
+  font-size: 12px;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+}
+
+.comment__body {
+  margin: 2px 0 0;
+  /* Переводы строк человека сохраняются: список из трёх пунктов, введённый в
+     три строки, не должен слипаться в одну. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.comments textarea {
+  width: 100%;
+  resize: vertical;
+}

@@ -137,6 +137,14 @@
     "already_assigned": "Bu adam tapşırığa artıq təyin olunub",
     "assignment_not_found": "Bu adam onsuz da tapşırığa təyin olunmayıb",
     "negative_position": "Sətri qoymağa yer yoxdur: mövqe mənfidir",
+    "link_not_found": "Keçid işləmir: ya ləğv edilib, ya da ünvanda səhv var",
+    "sharing_disabled": "Bu quraşdırmada ictimai keçidlər söndürülüb",
+    "share_link_not_found": "Layihə hələ dərc edilməyib",
+    "comments_closed": "Bu səhifədə şərhlər bağlıdır",
+    "comment_empty": "Şərh boşdur",
+    "comment_too_long": "Şərh həddindən uzundur",
+    "guest_name_required": "Adınızı yazın — şərh imzasız qalmamalıdır",
+    "too_many_comments": "Çox tez-tez yazırsınız. Bir az gözləyin",
     "invite_not_found": "Belə dəvət yoxdur — keçidi bütöv yoxlayın",
     "invite_expired": "Keçidin vaxtı keçib — yenisini istəyin",
     "invite_revoked": "Dəvət geri alınıb — yenisini istəyin",
@@ -243,6 +251,32 @@
       "late": "Layihə {end} tarixində bitir — son tarixdən ({deadline}) {days} gec",
       "fits": "{deadline} tarixinə çatırıq — ehtiyat {days}"
     }
+  },
+  "share": {
+    "open": "İctimai keçid",
+    "title": "Layihənin ictimai keçidi",
+    "hint": "Keçid layihəni qeydiyyatsız oxumağa açır: nə daxili qeydlər, nə də icraçılar görünür",
+    "publish": "Keçid ver",
+    "url": "Keçid ünvanı",
+    "copy": "Kopyala",
+    "copied": "Kopyalandı",
+    "reissue": "Yenidən ver",
+    "reissue_warning": "Yeni keçid veriləndə köhnəsi dərhal ölür — göndərilmiş ünvan açılmayacaq",
+    "revoke": "Keçidi bağla",
+    "comments_enabled": "Şərhlərə icazə ver",
+    "disabled": "İctimai keçidlər söndürülüb: quraşdırma və ya təşkilat ayarı"
+  },
+  "comments": {
+    "title": "Şərhlər",
+    "empty": "Hələ heç nə yazılmayıb",
+    "guest": "qonaq",
+    "your_name": "Adınız",
+    "body": "Şərh",
+    "send": "Göndər",
+    "closed": "Layihənin sahibi şərhləri bağlayıb"
+  },
+  "public": {
+    "badge": "İctimai səhifə"
   },
   "org": {
     "switch_label": "Təşkilat"

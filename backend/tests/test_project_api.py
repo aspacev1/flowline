@@ -1,3 +1,5 @@
+import uuid
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import select
@@ -143,7 +145,17 @@ def _demote_own_membership(authed, db, role: str) -> None:
     db.flush()
 
 
-def test_role_without_project_read_permission_gets_404_on_the_project(authed, db):
+def _grant_project_access(authed, db, project_id: str) -> None:
+    """Зовёт зарегистрированного пользователя в проект — так же, как это
+    сделает приглашение с ролью client, когда оно появится."""
+    from app.models import ProjectAccess
+
+    user_id = authed.get("/api/auth/me").json()["id"]
+    db.add(ProjectAccess(project_id=uuid.UUID(project_id), user_id=uuid.UUID(user_id)))
+    db.flush()
+
+
+def test_client_without_a_grant_does_not_see_the_project(authed, db):
     # access._MATRIX: client входит в _NEEDS_GRANT и без выданного доступа к
     # проекту не имеет даже PROJECT_READ — маршруты чтения обязаны спросить
     # об этом can(), а не пускать любого члена организации.
@@ -154,28 +166,29 @@ def test_role_without_project_read_permission_gets_404_on_the_project(authed, db
     # чужой проект неотличим от несуществующего — тот же принцип применяется
     # и к «есть проект, но роль не имеет права его читать»: 404, а не 403.
     assert authed.get(f"/api/projects/{project_id}").status_code == 404
-
-    # А вот список — не отказ, а пустота. Спросить «мои проекты» роль client
-    # вправе (см. list_projects); до первого выданного доступа их просто нет.
-    # Отказ здесь означал бы, что человек с одним выданным проектом не может
-    # получить его список, не получив сперва 404.
-    listed = authed.get("/api/projects")
-    assert listed.status_code == 200
-    assert listed.json() == []
+    # В списке его тоже нет, и это не отказ: клиента позвали в организацию,
+    # просто ни в один проект пока не приглашали.
+    assert authed.get("/api/projects").json() == []
 
 
-def test_role_without_read_internal_note_permission_does_not_see_it_in_get_project(
-    authed, db, monkeypatch
-):
-    # Ни одна из ролей, доступных сегодня через HTTP без грантов на проект
-    # (owner/editor с правом записи всегда заодно имеют READ_INTERNAL_NOTE),
-    # не воспроизводит «читает проект, но не видит заметку» — этот разрыв
-    # появится вместе с приглашениями и ролью client с выданным доступом
-    # (план 5). Поэтому здесь can() подменяется точечно только для
-    # READ_INTERNAL_NOTE, чтобы проверить именно код маршрута, а не гадать
-    # о будущей инфраструктуре грантов.
-    import app.api.project_routes as project_routes
+def test_client_sees_only_the_projects_he_was_invited_to(authed, db):
+    invited = authed.post("/api/projects", json={"name": "Redesign"}).json()["id"]
+    other = authed.post("/api/projects", json={"name": "Внутренний"}).json()["id"]
 
+    _demote_own_membership(authed, db, "client")
+    _grant_project_access(authed, db, invited)
+
+    listed = [project["id"] for project in authed.get("/api/projects").json()]
+    assert listed == [invited]
+    assert authed.get(f"/api/projects/{invited}").status_code == 200
+    assert authed.get(f"/api/projects/{other}").status_code == 404
+
+
+def test_client_with_a_grant_reads_the_project_without_the_internal_note(authed, db):
+    # Роль, ради которой заметка и скрывается: client с выданным доступом
+    # читает проект целиком — кроме одного поля. Подмены can() здесь больше
+    # нет: грант на проект существует по-настоящему, и разрыв «читает, но не
+    # видит заметку» воспроизводится ровно так, как он выглядит в бою.
     project_id = authed.post("/api/projects", json={"name": "Redesign"}).json()["id"]
     category_id = authed.post(
         f"/api/projects/{project_id}/mutations",
@@ -195,19 +208,17 @@ def test_role_without_read_internal_note_permission_does_not_see_it_in_get_proje
         },
     )
 
-    real_can = project_routes.can
-
-    def fake_can(role, action, *, project_granted=False):
-        from app.access import Action
-
-        if action is Action.READ_INTERNAL_NOTE:
-            return False
-        return real_can(role, action, project_granted=project_granted)
-
-    monkeypatch.setattr(project_routes, "can", fake_can)
+    _demote_own_membership(authed, db, "client")
+    _grant_project_access(authed, db, project_id)
 
     state = authed.get(f"/api/projects/{project_id}").json()
+    assert state["tasks"][0]["name"] == "Logo"
     assert "internal_note" not in state["tasks"][0]
+
+    # И в журнале тоже: запись создания несёт заметку наравне с остальными
+    # полями, и лента карточки задачи — вторая дверь к тому же полю.
+    revisions = authed.get(f"/api/projects/{project_id}/revisions").json()
+    assert all("internal_note" not in revision["op"] for revision in revisions)
 
 
 def test_role_without_read_internal_note_permission_does_not_see_it_in_mutation_response(
