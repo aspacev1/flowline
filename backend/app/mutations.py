@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
 from app.config import get_settings
-from app.models import Category, Criticality, Project, Revision, Task
+from app.models import CRITICALITY_LEVELS, Category, Criticality, Project, Revision, Task
 
 
 class MutationError(Exception):
@@ -94,8 +94,57 @@ class DeleteCategory(BaseModel):
     category_id: uuid.UUID
 
 
+class SetTaskFields(BaseModel):
+    """Три текстовых поля разом.
+
+    Карточка задачи сохраняет их одним действием; разбить это на три ревизии
+    значило бы засорять историю тремя записями там, где человек сделал одно
+    изменение.
+    """
+
+    type: Literal["set_task_fields"] = "set_task_fields"
+    task_id: uuid.UUID
+    name: str
+    description: str
+    internal_note: str
+
+
+class SetCriticality(BaseModel):
+    type: Literal["set_criticality"] = "set_criticality"
+    task_id: uuid.UUID
+    criticality: str
+
+
+class SetProgress(BaseModel):
+    type: Literal["set_progress"] = "set_progress"
+    task_id: uuid.UUID
+    progress_pct: int
+
+
+class RenameCategory(BaseModel):
+    type: Literal["rename_category"] = "rename_category"
+    category_id: uuid.UUID
+    name: str
+
+
+class SetCategoryColor(BaseModel):
+    type: Literal["set_category_color"] = "set_category_color"
+    category_id: uuid.UUID
+    color: str
+
+
 Op = Annotated[
-    CreateCategory | CreateTask | MoveTask | SetDuration | DeleteTask | DeleteCategory,
+    CreateCategory
+    | CreateTask
+    | MoveTask
+    | SetDuration
+    | DeleteTask
+    | DeleteCategory
+    | SetTaskFields
+    | SetCriticality
+    | SetProgress
+    | RenameCategory
+    | SetCategoryColor,
     Field(discriminator="type"),
 ]
 
@@ -106,6 +155,11 @@ _MODELS = {
     "set_duration": SetDuration,
     "delete_task": DeleteTask,
     "delete_category": DeleteCategory,
+    "set_task_fields": SetTaskFields,
+    "set_criticality": SetCriticality,
+    "set_progress": SetProgress,
+    "rename_category": RenameCategory,
+    "set_category_color": SetCategoryColor,
 }
 
 
@@ -167,13 +221,50 @@ class PublicDeleteCategory(_Wire):
     category_id: uuid.UUID
 
 
+class PublicSetTaskFields(_Wire):
+    type: Literal["set_task_fields"] = "set_task_fields"
+    task_id: uuid.UUID
+    name: str = Field(min_length=1, max_length=300)
+    description: str = Field(default="", max_length=_MAX_TEXT_LEN)
+    internal_note: str = Field(default="", max_length=_MAX_TEXT_LEN)
+
+
+class PublicSetCriticality(_Wire):
+    type: Literal["set_criticality"] = "set_criticality"
+    task_id: uuid.UUID
+    criticality: Criticality
+
+
+class PublicSetProgress(_Wire):
+    type: Literal["set_progress"] = "set_progress"
+    task_id: uuid.UUID
+    progress_pct: int = Field(ge=0, le=100)
+
+
+class PublicRenameCategory(_Wire):
+    type: Literal["rename_category"] = "rename_category"
+    category_id: uuid.UUID
+    name: str = Field(min_length=1, max_length=200)
+
+
+class PublicSetCategoryColor(_Wire):
+    type: Literal["set_category_color"] = "set_category_color"
+    category_id: uuid.UUID
+    color: str = Field(min_length=1, max_length=9)
+
+
 PublicOp = Annotated[
     PublicCreateCategory
     | PublicCreateTask
     | PublicMoveTask
     | PublicSetDuration
     | PublicDeleteTask
-    | PublicDeleteCategory,
+    | PublicDeleteCategory
+    | PublicSetTaskFields
+    | PublicSetCriticality
+    | PublicSetProgress
+    | PublicRenameCategory
+    | PublicSetCategoryColor,
     Field(discriminator="type"),
 ]
 
@@ -206,6 +297,19 @@ def _require_category(db: DbSession, project: Project, category_id: uuid.UUID) -
     if category is None or category.project_id != project.id:
         raise NotFoundInProject("category_not_found", "категория не найдена в этом проекте")
     return category
+
+
+# Поля, которые карточка задачи сохраняет одним действием.
+_TASK_FIELDS = ("name", "description", "internal_note")
+
+
+def _swap(payload: dict) -> dict:
+    """Обратная операция отличается от прямой только местами from и to.
+
+    Один помощник вместо ветки инверсии в каждой операции: пара границ —
+    это уже полное описание и прямого действия, и обратного.
+    """
+    return {**payload, "from": payload["to"], "to": payload["from"]}
 
 
 def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
@@ -331,6 +435,81 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
              "to": previous},
         )
 
+    if isinstance(op, SetTaskFields):
+        task = _require_task(db, project, op.task_id)
+        before = {field: getattr(task, field) for field in _TASK_FIELDS}
+        after = {
+            "name": op.name,
+            "description": op.description,
+            "internal_note": op.internal_note,
+        }
+        for field, value in after.items():
+            setattr(task, field, value)
+        db.flush()
+        forward = {
+            "type": "set_task_fields",
+            "task_id": str(task.id),
+            "from": before,
+            "to": after,
+        }
+        return forward, _swap(forward)
+
+    if isinstance(op, SetCriticality):
+        if op.criticality not in CRITICALITY_LEVELS:
+            raise InvalidOperation(
+                "unknown_criticality", f"неизвестный уровень: {op.criticality}"
+            )
+        task = _require_task(db, project, op.task_id)
+        forward = {
+            "type": "set_criticality",
+            "task_id": str(task.id),
+            "from": task.criticality,
+            "to": op.criticality,
+        }
+        task.criticality = op.criticality
+        db.flush()
+        return forward, _swap(forward)
+
+    if isinstance(op, SetProgress):
+        if not 0 <= op.progress_pct <= 100:
+            raise InvalidOperation(
+                "progress_out_of_range", f"процент вне 0..100: {op.progress_pct}"
+            )
+        task = _require_task(db, project, op.task_id)
+        forward = {
+            "type": "set_progress",
+            "task_id": str(task.id),
+            "from": task.progress_pct,
+            "to": op.progress_pct,
+        }
+        task.progress_pct = op.progress_pct
+        db.flush()
+        return forward, _swap(forward)
+
+    if isinstance(op, RenameCategory):
+        category = _require_category(db, project, op.category_id)
+        forward = {
+            "type": "rename_category",
+            "category_id": str(category.id),
+            "from": category.name,
+            "to": op.name,
+        }
+        category.name = op.name
+        db.flush()
+        return forward, _swap(forward)
+
+    if isinstance(op, SetCategoryColor):
+        category = _require_category(db, project, op.category_id)
+        forward = {
+            "type": "set_category_color",
+            "category_id": str(category.id),
+            "from": category.color,
+            "to": op.color,
+        }
+        category.color = op.color
+        db.flush()
+        return forward, _swap(forward)
+
     if isinstance(op, DeleteCategory):
         category = _require_category(db, project, op.category_id)
         remaining = db.scalar(
@@ -407,21 +586,38 @@ def apply_op(
     return revision
 
 
+# Операции, хранящие в журнале обе границы: имя поля модели, в которое ложится
+# скалярное `to`. Отображение, а не цепочка elif: цепочка растёт вместе с
+# числом операций и перестаёт читаться, а здесь новая операция — одна строка.
+_SCALAR_BOUNDS_FIELD = {
+    "move_task": "start_date",
+    "set_duration": "duration_days",
+    "set_criticality": "criticality",
+    "set_progress": "progress_pct",
+    "rename_category": "name",
+    "set_category_color": "color",
+}
+
+# Операции, у которых `to` — не скаляр, а словарь полей: они разворачиваются
+# в модель целиком.
+_MAPPED_BOUNDS = frozenset({"set_task_fields"})
+
+
 def _op_from_dict(payload: dict):
     """Восстанавливает операцию из записи журнала.
 
-    В журнале move_task и set_duration хранят обе границы (from и to), поэтому
-    поле значения берётся из to — так одна и та же запись читается и как
-    прямая операция, и как обратная.
+    Операции с парой границ хранят и from, и to, поэтому значение берётся из
+    to — так одна и та же запись читается и как прямая операция, и как
+    обратная (её inverse отличается лишь порядком этих двух полей).
     """
     kind = payload["type"]
     model = _MODELS[kind]
     data = dict(payload)
-    if kind == "move_task":
-        data["start_date"] = data.pop("to")
+    if kind in _SCALAR_BOUNDS_FIELD:
+        data[_SCALAR_BOUNDS_FIELD[kind]] = data.pop("to")
         data.pop("from", None)
-    elif kind == "set_duration":
-        data["duration_days"] = data.pop("to")
+    elif kind in _MAPPED_BOUNDS:
+        data.update(data.pop("to"))
         data.pop("from", None)
     return model.model_validate(data)
 

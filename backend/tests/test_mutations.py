@@ -13,7 +13,12 @@ from app.mutations import (
     NotFoundInProject,
     PublicCreateCategory,
     PublicCreateTask,
+    RenameCategory,
+    SetCategoryColor,
+    SetCriticality,
     SetDuration,
+    SetProgress,
+    SetTaskFields,
     apply_op,
     to_internal,
     undo,
@@ -622,3 +627,95 @@ def test_the_journal_is_queryable_by_payload_containment(db, project, category):
         select(Revision).where(Revision.op.contains({"type": "create_task", "name": "Logo"}))
     ).all()
     assert len(found) == 1
+
+
+def test_set_task_fields_records_previous_and_new_values(db, project, category):
+    created = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="Logo",
+        start_date=date(2026, 3, 4), duration_days=5), actor_id=None)
+    task_id = created.op["task_id"]
+
+    revision = apply_op(db, project, SetTaskFields(
+        task_id=task_id, name="Logo redesign",
+        description="Mark and wordmark", internal_note="client is picky"), actor_id=None)
+
+    assert revision.op["from"] == {
+        "name": "Logo", "description": "", "internal_note": ""}
+    assert revision.op["to"] == {
+        "name": "Logo redesign", "description": "Mark and wordmark",
+        "internal_note": "client is picky"}
+    assert revision.inverse["to"] == revision.op["from"]
+
+    task = db.get(Task, task_id)
+    assert task.name == "Logo redesign"
+
+
+def test_undo_of_set_task_fields_restores_every_field(db, project, category):
+    created = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="Logo",
+        start_date=date(2026, 3, 4), duration_days=5,
+        description="old", internal_note="old note"), actor_id=None)
+    task_id = created.op["task_id"]
+
+    changed = apply_op(db, project, SetTaskFields(
+        task_id=task_id, name="New", description="new", internal_note="new note"),
+        actor_id=None)
+    undo(db, project, changed, actor_id=None)
+
+    task = db.get(Task, task_id)
+    assert (task.name, task.description, task.internal_note) == ("Logo", "old", "old note")
+
+
+def test_set_progress_rejects_a_value_outside_the_range(db, project, category):
+    created = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="Logo",
+        start_date=date(2026, 3, 4), duration_days=5), actor_id=None)
+
+    with pytest.raises(InvalidOperation):
+        apply_op(db, project, SetProgress(task_id=created.op["task_id"], progress_pct=101),
+                 actor_id=None)
+
+
+def test_rename_category_round_trips(db, project, category):
+    revision = apply_op(db, project, RenameCategory(
+        category_id=str(category.id), name="Дизайн и бренд"), actor_id=None)
+    assert db.get(Category, category.id).name == "Дизайн и бренд"
+
+    undo(db, project, revision, actor_id=None)
+    assert db.get(Category, category.id).name == "Design"
+
+
+def test_set_criticality_rejects_an_unknown_level(db, project, category):
+    created = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="Logo",
+        start_date=date(2026, 3, 4), duration_days=5), actor_id=None)
+
+    with pytest.raises(InvalidOperation):
+        apply_op(db, project, SetCriticality(
+            task_id=created.op["task_id"], criticality="urgent"), actor_id=None)
+
+
+def test_set_criticality_and_progress_and_colour_round_trip(db, project, category):
+    """Оставшиеся три операции той же формы: обе границы в журнале, отмена возвращает прежнее."""
+    created = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="Logo",
+        start_date=date(2026, 3, 4), duration_days=5), actor_id=None)
+    task_id = created.op["task_id"]
+
+    criticality = apply_op(db, project, SetCriticality(
+        task_id=task_id, criticality="high"), actor_id=None)
+    assert criticality.op == {
+        "type": "set_criticality", "task_id": task_id, "from": "normal", "to": "high"}
+    undo(db, project, criticality, actor_id=None)
+    assert db.get(Task, task_id).criticality == "normal"
+
+    progress = apply_op(db, project, SetProgress(task_id=task_id, progress_pct=40), actor_id=None)
+    assert db.get(Task, task_id).progress_pct == 40
+    undo(db, project, progress, actor_id=None)
+    assert db.get(Task, task_id).progress_pct == 0
+
+    colour = apply_op(db, project, SetCategoryColor(
+        category_id=str(category.id), color="#22c55e"), actor_id=None)
+    assert db.get(Category, category.id).color == "#22c55e"
+    undo(db, project, colour, actor_id=None)
+    assert db.get(Category, category.id).color == "#3b82f6"
