@@ -127,8 +127,18 @@ export function Project() {
                     {t("share.open")}
                   </button>
                 )}
+                {/* Из всех действий шапки заливку получает одно — создание
+                    задачи: остальные приглушены. Пять сплошных кнопок подряд
+                    не оставляют главному действию ни единого шанса быть
+                    замеченным, и человек читает их все по очереди каждый
+                    раз. */}
                 {canWrite && (
-                  <button type="button" disabled={offline} onClick={() => setAddingCategory(true)}>
+                  <button
+                    type="button"
+                    className="button--quiet"
+                    disabled={offline}
+                    onClick={() => setAddingCategory(true)}
+                  >
                     {t("category.create")}
                   </button>
                 )}

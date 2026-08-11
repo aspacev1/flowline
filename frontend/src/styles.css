@@ -1,40 +1,138 @@
-/* Палитра задаётся переменными, а не значениями по месту: тёмная тема
+/* Дизайн-система в духе Notion.
+   ────────────────────────────────────────────────────────────────────────
+   Три правила, из которых выведено всё остальное.
+
+   1. Бумага, а не панели. Фон один и тот же почти везде, а границы между
+      частями показывает не рамка, а расстояние и тонкая линия в 9% чернил.
+      Коробка вокруг каждого блока дробит экран на отсеки и мешает читать
+      подряд.
+   2. Интерфейс молчит, пока к нему не обратились. Кнопки строк, ручки,
+      действия проявляются при наведении и фокусе; постоянно видимые, они
+      перекрикивают содержимое, ради которого человек сюда пришёл.
+   3. Цвет — знак, а не украшение. Синий значит «действие», красный —
+      «просрочено», зелёный — «в срок». Всё прочее набрано чернилами разной
+      плотности, и это единственная градация, которая не спорит с данными.
+
+   Палитра задаётся переменными, а не значениями по месту: тёмная тема
    переопределяет только их, и ни один компонент об этом не знает. */
+
 :root {
-  --bg: #f7f7f8;
+  /* Браузер обязан знать про обе темы: без этого его собственные части —
+     полосы прокрутки, календарь в поле даты, выпадающий список — остаются
+     светлыми на тёмной странице. */
+  color-scheme: light dark;
+
+  /* Чернила Notion — не чёрные: rgb(55 53 47) теплее и мягче на белом, а
+     степени приглушённости заданы прозрачностью, а не отдельными серыми.
+     Так текст поверх любой подложки остаётся согласован с ней сам. */
+  --ink: 55 53 47;
+  --text: rgb(var(--ink));
+  --text-muted: rgb(var(--ink) / 65%);
+  --text-faint: rgb(var(--ink) / 45%);
+
+  --bg: #ffffff;
+  /* Подложка боковой колонки и «вторичных» поверхностей. Notion отделяет
+     навигацию не рамкой, а тем, что страница светлее её. */
+  --bg-subtle: #f7f7f5;
   --surface: #ffffff;
-  --border: #d9d9de;
-  --text: #1c1c1f;
-  --text-muted: #62626b;
-  --accent: #2f5bd7;
+
+  --hover: rgb(var(--ink) / 6%);
+  --active: rgb(var(--ink) / 8%);
+  --border: rgb(var(--ink) / 9%);
+  --border-strong: rgb(var(--ink) / 16%);
+
+  --accent: #2383e2;
+  --accent-hover: #0b6ecb;
   --accent-text: #ffffff;
-  --danger: #b3261e;
-  --ok: #1f7a4d;
-  --nonworking: #ececf0;
-  --bar: #d7dcea;
-  --bar-low: #e6e7ec;
-  --bar-high: #f7dfb8;
-  --bar-critical: #f5c7c3;
-  --radius: 8px;
+  --accent-soft: rgb(35 131 226 / 12%);
+
+  --danger: #d44c47;
+  --danger-soft: rgb(212 76 71 / 12%);
+  --ok: #448361;
+  --ok-soft: rgb(68 131 97 / 12%);
+
+  /* Поле ввода — не белая коробка в рамке, а чуть притопленный участок
+     страницы: рамка вокруг каждого поля превращает форму в решётку. */
+  --input-bg: rgb(242 241 238 / 60%);
+
+  /* Цвета меток. Те же пять, что и у Notion: они выбраны так, чтобы текст
+     чернилами читался поверх любого из них без исключений. */
+  --tag-gray: #e3e2e0;
+  --tag-blue: #d3e5ef;
+  --tag-yellow: #fdecc8;
+  --tag-red: #ffe2dd;
+  --tag-green: #dbeddb;
+
+  /* Полоски диаграммы говорят цветом метки, а не собственным набором:
+     критичность — такое же свойство, как статус в базе Notion. */
+  --bar: var(--tag-blue);
+  --bar-low: var(--tag-gray);
+  --bar-high: var(--tag-yellow);
+  --bar-critical: var(--tag-red);
+  --nonworking: #f7f7f5;
+
+  /* Тени Notion многослойные: первый слой заменяет рамку, второй и третий
+     дают глубину. Одна размытая тень вместо них читается как ореол. */
+  --shadow-sm: rgb(15 15 15 / 10%) 0 1px 2px;
+  --shadow-md:
+    rgb(15 15 15 / 5%) 0 0 0 1px, rgb(15 15 15 / 10%) 0 3px 6px,
+    rgb(15 15 15 / 20%) 0 9px 24px;
+  --backdrop: rgb(15 15 15 / 60%);
+
+  --radius-sm: 3px;
+  --radius: 6px;
+  --radius-lg: 10px;
   --gap: 16px;
+  --sidebar: 240px;
+  /* Высота всех органов управления одна: кнопка, поле и список, стоящие в
+     строку, обязаны совпасть по высоте, иначе строка «пляшет». */
+  --control: 32px;
+  --font:
+    ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, "Apple Color Emoji",
+    Arial, sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #17171a;
-    --surface: #202024;
-    --border: #34343a;
-    --text: #ecedee;
-    --text-muted: #9b9ba4;
-    --accent: #7d9cf0;
-    --accent-text: #12121a;
-    --danger: #f2b8b5;
-    --ok: #7ad3a4;
-    --nonworking: #26262b;
-    --bar: #3a4054;
-    --bar-low: #2c2c33;
-    --bar-high: #5a4a2a;
-    --bar-critical: #5c3230;
+    --ink: 255 255 255;
+    /* В темноте белый в полную силу слепит: Notion держит основной текст на
+       81% и тем сохраняет запас яркости для выделенного. */
+    --text: rgb(var(--ink) / 81%);
+    --text-muted: rgb(var(--ink) / 46%);
+    --text-faint: rgb(var(--ink) / 28%);
+
+    --bg: #191919;
+    --bg-subtle: #202020;
+    --surface: #202020;
+
+    --hover: rgb(var(--ink) / 5.5%);
+    --active: rgb(var(--ink) / 8%);
+    --border: rgb(var(--ink) / 9.4%);
+    --border-strong: rgb(var(--ink) / 16%);
+
+    --accent: #2383e2;
+    --accent-hover: #3b91e6;
+    --accent-text: #ffffff;
+    --accent-soft: rgb(35 131 226 / 20%);
+
+    --danger: #ff7369;
+    --danger-soft: rgb(255 115 105 / 14%);
+    --ok: #4dab9a;
+    --ok-soft: rgb(77 171 154 / 14%);
+
+    --input-bg: rgb(var(--ink) / 5.5%);
+
+    --tag-gray: #454546;
+    --tag-blue: #1f3d52;
+    --tag-yellow: #59563b;
+    --tag-red: #5e3435;
+    --tag-green: #2f4e3c;
+    --nonworking: rgb(var(--ink) / 3.5%);
+
+    --shadow-sm: rgb(0 0 0 / 30%) 0 1px 2px;
+    --shadow-md:
+      rgb(255 255 255 / 10%) 0 0 0 1px, rgb(0 0 0 / 20%) 0 3px 6px, rgb(0 0 0 / 40%) 0 9px 24px;
+    --backdrop: rgb(15 15 15 / 80%);
   }
 }
 
@@ -72,68 +170,370 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-size: 16px;
+  font-family: var(--font);
+  /* 14px — размер интерфейса Notion. Не «мелко»: при этом кегле в строку
+     помещается свойство целиком, и карточка задачи не превращается в
+     колонку переносов по одному слову. */
+  font-size: 14px;
   line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* --- шапка --- */
+/* --- оболочка: боковая колонка и страница --- */
 
+.app {
+  display: flex;
+  align-items: stretch;
+  min-height: 100vh;
+}
+
+.app__main {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: var(--bg);
+}
+
+/* Навигация слева, а не сверху. Причина не в моде: разделов у приложения
+   немного, но растут они вниз — проекты, состав, настройки, — и колонка
+   принимает новый пункт, не отбирая ширину у диаграммы. Горизонтальная шапка
+   на пятом пункте начала бы переноситься на вторую строку. */
+.sidebar {
+  flex: 0 0 var(--sidebar);
+  width: var(--sidebar);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  background: var(--bg-subtle);
+  border-right: 1px solid var(--border);
+  /* Колонка стоит на месте, пока прокручивается страница: это карта, а
+     уехавшая за верхний край карта бесполезна. Высота — весь экран, а не
+     высота содержимого: подложка, обрывающаяся под последним пунктом,
+     превращает колонку в первый блок страницы. */
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+/* Строка организации — верхний пункт колонки: квадрат с первой буквой и
+   название. Квадрат не украшение, а якорь для глаза: в списке одинаковых
+   строк цветное пятно находится быстрее слова. */
+.sidebar__workspace {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 8px;
+  border-radius: var(--radius);
+}
+
+.sidebar__avatar {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.sidebar__brand,
+.header__brand {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+/* Подпись раздела колонки. Мельче и тише пунктов: она объясняет их, а не
+   соперничает с ними за внимание. */
+.sidebar__section {
+  margin: 12px 0 4px;
+  padding: 0 8px;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.sidebar__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+/* Пункт колонки. Заливка при наведении вместо подчёркивания: подчёркнутая
+   ссылка в списке из пяти строк рисует частокол, а заливка показывает ровно
+   то, что произойдёт по щелчку, — целиком строку. */
+.sidebar__link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 4px 8px;
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-weight: 500;
+  text-decoration: none;
+  transition: background 20ms ease-in;
+}
+
+.sidebar__link:hover {
+  background: var(--hover);
+}
+
+/* Текущий раздел — заливка и полная плотность чернил. Не цветом: цветной
+   пункт среди серых читался бы как «важный», а он всего лишь «этот». */
+.sidebar__link.is-current {
+  background: var(--active);
+  color: var(--text);
+}
+
+.sidebar__icon {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+}
+
+.sidebar__link.is-current .sidebar__icon {
+  color: var(--text-muted);
+}
+
+/* Низ колонки прижат к низу: там живёт человек — его имя, профиль, язык и
+   выход. Всё, что относится к нему, а не к работе. */
+.sidebar__foot {
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar__user {
+  padding: 6px 8px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Кнопка выхода выглядит как пункт колонки, а не как кнопка: она стоит в
+   ряду ссылок, и синяя заливка среди них означала бы «главное действие
+   экрана» — а это ровно наоборот. */
+button.sidebar__button {
+  justify-content: flex-start;
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  background: transparent;
+  color: var(--text-muted);
+  box-shadow: none;
+}
+
+button.sidebar__button:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+/* Узкий экран: колонка ложится сверху и становится строкой. Прятать её за
+   кнопкой-гамбургером здесь не за чем — пунктов мало, и они помещаются. */
+@media (max-width: 900px) {
+  .app {
+    display: block;
+  }
+
+  .sidebar {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .sidebar__nav {
+    flex-direction: row;
+  }
+
+  .sidebar__section {
+    display: none;
+  }
+
+  /* Приветствие уходит первым: на телефоне место в строке дороже вежливости,
+     а имя вошедшего человек и так знает. */
+  .sidebar__user {
+    display: none;
+  }
+
+  .sidebar__foot {
+    margin: 0 0 0 auto;
+    flex-direction: row;
+    align-items: center;
+    padding-top: 0;
+    border-top: 0;
+  }
+
+  .sidebar .locale-switch {
+    margin: 0;
+  }
+
+  button.sidebar__button {
+    width: auto;
+  }
+
+  .sidebar__workspace {
+    padding-left: 0;
+  }
+
+  .sidebar .org-switch {
+    width: auto;
+  }
+}
+
+/* --- шапка публичной страницы --- */
+
+/* У страницы по ссылке нет ни разделов, ни человека: колонка слева была бы
+   пустой рамой вокруг единственного содержимого. Поэтому здесь — тонкая
+   строка сверху, как заголовок опубликованной страницы Notion. */
 .header {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--gap);
-  padding: 12px 24px;
-  background: var(--surface);
+  gap: 12px;
+  height: 45px;
+  padding: 0 16px;
+  background: var(--bg);
   border-bottom: 1px solid var(--border);
-}
-
-.header__brand {
-  font-weight: 600;
 }
 
 .header__side {
   display: flex;
   align-items: center;
-  gap: var(--gap);
+  gap: 8px;
+  margin-left: auto;
   flex-wrap: wrap;
 }
 
-.locale-switch {
+.header__nav {
   display: flex;
   gap: 4px;
 }
 
-/* --- экраны --- */
+/* --- страница --- */
 
+/* Ширина колонки текста ограничена, как у страницы Notion: строка во весь
+   монитор не читается — глаз теряет начало следующей. */
 .screen {
-  max-width: 880px;
+  max-width: 900px;
   margin: 0 auto;
-  padding: 32px 24px;
+  padding: 48px 64px 96px;
 }
 
+/* Вход и регистрация: узкая колонка по центру и кнопка во всю её ширину.
+   Кнопка по ширине поля — не прихоть: на этом экране действие ровно одно, и
+   целиться в него не приходится вовсе. */
 .screen--narrow {
   max-width: 380px;
+  padding-top: 96px;
+}
+
+.screen--narrow h1 {
+  font-size: 28px;
+  margin-bottom: 28px;
+}
+
+.screen--narrow form button[type="submit"] {
+  width: 100%;
+  margin-top: 4px;
 }
 
 /* Диаграмма занимает всю ширину экрана: ради неё человек сюда и пришёл. */
 .screen--wide {
   max-width: none;
+  padding: 32px 40px 64px;
+}
+
+.screen--center {
+  display: flex;
+  justify-content: center;
+}
+
+@media (max-width: 900px) {
+  .screen,
+  .screen--wide,
+  .screen--narrow {
+    padding: 32px 20px 64px;
+  }
 }
 
 .screen__head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   flex-wrap: wrap;
-  gap: var(--gap);
+  gap: 8px;
   margin-bottom: 24px;
 }
 
+/* Заголовок отжимает действия вправо сам, вместо `space-between`: действий
+   на экране проекта пять, и распорка растащила бы их по всей ширине —
+   между «Новой задачей» и «Настройками» оказался бы пустой сантиметр. */
 .screen__head h1 {
-  margin: 0;
+  margin: 0 auto 0 0;
+}
+
+/* Заголовок страницы крупный и плотный — это опознавательный знак Notion.
+   Кегль здесь работает вместо хлебных крошек: с одного взгляда понятно, куда
+   попал, не читая ничего вокруг. */
+h1 {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  margin: 0 0 24px;
+}
+
+h2 {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 32px 0 8px;
+}
+
+.screen__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+/* Ссылка внутри текста подчёркнута приглушённо, а не синим: цветная ссылка в
+   абзаце перетягивает на себя чтение, а подчёркивание в 20% чернил
+   показывает её, не мешая читать. */
+.screen a,
+.header a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: rgb(var(--ink) / 25%);
+  text-underline-offset: 2px;
+  border-radius: 2px;
+}
+
+.screen a:hover,
+.header a:hover {
+  background: var(--hover);
 }
 
 /* Лента и карточка рядом. Лента забирает всё, что не заняла карточка, и
@@ -150,50 +550,196 @@ body {
   min-width: 0;
 }
 
-.screen__actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
+/* --- органы управления --- */
 
-.screen--center {
-  display: flex;
+/* Кнопка Notion: невысокая, с полужирной подписью и тенью в один пиксель
+   вместо рамки. Тень, а не рамка, потому что рамка добавляет кнопке размер и
+   при выравнивании в строку с полем даёт расхождение в два пикселя. */
+button {
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
+  gap: 6px;
+  height: var(--control);
+  padding: 0 12px;
+  font: inherit;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--accent-text);
+  box-shadow: var(--shadow-sm);
+  transition: background 20ms ease-in;
 }
 
-h1 {
-  font-size: 24px;
-  margin: 0 0 24px;
+button:hover {
+  background: var(--accent-hover);
 }
 
-.muted {
+button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+button:disabled:hover {
+  background: var(--accent);
+}
+
+/* Второстепенная кнопка. Их на экране проекта пять, и пять синих плашек
+   подряд не оставляют главному действию ни единого шанса быть замеченным. */
+.button--quiet {
+  background: transparent;
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
+.button--quiet:hover,
+.button--quiet:disabled:hover {
+  background: var(--hover);
+}
+
+.button--quiet[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px transparent;
+}
+
+/* Переключатель языка — сегментный: три состояния одного выбора, а не три
+   отдельные кнопки. Общая подложка и говорит, что выбор один. */
+.locale-switch {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius);
+  background: var(--hover);
+}
+
+/* В колонке переключатель занимает ровно свою ширину: растянутый на всю
+   колонку, он выглядел бы полосой навигации, а не выбором из трёх букв. */
+.sidebar .locale-switch {
+  align-self: flex-start;
+  margin: 4px 0 4px 8px;
+}
+
+.locale-switch button {
+  height: 24px;
+  padding: 0 8px;
+  font-size: 12px;
+  background: transparent;
   color: var(--text-muted);
+  box-shadow: none;
 }
 
-/* --- формы --- */
+.locale-switch button:hover {
+  background: var(--active);
+  color: var(--text);
+}
+
+/* Выбранный язык поднят на поверхность страницы: приподнятая плашка внутри
+   утопленной дорожки — это то же самое различие, что и у переключателя
+   вкладок, и его не приходится объяснять. */
+.locale-switch button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+/* --- поля --- */
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   margin: 0 0 var(--gap);
 }
 
-.field label {
-  font-size: 14px;
+.field label,
+.field > .settings__key {
   color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
 }
 
-.fieldset {
-  border: 1px solid var(--border);
+.field--inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+/* `:where` — не украшение записи: без него `:not([type=…])` поднял бы вес
+   правила выше классов, и карточка задачи, гасящая рамки у своих полей, не
+   смогла бы их погасить, не подражая этому весу. Базовое правило обязано
+   быть самым лёгким в файле: его перебивают все. */
+select,
+textarea,
+input:where(:not([type="checkbox"]):not([type="radio"])) {
+  width: 100%;
+  min-height: var(--control);
+  padding: 6px 10px;
+  font: inherit;
+  color: var(--text);
+  background: var(--input-bg);
+  border: 0;
   border-radius: var(--radius);
-  padding: 8px 12px 12px;
+  box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 
-.fieldset legend {
-  font-size: 14px;
-  color: var(--text-muted);
-  padding: 0 4px;
+select {
+  /* Список — тоже орган управления: он обязан совпасть по высоте с кнопкой
+     рядом, а не задавать её сам своим содержимым. */
+  height: var(--control);
+  cursor: pointer;
+}
+
+textarea {
+  resize: vertical;
+  line-height: 1.5;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-faint);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  /* Синее кольцо вокруг поля — весь фокус целиком, а не только рамка: на
+     подложке того же тона одна рамка почти не видна. */
+  box-shadow:
+    inset 0 0 0 1px var(--accent),
+    0 0 0 3px var(--accent-soft);
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+a:focus-visible,
+[role="switch"]:focus-visible {
+  /* Видимый фокус обязателен: без него по интерфейсу нельзя ходить с
+     клавиатуры, не угадывая, где ты сейчас. */
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  color: var(--text-faint);
+  cursor: default;
+}
+
+input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
 }
 
 .checkbox {
@@ -202,118 +748,186 @@ h1 {
   gap: 8px;
 }
 
-.checkbox input {
-  width: auto;
-}
-
-select,
-textarea,
-input {
-  font: inherit;
-  color: var(--text);
-  background: var(--surface);
+.fieldset,
+.settings__fieldset {
+  margin: 0;
+  padding: 12px;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 8px 10px;
+  border-radius: var(--radius-lg);
 }
 
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible,
-button:focus-visible {
-  /* Видимый фокус обязателен: без него по интерфейсу нельзя ходить с
-     клавиатуры, не угадывая, где ты сейчас. */
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+.fieldset legend,
+.settings__fieldset legend {
+  padding: 0 6px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
 }
 
-button {
-  font: inherit;
-  cursor: pointer;
-  padding: 8px 16px;
-  border: 1px solid transparent;
-  border-radius: var(--radius);
-  background: var(--accent);
-  color: var(--accent-text);
+/* Рубильник Notion: дорожка со скользящей точкой. `role="switch"` уже сказал
+   читалке, что это переключатель, — здесь остаётся показать то же глазу. */
+.switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 12px;
 }
 
-button:disabled {
-  cursor: default;
-  opacity: 0.6;
-}
-
-.button--quiet {
-  background: transparent;
+.switch__label {
   color: var(--text);
-  border-color: var(--border);
-  padding: 4px 10px;
 }
 
-.button--quiet[aria-pressed="true"] {
-  background: var(--accent);
-  color: var(--accent-text);
-  border-color: var(--accent);
+.switch__handle {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 20px;
+  padding: 0;
+  justify-content: flex-start;
+  border-radius: 999px;
+  background: rgb(var(--ink) / 30%);
+  box-shadow: none;
+  transition: background 180ms ease;
 }
+
+.switch__handle:hover {
+  background: rgb(var(--ink) / 40%);
+}
+
+.switch__handle[aria-checked="true"],
+.switch__handle[aria-checked="true"]:hover {
+  background: var(--accent);
+}
+
+.switch__dot {
+  width: 16px;
+  height: 16px;
+  margin: 0 2px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: var(--shadow-sm);
+  transition: transform 180ms ease;
+}
+
+.switch__handle[aria-checked="true"] .switch__dot {
+  transform: translateX(14px);
+}
+
+/* --- сообщения --- */
 
 .error {
-  color: var(--danger);
   margin: 0 0 var(--gap);
+  color: var(--danger);
 }
 
-/* --- участники и приглашения --- */
+.ok {
+  color: var(--ok);
+}
 
-.header__nav {
+/* Выноска — прямоугольник с тонкой заливкой, как callout в Notion: он
+   отделён от текста, но не выкрикивает. Полотно в полный цвет над диаграммой
+   перекрикивало бы саму диаграмму. */
+.callout {
   display: flex;
-  gap: var(--gap);
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--hover);
 }
 
-/* Переключатель организаций стоит рядом с названием, а не вместо: название
-   подписывает экран у всех, а выбор есть далеко не у каждого. */
-.org-switch {
-  padding: 4px 8px;
-}
+/* --- списки строк --- */
 
+/* Проекты, участники и приглашения — строки списка, а не карточки: рамка
+   вокруг каждой строки в списке из двадцати рисует решётку, в которой не
+   видно самих строк. Разделяет их линия, а наведение показывает границы
+   строки целиком. */
+.projects,
 .members,
-.invites {
+.invites,
+.members__list {
   list-style: none;
   padding: 0;
   margin: 0 0 24px;
-  display: grid;
-  gap: 8px;
+  display: flex;
+  flex-direction: column;
 }
 
+.projects li,
 .members li,
-.invite {
+.invite,
+.members__row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
+  gap: 12px;
   flex-wrap: wrap;
-  gap: var(--gap);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 12px 16px;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: background 20ms ease-in;
+}
+
+.projects li:hover,
+.members li:hover,
+.invite:hover,
+.members__row:hover {
+  background: var(--hover);
+}
+
+.projects li a {
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.projects li a:hover {
+  background: transparent;
+  text-decoration: underline;
+  text-decoration-color: rgb(var(--ink) / 25%);
+}
+
+.projects__slug {
+  margin-left: auto;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* Роль — последнее в строке и прижата к правому краю: колонок здесь нет, но
+   одинаковые значения, стоящие в один край, читаются столбцом и сравниваются
+   взглядом, а не по одному. */
+.members li span:last-child {
+  margin-left: auto;
 }
 
 .invite__who {
-  font-weight: 600;
+  font-weight: 500;
 }
 
 /* Отозванное, просроченное и принятое приглашение действия не предлагают —
    и выглядят иначе, чем ждущее ответа. */
 .invite__dead {
-  color: var(--text-muted);
+  color: var(--text-faint);
   text-decoration: line-through;
 }
 
 .invite__actions {
   display: flex;
-  gap: 8px;
+  gap: 4px;
   margin-left: auto;
 }
 
-.invite__choice {
-  display: flex;
-  gap: var(--gap);
+/* Действия строки проявляются при наведении и при фокусе внутри неё:
+   постоянно видимые три кнопки в каждой строке превращают список
+   приглашений в панель управления. С клавиатуры они есть всегда — видимость
+   не влияет на доступное дерево. */
+.invite__actions button {
+  opacity: 0;
+  transition: opacity 20ms ease-in;
+}
+
+.invite:hover .invite__actions button,
+.invite:focus-within .invite__actions button {
+  opacity: 1;
 }
 
 /* Ссылка показывается один раз, поэтому занимает всю ширину строки: её надо
@@ -328,87 +942,91 @@ button:disabled {
 .issued__url {
   flex: 1 1 auto;
   min-width: 0;
-  font-size: 14px;
+  font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 .issued-list > div {
   margin-bottom: var(--gap);
 }
 
-.ok {
-  color: var(--ok);
+/* Ссылка приглашения показывается один раз, поэтому переносится целиком, а не
+   обрезается: обрезанную нельзя ни прочитать, ни продиктовать. */
+.members__link {
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
-/* --- список проектов и пустое состояние --- */
+/* --- окно --- */
 
-.projects {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  gap: 8px;
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.98);
+  }
 }
-
-.projects li {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--gap);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 12px 16px;
-}
-
-.projects__slug {
-  font-size: 14px;
-}
-
-/* --- модальное окно --- */
 
 .modal__backdrop {
   position: fixed;
   inset: 0;
+  z-index: 10;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: var(--gap);
-  background: rgb(0 0 0 / 45%);
+  background: var(--backdrop);
 }
 
 .modal {
   width: 100%;
-  max-width: 420px;
+  max-width: 440px;
   max-height: 100%;
   overflow: auto;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
   padding: 24px;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  /* Тень вместо рамки: окно висит над страницей, и рамка вокруг него
+     нарисовала бы вторую границу поверх той, что уже дала тень. */
+  box-shadow: var(--shadow-md);
+  animation: modal-in 120ms ease-out;
 }
 
 .modal__title {
-  font-size: 18px;
   margin: 0 0 var(--gap);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
+/* Главное действие слева, отказ рядом: в окне читают сверху вниз и слева
+   направо, и кнопка, ради которой окно открыли, стоит первой на этом пути. */
 .modal__actions {
   display: flex;
+  align-items: center;
   gap: 8px;
   margin-top: 24px;
 }
 
+/* --- пустое состояние --- */
+
+/* Пунктирной рамки нет: она обводит пустоту, тем самым делая её заметнее.
+   Приглушённый текст и одна кнопка говорят то же самое и не кричат. */
 .empty {
-  background: var(--surface);
-  border: 1px dashed var(--border);
-  border-radius: var(--radius);
-  padding: 32px 24px;
+  padding: 40px 24px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-subtle);
+  color: var(--text-muted);
   text-align: center;
 }
 
-.empty__title {
-  font-weight: 600;
+.empty p {
+  margin: 0;
+}
+
+.empty .empty__title {
   margin: 0 0 4px;
+  color: var(--text);
+  font-weight: 600;
 }
 
 .empty button {
@@ -423,9 +1041,31 @@ button:disabled {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  padding: 4px 4px 4px 12px;
+  border-radius: var(--radius);
+  background: var(--danger-soft);
 }
 
-/* --- экраны настроек --- */
+/* Предложение подвинуть связанную задачу. Ненавязчивое: приглушённая выноска
+   над лентой, а не окно поверх неё — отказ ничего не ломает, и требовать
+   ответа здесь не за что. */
+.nudge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: var(--gap);
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--hover);
+  font-size: 13px;
+}
+
+.nudge__dismiss {
+  margin-left: auto;
+}
+
+/* --- настройки --- */
 
 /* Одна колонка ограниченной ширины: настройки читают, а не сканируют, и
    строка длиной в экран для этого не годится. */
@@ -433,25 +1073,35 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: var(--gap);
-  max-width: 520px;
-}
-
-.settings__fieldset {
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 12px;
+  max-width: 560px;
 }
 
 .settings__days {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: 4px;
 }
 
+/* День недели — метка-переключатель, как свойство «мультивыбор» в Notion:
+   семь строк с флажками занимали бы пол-экрана ради семи слов. */
 .settings__day {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
+  padding: 4px 10px 4px 8px;
+  border-radius: var(--radius);
+  background: var(--hover);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.settings__day:hover {
+  background: var(--active);
+}
+
+.settings__day:has(input:checked) {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 /* Переключатель «наследовать» стоит прежде самого поля: сперва решается, чьё
@@ -459,10 +1109,10 @@ button:disabled {
 .settings__override {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   padding: 12px;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
 }
 
 .settings__override-label {
@@ -476,64 +1126,48 @@ button:disabled {
   color: var(--text-muted);
 }
 
+.settings__key {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
 .settings__slug-hint {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   gap: 6px;
   color: var(--text-muted);
   font-size: 13px;
 }
 
-.field--inline {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-}
-
-/* Предложение подвинуть связанную задачу. Ненавязчивое: приглушённая полоска
-   над лентой, а не окно поверх неё — отказ ничего не ломает, и требовать
-   ответа здесь не за что. */
-.nudge {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: var(--gap);
-  padding: 6px 10px;
-  border: 1px dashed var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
+.settings__slug-hint button {
+  height: 24px;
+  padding: 0 8px;
   font-size: 13px;
 }
 
-.nudge__dismiss {
-  margin-left: auto;
-}
-
-/* Список участников и приглашений. Строки, а не таблица: колонок мало, они
-   разной природы, и таблица здесь дала бы разметку ради разметки. */
-.members__list {
-  list-style: none;
+/* Вопрос интервью — крупная строка над полем ответа: его читают, а не
+   просматривают, и подписью к полю он выглядел бы служебным. */
+.ai__question {
   margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
-.members__row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--border);
+/* --- переключатель организаций --- */
+
+/* Стоит под названием организации в колонке и выглядит как её продолжение, а
+   не как поле формы: это навигация, а не значение, которое вводят. */
+.org-switch {
+  height: 28px;
+  padding: 0 8px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-size: 13px;
 }
 
-/* Ссылка приглашения показывается один раз, поэтому переносится целиком, а не
-   обрезается: обрезанную нельзя ни прочитать, ни продиктовать. */
-.members__link {
-  font-size: 12px;
-  overflow-wrap: anywhere;
+.org-switch:hover {
+  background: var(--hover);
 }
