@@ -143,7 +143,7 @@ def _demote_own_membership(authed, db, role: str) -> None:
     db.flush()
 
 
-def test_role_without_project_read_permission_gets_404_on_both_read_routes(authed, db):
+def test_role_without_project_read_permission_gets_404_on_the_project(authed, db):
     # access._MATRIX: client входит в _NEEDS_GRANT и без выданного доступа к
     # проекту не имеет даже PROJECT_READ — маршруты чтения обязаны спросить
     # об этом can(), а не пускать любого члена организации.
@@ -154,7 +154,14 @@ def test_role_without_project_read_permission_gets_404_on_both_read_routes(authe
     # чужой проект неотличим от несуществующего — тот же принцип применяется
     # и к «есть проект, но роль не имеет права его читать»: 404, а не 403.
     assert authed.get(f"/api/projects/{project_id}").status_code == 404
-    assert authed.get("/api/projects").status_code == 404
+
+    # А вот список — не отказ, а пустота. Спросить «мои проекты» роль client
+    # вправе (см. list_projects); до первого выданного доступа их просто нет.
+    # Отказ здесь означал бы, что человек с одним выданным проектом не может
+    # получить его список, не получив сперва 404.
+    listed = authed.get("/api/projects")
+    assert listed.status_code == 200
+    assert listed.json() == []
 
 
 def test_role_without_read_internal_note_permission_does_not_see_it_in_get_project(

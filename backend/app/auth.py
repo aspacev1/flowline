@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import Cookie, Depends, HTTPException
@@ -7,7 +8,8 @@ from sqlalchemy.orm import Session as DbSession
 
 from app.config import get_settings
 from app.db import get_db
-from app.models import Membership, Organization, Role, Session, User
+from app.invitations import accept as accept_invitation
+from app.models import Invitation, Membership, Organization, Role, Session, User
 from app.security import hash_password, hash_token, new_token, verify_password
 from app.slugs import insert_with_unique_slug
 from app.text import normalize_email
@@ -27,7 +29,24 @@ def _org_slug_taken(db: DbSession, slug: str) -> bool:
     return db.scalar(select(Organization.id).where(Organization.slug == slug)) is not None
 
 
-def register(db: DbSession, *, name: str, email: str, password: str) -> User:
+def register(
+    db: DbSession,
+    *,
+    name: str,
+    email: str,
+    password: str,
+    invitation: Invitation | None = None,
+) -> User:
+    """Заводит аккаунт. С приглашением на руках — сразу внутрь позвавшей
+    организации, без него — со своей собственной.
+
+    Пришедший по ссылке своей организации не получает. Она была бы пустышкой
+    с ним одним внутри, а в закрытой установке (`SIGNUP_MODE=invite_only`)
+    ещё и делала бы каждого приглашённого владельцем — пусть своей
+    организации, но с правом звать в неё кого угодно, то есть в обход
+    закрытости. Правило «при регистрации создаётся своя организация» описывает
+    свободный вход с улицы; вход по приглашению — другая дверь.
+    """
     normalized = normalize_email(email)
     if db.scalar(select(User).where(User.email == normalized)) is not None:
         raise ValueError("адрес уже занят")
@@ -48,6 +67,10 @@ def register(db: DbSession, *, name: str, email: str, password: str) -> User:
             db.flush()
     except IntegrityError as exc:
         raise ValueError("адрес уже занят") from exc
+
+    if invitation is not None:
+        accept_invitation(db, invitation, user=user, now=datetime.now(timezone.utc))
+        return user
 
     org_name = name.strip()
     org = insert_with_unique_slug(
@@ -71,13 +94,17 @@ def authenticate(db: DbSession, *, email: str, password: str) -> User | None:
     return user if verify_password(password, user.password_hash) else None
 
 
-def open_session(db: DbSession, user: User) -> str:
+def open_session(db: DbSession, user: User, *, active_org_id: uuid.UUID | None = None) -> str:
     raw, hashed = new_token()
     db.add(
         Session(
             user_id=user.id,
             token_hash=hashed,
             expires_at=datetime.now(timezone.utc) + SESSION_TTL,
+            # Задаётся при входе по приглашению: человек только что вошёл в
+            # чужую организацию и должен увидеть именно её, а не ту, что
+            # оказалась первой по порядку.
+            active_org_id=active_org_id,
         )
     )
     db.flush()
@@ -90,10 +117,12 @@ def close_session(db: DbSession, raw_token: str) -> None:
         db.delete(record)
 
 
-def current_user(
+def current_session(
     flowline_session: str | None = Cookie(default=None, alias=SESSION_COOKIE),
     db: DbSession = Depends(get_db),
-) -> User:
+) -> Session:
+    """Запись сессии, а не только её владелец: на ней живёт выбранная
+    организация, и переключателю нужна сама запись, чтобы её переписать."""
     if not flowline_session:
         raise HTTPException(status_code=401, detail="not_authenticated")
 
@@ -101,4 +130,11 @@ def current_user(
     if record is None or record.expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=401, detail="session_expired")
 
-    return db.get(User, record.user_id)
+    return record
+
+
+def current_user(
+    flowline_session: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+    db: DbSession = Depends(get_db),
+) -> User:
+    return db.get(User, current_session(flowline_session, db).user_id)

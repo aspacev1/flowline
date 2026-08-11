@@ -1,6 +1,14 @@
 import pytest
 
-from app.access import UNKNOWN_ROLE, Action, can, parse_role, require, visible_op
+from app.access import (
+    UNKNOWN_ROLE,
+    Action,
+    can,
+    needs_project_grant,
+    parse_role,
+    require,
+    visible_op,
+)
 from app.models import Role
 
 
@@ -111,3 +119,13 @@ def test_visible_op_does_not_mutate_the_stored_payload():
 def test_visible_op_passes_through_operations_without_a_note():
     payload = {"type": "delete_task", "task_id": "11111111-1111-1111-1111-111111111111"}
     assert visible_op(payload, Role.CLIENT, project_granted=True) is payload
+
+
+def test_only_the_roles_that_are_invited_project_by_project_need_a_grant():
+    """Список ролей, которым нужен явный доступ, спрашивают снаружи — список
+    проектов отбирает по нему строки. Знание остаётся в access, но перестало
+    быть приватным."""
+    assert needs_project_grant(Role.CLIENT) is True
+    assert needs_project_grant(None) is True
+    assert needs_project_grant(Role.VIEWER) is False
+    assert needs_project_grant(Role.OWNER) is False

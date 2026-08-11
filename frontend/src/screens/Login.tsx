@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { errorKey } from "../api/errors";
 import { useAuth } from "../auth/AuthProvider";
@@ -10,6 +10,11 @@ export function Login() {
   const { t } = useLocale();
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  // Человек пришёл по приглашению и завернул сюда, чтобы войти под своим
+  // аккаунтом. После входа он возвращается к приглашению, а не оказывается в
+  // списке проектов, забыв, зачем шёл.
+  const inviteToken = params.get("invite");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -22,7 +27,7 @@ export function Login() {
     setFailureKey(null);
     try {
       await login({ email, password });
-      navigate("/projects");
+      navigate(inviteToken === null ? "/projects" : `/invite/${encodeURIComponent(inviteToken)}`);
     } catch (error) {
       setFailureKey(errorKey(error));
     } finally {
@@ -67,7 +72,9 @@ export function Login() {
 
       <p className="muted">
         {t("auth.login.no_account")}{" "}
-        <Link to="/register">{t("auth.login.link_register")}</Link>
+        <Link to={inviteToken === null ? "/register" : `/register?invite=${encodeURIComponent(inviteToken)}`}>
+          {t("auth.login.link_register")}
+        </Link>
       </p>
     </main>
   );

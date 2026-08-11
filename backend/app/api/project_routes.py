@@ -5,10 +5,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
-from app.access import Action, can, parse_role, visible_op
-from app.auth import current_user
+from app.access import Action, can, needs_project_grant, parse_role, visible_op
 from app.calendar import CalendarError, end_date
 from app.db import get_db
+from app.invitations import granted_project_ids, has_project_access
 from app.models import (
     Category,
     Dependency,
@@ -21,6 +21,7 @@ from app.models import (
     User,
 )
 from app.mutations import InvalidOperation, NotFoundInProject, PublicOp, apply_op, to_internal
+from app.orgs import current_membership
 from app.projects import create_project as create_project_entity
 from app.settings_resolution import project_calendar, resolve_shift_threshold, resolve_timezone
 
@@ -37,42 +38,40 @@ class ProjectOut(BaseModel):
     slug: str
 
 
-def _membership(db: DbSession, user: User) -> Membership:
-    # Человек может состоять в нескольких организациях; переключателя ещё
-    # нет, и маршрут берёт первую. Порядок задан явно, чтобы «первая» была
-    # хотя бы одной и той же от запроса к запросу, а не той, что первой
-    # вернул планировщик.
-    membership = db.scalar(
-        select(Membership).where(Membership.user_id == user.id).order_by(Membership.id)
-    )
-    if membership is None:
-        raise HTTPException(status_code=403, detail="no_organization")
-    return membership
+def _load_project(
+    db: DbSession, membership: Membership, project_id: uuid.UUID
+) -> tuple[Project, bool]:
+    """Проект и признак «доступ к нему выдан поимённо».
 
-
-def _load_project(db: DbSession, user: User, project_id: uuid.UUID) -> tuple[Project, Membership]:
-    membership = _membership(db, user)
+    Второе спрашивается здесь, а не в каждом маршруте по отдельности: у роли
+    `client` без выданного доступа права на проект нет вовсе, и место, где это
+    выясняется, должно быть тем же самым, где проект находится.
+    """
     project = db.get(Project, project_id)
     # чужой проект неотличим от несуществующего: 404, а не 403
     if project is None or project.org_id != membership.org_id:
         raise HTTPException(status_code=404, detail="project_not_found")
-    return project, membership
+    granted = needs_project_grant(parse_role(membership.role)) and has_project_access(
+        db, user_id=membership.user_id, project_id=project.id
+    )
+    return project, granted
 
 
-def _require_project_read(membership: Membership) -> None:
+def _require_project_read(membership: Membership, granted: bool) -> None:
     """Единственное место, где решается право на чтение: спрашивает access,
     не сравнивает роль напрямую. Отказ — 404, а не 403, тем же принципом,
     что и в _load_project: клиент без выданного доступа к проекту не должен
     отличить существующий проект от несуществующего."""
-    if not can(parse_role(membership.role), Action.PROJECT_READ):
+    if not can(parse_role(membership.role), Action.PROJECT_READ, project_granted=granted):
         raise HTTPException(status_code=404, detail="project_not_found")
 
 
 @router.post("", response_model=ProjectOut, status_code=201)
 def create_project(
-    payload: ProjectIn, user: User = Depends(current_user), db: DbSession = Depends(get_db)
+    payload: ProjectIn,
+    membership: Membership = Depends(current_membership),
+    db: DbSession = Depends(get_db),
 ):
-    membership = _membership(db, user)
     if not can(parse_role(membership.role), Action.PROJECT_WRITE):
         raise HTTPException(status_code=403, detail="forbidden")
 
@@ -81,22 +80,41 @@ def create_project(
 
 
 @router.get("", response_model=list[ProjectOut])
-def list_projects(user: User = Depends(current_user), db: DbSession = Depends(get_db)):
-    membership = _membership(db, user)
-    _require_project_read(membership)
-    projects = db.scalars(select(Project).where(Project.org_id == membership.org_id)).all()
+def list_projects(
+    membership: Membership = Depends(current_membership), db: DbSession = Depends(get_db)
+):
+    """Проекты организации — или те из них, куда позвали поимённо.
+
+    Роль `client` списка организации не видит: для неё этот маршрут отдаёт
+    ровно её проекты, а не отказ. Пустой список у того, кого ещё никуда не
+    позвали, — честный ответ: проектов, которые он вправе открыть, нет.
+    """
+    granted_only = needs_project_grant(parse_role(membership.role))
+    # Для роли, которой нужен явный доступ, право читать проверяется не этой
+    # строкой, а фильтром ниже: сам список ей доступен, а его содержимое —
+    # ровно те проекты, куда её позвали.
+    _require_project_read(membership, granted=granted_only)
+
+    query = select(Project).where(Project.org_id == membership.org_id)
+    if granted_only:
+        query = query.where(Project.id.in_(granted_project_ids(db, user_id=membership.user_id)))
+    projects = db.scalars(query).all()
     return [ProjectOut(id=str(p.id), name=p.name, slug=p.slug) for p in projects]
 
 
 @router.get("/{project_id}")
 def get_project(
-    project_id: uuid.UUID, user: User = Depends(current_user), db: DbSession = Depends(get_db)
+    project_id: uuid.UUID,
+    membership: Membership = Depends(current_membership),
+    db: DbSession = Depends(get_db),
 ):
-    project, membership = _load_project(db, user, project_id)
-    _require_project_read(membership)
+    project, granted = _load_project(db, membership, project_id)
+    _require_project_read(membership, granted)
     org = db.get(Organization, project.org_id)
     calendar = project_calendar(project, org)
-    show_notes = can(parse_role(membership.role), Action.READ_INTERNAL_NOTE)
+    show_notes = can(
+        parse_role(membership.role), Action.READ_INTERNAL_NOTE, project_granted=granted
+    )
 
     # Позиции могут совпадать в одном крайнем случае (строка, восстановленная
     # отменой на позицию, которую с тех пор занял другой ряд), поэтому id —
@@ -188,7 +206,7 @@ def list_revisions(
     project_id: uuid.UUID,
     task_id: uuid.UUID | None = None,
     limit: int = Query(default=200, ge=1, le=1000),
-    user: User = Depends(current_user),
+    membership: Membership = Depends(current_membership),
     db: DbSession = Depends(get_db),
 ):
     """Журнал изменений проекта, при желании — одной задачи.
@@ -201,8 +219,8 @@ def list_revisions(
     Отдавать её «на будущее» значило бы удваивать вес ленты и заодно удваивать
     поверхность, на которой заметка может утечь.
     """
-    project, membership = _load_project(db, user, project_id)
-    _require_project_read(membership)
+    project, granted = _load_project(db, membership, project_id)
+    _require_project_read(membership, granted)
 
     query = select(Revision).where(Revision.project_id == project.id)
     if task_id is not None:
@@ -237,7 +255,7 @@ def list_revisions(
             ),
             # Причина — текст человека: отдаётся как есть и не переводится.
             "reason": revision.reason,
-            "op": visible_op(revision.op, role),
+            "op": visible_op(revision.op, role, project_granted=granted),
         }
         for revision in revisions
     ]
@@ -248,15 +266,19 @@ def apply_mutation(
     project_id: uuid.UUID,
     op: PublicOp = Body(..., embed=True),
     reason: str | None = Body(default=None),
-    user: User = Depends(current_user),
+    membership: Membership = Depends(current_membership),
     db: DbSession = Depends(get_db),
 ):
-    project, membership = _load_project(db, user, project_id)
-    if not can(parse_role(membership.role), Action.PROJECT_WRITE):
+    project, granted = _load_project(db, membership, project_id)
+    # Выданный доступ к проекту открывает чтение, но не правку: роли, которым
+    # он нужен, права писать не имеют ни при каком доступе.
+    if not can(parse_role(membership.role), Action.PROJECT_WRITE, project_granted=granted):
         raise HTTPException(status_code=403, detail="forbidden")
 
     try:
-        revision = apply_op(db, project, to_internal(op), actor_id=user.id, reason=reason)
+        revision = apply_op(
+            db, project, to_internal(op), actor_id=membership.user_id, reason=reason
+        )
     except NotFoundInProject as error:
         # Сущность чужого проекта — не ошибка формата запроса: 404 тем же
         # принципом, что и в _load_project.
@@ -267,6 +289,6 @@ def apply_mutation(
     role = parse_role(membership.role)
     return {
         "seq": revision.seq,
-        "op": visible_op(revision.op, role),
-        "inverse": visible_op(revision.inverse, role),
+        "op": visible_op(revision.op, role, project_granted=granted),
+        "inverse": visible_op(revision.inverse, role, project_granted=granted),
     }

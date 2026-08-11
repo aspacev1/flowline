@@ -13,6 +13,15 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 # не задавал, а угадывать домен поверх заданного руками нельзя.
 _LOCAL_BASE_URL = "http://localhost:8000"
 
+#: Режимы регистрации. `open` — кто угодно, `invite_only` — только по
+#: приглашению, `closed` — вход есть, регистрации нет.
+SIGNUP_MODES = ("open", "invite_only", "closed")
+
+#: Транспорты почты, которые умеет эта установка. `api` из спецификации здесь
+#: нет: реализации нет, и молчаливое превращение неизвестного значения в
+#: заглушку означало бы, что приглашения «отправляются» в никуда.
+MAIL_TRANSPORTS = ("none", "log", "smtp")
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=_REPO_ROOT / ".env", extra="ignore")
@@ -61,6 +70,23 @@ class Settings(BaseSettings):
         for prefix in ("postgresql://", "postgres://"):
             if value.startswith(prefix):
                 return f"postgresql+psycopg://{value[len(prefix):]}"
+        return value
+
+    @field_validator("signup_mode", "mail_transport")
+    @classmethod
+    def _reject_a_value_nobody_implements(cls, value: str, info) -> str:
+        """Отвергает незнакомое значение рубильника при старте, а не при первом
+        обращении к нему.
+
+        Опечатка в `SIGNUP_MODE` иначе тихо превращает установку в закрытую
+        (сравнение с `open` не сходится), а опечатка в `MAIL_TRANSPORT` — в
+        такую, где кнопка отправки есть, а письма не уходят. Оба отказа
+        неотличимы от задуманного поведения и ищутся часами; отказ стартовать
+        находится за секунду.
+        """
+        allowed = SIGNUP_MODES if info.field_name == "signup_mode" else MAIL_TRANSPORTS
+        if value not in allowed:
+            raise ValueError(f"допустимые значения: {', '.join(allowed)}")
         return value
 
     @model_validator(mode="after")
