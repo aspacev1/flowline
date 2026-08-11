@@ -19,6 +19,7 @@ from app.db import get_db
 from app.models import Comment, Membership, Organization, Project, Revision, ShareLink, User
 from app.mutations import InvalidOperation, NotFoundInProject, PublicOp, apply_op, to_internal
 from app.project_state import build_state
+from app.projects import SlugRefused, free_slug, rename_slug
 from app.projects import create_project as create_project_entity
 from app.sharing import (
     SharingRefused,
@@ -45,6 +46,10 @@ class ProjectOut(BaseModel):
 class ShareIn(BaseModel):
     published: bool
     comments_enabled: bool
+
+
+class SlugIn(BaseModel):
+    slug: str = Field(min_length=1, max_length=100)
 
 
 def _share_out(link: ShareLink | None) -> dict:
@@ -199,6 +204,52 @@ def set_share(
         raise HTTPException(status_code=422, detail=error.code)
 
     return _share_out(stored_link(db, project))
+
+
+@router.get("/{project_id}/slug-check")
+def check_slug(
+    project_id: uuid.UUID,
+    slug: str = Query(min_length=1, max_length=100),
+    user: User = Depends(current_user),
+    db: DbSession = Depends(get_db),
+):
+    """Свободен ли слаг — и что предложить, если занят.
+
+    Отдельный маршрут, а не только отказ на сохранении: спецификация обещает
+    подсказку прямо в поле ввода, то есть до отправки формы.
+    """
+    project, membership = _load_project(db, user, project_id)
+    if not can(parse_role(membership.role), Action.PROJECT_ADMIN):
+        raise HTTPException(status_code=403, detail="forbidden")
+
+    try:
+        available, suggestion = free_slug(db, project.org_id, slug, except_id=project.id)
+    except SlugRefused as error:
+        raise HTTPException(status_code=422, detail=error.code)
+    return {"available": available, "suggestion": suggestion}
+
+
+@router.put("/{project_id}/slug")
+def set_slug(
+    project_id: uuid.UUID,
+    payload: SlugIn,
+    user: User = Depends(current_user),
+    db: DbSession = Depends(get_db),
+):
+    project, membership = _load_project(db, user, project_id)
+    if not can(parse_role(membership.role), Action.PROJECT_ADMIN):
+        raise HTTPException(status_code=403, detail="forbidden")
+
+    try:
+        rename_slug(db, project, payload.slug)
+    except SlugRefused as error:
+        raise HTTPException(status_code=422, detail=error.code)
+
+    org = db.get(Organization, project.org_id)
+    return {
+        "slug": project.slug,
+        "public_url": get_settings().public_base_url.rstrip("/") + public_path(org, project),
+    }
 
 
 @router.get("/{project_id}/revisions")
