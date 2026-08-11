@@ -4,10 +4,12 @@ import { useParams } from "react-router-dom";
 
 import { errorKey } from "../api/errors";
 import { getProject, projectQueryKey } from "../api/projects";
-import { useCanWrite } from "../auth/permissions";
+import { useCanWrite, useOrgRole } from "../auth/permissions";
 import { Gantt } from "../gantt/Gantt";
 import { usePrefersReducedMotion } from "../gantt/motion";
 import { useLocale } from "../i18n/LocaleProvider";
+import { PlanApproval } from "../project/PlanApproval";
+import { ShiftReasonProvider } from "../project/ShiftReason";
 import { TaskPanel } from "../task/TaskPanel";
 import { CategoryForm, suggestColor } from "./CategoryForm";
 import { TaskForm } from "./TaskForm";
@@ -24,6 +26,7 @@ export function Project() {
   const { t } = useLocale();
   const { projectId = "" } = useParams();
   const canWrite = useCanWrite();
+  const role = useOrgRole();
   // Тот же признак, что и у ленты: выезд карточки — такое же движение, как
   // переезд полоски, и выключаться они обязаны вместе.
   const reducedMotion = usePrefersReducedMotion();
@@ -64,6 +67,9 @@ export function Project() {
   const selectedTask = query.data.tasks.find((task) => task.id === selectedTaskId) ?? null;
 
   return (
+    // Провайдер обнимает и ленту, и карточку: окно с причиной одно на все
+    // способы сдвинуть задачу — мышью по полоске и полем в карточке.
+    <ShiftReasonProvider>
     <main className="screen screen--wide">
       <div className="screen__head">
         {/* Название проекта — содержимое пользователя: приходит с сервера как
@@ -89,6 +95,14 @@ export function Project() {
               {t("task.create")}
             </button>
           )}
+          <PlanApproval
+            projectId={projectId}
+            state={query.data}
+            canApprove={canWrite}
+            // Переутверждение — право владельца: оно сдвигает базу, от которой
+            // считаются все объяснённые сдвиги.
+            canReapprove={role === "owner"}
+          />
         </div>
       </div>
 
@@ -137,5 +151,6 @@ export function Project() {
         />
       )}
     </main>
+    </ShiftReasonProvider>
   );
 }

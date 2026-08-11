@@ -214,6 +214,25 @@
     "summary": {
       "late": "Layihə {end} tarixində bitir — son tarixdən ({deadline}) {days} gec",
       "fits": "{deadline} tarixinə çatırıq — ehtiyat {days}"
-    }
+    },
+    "beyond_plan": "İlkin plandan əlavə",
+    "baseline": "Plan üzrə: {from} — {to}",
+    "deviation_late": "+{days}",
+    "deviation_early": "−{days}"
+  },
+  "plan": {
+    "approve": "Planı təsdiqlə",
+    "reapprove": "Planı yenidən təsdiqlə (versiya {version})",
+    "reapprove_warning": "Yenidən təsdiq bazanı dəyişir: bundan sonra sürüşmələr yeni tarixlərdən sayılacaq",
+    "reapprove_confirm": "Yenidən təsdiqlə",
+    "beyond_plan_explained": "Tapşırıq plan təsdiqləndikdən sonra əlavə edilib: müqayisə üçün baza yoxdur",
+    "deviation_summary": "Plandan kənarlaşma: {days}"
+  },
+  "shift": {
+    "title": "{days} sürüşmə",
+    "explain": "«{name}» təsdiqlənmiş plandan {threshold} hüdudundan çox uzaqlaşır. Səbəbi yazın — o, tapşırığın tarixçəsində qalacaq",
+    "reason": "Səbəb",
+    "revert": "Geri qaytar",
+    "save": "Yadda saxla"
   }
 }

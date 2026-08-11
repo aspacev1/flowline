@@ -49,6 +49,16 @@ export type Task = {
   progress_pct: number;
   position: number;
   assignee_ids: string[];
+  /**
+   * Базовый план: даты на момент утверждения. `null` у всех задач, пока план
+   * не утверждён, и у тех, что созданы после утверждения, — вторые и есть
+   * «сверх первоначального плана». Отдельного флага нет намеренно: он был бы
+   * вычислим из этих же полей и однажды разошёлся бы с ними.
+   */
+  baseline_start: string | null;
+  baseline_duration: number | null;
+  /** Считает сервер по календарю проекта — как и обычную дату окончания. */
+  baseline_end: string | null;
   /** Приходит только тем, у кого есть право её читать. */
   internal_note?: string;
 };
@@ -64,6 +74,9 @@ export type ProjectState = {
   slug: string;
   deadline: string | null;
   project_end: string | null;
+  /** `null` — план ещё черновик: правки свободны, ничего не спрашивается. */
+  plan_approved_at: string | null;
+  plan_version: number;
   calendar: Calendar;
   settings?: { shift_threshold_days: number; timezone: string };
   categories: Category[];
@@ -142,4 +155,26 @@ export function applyOp(projectId: string, op: Op, reason?: string): Promise<Rev
     method: "POST",
     body: JSON.stringify(reason === undefined ? { op } : { op, reason }),
   });
+}
+
+/** Одна утверждённая версия плана. Снимок — даты и длительности по задачам. */
+export type PlanApproval = {
+  version: number;
+  approved_at: string;
+  approved_by: { id: string; name: string } | null;
+  snapshot: Record<string, { name: string; start_date: string; duration_days: number }>;
+};
+
+/**
+ * Утвердить план — или переутвердить, если он уже утверждён.
+ *
+ * Маршрут один: действие одно и то же, различие лишь в том, кому оно
+ * позволено, и решает это сервер.
+ */
+export function approvePlan(projectId: string): Promise<{ version: number; approved_at: string }> {
+  return request(`/api/projects/${projectId}/plan/approvals`, { method: "POST" });
+}
+
+export function listPlanApprovals(projectId: string): Promise<PlanApproval[]> {
+  return request<PlanApproval[]>(`/api/projects/${projectId}/plan/approvals`);
 }

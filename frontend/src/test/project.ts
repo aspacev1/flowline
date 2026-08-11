@@ -27,6 +27,8 @@ export const STATE: ProjectState = {
   slug: "redizayn",
   deadline: "2026-06-01",
   project_end: "2026-06-08",
+  plan_approved_at: null,
+  plan_version: 0,
   calendar: { working_days: 31, holidays: ["2026-03-20"], extra_workdays: [] },
   settings: { shift_threshold_days: 2, timezone: "Asia/Baku" },
   categories: [
@@ -46,6 +48,9 @@ export const STATE: ProjectState = {
       progress_pct: 40,
       position: 0,
       assignee_ids: [],
+      baseline_start: null,
+      baseline_duration: null,
+      baseline_end: null,
       internal_note: "",
     },
   ],
@@ -75,6 +80,45 @@ export const THREE_TASKS: ProjectState = {
       position: 2,
       start_date: "2026-03-18",
       end_date: "2026-03-24",
+    },
+  ],
+};
+
+/**
+ * Тот же проект с утверждённым планом.
+ *
+ * Базовый план совпадает с текущими датами: задача ещё никуда не уехала, и
+ * любое отклонение в тесте — целиком заслуга самого теста, а не оснастки.
+ */
+export const APPROVED: ProjectState = {
+  ...STATE,
+  plan_approved_at: "2026-03-01T09:00:00+00:00",
+  plan_version: 1,
+  tasks: [
+    {
+      ...STATE.tasks[0],
+      baseline_start: "2026-03-04",
+      baseline_duration: 5,
+      baseline_end: "2026-03-10",
+    },
+  ],
+};
+
+/** Утверждённый план и задача, добавленная после утверждения. */
+export const APPROVED_WITH_EXTRA: ProjectState = {
+  ...APPROVED,
+  tasks: [
+    ...APPROVED.tasks,
+    {
+      ...STATE.tasks[0],
+      id: "t2",
+      name: "Сверх плана",
+      position: 1,
+      start_date: "2026-03-11",
+      end_date: "2026-03-17",
+      baseline_start: null,
+      baseline_duration: null,
+      baseline_end: null,
     },
   ],
 };

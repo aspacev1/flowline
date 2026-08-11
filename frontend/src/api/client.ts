@@ -9,13 +9,46 @@
 export class ApiError extends Error {
   readonly code: string;
   readonly status: number;
+  /**
+   * Числа, которые сервер приложил к отказу заголовками.
+   *
+   * Их место именно в заголовках, а не в `detail`: тело отказа обязано
+   * оставаться машинным кодом, который клиент переводит по словарю, и
+   * подмешивать в него числа значило бы заставить клиент разбирать строку.
+   */
+  readonly hints: Record<string, number>;
 
-  constructor(code: string, status: number) {
+  constructor(code: string, status: number, hints: Record<string, number> = {}) {
     super(`запрос завершился со статусом ${status}`);
     this.name = "ApiError";
     this.code = code;
     this.status = status;
+    this.hints = hints;
   }
+}
+
+/**
+ * Заголовки, из которых читаются числовые подсказки, и имена, под которыми
+ * они ложатся в `hints`.
+ *
+ * Список явный, а не «возьмём всё, что похоже на число»: иначе случайный
+ * заголовок промежуточного прокси однажды превратился бы в подсказку, на
+ * которую опирается интерфейс.
+ */
+const NUMERIC_HINT_HEADERS: Record<string, string> = {
+  "x-shift-deviation-days": "deviationDays",
+  "x-shift-threshold-days": "thresholdDays",
+};
+
+function hintsFrom(headers: Headers): Record<string, number> {
+  const hints: Record<string, number> = {};
+  for (const [header, name] of Object.entries(NUMERIC_HINT_HEADERS)) {
+    const raw = headers.get(header);
+    if (raw === null) continue;
+    const value = Number(raw);
+    if (Number.isFinite(value)) hints[name] = value;
+  }
+  return hints;
 }
 
 /** Код, под которым в словаре лежит «сервер недоступен». */
@@ -58,7 +91,7 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     const body = await response.json().catch(() => null);
-    throw new ApiError(codeFromBody(body), response.status);
+    throw new ApiError(codeFromBody(body), response.status, hintsFrom(response.headers));
   }
 
   if (response.status === 204) return undefined as T;

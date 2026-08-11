@@ -216,6 +216,25 @@
     "summary": {
       "late": "Проект заканчивается {end} — на {days} позже дедлайна {deadline}",
       "fits": "Укладываемся в {deadline} — запас {days}"
-    }
+    },
+    "beyond_plan": "Сверх первоначального плана",
+    "baseline": "По плану: {from} — {to}",
+    "deviation_late": "+{days}",
+    "deviation_early": "−{days}"
+  },
+  "plan": {
+    "approve": "Утвердить план",
+    "reapprove": "Переутвердить план (версия {version})",
+    "reapprove_warning": "Переутверждение сдвигает базу: дальше сдвиги считаются от новых дат",
+    "reapprove_confirm": "Переутвердить",
+    "beyond_plan_explained": "Задача добавлена после утверждения плана: сравнивать не с чем",
+    "deviation_summary": "Отклонение от плана: {days}"
+  },
+  "shift": {
+    "title": "Сдвиг на {days}",
+    "explain": "«{name}» уходит от утверждённого плана дальше порога в {threshold}. Назовите причину — она останется в истории задачи",
+    "reason": "Причина",
+    "revert": "Вернуть",
+    "save": "Сохранить"
   }
 }

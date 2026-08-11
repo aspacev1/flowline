@@ -25,11 +25,22 @@ export function roleCanWrite(role: string | undefined | null): boolean {
  * спросит.
  */
 export function useCanWrite(): boolean {
+  return roleCanWrite(useOrgRole());
+}
+
+/**
+ * Роль человека в текущей организации, как её назвал сервер.
+ *
+ * Нужна там, где двух состояний «может писать или нет» не хватает:
+ * переутверждение плана и настройки организации доступны владельцу, а не
+ * всякому, кто может двигать полоски.
+ */
+export function useOrgRole(): string | undefined {
   const org = useQuery({
     queryKey: ORG_QUERY_KEY,
     queryFn: organization,
     retry: false,
     staleTime: Infinity,
   });
-  return roleCanWrite(org.data?.role);
+  return org.data?.role;
 }

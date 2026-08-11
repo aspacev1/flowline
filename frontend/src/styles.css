@@ -335,3 +335,13 @@ button:disabled {
 .empty button {
   margin-top: var(--gap);
 }
+
+/* Подтверждение переутверждения: предупреждение и две кнопки в строке шапки,
+   а не окно поверх экрана. Окно здесь прерывало бы работу ради решения,
+   которое человек и так принял, нажав кнопку. */
+.plan__confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}

@@ -1,4 +1,5 @@
 import type { Category, Task } from "../api/projects";
+import { baselineOf, endShiftDays } from "../project/baseline";
 import { useDragDates } from "./useDragDates";
 import { halfOf } from "./useReorder";
 import type { Reorder } from "./useReorder";
@@ -99,6 +100,10 @@ export function TaskRow({
   onSelect,
   reorder,
   handleLabel,
+  beyondPlan = false,
+  beyondPlanLabel,
+  baselineLabel,
+  deviationLabel,
 }: {
   projectId: string;
   task: Task;
@@ -112,8 +117,17 @@ export function TaskRow({
   onSelect?: (taskId: string) => void;
   reorder?: Reorder;
   handleLabel?: string;
+  /** Задача добавлена после утверждения плана. */
+  beyondPlan?: boolean;
+  beyondPlanLabel?: string;
+  /** Подпись призрака: даты утверждённого плана. */
+  baselineLabel?: string;
+  /** Готовая подпись бейджа отклонения, например «+7 дней». */
+  deviationLabel?: string;
 }) {
   const { offset, handlers } = useDragDates({ projectId, task, scale, enabled: canWrite });
+  const baseline = baselineOf(task);
+  const shift = endShiftDays(task);
 
   return (
     <div
@@ -153,9 +167,55 @@ export function TaskRow({
             !
           </span>
         )}
+        {beyondPlan && (
+          // «Сверх первоначального плана»: задача добавлена после утверждения
+          // и базового плана не имеет. Пометка нужна не как украшение — без
+          // неё отсутствие призрака под полоской читается как «задача никуда
+          // не уехала», а на деле сравнивать её просто не с чем.
+          <span
+            className="gantt__beyond"
+            title={beyondPlanLabel}
+            role="img"
+            aria-label={beyondPlanLabel}
+          >
+            +
+          </span>
+        )}
       </div>
 
       <div className="gantt__lane" style={{ width: scale.width }}>
+        {baseline && (
+          // Призрак базового плана — тонкая серая полоска под текущей.
+          //
+          // Именно под, а не продлением текущей: залить разрыв между плановым
+          // и фактическим окончанием прямо в полоске выглядит нагляднее, но
+          // тогда её начало означает плановую дату, а конец — фактическую, и
+          // полоска перестаёт означать реальные даты задачи.
+          <div
+            className="gantt__ghost"
+            style={{
+              left: scale.xOf(baseline.start),
+              width: scale.widthOf(baseline.start, baseline.end),
+            }}
+            title={baselineLabel}
+            data-testid={`ghost-${task.id}`}
+            aria-hidden="true"
+          />
+        )}
+
+        {shift !== null && shift !== 0 && deviationLabel && (
+          // Бейдж отклонения справа от полоски. Отсчитывается от окончания:
+          // оно одно отвечает на вопрос «когда это будет готово» и вбирает в
+          // себя и перенос начала, и растяжение срока.
+          <span
+            className={`gantt__deviation${shift > 0 ? " is-late" : " is-early"}`}
+            style={{ left: scale.xOf(task.end_date) + scale.dayWidth }}
+            data-testid={`deviation-${task.id}`}
+          >
+            {deviationLabel}
+          </span>
+        )}
+
         <button
           type="button"
           className={`gantt__bar${late ? " is-late" : ""}${canWrite ? " is-draggable" : ""}${

@@ -214,6 +214,25 @@
     "summary": {
       "late": "The project ends {end} — {days} after the {deadline} deadline",
       "fits": "On track for {deadline} — {days} to spare"
-    }
+    },
+    "beyond_plan": "Beyond the original plan",
+    "baseline": "Planned: {from} — {to}",
+    "deviation_late": "+{days}",
+    "deviation_early": "−{days}"
+  },
+  "plan": {
+    "approve": "Approve plan",
+    "reapprove": "Re-approve plan (version {version})",
+    "reapprove_warning": "Re-approving moves the baseline: shifts will be measured from the new dates",
+    "reapprove_confirm": "Re-approve",
+    "beyond_plan_explained": "Added after the plan was approved — there is no baseline to compare with",
+    "deviation_summary": "Deviation from the plan: {days}"
+  },
+  "shift": {
+    "title": "Shift of {days}",
+    "explain": "“{name}” moves further from the approved plan than the {threshold} threshold. Say why — the reason stays in the task history",
+    "reason": "Reason",
+    "revert": "Revert",
+    "save": "Save"
   }
 }

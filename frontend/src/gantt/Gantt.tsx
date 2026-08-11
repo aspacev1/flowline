@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import type { CSSProperties } from "react";
 
 import type { Category, ProjectState, Task } from "../api/projects";
+import { endShiftDays, isBeyondPlan } from "../project/baseline";
 import { formatDate, formatMonth, weekdayNarrow } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
 import { Grid } from "./Grid";
@@ -79,6 +80,22 @@ export function Gantt({
   }
 
   const isLate = (task: Task) => state.deadline !== null && task.end_date > state.deadline;
+
+  /** Подпись бейджа отклонения. Ноль дней бейджа не получает: он ни о чём. */
+  const deviationLabel = (task: Task) => {
+    const shift = endShiftDays(task);
+    if (shift === null || shift === 0) return undefined;
+    const days = t("common.days", { count: Math.abs(shift) });
+    return shift > 0 ? t("gantt.deviation_late", { days }) : t("gantt.deviation_early", { days });
+  };
+
+  const baselineLabel = (task: Task) =>
+    task.baseline_start && task.baseline_end
+      ? t("gantt.baseline", {
+          from: formatDay(task.baseline_start),
+          to: formatDay(task.baseline_end),
+        })
+      : undefined;
 
   // Номера строк в том же порядке, в каком они ниже и рисуются: строка
   // категории, затем её задачи. Нужны стрелкам — им неоткуда узнать, на какой
@@ -167,6 +184,10 @@ export function Gantt({
                           onSelect={onSelectTask}
                           reorder={reorder}
                           handleLabel={t("gantt.reorder", { name: task.name })}
+                          beyondPlan={isBeyondPlan(state, task)}
+                          beyondPlanLabel={t("gantt.beyond_plan")}
+                          baselineLabel={baselineLabel(task)}
+                          deviationLabel={deviationLabel(task)}
                         />
                       ))}
                     </div>
