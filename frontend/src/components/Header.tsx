@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 
 import { ORG_QUERY_KEY, organization } from "../api/org";
 import { useAuth } from "../auth/AuthProvider";
@@ -26,6 +27,13 @@ export function Header() {
 
       <div className="header__side">
         {user && <span className="muted">{t("auth.greeting", { name: user.name })}</span>}
+        {/* Настройки организации показываются только владельцу: остальным
+            маршрут открылся бы на выключенных полях, то есть обещал бы
+            действие, которого нет. */}
+        {org.data?.role === "owner" && (
+          <Link to="/settings/organization">{t("nav.org_settings")}</Link>
+        )}
+        {user && <Link to="/settings/profile">{t("nav.profile")}</Link>}
         <LocaleSwitch />
         <button type="button" className="button--quiet" onClick={() => void logout()}>
           {t("nav.logout")}

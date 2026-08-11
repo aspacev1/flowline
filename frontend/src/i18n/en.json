@@ -69,7 +69,9 @@
   },
   "nav": {
     "projects": "Projects",
-    "logout": "Log out"
+    "logout": "Log out",
+    "org_settings": "Organization",
+    "profile": "Profile"
   },
   "locale": {
     "switch_label": "Interface language"
@@ -124,7 +126,9 @@
     "negative_position": "Nowhere to put the row: the position is negative",
     "nothing_to_undo": "There is nothing to undo",
     "batch_not_found": "That batch was not found",
-    "reason_required": "This shift needs a reason"
+    "reason_required": "This shift needs a reason",
+    "slug_taken": "That address is already taken",
+    "unsupported_locale": "That language is not supported"
   },
   "projects": {
     "title": "Projects",
@@ -241,5 +245,42 @@
   "undo": {
     "last": "Undo: {what}",
     "batch": "Undo the whole batch"
+  },
+  "settings": {
+    "timezone": "Time zone",
+    "threshold": "Shift threshold, days",
+    "threshold_hint": "A change that moves further than this from the approved plan needs a reason",
+    "working_days": "Working days",
+    "inherit": "Inherit from the organization ({value})",
+    "slug_taken": "That address is taken. A free one:",
+    "bad_dates": "Dates must look like YYYY-MM-DD: {dates}",
+    "org": {
+      "title": "Organization settings",
+      "read_only": "Only the owner can change these",
+      "name": "Name",
+      "slug": "Address (slug)",
+      "locale": "Default language",
+      "holidays": "Public holiday calendar",
+      "holidays_hint": "Non-working dates, one per line. Applies to every project",
+      "public_sharing": "Public links are allowed",
+      "comments": "Comments on public links are on by default"
+    },
+    "project": {
+      "title": "Settings for “{name}”",
+      "link": "Settings",
+      "back": "Back to the chart",
+      "name": "Name",
+      "slug": "Address (slug)",
+      "deadline": "Target date",
+      "holidays_extra": "Extra non-working days",
+      "holidays_extra_hint": "Applied on top of the organization calendar",
+      "workdays_extra": "Working Saturdays",
+      "workdays_extra_hint": "Brings specific non-working dates back"
+    },
+    "profile": {
+      "title": "Profile",
+      "locale": "Interface language",
+      "locale_hint": "Kept in your profile: the same language greets you on any computer"
+    }
   }
 }

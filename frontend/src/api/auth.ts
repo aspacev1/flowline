@@ -42,3 +42,17 @@ export function logout(): Promise<void> {
 export function me(): Promise<User> {
   return request<User>("/api/auth/me");
 }
+
+/**
+ * Правка своего профиля — четвёртый уровень настроек.
+ *
+ * Язык живёт здесь, а не только в памяти браузера: человек, вошедший с
+ * другого компьютера, обязан увидеть тот же язык, а не тот, что просит чужой
+ * браузер.
+ */
+export function updateProfile(patch: { name?: string; locale?: string }): Promise<User> {
+  return request<User>("/api/auth/me", {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}

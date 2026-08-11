@@ -19,6 +19,51 @@ def _candidate(name: str, *, forced: bool, is_taken: Callable[[str], bool], fall
     return f"{base}-{secrets.token_hex(3)}"
 
 
+def suggest_free_slug(
+    raw: str, *, is_taken: Callable[[str], bool], fallback: str = "project", limit: int = 20
+) -> str:
+    """Свободный слаг, похожий на желаемый.
+
+    Нужен форме, а не вставке: занятый слаг обязан подсказать свободный
+    вариант прямо в поле ввода, до отправки. Поэтому суффикс здесь числовой и
+    по порядку — `redesign-2`, `redesign-3`, — а не случайный, как при
+    вставке: подсказку человек читает и вводит с голоса, и шесть
+    шестнадцатеричных цифр в ней бесполезны.
+
+    Случайный суффикс остаётся последним средством: если заняты и первые
+    двадцать номеров, перебирать дальше дороже, чем предложить заведомо
+    свободное имя.
+    """
+    base = slugify(raw, fallback=fallback)
+    if not is_taken(base):
+        return base
+    for number in range(2, limit + 2):
+        candidate = f"{base}-{number}"
+        if not is_taken(candidate):
+            return candidate
+    return f"{base}-{secrets.token_hex(3)}"
+
+
+def slug_check(raw: str, *, is_taken: Callable[[str], bool], fallback: str = "project") -> dict:
+    """Ответ поля ввода: во что превратится введённое, свободно ли оно и что
+    предложить взамен.
+
+    Нормализованная форма отдаётся отдельно от подсказки, потому что это
+    разные ответы на разные вопросы: первый — «вот каким будет адрес», второй —
+    «а вот таким, если этот занят». Слив их в одно поле, интерфейс не смог бы
+    отличить «всё хорошо» от «мы подобрали за вас».
+    """
+    normalized = slugify(raw, fallback=fallback)
+    available = not is_taken(normalized)
+    return {
+        "normalized": normalized,
+        "available": available,
+        "suggestion": normalized
+        if available
+        else suggest_free_slug(raw, is_taken=is_taken, fallback=fallback),
+    }
+
+
 def insert_with_unique_slug(
     db: DbSession,
     build: Callable[[str], T],

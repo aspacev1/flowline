@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 
 import { errorKey } from "../api/errors";
 import { getProject, projectQueryKey } from "../api/projects";
@@ -107,6 +107,9 @@ export function Project() {
             // считаются все объяснённые сдвиги.
             canReapprove={role === "owner"}
           />
+          {canWrite && (
+            <Link to={`/projects/${projectId}/settings`}>{t("settings.project.link")}</Link>
+          )}
         </div>
       </div>
 

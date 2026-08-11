@@ -27,7 +27,9 @@ def _org_slug_taken(db: DbSession, slug: str) -> bool:
     return db.scalar(select(Organization.id).where(Organization.slug == slug)) is not None
 
 
-def register(db: DbSession, *, name: str, email: str, password: str) -> User:
+def register(
+    db: DbSession, *, name: str, email: str, password: str, locale: str | None = None
+) -> User:
     normalized = normalize_email(email)
     if db.scalar(select(User).where(User.email == normalized)) is not None:
         raise ValueError("адрес уже занят")
@@ -37,7 +39,11 @@ def register(db: DbSession, *, name: str, email: str, password: str) -> User:
         email=normalized,
         password_hash=hash_password(password),
         name=name.strip(),
-        locale=settings.default_locale,
+        # Язык при первом появлении — из заголовка браузера, если тот просит
+        # один из поддерживаемых. Дальше это значение меняет только человек:
+        # заголовок больше не спрашивается никогда, иначе смена языка в
+        # браузере молча переписывала бы сделанный выбор.
+        locale=locale or settings.default_locale,
     )
     try:
         # SAVEPOINT: если конкурентный запрос успел вставить тот же адрес

@@ -69,7 +69,9 @@
   },
   "nav": {
     "projects": "Layihələr",
-    "logout": "Çıxış"
+    "logout": "Çıxış",
+    "org_settings": "Təşkilat",
+    "profile": "Profil"
   },
   "locale": {
     "switch_label": "İnterfeys dili"
@@ -124,7 +126,9 @@
     "negative_position": "Sətri qoymağa yer yoxdur: mövqe mənfidir",
     "nothing_to_undo": "Geri alınacaq bir şey yoxdur",
     "batch_not_found": "Paket tapılmadı",
-    "reason_required": "Bu sürüşmə üçün səbəb lazımdır"
+    "reason_required": "Bu sürüşmə üçün səbəb lazımdır",
+    "slug_taken": "Bu ünvan artıq tutulub",
+    "unsupported_locale": "Bu dil dəstəklənmir"
   },
   "projects": {
     "title": "Layihələr",
@@ -241,5 +245,42 @@
   "undo": {
     "last": "Geri al: {what}",
     "batch": "Bütün paketi geri al"
+  },
+  "settings": {
+    "timezone": "Saat qurşağı",
+    "threshold": "Sürüşmə həddi, gün",
+    "threshold_hint": "Təsdiqlənmiş plandan bundan çox kənara çıxan dəyişiklik səbəb tələb edir",
+    "working_days": "İş günləri",
+    "inherit": "Təşkilatdan miras al ({value})",
+    "slug_taken": "Bu ünvan tutulub. Boş variant:",
+    "bad_dates": "Tarix formatı İİİİ-AA-GG olmalıdır: {dates}",
+    "org": {
+      "title": "Təşkilatın parametrləri",
+      "read_only": "Dəyişiklik etmək yalnız sahibin əlindədir",
+      "name": "Ad",
+      "slug": "Ünvan (slug)",
+      "locale": "Susmaya görə dil",
+      "holidays": "İstehsalat təqvimi",
+      "holidays_hint": "Qeyri-iş günləri, hər sətirdə bir tarix. Bütün layihələrə tətbiq olunur",
+      "public_sharing": "Açıq keçidlərə icazə verilir",
+      "comments": "Açıq keçidlərdə şərhlər susmaya görə açıqdır"
+    },
+    "project": {
+      "title": "«{name}» layihəsinin parametrləri",
+      "link": "Parametrlər",
+      "back": "Diaqrama qayıt",
+      "name": "Ad",
+      "slug": "Ünvan (slug)",
+      "deadline": "Hədəf tarixi",
+      "holidays_extra": "Əlavə qeyri-iş günləri",
+      "holidays_extra_hint": "Təşkilatın təqviminin üstünə əlavə olunur",
+      "workdays_extra": "İşlənən şənbələr",
+      "workdays_extra_hint": "Qeyri-iş günlərini geri qaytarır"
+    },
+    "profile": {
+      "title": "Profil",
+      "locale": "İnterfeys dili",
+      "locale_hint": "Profildə saxlanılır: başqa kompüterdən girəndə də eyni dil olacaq"
+    }
   }
 }

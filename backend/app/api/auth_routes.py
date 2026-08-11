@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response
-from pydantic import BaseModel, EmailStr, Field
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Response
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
@@ -14,7 +14,9 @@ from app.auth import (
 )
 from app.config import get_settings
 from app.db import get_db
+from app.locales import locale_from_request
 from app.models import User
+from app.settings_input import check_locale
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -64,11 +66,24 @@ def _to_out(user: User) -> UserOut:
 
 
 @router.post("/register", response_model=UserOut, status_code=201)
-def register_route(payload: RegisterIn, response: Response, db: DbSession = Depends(get_db)):
+def register_route(
+    payload: RegisterIn,
+    response: Response,
+    db: DbSession = Depends(get_db),
+    accept_language: str | None = Header(default=None),
+):
     if get_settings().signup_mode != "open":
         raise HTTPException(status_code=403, detail="signup_disabled")
     try:
-        user = register(db, name=payload.name, email=payload.email, password=payload.password)
+        user = register(
+            db,
+            name=payload.name,
+            email=payload.email,
+            password=payload.password,
+            # Единственное место, где заголовок вообще читается: язык при
+            # первом появлении человека. Дальше он живёт в профиле.
+            locale=locale_from_request(accept_language),
+        )
     except ValueError:
         raise HTTPException(status_code=409, detail="email_taken")
     except IntegrityError:
@@ -104,4 +119,39 @@ def logout_route(
 
 @router.get("/me", response_model=UserOut)
 def me_route(user: User = Depends(current_user)):
+    return _to_out(user)
+
+
+class ProfileIn(BaseModel):
+    """Уровень 4 настроек: язык интерфейса. Всё.
+
+    Имя рядом с ним не настройка, а свойство человека, но правится оно там же
+    и тем же запросом: заводить ради одного поля второй маршрут значило бы
+    делать вид, что это разные экраны.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    locale: str | None = None
+
+
+@router.patch("/me", response_model=UserOut)
+def update_me(
+    payload: ProfileIn, user: User = Depends(current_user), db: DbSession = Depends(get_db)
+):
+    """Правка своего профиля.
+
+    Язык проверяется по списку поддерживаемых: непроверенное значение легло бы
+    в профиль, и интерфейс молча падал бы на язык по умолчанию при каждом
+    входе, не объясняя почему.
+    """
+    if payload.locale is not None:
+        try:
+            user.locale = check_locale(payload.locale)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="unsupported_locale")
+    if payload.name is not None:
+        user.name = payload.name.strip()
+    db.flush()
     return _to_out(user)

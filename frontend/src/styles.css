@@ -345,3 +345,69 @@ button:disabled {
   gap: 8px;
   flex-wrap: wrap;
 }
+
+/* --- экраны настроек --- */
+
+/* Одна колонка ограниченной ширины: настройки читают, а не сканируют, и
+   строка длиной в экран для этого не годится. */
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  max-width: 520px;
+}
+
+.settings__fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+
+.settings__days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.settings__day {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Переключатель «наследовать» стоит прежде самого поля: сперва решается, чьё
+   это значение, и только потом — какое. */
+.settings__override {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.settings__override-label {
+  font-weight: 600;
+}
+
+.settings__inherit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+}
+
+.settings__slug-hint {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.field--inline {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}

@@ -1,4 +1,5 @@
 import { request } from "./client";
+import type { SlugCheck } from "./org";
 
 export const PROJECTS_QUERY_KEY = ["projects"] as const;
 
@@ -68,6 +69,14 @@ export type Dependency = {
   to_task_id: string;
 };
 
+export type ProjectOverrides = {
+  timezone: string | null;
+  working_days: number | null;
+  shift_threshold_days: number | null;
+  holidays_extra: string[];
+  workdays_extra: string[];
+};
+
 export type ProjectState = {
   id: string;
   name: string;
@@ -86,6 +95,13 @@ export type ProjectState = {
   undoable: { seq: number; op: Record<string, unknown>; batch_id: string | null } | null;
   calendar: Calendar;
   settings?: { shift_threshold_days: number; timezone: string };
+  /**
+   * Сырые переопределения проекта: `null` означает «наследовать от
+   * организации», а не «пусто». Экрану настроек нужно именно это различие —
+   * показать унаследованное число как своё значит предложить человеку
+   * переопределить то, что он и не переопределял.
+   */
+  overrides?: ProjectOverrides;
   categories: Category[];
   tasks: Task[];
   dependencies: Dependency[];
@@ -162,6 +178,38 @@ export function applyOp(projectId: string, op: Op, reason?: string): Promise<Rev
     method: "POST",
     body: JSON.stringify(reason === undefined ? { op } : { op, reason }),
   });
+}
+
+/**
+ * Правка настроек проекта.
+ *
+ * `null` здесь — значение, а не пропуск: он сбрасывает переопределение обратно
+ * в «наследовать от организации». Поле, которого в объекте нет вовсе, не
+ * меняется.
+ */
+export function updateProject(
+  projectId: string,
+  patch: Partial<{
+    name: string;
+    slug: string;
+    deadline: string | null;
+    timezone: string | null;
+    working_days: number | null;
+    shift_threshold_days: number | null;
+    holidays_extra: string[];
+    workdays_extra: string[];
+  }>,
+): Promise<ProjectState> {
+  return request<ProjectState>(`/api/projects/${projectId}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
+}
+
+export function checkProjectSlug(projectId: string, slug: string): Promise<SlugCheck> {
+  return request<SlugCheck>(
+    `/api/projects/${projectId}/slug-check?slug=${encodeURIComponent(slug)}`,
+  );
 }
 
 /**

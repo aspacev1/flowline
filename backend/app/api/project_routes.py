@@ -3,6 +3,7 @@ import uuid
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
 from app.access import Action, can, parse_role, visible_op
@@ -33,7 +34,9 @@ from app.mutations import (
 )
 from app.plans import approve_plan, plan_versions
 from app.projects import create_project as create_project_entity
+from app.settings_input import NULLABLE_PROJECT_FIELDS, ProjectSettingsIn, changes
 from app.settings_resolution import project_calendar, resolve_shift_threshold, resolve_timezone
+from app.slugs import slug_check
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
@@ -197,6 +200,18 @@ def get_project(
             "shift_threshold_days": resolve_shift_threshold(project, org),
             "timezone": resolve_timezone(project, org),
         },
+        # Сырые переопределения — рядом с разрешёнными значениями, но отдельно
+        # от них. Экрану настроек нужно именно это различие: `null` там
+        # означает «наследовать», и показать его как унаследованное число
+        # значило бы предложить человеку переопределить то, что он и не
+        # переопределял.
+        "overrides": {
+            "timezone": project.timezone,
+            "working_days": project.working_days,
+            "shift_threshold_days": project.shift_threshold_days,
+            "holidays_extra": list(project.holidays_extra or []),
+            "workdays_extra": list(project.workdays_extra or []),
+        },
         "categories": [
             {"id": str(c.id), "name": c.name, "color": c.color, "position": c.position}
             for c in categories
@@ -235,6 +250,75 @@ def get_project(
             for source, target in dependencies
         ],
     }
+
+
+def _project_slug_taken(db: DbSession, org_id: uuid.UUID, slug: str, *, except_id) -> bool:
+    return (
+        db.scalar(
+            select(Project.id).where(
+                Project.org_id == org_id, Project.slug == slug, Project.id != except_id
+            )
+        )
+        is not None
+    )
+
+
+@router.get("/{project_id}/slug-check")
+def check_project_slug(
+    project_id: uuid.UUID,
+    slug: str = Query(min_length=1, max_length=100),
+    user: User = Depends(current_user),
+    db: DbSession = Depends(get_db),
+):
+    """Свободен ли слаг внутри этой организации — и что предложить, если занят."""
+    project, membership = _load_project(db, user, project_id)
+    if not can(parse_role(membership.role), Action.PROJECT_ADMIN):
+        raise HTTPException(status_code=403, detail="forbidden")
+
+    def taken(candidate: str) -> bool:
+        return _project_slug_taken(db, project.org_id, candidate, except_id=project.id)
+
+    return slug_check(slug, is_taken=taken)
+
+
+@router.patch("/{project_id}")
+def update_project(
+    project_id: uuid.UUID,
+    payload: ProjectSettingsIn,
+    user: User = Depends(current_user),
+    db: DbSession = Depends(get_db),
+):
+    """Уровень 3 настроек: слаг, целевая дата и переопределения организации.
+
+    `null` в часовом поясе, рабочих днях и пороге — это «наследовать», а не
+    «пусто», и отличается он от «поле не прислали» тем, что второе просто не
+    попадает в набор изменений. Без этой разницы сбросить переопределение было
+    бы нечем: любой запрос без поля стирал бы его.
+
+    Правки не проходят через журнал ревизий: журнал — история плана, а не
+    история настроек. Смешать их значило бы наполнить историю задачи записями
+    о том, что кто-то поменял часовой пояс.
+    """
+    project, membership = _load_project(db, user, project_id)
+    if not can(parse_role(membership.role), Action.PROJECT_ADMIN):
+        raise HTTPException(status_code=403, detail="forbidden")
+
+    updates = changes(payload, nullable=NULLABLE_PROJECT_FIELDS)
+    if "slug" in updates and _project_slug_taken(
+        db, project.org_id, updates["slug"], except_id=project.id
+    ):
+        raise HTTPException(status_code=409, detail="slug_taken")
+
+    for field, value in updates.items():
+        setattr(project, field, value)
+
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="slug_taken")
+
+    return get_project(project_id, user, db)
 
 
 @router.get("/{project_id}/revisions")
