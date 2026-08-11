@@ -93,6 +93,15 @@
       "no_account": "No account yet?",
       "link_register": "Register"
     },
+    "verify": {
+      "title": "Email confirmation",
+      "checking": "Checking the link…",
+      "done": "Your email address is confirmed",
+      "resend": "Send the letter again",
+      "resent": "The letter is on its way — check your inbox",
+      "not_sent": "The letter could not be sent. Try again later",
+      "link_projects": "Go to projects"
+    },
     "error": {
       "email_taken": "This address is already taken",
       "bad_credentials": "Wrong email or password",
@@ -100,7 +109,12 @@
       "not_authenticated": "Log in to continue",
       "session_expired": "Your session has expired, log in again",
       "validation_error": "Check the form: some fields are filled in incorrectly",
-      "password_too_short": "The password must be at least 8 characters long"
+      "password_too_short": "The password must be at least 8 characters long",
+      "missing_token": "The link carries no token — copy it from the letter in full",
+      "invalid_token": "This link does not work: it has probably been used already",
+      "token_expired": "The link has expired",
+      "already_verified": "The address is already confirmed",
+      "too_many_requests": "Too soon: wait a minute and try again"
     }
   },
   "error": {

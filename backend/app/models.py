@@ -108,6 +108,27 @@ class Session(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class EmailVerification(Base):
+    """Одноразовая ссылка подтверждения адреса.
+
+    Устроена как сессия: наружу уходит открытый токен, в базе лежит его
+    хеш — утечка дампа не даёт подтвердить чужой адрес. Строка живёт до
+    первого перехода по ссылке или до истечения срока, поэтому таблица не
+    растёт: подтверждение удаляет все токены пользователя разом.
+    """
+
+    __tablename__ = "email_verifications"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    # Ищется по владельцу на каждой повторной отправке и на подтверждении.
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    token_hash: Mapped[str] = mapped_column(String(128), unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Project(Base):
     __tablename__ = "projects"
     __table_args__ = (UniqueConstraint("org_id", "slug"),)

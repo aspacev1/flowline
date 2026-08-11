@@ -1,0 +1,6 @@
+{
+  "verify_email": {
+    "subject": "Flowline: confirm your email address",
+    "body": "Hello, {name}!\n\nOpen this link to confirm your email address:\n\n{link}\n\nThe link works for {hours} hours. If you did not sign up for Flowline, ignore this letter."
+  }
+}

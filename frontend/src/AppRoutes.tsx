@@ -5,6 +5,7 @@ import { Login } from "./screens/Login";
 import { Project } from "./screens/Project";
 import { Projects } from "./screens/Projects";
 import { Register } from "./screens/Register";
+import { VerifyEmail } from "./screens/VerifyEmail";
 
 /**
  * Маршруты отдельно от `App`, потому что в бою их оборачивает
@@ -17,6 +18,10 @@ export function AppRoutes() {
       <Route path="/" element={<Navigate to="/projects" replace />} />
       <Route path="/register" element={<Register />} />
       <Route path="/login" element={<Login />} />
+      {/* Вне RequireAuth: ссылку из письма открывают в том браузере, куда
+          пришла почта, и требовать там вход значило бы ломать самый обычный
+          сценарий — письмо на телефоне, работа на ноутбуке. */}
+      <Route path="/verify-email" element={<VerifyEmail />} />
       <Route element={<RequireAuth />}>
         <Route path="/projects" element={<Projects />} />
         <Route path="/projects/:projectId" element={<Project />} />

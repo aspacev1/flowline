@@ -13,6 +13,14 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 # не задавал, а угадывать домен поверх заданного руками нельзя.
 _LOCAL_BASE_URL = "http://localhost:8000"
 
+# Что обязано быть задано при каждом транспорте почты. `none` в списке нет:
+# у выключенной почты требований нет по определению.
+_MAIL_REQUIREMENTS: dict[str, tuple[str, ...]] = {
+    "smtp": ("smtp_url", "mail_from"),
+    "api": ("mail_api_url", "mail_api_key", "mail_from"),
+}
+MAIL_TRANSPORTS: tuple[str, ...] = ("none", *_MAIL_REQUIREMENTS)
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=_REPO_ROOT / ".env", extra="ignore")
@@ -27,6 +35,8 @@ class Settings(BaseSettings):
 
     mail_transport: str = "none"
     smtp_url: str = ""
+    mail_api_key: str = ""
+    mail_api_url: str = ""
     mail_from: str = ""
     invite_ttl_days: int = 7
     invite_rate_limit: int = 20
@@ -88,6 +98,45 @@ class Settings(BaseSettings):
         if host:
             self.public_base_url = f"https://{host}"
         return self
+
+    @model_validator(mode="after")
+    def _refuse_a_mail_setup_that_cannot_send(self) -> Self:
+        """Не даёт приложению стартовать с наполовину заданной почтой.
+
+        Без этой проверки `MAIL_TRANSPORT=smtp` при пустом `SMTP_URL`
+        обнаружился бы только на первом письме — то есть на регистрации
+        первого же пользователя, и молча: письмо не ушло, в журнале строчка,
+        которую никто не читает. Опечатка в самом значении (`MAIL_TRANSPORT=
+        stmp`) тем более не должна тихо превращаться в «почта выключена».
+
+        Выключенная почта проверок не требует: установка без почтового
+        сервера — законный вариант развёртывания, а не недонастроенный.
+        """
+        if self.mail_transport not in MAIL_TRANSPORTS:
+            raise ValueError(
+                f"MAIL_TRANSPORT={self.mail_transport!r}: допустимы "
+                f"{', '.join(MAIL_TRANSPORTS)}"
+            )
+
+        missing = [
+            name.upper()
+            for name in _MAIL_REQUIREMENTS.get(self.mail_transport, ())
+            if not getattr(self, name)
+        ]
+        if missing:
+            raise ValueError(
+                f"MAIL_TRANSPORT={self.mail_transport}, но не задано: {', '.join(missing)}"
+            )
+        return self
+
+    @property
+    def mail_enabled(self) -> bool:
+        """Есть ли куда отправлять письма.
+
+        При `none` интерфейс не показывает кнопку отправки вовсе — остаётся
+        копирование ссылки, а само письмо уходит в журнал.
+        """
+        return self.mail_transport != "none"
 
     @property
     def locales(self) -> list[str]:

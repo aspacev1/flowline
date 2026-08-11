@@ -49,7 +49,13 @@ export function renderWithProviders(
  * интерфейс: язык профиля побеждает язык браузера, и расхождение здесь
  * означало бы, что тест проверяет не то, что написано в его названии.
  */
-export const USER = { id: "u1", name: "Алексей", email: "a@b.c", locale: "ru" };
+export const USER = {
+  id: "u1",
+  name: "Алексей",
+  email: "a@b.c",
+  locale: "ru",
+  email_verified: true,
+};
 
 /**
  * Организация для тестов. Название нарочно азербайджанское: содержимое

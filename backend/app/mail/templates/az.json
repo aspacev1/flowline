@@ -1,0 +1,6 @@
+{
+  "verify_email": {
+    "subject": "Flowline: e-poçt ünvanınızı təsdiqləyin",
+    "body": "Salam, {name}!\n\nE-poçt ünvanınızı təsdiqləmək üçün keçidi açın:\n\n{link}\n\nKeçid {hours} saat ərzində qüvvədədir. Əgər Flowline-da qeydiyyatdan keçməmisinizsə, bu məktubu nəzərə almayın."
+  }
+}

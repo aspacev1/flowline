@@ -93,6 +93,15 @@
       "no_account": "Hesabınız yoxdur?",
       "link_register": "Qeydiyyatdan keçin"
     },
+    "verify": {
+      "title": "Ünvanın təsdiqi",
+      "checking": "Keçid yoxlanılır…",
+      "done": "E-poçt ünvanı təsdiqləndi",
+      "resend": "Məktubu yenidən göndər",
+      "resent": "Məktub göndərildi — poçtunuzu yoxlayın",
+      "not_sent": "Məktubu göndərmək alınmadı. Bir azdan yenidən cəhd edin",
+      "link_projects": "Layihələrə keç"
+    },
     "error": {
       "email_taken": "Bu ünvan artıq tutulub",
       "bad_credentials": "E-poçt və ya parol yanlışdır",
@@ -100,7 +109,12 @@
       "not_authenticated": "Davam etmək üçün daxil olun",
       "session_expired": "Sessiyanın vaxtı bitdi, yenidən daxil olun",
       "validation_error": "Formu yoxlayın: bəzi sahələr düzgün doldurulmayıb",
-      "password_too_short": "Parol ən azı 8 simvol olmalıdır"
+      "password_too_short": "Parol ən azı 8 simvol olmalıdır",
+      "missing_token": "Keçiddə token yoxdur: onu məktubdan tam kopyalayın",
+      "invalid_token": "Keçid işləmir: yəqin ki, ondan artıq istifadə olunub",
+      "token_expired": "Keçidin müddəti bitib",
+      "already_verified": "Ünvan artıq təsdiqlənib",
+      "too_many_requests": "Çox tez-tez: bir dəqiqə gözləyib yenidən cəhd edin"
     }
   },
   "error": {
