@@ -8,11 +8,12 @@ from sqlalchemy.orm import Session as DbSession
 from starlette.websockets import WebSocketDisconnect
 
 from app.access import Action, can, parse_role, visible_op
-from app.auth import SESSION_COOKIE, user_for_token
+from app.api.deps import project_granted as has_project_grant
+from app.auth import SESSION_COOKIE, session_for_token
 from app.db import SessionLocal
 from app.live import Subscriber, hub
-from app.models import Role
-from app.projects import first_membership, project_in_scope
+from app.models import Project, Role
+from app.orgs import active_membership
 
 router = APIRouter(tags=["live"])
 
@@ -48,7 +49,7 @@ def db_scope() -> Callable[[], AbstractContextManager[DbSession]]:
     return SessionLocal
 
 
-def _for_role(message: dict, role: Role | str | None) -> dict:
+def _for_role(message: dict, role: Role | str | None, granted: bool) -> dict:
     """Сообщение в том виде, в каком его вправе увидеть этот подписчик.
 
     Фильтруется на выходе к конкретному сокету, а не на входе в комнату: в
@@ -57,7 +58,7 @@ def _for_role(message: dict, role: Role | str | None) -> dict:
     """
     if message.get("type") != "revision":
         return message
-    return {**message, "op": visible_op(message["op"], role)}
+    return {**message, "op": visible_op(message["op"], role, project_granted=granted)}
 
 
 async def _refuse(websocket: WebSocket, code: int) -> None:
@@ -89,7 +90,9 @@ async def _drain(websocket: WebSocket) -> None:
             return
 
 
-async def _pump(websocket: WebSocket, subscriber: Subscriber, role: Role | str | None) -> None:
+async def _pump(
+    websocket: WebSocket, subscriber: Subscriber, role: Role | str | None, granted: bool
+) -> None:
     reader = asyncio.create_task(_drain(websocket))
     try:
         while True:
@@ -119,7 +122,7 @@ async def _pump(websocket: WebSocket, subscriber: Subscriber, role: Role | str |
                 await websocket.close(code=CLOSE_LAGGING)
                 return
 
-            await websocket.send_json(_for_role(incoming.result(), role))
+            await websocket.send_json(_for_role(incoming.result(), role, granted))
     except WebSocketDisconnect:
         return
     finally:
@@ -140,18 +143,25 @@ async def project_live(
     в базу на каждое сообщение каждому читателю.
     """
     with session_scope() as db:
-        user = user_for_token(db, websocket.cookies.get(SESSION_COOKIE))
-        if user is None:
+        session = session_for_token(db, websocket.cookies.get(SESSION_COOKIE))
+        if session is None:
             await _refuse(websocket, CLOSE_UNAUTHENTICATED)
             return
 
-        membership = first_membership(db, user)
-        project = None if membership is None else project_in_scope(db, membership, project_id)
+        # Организация — та же, что и в HTTP: выбранная переключателем, а не
+        # первая попавшаяся. Иначе человек, переключившийся на вторую
+        # организацию, слушал бы проект в первой.
+        membership = active_membership(db, session)
+        project = None if membership is None else db.get(Project, project_id)
+        if project is not None and project.org_id != membership.org_id:
+            project = None
         role = None if membership is None else parse_role(membership.role)
+        granted = project is not None and has_project_grant(db, project.id, session.user_id)
         # Отказ в чтении — то же закрытие, что и «нет такого проекта», по тому
         # же принципу, что и 404 вместо 403 в HTTP-маршрутах: тот, кому проект
-        # не показывают, не должен узнать, что он существует.
-        if project is None or not can(role, Action.PROJECT_READ):
+        # не показывают, не должен узнать, что он существует. Роль, которую
+        # зовут в проекты поимённо, без выданного доступа сюда не попадает.
+        if project is None or not can(role, Action.PROJECT_READ, project_granted=granted):
             await _refuse(websocket, CLOSE_NOT_FOUND)
             return
 
@@ -159,4 +169,4 @@ async def project_live(
     # этим ожиданием соединение с базой не за что.
     await websocket.accept()
     with hub.subscribe(project_id) as subscriber:
-        await _pump(websocket, subscriber, role)
+        await _pump(websocket, subscriber, role, granted)

@@ -49,7 +49,13 @@ export function renderWithProviders(
  * интерфейс: язык профиля побеждает язык браузера, и расхождение здесь
  * означало бы, что тест проверяет не то, что написано в его названии.
  */
-export const USER = { id: "u1", name: "Алексей", email: "a@b.c", locale: "ru" };
+export const USER = {
+  id: "u1",
+  name: "Алексей",
+  email: "a@b.c",
+  locale: "ru",
+  email_verified: true,
+};
 
 /**
  * Организация для тестов. Название нарочно азербайджанское: содержимое
@@ -73,6 +79,11 @@ export function sessionHandlers() {
   return [
     http.get("/api/auth/me", () => HttpResponse.json(USER)),
     http.get("/api/org", () => HttpResponse.json(ORG)),
+    // Лента комментариев висит на каждом экране проекта, и тест про
+    // диаграмму не должен падать на запросе, к которому не имеет отношения.
+    // Пустая по умолчанию: тест про разговор объявляет свою и перекрывает
+    // эту, потому что регистрируется позже.
+    http.get("/api/projects/:projectId/comments", () => HttpResponse.json([])),
   ];
 }
 

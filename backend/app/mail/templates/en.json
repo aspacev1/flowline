@@ -1,0 +1,16 @@
+{
+  "verify_email": {
+    "subject": "Flowline: confirm your email address",
+    "body": "Hello, {name}!\n\nOpen this link to confirm your email address:\n\n{link}\n\nThe link works for {hours} hours. If you did not sign up for Flowline, ignore this letter."
+  },
+  "invitation": {
+    "subject": "Invitation to {org}",
+    "body": "{inviter} invites you to the organization “{org}” on Flowline.\nYour role: {role}.\n\nJoin using this link:\n{link}\n\nThe link is valid until {expires}.\n"
+  },
+  "roles": {
+    "owner": "owner",
+    "editor": "editor",
+    "viewer": "viewer",
+    "client": "client"
+  }
+}

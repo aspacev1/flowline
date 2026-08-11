@@ -5,26 +5,18 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
-from app.access import Action, can, parse_role, visible_op
+from app.access import Action, can, needs_project_grant, parse_role, visible_op
+from app.api.deps import ProjectContext, project_context
+from app.api.serialization import comments_out, project_state
 from app.auth import current_user
-from app.calendar import CalendarError, end_date
+from app.calendar import CalendarError
+from app.comments import CommentRejected, add_comment, list_comments
 from app.db import get_db
 from app.live import hub
-from app.models import (
-    Category,
-    Dependency,
-    Membership,
-    Organization,
-    Project,
-    Revision,
-    Task,
-    TaskAssignee,
-    User,
-)
+from app.models import Membership, Project, ProjectAccess, Revision, User
 from app.mutations import InvalidOperation, NotFoundInProject, PublicOp, apply_op, to_internal
+from app.orgs import current_membership
 from app.projects import create_project as create_project_entity
-from app.projects import first_membership, project_in_scope
-from app.settings_resolution import project_calendar, resolve_shift_threshold, resolve_timezone
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
@@ -39,36 +31,17 @@ class ProjectOut(BaseModel):
     slug: str
 
 
-def _membership(db: DbSession, user: User) -> Membership:
-    membership = first_membership(db, user)
-    if membership is None:
-        raise HTTPException(status_code=403, detail="no_organization")
-    return membership
-
-
-def _load_project(db: DbSession, user: User, project_id: uuid.UUID) -> tuple[Project, Membership]:
-    membership = _membership(db, user)
-    project = project_in_scope(db, membership, project_id)
-    # чужой проект неотличим от несуществующего: 404, а не 403
-    if project is None:
-        raise HTTPException(status_code=404, detail="project_not_found")
-    return project, membership
-
-
-def _require_project_read(membership: Membership) -> None:
-    """Единственное место, где решается право на чтение: спрашивает access,
-    не сравнивает роль напрямую. Отказ — 404, а не 403, тем же принципом,
-    что и в _load_project: клиент без выданного доступа к проекту не должен
-    отличить существующий проект от несуществующего."""
-    if not can(parse_role(membership.role), Action.PROJECT_READ):
-        raise HTTPException(status_code=404, detail="project_not_found")
+class CommentIn(BaseModel):
+    body: str = Field(min_length=1)
+    task_id: uuid.UUID | None = None
 
 
 @router.post("", response_model=ProjectOut, status_code=201)
 def create_project(
-    payload: ProjectIn, user: User = Depends(current_user), db: DbSession = Depends(get_db)
+    payload: ProjectIn,
+    membership: Membership = Depends(current_membership),
+    db: DbSession = Depends(get_db),
 ):
-    membership = _membership(db, user)
     if not can(parse_role(membership.role), Action.PROJECT_WRITE):
         raise HTTPException(status_code=403, detail="forbidden")
 
@@ -77,106 +50,47 @@ def create_project(
 
 
 @router.get("", response_model=list[ProjectOut])
-def list_projects(user: User = Depends(current_user), db: DbSession = Depends(get_db)):
-    membership = _membership(db, user)
-    _require_project_read(membership)
-    projects = db.scalars(select(Project).where(Project.org_id == membership.org_id)).all()
+def list_projects(
+    user: User = Depends(current_user),
+    membership: Membership = Depends(current_membership),
+    db: DbSession = Depends(get_db),
+):
+    role = parse_role(membership.role)
+    if not can(role, Action.PROJECT_READ, project_granted=True):
+        # Роль, которая не читает проекты ни при каком гранте (то есть
+        # значение вне матрицы), не получает и списка. Тот же 404, что и у
+        # отдельного проекта: пустой список сказал бы «проектов нет», а это
+        # неправда.
+        raise HTTPException(status_code=404, detail="project_not_found")
+
+    query = select(Project).where(Project.org_id == membership.org_id)
+    if needs_project_grant(role):
+        # Роль, которую зовут в проекты поимённо, видит ровно их. Фильтр
+        # запросом, а не отсевом в Python: список проектов организации — это
+        # ровно то, что от неё скрывают.
+        query = query.join(ProjectAccess, ProjectAccess.project_id == Project.id).where(
+            ProjectAccess.user_id == user.id
+        )
+    projects = db.scalars(query).all()
     return [ProjectOut(id=str(p.id), name=p.name, slug=p.slug) for p in projects]
 
 
 @router.get("/{project_id}")
 def get_project(
-    project_id: uuid.UUID, user: User = Depends(current_user), db: DbSession = Depends(get_db)
+    context: ProjectContext = Depends(project_context), db: DbSession = Depends(get_db)
 ):
-    project, membership = _load_project(db, user, project_id)
-    _require_project_read(membership)
-    org = db.get(Organization, project.org_id)
-    calendar = project_calendar(project, org)
-    show_notes = can(parse_role(membership.role), Action.READ_INTERNAL_NOTE)
-
-    # Позиции могут совпадать в одном крайнем случае (строка, восстановленная
-    # отменой на позицию, которую с тех пор занял другой ряд), поэтому id —
-    # обязательный второй ключ сортировки, а не только position.
-    categories = db.scalars(
-        select(Category)
-        .where(Category.project_id == project.id)
-        .order_by(Category.position, Category.id)
-    ).all()
-    tasks = db.scalars(
-        select(Task).where(Task.project_id == project.id).order_by(Task.position, Task.id)
-    ).all()
-
-    # Один запрос на весь проект, а не по запросу на задачу: на сотне задач
-    # второе дало бы сотню запросов ради одного экрана.
-    assignees: dict[str, list[str]] = {str(t.id): [] for t in tasks}
-    for task_id, user_id in db.execute(
-        select(TaskAssignee.task_id, TaskAssignee.user_id)
-        .join(Task, Task.id == TaskAssignee.task_id)
-        .where(Task.project_id == project.id)
-        .order_by(TaskAssignee.user_id)
-    ).all():
-        assignees[str(task_id)].append(str(user_id))
-
-    dependencies = db.execute(
-        select(Dependency.from_task_id, Dependency.to_task_id)
-        .where(Dependency.project_id == project.id)
-        .order_by(Dependency.from_task_id, Dependency.to_task_id)
-    ).all()
-
     try:
-        ends = [end_date(t.start_date, t.duration_days, calendar) for t in tasks]
+        return project_state(
+            db,
+            context.project,
+            context.org,
+            show_notes=context.can(Action.READ_INTERNAL_NOTE),
+        )
     except CalendarError as error:
         # Той же формы, что и отказы мутаций: 422 с машинным кодом. Раньше
         # здесь была голая пятисотка — вырожденную маску задаёт человек, и
         # проект переставал читаться без объяснения.
         raise HTTPException(status_code=422, detail=error.code)
-
-    return {
-        "id": str(project.id),
-        "name": project.name,
-        "slug": project.slug,
-        "deadline": project.deadline.isoformat() if project.deadline else None,
-        # Максимум по датам окончания задач; пустой проект не имеет конца.
-        "project_end": max(ends).isoformat() if ends else None,
-        # Календарь едет вместе с состоянием: интерфейс заливает нерабочие дни
-        # и рисует выходные ещё до первого клика, а не догадывается о них.
-        "calendar": {
-            "working_days": calendar.working_days,
-            "holidays": sorted(d.isoformat() for d in calendar.holidays),
-            "extra_workdays": sorted(d.isoformat() for d in calendar.extra_workdays),
-        },
-        # Разрешённые значения, а не сырые nullable-колонки проекта: кто их
-        # унаследовал от организации, а кто задал сам — не дело интерфейса.
-        "settings": {
-            "shift_threshold_days": resolve_shift_threshold(project, org),
-            "timezone": resolve_timezone(project, org),
-        },
-        "categories": [
-            {"id": str(c.id), "name": c.name, "color": c.color, "position": c.position}
-            for c in categories
-        ],
-        "tasks": [
-            {
-                "id": str(t.id),
-                "category_id": str(t.category_id),
-                "name": t.name,
-                "description": t.description,
-                "start_date": t.start_date.isoformat(),
-                "duration_days": t.duration_days,
-                "end_date": task_end.isoformat(),
-                "criticality": t.criticality,
-                "progress_pct": t.progress_pct,
-                "position": t.position,
-                "assignee_ids": assignees[str(t.id)],
-                **({"internal_note": t.internal_note} if show_notes else {}),
-            }
-            for t, task_end in zip(tasks, ends)
-        ],
-        "dependencies": [
-            {"from_task_id": str(source), "to_task_id": str(target)}
-            for source, target in dependencies
-        ],
-    }
 
 
 def _revision_entry(revision: Revision, actor_name: str | None, op: dict) -> dict:
@@ -208,10 +122,9 @@ def _revision_entry(revision: Revision, actor_name: str | None, op: dict) -> dic
 
 @router.get("/{project_id}/revisions")
 def list_revisions(
-    project_id: uuid.UUID,
     task_id: uuid.UUID | None = None,
     limit: int = Query(default=200, ge=1, le=1000),
-    user: User = Depends(current_user),
+    context: ProjectContext = Depends(project_context),
     db: DbSession = Depends(get_db),
 ):
     """Журнал изменений проекта, при желании — одной задачи.
@@ -224,10 +137,7 @@ def list_revisions(
     Отдавать её «на будущее» значило бы удваивать вес ленты и заодно удваивать
     поверхность, на которой заметка может утечь.
     """
-    project, membership = _load_project(db, user, project_id)
-    _require_project_read(membership)
-
-    query = select(Revision).where(Revision.project_id == project.id)
+    query = select(Revision).where(Revision.project_id == context.project.id)
     if task_id is not None:
         # Поиск по содержимому jsonb — то, ради чего колонка и объявлена jsonb:
         # выбирать все ревизии проекта и отсеивать их в Python значило бы
@@ -246,38 +156,40 @@ def list_revisions(
         ).all()
     }
 
-    role = parse_role(membership.role)
     return [
-        _revision_entry(revision, actors.get(revision.actor_user_id), visible_op(revision.op, role))
+        _revision_entry(
+            revision,
+            actors.get(revision.actor_user_id),
+            visible_op(revision.op, context.role, project_granted=context.granted),
+        )
         for revision in revisions
     ]
 
 
 @router.post("/{project_id}/mutations", status_code=201)
 def apply_mutation(
-    project_id: uuid.UUID,
     background: BackgroundTasks,
     op: PublicOp = Body(..., embed=True),
     reason: str | None = Body(default=None),
-    user: User = Depends(current_user),
+    context: ProjectContext = Depends(project_context),
     db: DbSession = Depends(get_db),
 ):
-    project, membership = _load_project(db, user, project_id)
-    if not can(parse_role(membership.role), Action.PROJECT_WRITE):
-        raise HTTPException(status_code=403, detail="forbidden")
+    context.require(Action.PROJECT_WRITE)
 
     try:
-        revision = apply_op(db, project, to_internal(op), actor_id=user.id, reason=reason)
+        revision = apply_op(
+            db, context.project, to_internal(op), actor_id=context.user.id, reason=reason
+        )
     except NotFoundInProject as error:
         # Сущность чужого проекта — не ошибка формата запроса: 404 тем же
-        # принципом, что и в _load_project.
+        # принципом, что и в project_context.
         raise HTTPException(status_code=404, detail=error.code)
     except InvalidOperation as error:
         raise HTTPException(status_code=422, detail=error.code)
 
     # Заметка внутрь события кладётся как есть: кому её видно, решает каждый
     # сокет отдельно — в одной комнате сидят и редактор, и клиент.
-    event = {"type": "revision", **_revision_entry(revision, user.name, revision.op)}
+    event = {"type": "revision", **_revision_entry(revision, context.user.name, revision.op)}
 
     # Коммит явный, до постановки рассылки в очередь, и это не перестраховка.
     # Разослать можно только то, что уже лежит в базе: получив сигнал, клиент
@@ -287,11 +199,48 @@ def apply_mutation(
     # зависимость с yield. Повторный коммит на выходе безвреден — коммитить
     # уже нечего.
     db.commit()
-    background.add_task(hub.publish, project.id, event)
+    background.add_task(hub.publish, context.project.id, event)
 
-    role = parse_role(membership.role)
+    seen = {"role": context.role, "project_granted": context.granted}
     return {
         "seq": revision.seq,
-        "op": visible_op(revision.op, role),
-        "inverse": visible_op(revision.inverse, role),
+        "op": visible_op(revision.op, **seen),
+        "inverse": visible_op(revision.inverse, **seen),
     }
+
+
+@router.get("/{project_id}/comments")
+def list_project_comments(
+    task_id: uuid.UUID | None = None,
+    context: ProjectContext = Depends(project_context),
+    db: DbSession = Depends(get_db),
+):
+    """Лента проекта — та же самая, что видна на публичной странице.
+
+    Гостевые реплики приходят участнику вместе с остальными: смысл публичной
+    ссылки в том, чтобы разговор с клиентом жил в проекте, а не в почте.
+    """
+    return comments_out(db, list_comments(db, context.project, task_id=task_id))
+
+
+@router.post("/{project_id}/comments", status_code=201)
+def create_project_comment(
+    payload: CommentIn,
+    context: ProjectContext = Depends(project_context),
+    db: DbSession = Depends(get_db),
+):
+    context.require(Action.COMMENT)
+    try:
+        comment = add_comment(
+            db,
+            context.project,
+            body=payload.body,
+            task_id=payload.task_id,
+            author=context.user,
+        )
+    except CommentRejected as error:
+        # task_not_found — не ошибка формата: та же 404, что и у мутаций,
+        # ссылающихся на чужую задачу.
+        status = 404 if error.code == "task_not_found" else 422
+        raise HTTPException(status_code=status, detail=error.code)
+    return comments_out(db, [comment])[0]

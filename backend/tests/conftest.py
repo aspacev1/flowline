@@ -66,6 +66,26 @@ def engine():
 
 
 @pytest.fixture
+def mailbox(monkeypatch):
+    """Перехватывает письма вместо отправки и отдаёт список доставленных.
+
+    Подменяется build_transport, а не app.mail.send: так через тест проходит
+    и сборка текста по шаблону, и выбор языка адресата — то есть ровно то,
+    что ломается при правке словарей и молча уезжает в отправленное письмо.
+    """
+    import app.mail as mail_module
+
+    delivered: list[mail_module.Letter] = []
+
+    class Recorder:
+        def deliver(self, letter: mail_module.Letter) -> None:
+            delivered.append(letter)
+
+    monkeypatch.setattr(mail_module, "build_transport", lambda settings: Recorder())
+    return delivered
+
+
+@pytest.fixture
 def db(engine):
     """Сессия в транзакции, которая откатывается после теста."""
     connection = engine.connect()

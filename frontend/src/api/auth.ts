@@ -8,12 +8,21 @@ export type User = {
   name: string;
   email: string;
   locale: string;
+  /** Подтверждён ли адрес. В установке без почты пустой у всех и ничего не
+      запрещает — это признак для подсказки, а не для доступа. */
+  email_verified: boolean;
 };
 
 export type RegisterInput = {
   name: string;
   email: string;
   password: string;
+  /**
+   * Приглашение, по которому человек пришёл. С ним аккаунт заводится сразу
+   * внутри позвавшей организации — и заводится даже там, где свободная
+   * регистрация выключена.
+   */
+  invite_token?: string;
 };
 
 export type LoginInput = {
@@ -41,4 +50,20 @@ export function logout(): Promise<void> {
 
 export function me(): Promise<User> {
   return request<User>("/api/auth/me");
+}
+
+/** Погашение ссылки из письма. Куки не требует: почту читают в другом месте. */
+export function verifyEmail(token: string): Promise<void> {
+  return request<void>("/api/auth/verify-email", {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  });
+}
+
+/**
+ * Повторное письмо. Ответ говорит правду о доставке: `sent: false` — письмо
+ * не ушло, и обещать «проверьте почту» в этом случае нельзя.
+ */
+export function resendVerification(): Promise<{ sent: boolean }> {
+  return request<{ sent: boolean }>("/api/auth/verify-email/resend", { method: "POST" });
 }

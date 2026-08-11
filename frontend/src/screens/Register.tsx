@@ -1,10 +1,11 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 
 import { ME_QUERY_KEY, register as registerRequest } from "../api/auth";
 import type { User } from "../api/auth";
 import { errorKey } from "../api/errors";
+import { inviteQueryKey, previewInvitation } from "../api/invitations";
 import { Field } from "../components/Field";
 import { useLocale } from "../i18n/LocaleProvider";
 
@@ -15,11 +16,29 @@ export function Register() {
   const { t, adoptProfileLocale } = useLocale();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [params] = useSearchParams();
+  const inviteToken = params.get("invite");
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [localErrorKey, setLocalErrorKey] = useState<string | null>(null);
+
+  // Приглашение спрашивается и здесь, а не только на экране приглашения:
+  // адрес, на который оно выписано, подставляется в форму и не редактируется,
+  // а взять его больше неоткуда.
+  const invitation = useQuery({
+    queryKey: inviteQueryKey(inviteToken ?? ""),
+    queryFn: () => previewInvitation(inviteToken as string),
+    enabled: inviteToken !== null,
+    retry: false,
+  });
+  const boundEmail = invitation.data?.email ?? null;
+  // Пока приглашение не пришло, отправлять форму нечем: адрес в ней ещё пуст,
+  // и отправка ушла бы с пустым полем, которое человек не заполнял и заполнить
+  // не мог. Ветка касается только прихода по ссылке — без токена запрос
+  // выключен и ждать нечего.
+  const waitingForInvitation = inviteToken !== null && invitation.isPending;
 
   const mutation = useMutation({
     mutationFn: registerRequest,
@@ -42,15 +61,33 @@ export function Register() {
       return;
     }
     setLocalErrorKey(null);
-    mutation.mutate({ name, email, password });
+    mutation.mutate({
+      name,
+      email: boundEmail ?? email,
+      password,
+      ...(inviteToken === null ? {} : { invite_token: inviteToken }),
+    });
   }
 
   const shownErrorKey =
-    localErrorKey ?? (mutation.error ? errorKey(mutation.error) : null);
+    localErrorKey ??
+    (mutation.error ? errorKey(mutation.error) : null) ??
+    // Мёртвая ссылка объясняется до отправки формы, а не после: заводить
+    // аккаунт, чтобы узнать, что приглашение просрочено, незачем.
+    (invitation.error ? errorKey(invitation.error) : null);
 
   return (
     <main className="screen screen--narrow">
       <h1>{t("auth.register.title")}</h1>
+
+      {invitation.data && (
+        <p className="muted">
+          {t("invite.accept.summary", {
+            org: invitation.data.org_name,
+            role: t(`members.role.${invitation.data.role}`),
+          })}
+        </p>
+      )}
 
       {/* noValidate: свою проверку мы переводим сами, а встроенные сообщения
           браузера приходят на языке браузера, а не интерфейса. */}
@@ -67,10 +104,13 @@ export function Register() {
           id="email"
           label={t("auth.field.email")}
           type="email"
-          value={email}
+          value={boundEmail ?? email}
           onChange={setEmail}
           autoComplete="email"
           required
+          // Адрес приглашения не редактируется: приглашение привязано к нему,
+          // и правка превратила бы отправку формы в заведомый отказ.
+          readOnly={boundEmail !== null}
         />
         <Field
           id="password"
@@ -90,7 +130,7 @@ export function Register() {
 
         {/* Кнопка выключена на время запроса: двойной клик иначе создаёт две
             попытки регистрации на один адрес. */}
-        <button type="submit" disabled={mutation.isPending}>
+        <button type="submit" disabled={mutation.isPending || waitingForInvitation}>
           {t("auth.register.submit")}
         </button>
       </form>
