@@ -12,9 +12,11 @@ from app.models import (
     Category,
     Criticality,
     Dependency,
+    Membership,
     Project,
     Revision,
     Task,
+    TaskAssignee,
 )
 
 
@@ -160,6 +162,18 @@ class RemoveDependency(BaseModel):
     to_task_id: uuid.UUID
 
 
+class AssignUser(BaseModel):
+    type: Literal["assign_user"] = "assign_user"
+    task_id: uuid.UUID
+    user_id: uuid.UUID
+
+
+class UnassignUser(BaseModel):
+    type: Literal["unassign_user"] = "unassign_user"
+    task_id: uuid.UUID
+    user_id: uuid.UUID
+
+
 class ApplyPositions(BaseModel):
     """Внутренняя операция: расставить позиции по готовой карте.
 
@@ -188,7 +202,9 @@ Op = Annotated[
     | ReorderTask
     | ApplyPositions
     | AddDependency
-    | RemoveDependency,
+    | RemoveDependency
+    | AssignUser
+    | UnassignUser,
     Field(discriminator="type"),
 ]
 
@@ -208,6 +224,8 @@ _MODELS = {
     "apply_positions": ApplyPositions,
     "add_dependency": AddDependency,
     "remove_dependency": RemoveDependency,
+    "assign_user": AssignUser,
+    "unassign_user": UnassignUser,
 }
 
 
@@ -320,6 +338,18 @@ class PublicRemoveDependency(_Wire):
     to_task_id: uuid.UUID
 
 
+class PublicAssignUser(_Wire):
+    type: Literal["assign_user"] = "assign_user"
+    task_id: uuid.UUID
+    user_id: uuid.UUID
+
+
+class PublicUnassignUser(_Wire):
+    type: Literal["unassign_user"] = "unassign_user"
+    task_id: uuid.UUID
+    user_id: uuid.UUID
+
+
 # ApplyPositions публичного зеркала не имеет и иметь не должна: она внутренняя.
 
 
@@ -337,7 +367,9 @@ PublicOp = Annotated[
     | PublicSetCategoryColor
     | PublicReorderTask
     | PublicAddDependency
-    | PublicRemoveDependency,
+    | PublicRemoveDependency
+    | PublicAssignUser
+    | PublicUnassignUser,
     Field(discriminator="type"),
 ]
 
@@ -386,6 +418,16 @@ def _find_dependency(
             Dependency.project_id == project.id,
             Dependency.from_task_id == from_task_id,
             Dependency.to_task_id == to_task_id,
+        )
+    )
+
+
+def _find_assignment(
+    db: DbSession, task_id: uuid.UUID, user_id: uuid.UUID
+) -> TaskAssignee | None:
+    return db.scalar(
+        select(TaskAssignee).where(
+            TaskAssignee.task_id == task_id, TaskAssignee.user_id == user_id
         )
     )
 
@@ -600,6 +642,37 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
         category.color = op.color
         db.flush()
         return forward, _swap(forward)
+
+    if isinstance(op, AssignUser):
+        task = _require_task(db, project, op.task_id)
+        # Без этой проверки задачу можно повесить на постороннего, и сам факт
+        # его существования утёк бы наружу: попадание в ответ проекта — это
+        # уже наблюдаемое различие между «такого адреса нет» и «есть».
+        member = db.scalar(
+            select(Membership.id).where(
+                Membership.org_id == project.org_id, Membership.user_id == op.user_id
+            )
+        )
+        if member is None:
+            raise InvalidOperation("user_not_in_organization", "пользователь не в этой организации")
+        if _find_assignment(db, task.id, op.user_id) is not None:
+            raise InvalidOperation("already_assigned", "этот человек уже назначен")
+        db.add(TaskAssignee(task_id=task.id, user_id=op.user_id))
+        db.flush()
+        pair = {"task_id": str(task.id), "user_id": str(op.user_id)}
+        return {"type": "assign_user", **pair}, {"type": "unassign_user", **pair}
+
+    if isinstance(op, UnassignUser):
+        # Проверки членства здесь нет намеренно: снять назначение с того, кто
+        # уже покинул организацию, — законное действие, а не отказ.
+        task = _require_task(db, project, op.task_id)
+        assignment = _find_assignment(db, task.id, op.user_id)
+        if assignment is None:
+            raise NotFoundInProject("assignment_not_found", "назначение не найдено")
+        db.delete(assignment)
+        db.flush()
+        pair = {"task_id": str(task.id), "user_id": str(op.user_id)}
+        return {"type": "unassign_user", **pair}, {"type": "assign_user", **pair}
 
     if isinstance(op, AddDependency):
         # Связи по спеку — стрелки на картинке, а не правило расчёта: даты по

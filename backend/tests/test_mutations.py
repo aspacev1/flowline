@@ -3,9 +3,20 @@ from datetime import date
 import pytest
 from sqlalchemy import func, select
 
-from app.models import Category, Dependency, Organization, Project, Revision, Task
+from app.models import (
+    Category,
+    Dependency,
+    Membership,
+    Organization,
+    Project,
+    Revision,
+    Task,
+    TaskAssignee,
+    User,
+)
 from app.mutations import (
     AddDependency,
+    AssignUser,
     CreateCategory,
     CreateTask,
     DeleteCategory,
@@ -23,6 +34,7 @@ from app.mutations import (
     SetDuration,
     SetProgress,
     SetTaskFields,
+    UnassignUser,
     apply_op,
     to_internal,
     undo,
@@ -908,3 +920,71 @@ def test_undo_of_a_dependency_removal_brings_the_arrow_back(db, project, categor
 
     undo(db, project, removed, actor_id=None)
     assert db.scalar(select(func.count()).select_from(Dependency)) == 1
+
+
+@pytest.fixture
+def insider(db, project):
+    """Человек из той же организации, что и проект, — кандидат в исполнители."""
+    user = User(name="Insider", email="insider@example.com", password_hash="x")
+    db.add(user)
+    db.flush()
+    db.add(Membership(org_id=project.org_id, user_id=user.id, role="editor"))
+    db.flush()
+    return user
+
+
+@pytest.fixture
+def outsider(db, other_project):
+    """Человек из другой организации: назначать его нельзя."""
+    user = User(name="Outsider", email="outsider@example.com", password_hash="x")
+    db.add(user)
+    db.flush()
+    db.add(Membership(org_id=other_project.org_id, user_id=user.id, role="editor"))
+    db.flush()
+    return user
+
+
+def test_assigning_a_user_from_another_organization_is_refused(db, project, category, outsider):
+    task_id = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="Logo",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+
+    with pytest.raises(InvalidOperation):
+        apply_op(db, project, AssignUser(task_id=task_id, user_id=str(outsider.id)),
+                 actor_id=None)
+
+
+def test_assignment_round_trips(db, project, category, insider):
+    task_id = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="Logo",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+
+    assigned = apply_op(db, project, AssignUser(task_id=task_id, user_id=str(insider.id)),
+                        actor_id=None)
+    assert assigned.inverse["type"] == "unassign_user"
+    assert db.scalar(select(func.count()).select_from(TaskAssignee)) == 1
+
+    undo(db, project, assigned, actor_id=None)
+    assert db.scalar(select(func.count()).select_from(TaskAssignee)) == 0
+
+
+def test_assigning_the_same_person_twice_is_refused(db, project, category, insider):
+    task_id = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="Logo",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+    apply_op(db, project, AssignUser(task_id=task_id, user_id=str(insider.id)), actor_id=None)
+
+    with pytest.raises(InvalidOperation) as error:
+        apply_op(db, project, AssignUser(task_id=task_id, user_id=str(insider.id)), actor_id=None)
+    assert error.value.code == "already_assigned"
+
+
+def test_unassigning_someone_who_is_not_assigned_is_refused(db, project, category, insider):
+    task_id = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="Logo",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+
+    with pytest.raises(NotFoundInProject) as error:
+        apply_op(db, project, UnassignUser(task_id=task_id, user_id=str(insider.id)),
+                 actor_id=None)
+    assert error.value.code == "assignment_not_found"
