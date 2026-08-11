@@ -6,7 +6,11 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-flowline}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-flowline}
       POSTGRES_DB: ${POSTGRES_DB:-flowline}
-    ports: ["${DB_PORT:-5432}:5432"]
+    # Наружу база намеренно не публикуется. Приложению это не нужно — api
+    # ходит в неё по внутренней сети compose, — а на хосте порт 5432 занят
+    # чаще, чем свободен: локальный Postgres есть почти у всех, и свежий клон
+    # падал бы на «address already in use» до первого запуска. Порт на хост
+    # выводит docker-compose.dev.yml, где он и нужен: для тестов и psql.
     volumes:
       - pgdata:/var/lib/postgresql/data
       # Скрипты отсюда Postgres выполняет один раз — при инициализации пустого
