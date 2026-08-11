@@ -12,16 +12,14 @@ const THREAD = [
     task_id: "t1",
     body: "Клиент просит другой знак",
     created_at: "2026-03-05T10:00:00+00:00",
-    author: { id: "u2", name: "Мария" },
-    guest_name: null,
+    author: { name: "Мария", guest: false },
   },
   {
     id: "k2",
     task_id: "t1",
     body: "А когда сдача?",
     created_at: "2026-03-06T10:00:00+00:00",
-    author: null,
-    guest_name: "Нигяр",
+    author: { name: "Нигяр", guest: true },
   },
 ];
 
@@ -40,7 +38,7 @@ async function openCard() {
 
 async function openThread() {
   const panel = await openCard();
-  return within(panel).getByRole("region", { name: "Обсуждение" });
+  return within(panel).getByRole("region", { name: "Комментарии" });
 }
 
 describe("обсуждение задачи", () => {
@@ -61,11 +59,11 @@ describe("обсуждение задачи", () => {
     server.use(http.get("/api/projects/p1/comments", () => HttpResponse.json(THREAD)));
 
     const thread = await openThread();
-    const guest = await within(thread).findByText(/Нигяр/);
+    const guest = await within(thread).findByText("Нигяр");
 
     // Пометка рядом с именем, а не вместо него: гостя зовут по имени, но
     // читатель обязан видеть, что аккаунта за ним нет.
-    expect(guest.textContent).toMatch(/гость/i);
+    expect(guest.parentElement?.textContent).toMatch(/гость/i);
   });
 
   it("отправляет реплику и показывает её после ответа сервера", async () => {
@@ -84,8 +82,7 @@ describe("обсуждение задачи", () => {
           task_id: "t1",
           body: (body as { body: string }).body,
           created_at: "2026-03-07T10:00:00+00:00",
-          author: { id: "u1", name: "Алексей" },
-          guest_name: null,
+          author: { name: "Алексей", guest: false },
         };
         stored = [...stored, created];
         return HttpResponse.json(created, { status: 201 });
@@ -110,8 +107,7 @@ describe("обсуждение задачи", () => {
             task_id: "t1",
             body: "Готово",
             created_at: "2026-03-07T10:00:00+00:00",
-            author: { id: "u1", name: "Алексей" },
-            guest_name: null,
+            author: { name: "Алексей", guest: false },
           },
           { status: 201 },
         ),
@@ -130,19 +126,19 @@ describe("обсуждение задачи", () => {
     server.use(
       http.get("/api/projects/p1/comments", () => HttpResponse.json([])),
       http.post("/api/projects/p1/comments", () =>
-        HttpResponse.json({ detail: "comment_empty" }, { status: 422 }),
+        HttpResponse.json({ detail: "comment_too_long" }, { status: 422 }),
       ),
     );
 
     const thread = await openThread();
     const field = within(thread).getByLabelText(/Комментарий/i);
-    await userEvent.type(field, "  ");
+    await userEvent.type(field, "слишком длинно");
     await userEvent.click(within(thread).getByRole("button", { name: /Отправить/i }));
 
     expect(await within(thread).findByRole("alert")).toHaveTextContent(/пуст/i);
     // Текст остаётся в поле: отказ — повод исправить реплику, а не набрать
     // её заново.
-    expect(field).toHaveValue("  ");
+    expect(field).toHaveValue("слишком длинно");
   });
 
   it("не рисует ветку, если сервер её не отдал", async () => {

@@ -23,11 +23,13 @@ describe("экран проектов", () => {
     );
 
     renderApp({ route: "/projects", locale: "ru" });
-    expect(await screen.findByText("Проекты")).toBeInTheDocument();
+    // Заголовок, а не любой текст: слово «Проекты» есть и в шапке, где на
+    // экран участников уводит ссылка с тем же названием.
+    expect(await screen.findByRole("heading", { name: "Проекты" })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "AZ" }));
 
-    expect(await screen.findByText("Layihələr")).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Layihələr" })).toBeInTheDocument();
     // название проекта — содержимое пользователя, оно не переводится
     expect(screen.getByText("Şəhər Layihəsi")).toBeInTheDocument();
   });

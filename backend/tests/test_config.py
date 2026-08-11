@@ -100,3 +100,24 @@ def test_outside_the_platform_the_base_url_stays_local(
     settings = _settings(database_url="postgresql+psycopg://u:p@host/db")
 
     assert settings.public_base_url == "http://localhost:8000"
+
+
+@pytest.mark.parametrize("mode", ["open", "invite_only", "closed"])
+def test_every_signup_mode_from_the_specification_is_accepted(mode: str) -> None:
+    settings = _settings(database_url="postgresql+psycopg://u:p@host/db", signup_mode=mode)
+    assert settings.signup_mode == mode
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("signup_mode", "opne"), ("mail_transport", "sendmail")],
+)
+def test_a_misspelled_switch_stops_the_start_instead_of_the_installation(
+    field: str, value: str
+) -> None:
+    """Опечатка в SIGNUP_MODE тихо превращает установку в закрытую (сравнение
+    с `open` не сходится), опечатка в MAIL_TRANSPORT — в такую, где кнопка
+    отправки есть, а письма не уходят. Оба отказа неотличимы от задуманного
+    поведения и ищутся часами; отказ стартовать находится за секунду."""
+    with pytest.raises(ValueError):
+        _settings(database_url="postgresql+psycopg://u:p@host/db", **{field: value})

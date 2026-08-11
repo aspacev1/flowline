@@ -10,6 +10,13 @@ class Action(StrEnum):
     ORG_ADMIN = "org_admin"
     COMMENT = "comment"
     READ_INTERNAL_NOTE = "read_internal_note"
+    # Утверждение и переутверждение — разные права, а не одно: первое доступно
+    # редактору, второе спецификация оставляет владельцу. Переутверждение
+    # стирает базовый план, от которого считаются все объяснённые сдвиги, —
+    # то есть обнуляет накопленную летопись отставания, и это решение уровня
+    # владельца, а не рядовая правка сроков.
+    PLAN_APPROVE = "plan_approve"
+    PLAN_REAPPROVE = "plan_reapprove"
 
 
 _MATRIX: dict[Role | None, frozenset[Action]] = {
@@ -21,6 +28,7 @@ _MATRIX: dict[Role | None, frozenset[Action]] = {
             Action.PROJECT_ADMIN,
             Action.COMMENT,
             Action.READ_INTERNAL_NOTE,
+            Action.PLAN_APPROVE,
         }
     ),
     Role.VIEWER: frozenset(
@@ -52,6 +60,17 @@ def parse_role(raw: str | None) -> Role | str | None:
         return Role(raw)
     except ValueError:
         return UNKNOWN_ROLE
+
+
+def needs_project_grant(role: Role | str | None) -> bool:
+    """Видит ли эта роль только те проекты, куда её позвали поимённо.
+
+    Спрашивается снаружи — списком проектов и загрузкой одного проекта: им
+    нужно знать не только «можно ли», но и «по какому правилу отбирать».
+    Знание о том, какие роли устроены так, остаётся здесь, в единственном
+    месте, где решается доступ.
+    """
+    return role in _NEEDS_GRANT
 
 
 def can(role: Role | None, action: Action, *, project_granted: bool = False) -> bool:

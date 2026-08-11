@@ -1,15 +1,18 @@
+from datetime import datetime, timezone
+
 import pytest
 
-from app.models import Organization, Project, ShareLink
+from app.config import get_settings
+from app.models import Organization, Project
 from app.sharing import (
-    NotPublished,
-    SharingRefused,
-    link_of,
-    public_path,
-    publish,
+    SharingDisabled,
+    active_link,
+    issue_link,
+    public_url,
     resolve,
-    revoke,
+    revoke_link,
     set_comments_enabled,
+    sharing_allowed,
 )
 
 
@@ -23,91 +26,127 @@ def org(db):
 
 @pytest.fixture
 def project(db, org):
-    project = Project(org_id=org.id, name="Redesign", slug="redesign-2026")
+    project = Project(org_id=org.id, name="Redesign 2026", slug="redesign-2026")
     db.add(project)
     db.flush()
     return project
 
 
-def test_publishing_opens_the_address_built_from_slugs(db, org, project):
-    link = publish(db, project, org)
+@pytest.fixture(autouse=True)
+def default_settings():
+    """Настройки собираются заново на каждый тест.
 
+    get_settings кэширован через lru_cache: тест, подменивший рубильник
+    публикации, иначе оставил бы своё значение всем следующим.
+    """
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
+
+def test_issuing_a_link_publishes_the_project(db, org, project):
+    link = issue_link(db, project, org)
+
+    assert link.token
     assert link.revoked_at is None
-    assert public_path(org, project) == "/p/acme/redesign-2026"
-    assert resolve(db, "acme", "redesign-2026")[0].id == project.id
+    assert active_link(db, project) is link
 
 
-def test_comments_start_from_the_organization_default(db, org, project):
-    """Умолчание организации — это умолчание, а не рекомендация: проект,
-    который его не переопределял, обязан ему следовать."""
+def test_reissuing_kills_the_previous_link(db, org, project):
+    first = issue_link(db, project, org)
+    second = issue_link(db, project, org)
+
+    assert second.token != first.token
+    assert first.revoked_at is not None
+    # Инвариант «действующая ссылка одна» держит частичный уникальный индекс;
+    # здесь проверяется, что выпуск его не нарушает.
+    assert active_link(db, project) is second
+
+
+def test_a_reissued_link_keeps_the_comment_setting(db, org, project):
+    first = issue_link(db, project, org)
+    set_comments_enabled(db, project, False)
+
+    second = issue_link(db, project, org)
+
+    # Выключенные комментарии — сознательное решение владельца. Перевыпуск
+    # адреса не повод молча включить их обратно.
+    assert second.comments_enabled is False
+
+
+def test_a_new_link_inherits_the_organization_default(db, org, project):
     org.default_comments_enabled = False
     db.flush()
 
-    assert publish(db, project, org).comments_enabled is False
+    assert issue_link(db, project, org).comments_enabled is False
 
 
-def test_revoking_closes_the_address_immediately(db, org, project):
-    publish(db, project, org)
-    revoke(db, project)
+def test_a_revoked_link_no_longer_resolves(db, org, project):
+    link = issue_link(db, project, org)
+    revoke_link(db, project)
 
-    with pytest.raises(NotPublished):
-        resolve(db, "acme", "redesign-2026")
-    assert link_of(db, project) is None
-
-
-def test_publishing_again_revives_the_same_address(db, org, project):
-    """Следствие решения об адресе из слагов, а не оплошность: секрета в
-    адресе нет, и «новой» ссылке взяться неоткуда."""
-    publish(db, project, org)
-    revoke(db, project)
-    revived = publish(db, project, org)
-
-    assert revived.revoked_at is None
-    assert resolve(db, "acme", "redesign-2026")[0].id == project.id
-    # Ряд тот же самый: журнал публикаций не должен плодить дубликаты.
-    assert db.query(ShareLink).count() == 1
+    assert active_link(db, project) is None
+    assert resolve(db, org_slug="acme", project_slug="redesign-2026", token=link.token) is None
 
 
-def test_organization_may_forbid_public_sharing_entirely(db, org, project):
+def test_resolving_needs_the_slugs_and_the_token_to_agree(db, org, project):
+    link = issue_link(db, project, org)
+    other = Project(org_id=org.id, name="Другой", slug="drugoy")
+    db.add(other)
+    db.flush()
+    issue_link(db, other, org)
+
+    # Действующий токен соседнего проекта не открывает этот: иначе одной
+    # ссылки хватало бы, чтобы читать любой проект установки.
+    assert resolve(db, org_slug="acme", project_slug="drugoy", token=link.token) is None
+    assert resolve(db, org_slug="acme", project_slug="redesign-2026", token="") is None
+    assert resolve(db, org_slug="acme", project_slug="redesign-2026", token=link.token) is not None
+
+
+def test_the_organization_switch_closes_issued_links_too(db, org, project):
+    link = issue_link(db, project, org)
+
     org.public_sharing_enabled = False
     db.flush()
 
-    with pytest.raises(SharingRefused) as refusal:
-        publish(db, project, org)
-    assert refusal.value.code == "public_sharing_disabled"
+    # Не только выпуск новых: организация, выключившая публикацию, ожидает,
+    # что розданные адреса перестали открываться.
+    assert resolve(db, org_slug="acme", project_slug="redesign-2026", token=link.token) is None
+    with pytest.raises(SharingDisabled):
+        issue_link(db, project, org)
 
 
-def test_a_link_of_an_organization_that_revoked_sharing_stops_resolving(db, org, project):
-    """Выключатель организации гасит уже выданные ссылки, а не только новые:
-    иначе запрет ничего не запрещает до тех пор, пока кто-то не отзовёт
-    каждую ссылку руками."""
-    publish(db, project, org)
-    org.public_sharing_enabled = False
-    db.flush()
+def test_the_installation_switch_overrides_the_organization(db, org, project, monkeypatch):
+    monkeypatch.setenv("PUBLIC_SHARING_ENABLED", "false")
+    get_settings.cache_clear()
 
-    with pytest.raises(NotPublished):
-        resolve(db, "acme", "redesign-2026")
+    assert org.public_sharing_enabled is True
+    assert sharing_allowed(org) is False
+    with pytest.raises(SharingDisabled):
+        issue_link(db, project, org)
 
 
-def test_unknown_slugs_are_refused_the_same_way_as_a_revoked_link(db, org, project):
-    """Одинаковый отказ — не лень: разные ответы рассказали бы перебором,
-    какие организации и проекты существуют."""
-    publish(db, project, org)
+def test_the_public_address_is_built_from_the_configured_domain(db, org, project, monkeypatch):
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://flowline.example.com/")
+    get_settings.cache_clear()
 
-    with pytest.raises(NotPublished):
-        resolve(db, "acme", "no-such-project")
-    with pytest.raises(NotPublished):
-        resolve(db, "globex", "redesign-2026")
+    link = issue_link(db, project, org)
+    url = public_url(org, project, link)
 
-
-def test_comments_switch_is_remembered(db, org, project):
-    publish(db, project, org)
-
-    assert set_comments_enabled(db, project, False).comments_enabled is False
-    assert resolve(db, "acme", "redesign-2026")[2].comments_enabled is False
+    # Слаги обоих — то, что человек читает в адресе; токен идёт запросом,
+    # потому что без него отзыв ссылки не менял бы адрес вовсе.
+    assert url == f"https://flowline.example.com/p/acme/redesign-2026?s={link.token}"
 
 
-def test_switching_comments_on_an_unpublished_project_is_refused(db, org, project):
-    with pytest.raises(SharingRefused) as refusal:
-        set_comments_enabled(db, project, True)
-    assert refusal.value.code == "not_published"
+def test_revoking_an_unpublished_project_is_not_an_error(db, project):
+    assert revoke_link(db, project) is None
+
+
+def test_a_revoked_link_keeps_its_record(db, org, project):
+    before = datetime.now(timezone.utc)
+    link = issue_link(db, project, org)
+    revoke_link(db, project)
+
+    # Запись не удаляется: старый адрес обязан отвечать «ссылка больше не
+    # действует», а не «такого проекта нет».
+    assert link.revoked_at >= before

@@ -1,124 +1,141 @@
+"""Публичная ссылка на проект: выпуск, отзыв, разбор адреса.
+
+Здесь же собирается сам адрес — из `PUBLIC_BASE_URL`, а не из заголовков
+запроса. Заголовок `Host` подставляется тем, кто пришёл, и ссылка, собранная
+из него, однажды уедет в письмо с чужим доменом; переменная окружения задана
+тем, кто разворачивал, и одинакова для всех запросов.
+"""
+
+import secrets
 from datetime import datetime, timezone
+from urllib.parse import quote
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
+from app.config import get_settings
 from app.models import Organization, Project, ShareLink
 
+# Публичный адрес: /p/<слаг организации>/<слаг проекта>. Токен идёт запросом,
+# а не частью пути, и это разделение не косметическое. Путь — то, что человек
+# читает и по чему узнаёт проект; токен — то, что делает отзыв ссылки
+# осмысленным: без него «перевыпустить ссылку» не меняло бы адрес вовсе, и
+# старая ссылка не умирала бы, а продолжала работать.
+PUBLIC_PATH_PREFIX = "/p"
+TOKEN_PARAM = "s"
 
-class SharingRefused(Exception):
-    """Отказ опубликовать или изменить публикацию.
 
-    Той же формы, что MutationError и CommentRefused: машинный код наружу,
-    человеческий текст — в журнал.
+class SharingDisabled(Exception):
+    """Публичные ссылки запрещены — установкой или настройкой организации."""
+
+
+def sharing_allowed(org: Organization) -> bool:
+    """Разрешены ли публичные ссылки этой организации.
+
+    Два рубильника, и порядок между ними односторонний: `PUBLIC_SHARING_ENABLED`
+    выключает публикацию во всей установке, и никакая настройка организации
+    его не перебивает. Закрытый контур — решение того, кто разворачивал.
     """
-
-    def __init__(self, code: str, message: str):
-        super().__init__(message)
-        self.code = code
+    return get_settings().public_sharing_enabled and org.public_sharing_enabled
 
 
-class NotPublished(SharingRefused):
-    """По этому адресу ничего не открыто.
+def active_link(db: DbSession, project: Project) -> ShareLink | None:
+    return db.scalar(
+        select(ShareLink).where(
+            ShareLink.project_id == project.id, ShareLink.revoked_at.is_(None)
+        )
+    )
 
-    Один класс на три разных случая — нет такой организации, нет такого
-    проекта, ссылка отозвана — сознательно: разные ответы позволили бы
-    перебором выяснить, какие организации и проекты существуют.
+
+def issue_link(db: DbSession, project: Project, org: Organization) -> ShareLink:
+    """Выпускает ссылку, убивая прежнюю.
+
+    Повторный выпуск — это и есть «перевыпустить»: спецификация обещает, что
+    старый адрес умирает мгновенно, поэтому отдельной операции обновления
+    токена нет. Настройка комментариев переезжает на новую ссылку: человек
+    выключил их сознательно, и перевыпуск адреса — не повод молча включить их
+    обратно.
     """
+    if not sharing_allowed(org):
+        raise SharingDisabled
 
+    previous = active_link(db, project)
+    comments_enabled = (
+        previous.comments_enabled if previous is not None else org.default_comments_enabled
+    )
+    if previous is not None:
+        revoke_link(db, project)
 
-def public_path(org: Organization, project: Project) -> str:
-    """Адрес публичной страницы.
-
-    Собирается здесь, а не в браузере: слаги нормализует сервер (см. text.py),
-    и второй сборщик адреса в клиенте однажды разойдётся с этим — получится
-    ссылка, которая не открывается.
-
-    Префикс `/p/` не украшение: без него `/{организация}/{проект}` перехватил
-    бы и собственные адреса приложения, и организация со слагом `login`
-    заслонила бы вход.
-    """
-    return f"/p/{org.slug}/{project.slug}"
-
-
-def stored_link(db: DbSession, project: Project) -> ShareLink | None:
-    """Ряд публикации как он есть, включая отозванный.
-
-    Нужен настройкам: отозванная ссылка помнит, был ли включён переключатель
-    комментариев, и показывать его выключенным только потому, что публикация
-    снята, значит терять решение владельца у него на глазах.
-    """
-    return db.scalar(select(ShareLink).where(ShareLink.project_id == project.id))
-
-
-def link_of(db: DbSession, project: Project) -> ShareLink | None:
-    """Действующая ссылка проекта. Отозванная — это отсутствие ссылки."""
-    link = stored_link(db, project)
-    if link is None or link.revoked_at is not None:
-        return None
-    return link
-
-
-def publish(db: DbSession, project: Project, org: Organization) -> ShareLink:
-    """Открыть проект наружу.
-
-    Повторная публикация оживляет прежний ряд, а не создаёт новый: ряд — это
-    журнал публикаций проекта, и второй ряд означал бы второй адрес, которого
-    у слагов быть не может.
-    """
-    if not org.public_sharing_enabled:
-        raise SharingRefused("public_sharing_disabled", "организация запретила публичные ссылки")
-
-    link = db.scalar(select(ShareLink).where(ShareLink.project_id == project.id))
-    if link is None:
-        # Умолчание организации применяется один раз, при первой публикации:
-        # дальше переключателем распоряжается владелец проекта, и повторная
-        # публикация не должна отменять его решение.
-        link = ShareLink(project_id=project.id, comments_enabled=org.default_comments_enabled)
-        db.add(link)
-    else:
-        link.revoked_at = None
+    link = ShareLink(
+        project_id=project.id,
+        token=secrets.token_urlsafe(32),
+        comments_enabled=comments_enabled,
+    )
+    db.add(link)
     db.flush()
     return link
 
 
-def revoke(db: DbSession, project: Project) -> None:
-    """Закрыть адрес. Мгновенно: следующий запрос по нему уже не откроется."""
-    link = db.scalar(select(ShareLink).where(ShareLink.project_id == project.id))
-    if link is not None and link.revoked_at is None:
-        link.revoked_at = datetime.now(timezone.utc)
-        db.flush()
-
-
-def set_comments_enabled(db: DbSession, project: Project, enabled: bool) -> ShareLink:
-    link = link_of(db, project)
+def revoke_link(db: DbSession, project: Project) -> ShareLink | None:
+    """Гасит действующую ссылку. Запись остаётся: адрес обязан отвечать
+    «ссылка больше не действует», а не «такого проекта нет»."""
+    link = active_link(db, project)
     if link is None:
-        raise SharingRefused("not_published", "проект не опубликован")
+        return None
+    link.revoked_at = datetime.now(timezone.utc)
+    db.flush()
+    return link
+
+
+def set_comments_enabled(db: DbSession, project: Project, enabled: bool) -> ShareLink | None:
+    link = active_link(db, project)
+    if link is None:
+        return None
     link.comments_enabled = enabled
     db.flush()
     return link
 
 
 def resolve(
-    db: DbSession, org_slug: str, project_slug: str
-) -> tuple[Project, Organization, ShareLink]:
-    """Проект, открытый по этому адресу, — или отказ.
+    db: DbSession, *, org_slug: str, project_slug: str, token: str
+) -> tuple[Organization, Project, ShareLink] | None:
+    """Проект по публичному адресу и токену.
 
-    Единственное место, где решается, открыт ли проект наружу. Условий три —
-    организация не запретила публикацию, ссылка есть, ссылка не отозвана, — и
-    разнести их по маршрутам значило бы однажды проверить два из трёх.
+    Совпасть обязано всё сразу: слаги называют проект, токен доказывает, что
+    адрес выдан владельцем. Токен, подошедший к другому проекту, не открывает
+    этот — иначе одной действующей ссылки хватало бы, чтобы читать любой
+    проект установки, подставляя чужие слаги.
+
+    Отдельного ответа «слаг есть, а токен не тот» нет и не будет: он
+    превращает адрес без токена в способ проверять, существует ли проект.
     """
+    if not token:
+        return None
+
     row = db.execute(
-        select(Project, Organization, ShareLink)
-        .join(Organization, Organization.id == Project.org_id)
+        select(Organization, Project, ShareLink)
+        .join(Project, Project.org_id == Organization.id)
         .join(ShareLink, ShareLink.project_id == Project.id)
         .where(
             Organization.slug == org_slug,
             Project.slug == project_slug,
+            ShareLink.token == token,
             ShareLink.revoked_at.is_(None),
-            Organization.public_sharing_enabled.is_(True),
         )
     ).first()
     if row is None:
-        raise NotPublished("project_not_found", "по этому адресу ничего не открыто")
-    return row[0], row[1], row[2]
+        return None
+
+    org, project, link = row
+    # Рубильник действует и на уже выданные ссылки: организация, выключившая
+    # публикацию, ожидает, что розданные адреса перестали открываться, а не
+    # что закрылся только выпуск новых.
+    if not sharing_allowed(org):
+        return None
+    return org, project, link
+
+
+def public_url(org: Organization, project: Project, link: ShareLink) -> str:
+    base = get_settings().public_base_url.rstrip("/")
+    path = f"{PUBLIC_PATH_PREFIX}/{quote(org.slug)}/{quote(project.slug)}"
+    return f"{base}{path}?{TOKEN_PARAM}={quote(link.token)}"

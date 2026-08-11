@@ -15,6 +15,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -108,6 +109,36 @@ class Session(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    # Организация, выбранная переключателем. Живёт на сессии, а не на
+    # пользователе: с одной вкладки смотрят свою компанию, с другой — чужую,
+    # куда позвали, и общее поле у пользователя перебрасывало бы обе вкладки
+    # разом. SET NULL, а не CASCADE: удалённая организация не должна уносить
+    # с собой сессию — человек просто вернётся к первой доступной.
+    active_org_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("organizations.id", ondelete="SET NULL")
+    )
+
+
+class EmailVerification(Base):
+    """Одноразовая ссылка подтверждения адреса.
+
+    Устроена как сессия: наружу уходит открытый токен, в базе лежит его
+    хеш — утечка дампа не даёт подтвердить чужой адрес. Строка живёт до
+    первого перехода по ссылке или до истечения срока, поэтому таблица не
+    растёт: подтверждение удаляет все токены пользователя разом.
+    """
+
+    __tablename__ = "email_verifications"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    # Ищется по владельцу на каждой повторной отправке и на подтверждении.
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    token_hash: Mapped[str] = mapped_column(String(128), unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
 
 class Project(Base):
     __tablename__ = "projects"
@@ -128,6 +159,157 @@ class Project(Base):
 
     holidays_extra: Mapped[list] = mapped_column(JSON, default=list)
     workdays_extra: Mapped[list] = mapped_column(JSON, default=list)
+
+
+class ProjectAccess(Base):
+    """Доступ к одному проекту, выданный человеку поимённо.
+
+    Нужна роли `client`: она видит не все проекты организации, а только те,
+    куда её позвали (см. `_NEEDS_GRANT` в app.access). Для остальных ролей
+    записи здесь не значат ничего — их право читать проект следует из роли.
+    """
+
+    __tablename__ = "project_access"
+    __table_args__ = (UniqueConstraint("project_id", "user_id"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    # Спрашивается на каждом чтении проекта ролью, которой нужен явный доступ,
+    # и при сборке списка проектов такого человека — то есть с этой колонки.
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+
+
+class ShareLink(Base):
+    """Публичная ссылка на проект.
+
+    Токен лежит открытым текстом — сознательно, в отличие от приглашения,
+    где хранится хеш. Приглашение показывается один раз и уходит адресату;
+    публичную ссылку владелец копирует снова и снова, из настроек проекта,
+    и сервер, забывший её, оставил бы единственный способ «показать ссылку
+    ещё раз» — выпустить новую и убить действующую. Цена размена названа
+    прямо: утёкший дамп базы отдаёт чтение опубликованных проектов, а не
+    доступ к организациям.
+
+    Отозванная ссылка не удаляется, а помечается `revoked_at`: старый адрес
+    обязан отвечать «ссылка больше не действует», а не «такого проекта нет».
+    """
+
+    __tablename__ = "share_links"
+    __table_args__ = (
+        # Действующая ссылка у проекта одна. Частичный индекс, а не обычное
+        # ограничение уникальности: отозванных ссылок у проекта сколько
+        # угодно — это журнал того, какой адрес когда умер.
+        Index(
+            "uq_share_links_active_project",
+            "project_id",
+            unique=True,
+            postgresql_where=text("revoked_at IS NULL"),
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    token: Mapped[str] = mapped_column(String(64), unique=True)
+    comments_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Comment(Base):
+    """Реплика к проекту или к одной его задаче.
+
+    Автор — либо участник с аккаунтом, либо гость по ссылке, назвавший себя
+    именем. Ровно один из двух: комментарий без автора не подписан никем, а
+    комментарий с обоими — это участник, притворившийся гостем. Держит это
+    ограничение база, а не проверка в маршруте: маршрутов, создающих
+    комментарий, уже два.
+    """
+
+    __tablename__ = "comments"
+    __table_args__ = (
+        CheckConstraint(
+            "num_nonnulls(author_user_id, guest_name) = 1",
+            name="ck_comments_single_author",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    # null — комментарий к проекту целиком, а не к задаче.
+    task_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"))
+    # CASCADE, а не SET NULL: обнулённый автор оставил бы запись без подписи
+    # вовсе — ни аккаунта, ни имени гостя, — то есть нарушил бы ограничение
+    # ниже прямо в момент удаления человека.
+    author_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE")
+    )
+    guest_name: Mapped[str | None] = mapped_column(String(80))
+    body: Mapped[str] = mapped_column(Text)
+    # clock_timestamp(), а не now(): now() отдаёт время начала транзакции, и
+    # две реплики, вставленные в одной, получают одинаковую метку — а
+    # порядок в разговоре держится именно на ней. У журнала ревизий для
+    # этого есть seq, у комментариев его нет и заводить его незачем.
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.clock_timestamp()
+    )
+
+
+class Invitation(Base):
+    """Приглашение в организацию: одноразовое, с сроком жизни и ролью внутри.
+
+    Живёт в базе и после принятия — это журнал того, кто кого привёл, а
+    `accepted_at` заодно служит признаком «токен больше не работает».
+    """
+
+    __tablename__ = "invitations"
+    __table_args__ = (
+        # Тем же способом, что и у членства: список выведен из Role, чтобы
+        # роль в приглашении нельзя было завести мимо матрицы прав.
+        CheckConstraint(
+            "role IN (" + ", ".join(f"'{role.value}'" for role in Role) + ")",
+            name="ck_invitations_role",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), index=True
+    )
+    # null — приглашение только по ссылке: оно достаётся предъявителю, и это
+    # осознанный размен, а не недосмотр.
+    email: Mapped[str | None] = mapped_column(String(320))
+    role: Mapped[str] = mapped_column(String(16))
+    # Проекты, к которым приглашение сразу даёт доступ. Нужны роли `client`;
+    # у остальных ролей список пуст. Хранится списком id, а не таблицей
+    # связей: он читается и переписывается целиком, поиска по нему нет.
+    project_ids: Mapped[list] = mapped_column(JSON, default=list)
+    # Хранится хеш, как у пароля и у сессии: дамп базы не должен раздавать
+    # доступ к организациям. Прямое следствие — открытую ссылку показываем
+    # один раз, в момент выпуска.
+    token_hash: Mapped[str] = mapped_column(String(128), unique=True)
+    # SET NULL: ушедший из организации человек не уносит с собой запись о том,
+    # кого он привёл.
+    invited_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    accepted_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Заполняется только отправкой письма. Выпуск ссылки для копирования его
+    # не трогает: письма не было, и в потолок рассылки такой выпуск не идёт.
+    last_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Category(Base):
@@ -160,6 +342,39 @@ class Task(Base):
     position: Mapped[int] = mapped_column(Integer, default=0)
     baseline_start: Mapped[date | None] = mapped_column(Date)
     baseline_duration: Mapped[int | None] = mapped_column(Integer)
+    # Откуда взялась задача. В истории остаётся «создана AI-сессией от
+    # 10 августа», и без этого поля такой записи неоткуда взяться: журнал
+    # ревизий хранит операцию, а не её происхождение.
+    created_by_ai_session_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("ai_sessions.id", ondelete="SET NULL")
+    )
+
+
+class PlanVersion(Base):
+    """Утверждённый план: снимок дат и длительностей на момент утверждения.
+
+    Отдельная таблица, а не только baseline_* у задачи: базовые поля задачи
+    хранят последнюю версию, а летопись «что обещали в январе, что в марте»
+    требует всех предыдущих. Версии нумеруются внутри проекта, и уникальное
+    ограничение держит эту нумерацию: два одновременных утверждения иначе
+    получили бы один номер.
+    """
+
+    __tablename__ = "plan_versions"
+    __table_args__ = (UniqueConstraint("project_id", "version"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    version: Mapped[int] = mapped_column(Integer)
+    approved_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    approved_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    # jsonb по той же причине, что и журнал ревизий: снимок читается целиком,
+    # но по нему же ищут задачу при сравнении версий.
+    snapshot: Mapped[dict] = mapped_column(JSONB)
 
 
 class TaskAssignee(Base):
@@ -181,6 +396,60 @@ class Dependency(Base):
     to_task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"))
 
 
+class OrgLlmCredential(Base):
+    """Подключение LLM: одно на организацию.
+
+    `base_url` и `model` — обязательные настройки, а не константы: без них
+    BYOK работает с одним облаком по одной зашитой модели, и обещание «можно
+    подсунуть локальную модель» остаётся на словах.
+
+    Ключ шифруется симметрично секретом приложения и наружу не отдаётся
+    никогда — только признак «ключ настроен».
+    """
+
+    __tablename__ = "org_llm_credentials"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), unique=True
+    )
+    provider: Mapped[str] = mapped_column(String(32), default="openai")
+    base_url: Mapped[str] = mapped_column(String(300))
+    model: Mapped[str] = mapped_column(String(100))
+    encrypted_key: Mapped[str] = mapped_column(Text)
+
+
+class AiSession(Base):
+    """Интервью, конспект и черновик — до применения в проект.
+
+    Живёт отдельно от проекта, потому что проекта до применения не существует:
+    AI ничего не пишет в проект без явного подтверждения человека.
+    """
+
+    __tablename__ = "ai_sessions"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), index=True
+    )
+    # Заполняется после применения: до него проекта нет.
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("projects.id", ondelete="SET NULL")
+    )
+    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    # Язык интервью фиксируется на сессии, а не берётся из профиля каждый раз:
+    # человек, переключивший интерфейс посреди интервью, иначе получил бы
+    # черновик наполовину на одном языке, наполовину на другом.
+    locale: Mapped[str] = mapped_column(String(5), default="az")
+    status: Mapped[str] = mapped_column(String(16), default="interview")
+    transcript: Mapped[list] = mapped_column(JSONB, default=list)
+    summary: Mapped[list] = mapped_column(JSONB, default=list)
+    draft: Mapped[dict] = mapped_column(JSONB, default=dict)
+    tokens_used: Mapped[int] = mapped_column(Integer, default=0)
+    applied_batch_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Revision(Base):
     __tablename__ = "revisions"
     __table_args__ = (UniqueConstraint("project_id", "seq"),)
@@ -199,58 +468,10 @@ class Revision(Base):
     reason: Mapped[str | None] = mapped_column(Text)
     # Пакет ревизий читается целиком при отмене групповой операции.
     batch_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-
-
-class Comment(Base):
-    __tablename__ = "comments"
-    __table_args__ = (
-        # Ровно один автор. Обе колонки nullable по отдельности — гость
-        # подписан именем, участник ссылкой на аккаунт, — и без этого
-        # ограничения в таблицу проходит реплика вообще без подписи.
-        CheckConstraint(
-            "(author_user_id IS NULL) <> (guest_name IS NULL)",
-            name="ck_comments_single_author",
-        ),
-        # Ветку читают целиком и всегда в одном и том же порядке: проект или
-        # задача, дальше по времени. Составной индекс отвечает на этот запрос
-        # один; два отдельных по колонкам заставили бы сортировать выборку.
-        Index("ix_comments_thread", "project_id", "task_id", "created_at"),
-    )
-
-    id: Mapped[uuid.UUID] = _uuid_pk()
-    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"))
-    # null — реплика к проекту целиком, а не к строке.
-    task_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"))
-    # Без ondelete: SET NULL оставил бы запись без обоих видов автора и
-    # нарушил бы CHECK выше, а CASCADE стёр бы чужую переписку заодно с
-    # аккаунтом. Удаление автора, у которого есть реплики, должно упасть
-    # громко — сегодня людей не удаляют вовсе.
-    author_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
-    guest_name: Mapped[str | None] = mapped_column(String(100))
-    body: Mapped[str] = mapped_column(Text)
-    # clock_timestamp(), а не now(): now() — это время начала транзакции, одно
-    # на все записи внутри неё. Комментарии — единственные строки, чей порядок
-    # чтения и есть порядок записи, и на одинаковых отметках он разваливается
-    # в случайный порядок идентификаторов. У ревизий ту же работу делает seq.
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.clock_timestamp()
-    )
-
-
-class ShareLink(Base):
-    __tablename__ = "share_links"
-    # Одна ссылка на проект: адрес выводится из слагов организации и проекта,
-    # и второго адреса к тому же проекту просто не существует.
-    __table_args__ = (UniqueConstraint("project_id"),)
-
-    id: Mapped[uuid.UUID] = _uuid_pk()
-    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"))
-    # Токена здесь нет, хотя спецификация его перечисляет: адрес собран из
-    # слагов, подставлять секрет некуда. Колонка, которую никто не читает,
-    # обещала бы защиту, которой нет.
-    comments_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    # Отзыв не удаляет ряд: когда ссылку открывали и когда закрыли — это
-    # журнал, а не мусор. Публикация заново обнуляет отметку.
-    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Номер ревизии, которую эта отменила. Без него «отменить последнее»
+    # означало бы отменить свою же отмену: журнал линеен, и вторая ревизия
+    # сверху после отмены — это она сама. Внешнего ключа нет намеренно:
+    # ссылаться пришлось бы на составной (project_id, seq), а выигрыш от такой
+    # ссылки нулевой — ревизии не удаляются.
+    undoes_seq: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

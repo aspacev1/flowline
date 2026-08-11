@@ -1,0 +1,297 @@
+"""Настройки уровней 2–4 по проводу.
+
+Наследование `null` уже покрыто в tests/test_settings_resolution.py на уровне
+функций. Здесь проверяется то, чего до сих пор не было вовсе: что эти значения
+вообще можно изменить снаружи — и что правка дефолта организации доходит до
+проектов, которые его не переопределяли.
+"""
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import select
+
+from app.db import get_db
+from app.main import app
+from app.models import Membership, Organization, Project, User
+
+
+@pytest.fixture
+def client(db):
+    def _override_get_db():
+        yield db
+
+    app.dependency_overrides[get_db] = _override_get_db
+    try:
+        yield TestClient(app)
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+
+
+@pytest.fixture
+def authed(client):
+    client.post(
+        "/api/auth/register",
+        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+    )
+    return client
+
+
+def _set_role(authed, db, role: str) -> None:
+    user_id = authed.get("/api/auth/me").json()["id"]
+    membership = db.scalar(select(Membership).where(Membership.user_id == user_id))
+    membership.role = role
+    db.flush()
+
+
+# --- уровень 2: организация --------------------------------------------------
+
+
+def test_organization_settings_come_with_the_organization(authed):
+    body = authed.get("/api/org").json()
+
+    assert body["settings"]["working_days"] == 0b11111
+    assert body["settings"]["default_timezone"] == "Asia/Baku"
+    assert body["settings"]["holiday_calendar"] == []
+
+
+def test_the_owner_edits_the_defaults(authed):
+    response = authed.patch(
+        "/api/org",
+        json={
+            "default_timezone": "Europe/Moscow",
+            "default_shift_threshold_days": 5,
+            "holiday_calendar": ["2026-03-21", "2026-03-20", "2026-03-20"],
+        },
+    )
+
+    assert response.status_code == 200
+    settings = response.json()["settings"]
+    assert settings["default_timezone"] == "Europe/Moscow"
+    assert settings["default_shift_threshold_days"] == 5
+    # Календарь — множество дат: отсортировано и без повторов.
+    assert settings["holiday_calendar"] == ["2026-03-20", "2026-03-21"]
+
+
+def test_a_changed_default_reaches_projects_that_inherit_it(authed):
+    """Наследование живое, а не копия при создании.
+
+    Проект создан до правки дефолта — и всё равно видит новое значение,
+    потому что хранит `null`, а не снимок.
+    """
+    project_id = authed.post("/api/projects", json={"name": "Redesign"}).json()["id"]
+
+    authed.patch("/api/org", json={"default_shift_threshold_days": 9})
+
+    state = authed.get(f"/api/projects/{project_id}").json()
+    assert state["settings"]["shift_threshold_days"] == 9
+    assert state["overrides"]["shift_threshold_days"] is None
+
+
+def test_a_project_override_survives_the_organization_change(authed):
+    project_id = authed.post("/api/projects", json={"name": "Redesign"}).json()["id"]
+    authed.patch(f"/api/projects/{project_id}", json={"shift_threshold_days": 1})
+
+    authed.patch("/api/org", json={"default_shift_threshold_days": 9})
+
+    state = authed.get(f"/api/projects/{project_id}").json()
+    assert state["settings"]["shift_threshold_days"] == 1
+
+
+def test_an_unknown_timezone_is_refused(authed):
+    response = authed.patch("/api/org", json={"default_timezone": "Mars/Olympus"})
+
+    assert response.status_code == 422
+
+
+def test_an_empty_working_day_mask_is_refused(authed):
+    # Календарь без рабочих дней не позволяет посчитать ни одну дату
+    # окончания — проект перестал бы читаться целиком.
+    assert authed.patch("/api/org", json={"working_days": 0}).status_code == 422
+
+
+def test_an_unsupported_locale_is_refused(authed):
+    assert authed.patch("/api/org", json={"default_locale": "fr"}).status_code == 422
+
+
+def test_only_the_owner_edits_the_organization(authed, db):
+    _set_role(authed, db, "editor")
+
+    assert authed.patch("/api/org", json={"working_days": 0b111111}).status_code == 403
+
+
+def test_a_typo_in_a_field_name_is_refused_not_ignored(authed):
+    response = authed.patch("/api/org", json={"working_dayz": 31})
+
+    assert response.status_code == 422
+
+
+# --- слаги -------------------------------------------------------------------
+
+
+def test_a_free_organization_slug_is_reported_as_free(authed):
+    body = authed.get("/api/org/slug-check", params={"slug": "Yeni Şirkət"}).json()
+
+    assert body["normalized"] == "yeni-sirket"
+    assert body["available"] is True
+    assert body["suggestion"] == "yeni-sirket"
+
+
+def test_a_taken_organization_slug_suggests_a_free_one(authed, db):
+    db.add(Organization(name="Globex", slug="globex"))
+    db.flush()
+
+    body = authed.get("/api/org/slug-check", params={"slug": "globex"}).json()
+
+    assert body["available"] is False
+    # Номер по порядку, а не случайные шестнадцатеричные цифры: подсказку
+    # читают глазами и диктуют голосом.
+    assert body["suggestion"] == "globex-2"
+
+
+def test_the_organizations_own_slug_is_not_taken_by_itself(authed):
+    own = authed.get("/api/org").json()["slug"]
+
+    body = authed.get("/api/org/slug-check", params={"slug": own}).json()
+
+    assert body["available"] is True
+
+
+def test_a_taken_organization_slug_is_refused_on_save(authed, db):
+    db.add(Organization(name="Globex", slug="globex"))
+    db.flush()
+
+    response = authed.patch("/api/org", json={"slug": "globex"})
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "slug_taken"
+
+
+def test_the_project_slug_is_editable(authed):
+    project_id = authed.post("/api/projects", json={"name": "Redesign"}).json()["id"]
+
+    response = authed.patch(f"/api/projects/{project_id}", json={"slug": "redesign-2026"})
+
+    assert response.status_code == 200
+    assert response.json()["slug"] == "redesign-2026"
+
+
+def test_a_taken_project_slug_suggests_a_free_one(authed):
+    authed.post("/api/projects", json={"name": "Redesign"})
+    other_id = authed.post("/api/projects", json={"name": "Другой"}).json()["id"]
+
+    body = authed.get(
+        f"/api/projects/{other_id}/slug-check", params={"slug": "redesign"}
+    ).json()
+
+    assert body["available"] is False
+    assert body["suggestion"] == "redesign-2"
+
+
+def test_the_same_slug_in_another_organization_is_free(authed, db):
+    """Слаг проекта уникален в пределах организации, а не глобально."""
+    project_id = authed.post("/api/projects", json={"name": "Redesign"}).json()["id"]
+    other_org = Organization(name="Globex", slug="globex")
+    db.add(other_org)
+    db.flush()
+    db.add(Project(org_id=other_org.id, name="Redesign", slug="redesign-2026"))
+    db.flush()
+
+    body = authed.get(
+        f"/api/projects/{project_id}/slug-check", params={"slug": "redesign-2026"}
+    ).json()
+
+    assert body["available"] is True
+
+
+# --- уровень 3: проект -------------------------------------------------------
+
+
+def test_project_settings_round_trip(authed):
+    project_id = authed.post("/api/projects", json={"name": "Redesign"}).json()["id"]
+
+    response = authed.patch(
+        f"/api/projects/{project_id}",
+        json={
+            "deadline": "2026-06-01",
+            "timezone": "Europe/Moscow",
+            "working_days": 0b111111,
+            "holidays_extra": ["2026-05-09"],
+            "workdays_extra": ["2026-05-16"],
+        },
+    )
+
+    assert response.status_code == 200
+    state = response.json()
+    assert state["deadline"] == "2026-06-01"
+    assert state["settings"]["timezone"] == "Europe/Moscow"
+    assert state["calendar"]["working_days"] == 0b111111
+    assert state["calendar"]["holidays"] == ["2026-05-09"]
+    assert state["calendar"]["extra_workdays"] == ["2026-05-16"]
+
+
+def test_a_null_resets_an_override_back_to_inherited(authed):
+    project_id = authed.post("/api/projects", json={"name": "Redesign"}).json()["id"]
+    authed.patch(f"/api/projects/{project_id}", json={"timezone": "Europe/Moscow"})
+
+    authed.patch(f"/api/projects/{project_id}", json={"timezone": None})
+
+    state = authed.get(f"/api/projects/{project_id}").json()
+    assert state["overrides"]["timezone"] is None
+    assert state["settings"]["timezone"] == "Asia/Baku"
+
+
+def test_a_field_that_was_not_sent_is_not_touched(authed):
+    """«Не прислали» и «прислали null» — разные вещи.
+
+    Без этой разницы сброс переопределения был бы невыразим: любой запрос без
+    поля стирал бы его.
+    """
+    project_id = authed.post("/api/projects", json={"name": "Redesign"}).json()["id"]
+    authed.patch(f"/api/projects/{project_id}", json={"timezone": "Europe/Moscow"})
+
+    authed.patch(f"/api/projects/{project_id}", json={"deadline": "2026-06-01"})
+
+    state = authed.get(f"/api/projects/{project_id}").json()
+    assert state["overrides"]["timezone"] == "Europe/Moscow"
+
+
+def test_a_viewer_may_not_edit_the_project(authed, db):
+    project_id = authed.post("/api/projects", json={"name": "Redesign"}).json()["id"]
+    _set_role(authed, db, "viewer")
+
+    assert authed.patch(f"/api/projects/{project_id}", json={"name": "Другое"}).status_code == 403
+
+
+def test_a_foreign_project_is_not_found(authed, db):
+    other = Organization(name="Globex", slug="globex")
+    db.add(other)
+    db.flush()
+    foreign = Project(org_id=other.id, name="Secret", slug="secret")
+    db.add(foreign)
+    db.flush()
+
+    assert authed.patch(f"/api/projects/{foreign.id}", json={"name": "Моё"}).status_code == 404
+
+
+# --- уровень 4: профиль ------------------------------------------------------
+
+
+def test_the_language_lives_in_the_profile(authed, db):
+    response = authed.patch("/api/auth/me", json={"locale": "ru"})
+
+    assert response.status_code == 200
+    assert response.json()["locale"] == "ru"
+    # И это именно профиль, а не память браузера: следующий вход увидит то же.
+    assert authed.get("/api/auth/me").json()["locale"] == "ru"
+    assert db.scalar(select(User.locale).where(User.email == "alex@example.com")) == "ru"
+
+
+def test_an_unsupported_profile_locale_is_refused(authed):
+    response = authed.patch("/api/auth/me", json={"locale": "fr"})
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "unsupported_locale"
+
+
+def test_the_profile_needs_a_session(client):
+    assert client.patch("/api/auth/me", json={"locale": "ru"}).status_code == 401

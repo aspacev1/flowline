@@ -1,11 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
 
-import { commentsQueryKey, listTaskComments, postComment } from "../api/comments";
-import { errorKey } from "../api/errors";
+import { addComment, commentsQueryKey, listComments } from "../api/comments";
 import { CommentThread } from "../comments/CommentThread";
-import { useLocale } from "../i18n/LocaleProvider";
-import { FieldRow } from "./fields";
 
 /**
  * Обсуждение задачи.
@@ -23,67 +19,34 @@ import { FieldRow } from "./fields";
  * работала. Тот же довод, что и у истории задачи.
  */
 export function Comments({ projectId, taskId }: { projectId: string; taskId: string }) {
-  const { t } = useLocale();
   const client = useQueryClient();
-  const [draft, setDraft] = useState("");
 
   const thread = useQuery({
     queryKey: commentsQueryKey(projectId, taskId),
-    queryFn: () => listTaskComments(projectId, taskId),
+    queryFn: () => listComments(projectId, taskId),
     retry: false,
   });
 
   const send = useMutation({
-    mutationFn: (body: string) => postComment(projectId, taskId, body),
+    mutationFn: (body: string) => addComment(projectId, body, taskId),
     onSuccess: () => {
-      // Черновик стирается только после подтверждения: отказ — повод
-      // исправить реплику, а не набрать её заново.
-      setDraft("");
-      client.invalidateQueries({ queryKey: commentsQueryKey(projectId, taskId) });
+      // И лента задачи, и лента проекта: реплика попала в обе, и обновить
+      // только ту, что на глазах, значит оставить вторую врать до перехода.
+      client.invalidateQueries({ queryKey: commentsQueryKey(projectId) });
     },
   });
 
   if (thread.error) return null;
 
   return (
-    // Подписанная секция — ориентир: карточка длинная, и обсуждение в её
-    // конце должно находиться переходом по областям, а не прокруткой до
-    // упора. Подписью служит собственный заголовок блока, а не его копия в
-    // aria-label: копия однажды разойдётся с видимым текстом.
-    <section className="panel__comments" aria-labelledby="panel-comments-title">
-      <h3 id="panel-comments-title" className="panel__history-title">
-        {t("comments.title")}
-      </h3>
-
-      <CommentThread comments={thread.data} />
-
-      <form
-        className="comments__form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          send.mutate(draft);
-        }}
-      >
-        <FieldRow id="panel-comment" label={t("comments.field")}>
-          <textarea
-            id="panel-comment"
-            rows={2}
-            value={draft}
-            disabled={send.isPending}
-            onChange={(event) => setDraft(event.target.value)}
-          />
-        </FieldRow>
-
-        {send.error !== null && (
-          <p className="error" role="alert">
-            {t(errorKey(send.error))}
-          </p>
-        )}
-
-        <button type="submit" disabled={send.isPending}>
-          {t("comments.submit")}
-        </button>
-      </form>
-    </section>
+    <div className="panel__comments">
+      <CommentThread
+        comments={thread.data ?? []}
+        loading={thread.isPending}
+        onSend={(input) => send.mutateAsync(input.body)}
+        sending={send.isPending}
+        sendError={send.error}
+      />
+    </div>
   );
 }

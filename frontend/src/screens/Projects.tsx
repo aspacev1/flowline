@@ -43,6 +43,9 @@ export function Projects() {
         <button type="button" onClick={() => setOpen(true)}>
           {t("projects.create")}
         </button>
+        {/* Интервью — только для нового проекта: внутри существующего его
+            запуск в первую версию не входит. */}
+        <Link to="/projects/new/ai">{t("projects.create_with_ai")}</Link>
       </div>
 
       {query.isPending && <p role="status">{t("common.loading")}</p>}

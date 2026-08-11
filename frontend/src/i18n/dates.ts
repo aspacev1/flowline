@@ -1,4 +1,4 @@
-import type { Params } from "./index";
+import type { Locale, Params } from "./index";
 
 type Translate = (key: string, params?: Params) => string;
 
@@ -50,6 +50,22 @@ export function formatMonth(t: Translate, iso: string): string {
     month: t(`calendar.month.${monthNumber(iso)}`),
     year: Number(iso.slice(0, 4)),
   });
+}
+
+/**
+ * «14:32» — час и минута по часам того, кто смотрит.
+ *
+ * Единственное место в этом файле, где спрашивают `Intl`, и это не
+ * противоречие сказанному выше: пробел в данных ICU для `az` касается
+ * названий — месяцев и дней недели, — а здесь одни цифры и разделитель.
+ * Формат при этом всё равно решает язык: английский читатель ждёт «2:32 PM»
+ * там, где русский и азербайджанский ждут «14:32».
+ *
+ * Часовой пояс — местный, а не проектный: «данные на 14:32» человек сверяет с
+ * часами на своей стене, а не с настройкой проекта.
+ */
+export function formatTime(locale: Locale, at: number | Date): string {
+  return new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }).format(at);
 }
 
 /** Узкая подпись дня недели: 0 — воскресенье, как у `getUTCDay`. */

@@ -1,61 +1,77 @@
+"""Счётчик обращений в скользящем окне.
+
+Нужен ровно одному: гостевым комментариям, у которых нет ни аккаунта, ни
+сессии, ни какого-либо другого способа отличить человека от скрипта, кроме
+адреса, с которого он пришёл (`GUEST_COMMENT_RATE_LIMIT`).
+
+Счётчик живёт в памяти процесса, и это осознанное ограничение, а не
+недосмотр: внешних сервисов у продукта нет вовсе — ни очередей, ни Redis
+(см. раздел «Архитектура»), — а заводить их ради одного счётчика значило бы
+менять обещание развёртывания одним `docker compose`. Отсюда два следствия,
+которые надо принять: перезапуск обнуляет окно, а установка, размазанная по
+нескольким процессам (serverless), считает каждым из них отдельно. Для
+защиты от заливки ленты этого достаточно — это предохранитель, а не рубеж
+обороны.
+"""
+
+import threading
 import time
 from collections import deque
-from collections.abc import Callable
 
 
-class RateLimiter:
-    """Скользящее окно по ключу, в памяти процесса.
+class SlidingWindow:
+    """Не больше `limit` событий на ключ за `window` секунд."""
 
-    В памяти, а не в базе: ключ гостевого ограничителя — сетевой адрес, то
-    есть персональные данные. Хранить их в базе ради счётчика значит завести
-    хранилище персональных данных там, где достаточно счётчика.
+    #: Через сколько обращений подметать словарь целиком. Просто так ключи из
+    #: него не исчезают: адрес, зашедший однажды, оставил бы запись навсегда.
+    SWEEP_EVERY = 256
 
-    Плата принята сознательно: перезапуск обнуляет окна, а при нескольких
-    процессах у каждого своё окно, и общий потолок умножается на их число.
-    Сегодня контейнер `api` один; когда их станет больше, счётчик переедет в
-    общее хранилище — но это замена одного класса, а не переделка маршрутов.
-
-    `now` — параметр, а не вызов внутри: иначе истечение окна проверяется
-    только настоящим ожиданием, и тест минутного окна идёт минуту.
-    """
-
-    def __init__(
-        self,
-        limit: int,
-        window_seconds: float,
-        now: Callable[[], float] = time.monotonic,
-    ):
+    def __init__(self, *, limit: int, window: float) -> None:
         self._limit = limit
-        self._window = window_seconds
-        self._now = now
+        self._window = window
         self._hits: dict[str, deque[float]] = {}
+        self._since_sweep = 0
+        # Один и тот же счётчик читают потоки пула uvicorn: без замка два
+        # одновременных комментария читают одну и ту же длину очереди и оба
+        # проходят потолок.
+        self._lock = threading.Lock()
 
-    def allow(self, key: str) -> bool:
-        moment = self._now()
-        self._forget_old(moment)
+    def allow(self, key: str, *, now: float | None = None) -> bool:
+        """Отмечает попытку и говорит, укладывается ли она в потолок.
 
-        hits = self._hits.setdefault(key, deque())
-        if len(hits) >= self._limit:
-            # Отвергнутая попытка не записывается: иначе гость, долбящий
-            # кнопку, продлевает себе запрет бесконечно — это наказание, а не
-            # ограничение частоты.
+        Отказ ничего не записывает: иначе тот, кто упёрся в потолок и жмёт
+        кнопку дальше, продлевал бы себе запрет каждым нажатием, и окно
+        никогда бы не истекало.
+        """
+        if self._limit <= 0:
             return False
-        hits.append(moment)
-        return True
 
-    def tracked_keys(self) -> set[str]:
-        """Ключи, за которыми ограничитель ещё следит. Для тестов: снаружи
-        по нему судят о том, что память не растёт вечно."""
-        return set(self._hits)
+        moment = time.monotonic() if now is None else now
+        with self._lock:
+            self._sweep(moment)
+            hits = self._hits.setdefault(key, deque())
+            self._trim(hits, moment)
+            if len(hits) >= self._limit:
+                return False
+            hits.append(moment)
+            return True
 
-    def _forget_old(self, moment: float) -> None:
-        """Чистится весь словарь, а не только запрошенный ключ: гость,
-        пришедший однажды, второй раз свой ключ не трогает, и без общей уборки
-        счётчик — это утечка."""
-        edge = moment - self._window
+    def _trim(self, hits: deque[float], moment: float) -> None:
+        while hits and hits[0] <= moment - self._window:
+            hits.popleft()
+
+    def _sweep(self, moment: float) -> None:
+        self._since_sweep += 1
+        if self._since_sweep < self.SWEEP_EVERY:
+            return
+        self._since_sweep = 0
         for key in list(self._hits):
-            hits = self._hits[key]
-            while hits and hits[0] <= edge:
-                hits.popleft()
-            if not hits:
+            self._trim(self._hits[key], moment)
+            if not self._hits[key]:
                 del self._hits[key]
+
+    def __len__(self) -> int:
+        """Сколько ключей помнит счётчик. Существует ради проверки того, что
+        словарь не растёт линейно по числу заходивших адресов."""
+        with self._lock:
+            return len(self._hits)

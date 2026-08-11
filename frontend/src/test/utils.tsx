@@ -49,7 +49,13 @@ export function renderWithProviders(
  * интерфейс: язык профиля побеждает язык браузера, и расхождение здесь
  * означало бы, что тест проверяет не то, что написано в его названии.
  */
-export const USER = { id: "u1", name: "Алексей", email: "a@b.c", locale: "ru" };
+export const USER = {
+  id: "u1",
+  name: "Алексей",
+  email: "a@b.c",
+  locale: "ru",
+  email_verified: true,
+};
 
 /**
  * Организация для тестов. Название нарочно азербайджанское: содержимое
@@ -61,6 +67,17 @@ export const ORG = {
   name: "Şəhər Studiyası",
   slug: "seher-studiyasi",
   role: "owner",
+  settings: {
+    default_locale: "az",
+    default_timezone: "Asia/Baku",
+    // Понедельник–пятница: бит 0 это понедельник, как считает сервер.
+    working_days: 0b11111,
+    week_start: 0,
+    holiday_calendar: ["2026-03-20"],
+    default_shift_threshold_days: 2,
+    public_sharing_enabled: true,
+    default_comments_enabled: true,
+  },
 };
 
 /**
@@ -73,6 +90,18 @@ export function sessionHandlers() {
   return [
     http.get("/api/auth/me", () => HttpResponse.json(USER)),
     http.get("/api/org", () => HttpResponse.json(ORG)),
+    // Переключатель языка сохраняет выбор в профиль — на любом экране, где он
+    // есть, то есть на любом защищённом. Тест про проекты не должен объявлять
+    // это у себя, но и падать на неописанном запросе он тоже не должен.
+    http.patch("/api/auth/me", async ({ request }) => {
+      const patch = (await request.json()) as Partial<typeof USER>;
+      return HttpResponse.json({ ...USER, ...patch });
+    }),
+    // Лента комментариев висит на каждом экране проекта, и тест про
+    // диаграмму не должен падать на запросе, к которому не имеет отношения.
+    // Пустая по умолчанию: тест про разговор объявляет свою и перекрывает
+    // эту, потому что регистрируется позже.
+    http.get("/api/projects/:projectId/comments", () => HttpResponse.json([])),
   ];
 }
 

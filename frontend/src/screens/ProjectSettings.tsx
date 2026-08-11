@@ -1,43 +1,46 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { errorKey } from "../api/errors";
-import {
-  checkSlug,
-  projectSettings,
-  renameSlug,
-  setShare,
-  settingsQueryKey,
-} from "../api/sharing";
-import type { Share } from "../api/sharing";
+import { ORG_QUERY_KEY, organization } from "../api/org";
+import { checkProjectSlug, getProject, projectQueryKey, updateProject } from "../api/projects";
+import type { ProjectState } from "../api/projects";
+import { useCanWrite } from "../auth/permissions";
 import { useLocale } from "../i18n/LocaleProvider";
-import { Switch } from "../components/Switch";
-
-import "./settings.css";
+import { SharePanel } from "../project/SharePanel";
+import { DateListField, SlugField, WorkingDaysField } from "../settings/fields";
 
 /**
- * Настройки проекта.
+ * Уровень 3 настроек: слаг, целевая дата и переопределения организации.
  *
- * Каркас, а не одна форма: сегодня здесь публичная ссылка и адрес, завтра
- * сюда лягут дедлайн, часовой пояс и производственный календарь. Поэтому
- * разделы с подписями, а не сплошной список полей.
+ * Переопределение показывается переключателем «наследовать / своё», а не
+ * подставленным значением организации: подставленное число выглядит как
+ * собственное значение проекта, и человек, поправивший его «обратно как было»,
+ * незаметно превращает наследование в копию — ровно то, чего спецификация
+ * велит избегать.
  */
 export function ProjectSettings() {
   const { t } = useLocale();
   const { projectId = "" } = useParams();
-  const client = useQueryClient();
+  const queryClient = useQueryClient();
+  const canWrite = useCanWrite();
 
   const query = useQuery({
-    queryKey: settingsQueryKey(projectId),
-    queryFn: () => projectSettings(projectId),
+    queryKey: projectQueryKey(projectId),
+    queryFn: () => getProject(projectId),
     retry: false,
   });
+  const org = useQuery({
+    queryKey: ORG_QUERY_KEY,
+    queryFn: organization,
+    retry: false,
+    staleTime: Infinity,
+  });
 
-  const share = useMutation({
-    mutationFn: (next: Share) => setShare(projectId, next),
-    // Всё поддерево проекта: публикация меняет и то, что видно гостю.
-    onSuccess: () => client.invalidateQueries({ queryKey: ["project", projectId] }),
+  const save = useMutation({
+    mutationFn: (patch: Parameters<typeof updateProject>[1]) => updateProject(projectId, patch),
+    onSuccess: (state: ProjectState) =>
+      queryClient.setQueryData(projectQueryKey(projectId), state),
   });
 
   if (query.isPending) {
@@ -58,178 +61,206 @@ export function ProjectSettings() {
     );
   }
 
-  const settings = query.data;
-  const current = settings.share;
-  // Организация может запретить публичные ссылки вовсе. Тогда переключатель
-  // не просто отключён — рядом сказано, почему: неактивная ручка без
-  // объяснения читается как поломка.
-  const forbidden = !settings.public_sharing_enabled;
+  const state = query.data;
+  const overrides = state.overrides;
+  const orgSettings = org.data?.settings;
+  const readOnly = !canWrite;
 
   return (
     <main className="screen">
       <div className="screen__head">
-        <h1>{t("settings.title")}</h1>
-        <Link to={`/projects/${projectId}`}>{t("settings.back")}</Link>
+        {/* Название проекта — содержимое пользователя: не переводится. */}
+        <h1>{t("settings.project.title", { name: state.name })}</h1>
+        <Link to={`/projects/${projectId}`}>{t("settings.project.back")}</Link>
       </div>
 
-      <section className="settings__section" aria-label={t("settings.share.title")}>
-        <h2 className="settings__title">{t("settings.share.title")}</h2>
+      {save.error !== null && (
+        <p className="error" role="alert">
+          {t(errorKey(save.error))}
+        </p>
+      )}
 
-        <p className="settings__url">
-          <label htmlFor="settings-url">{t("settings.share.address")}</label>
-          {/* Поле только для чтения плюс кнопка, а не голый текст: адрес
-              длинный, и выделять его мышью из абзаца — работа, которую делает
-              одна кнопка. */}
-          <input id="settings-url" type="text" readOnly value={settings.public_url} />
-          <CopyButton value={settings.public_url} />
+      <section className="settings">
+        <p className="field">
+          <label htmlFor="project-name">{t("settings.project.name")}</label>
+          <input
+            id="project-name"
+            name="project-name"
+            defaultValue={state.name}
+            disabled={readOnly}
+            onBlur={(event) => {
+              const name = event.target.value.trim();
+              if (name !== "" && name !== state.name) save.mutate({ name });
+            }}
+          />
         </p>
 
-        <Switch
-          id="settings-published"
-          label={t("settings.share.published")}
-          checked={current.published}
-          disabled={forbidden || share.isPending}
-          onChange={(published) => share.mutate({ ...current, published })}
+        <SlugField
+          id="project-slug"
+          label={t("settings.project.slug")}
+          value={state.slug}
+          disabled={readOnly}
+          check={(slug) => checkProjectSlug(projectId, slug)}
+          onCommit={(slug) => save.mutate({ slug })}
         />
 
-        <Switch
-          id="settings-comments"
-          label={t("settings.share.comments")}
-          checked={current.comments_enabled}
-          // Комментарии в неопубликованном проекте некому оставлять: ручка,
-          // меняющая ничто, обещает действие, которого нет.
-          disabled={forbidden || !current.published || share.isPending}
-          onChange={(comments_enabled) => share.mutate({ ...current, comments_enabled })}
+        <p className="field">
+          <label htmlFor="project-deadline">{t("settings.project.deadline")}</label>
+          <input
+            id="project-deadline"
+            name="project-deadline"
+            type="date"
+            defaultValue={state.deadline ?? ""}
+            disabled={readOnly}
+            onChange={(event) => {
+              // Пустая дата — это отсутствие дедлайна, а не пропуск поля.
+              const value = event.target.value;
+              save.mutate({ deadline: value === "" ? null : value });
+            }}
+          />
+        </p>
+
+        <Override
+          id="project-timezone"
+          label={t("settings.timezone")}
+          inherited={orgSettings?.default_timezone ?? ""}
+          overridden={overrides?.timezone ?? null}
+          disabled={readOnly}
+          onInherit={() => save.mutate({ timezone: null })}
+          onOverride={(value) => save.mutate({ timezone: value })}
+          render={(value, onCommit, disabled) => (
+            <input
+              id="project-timezone"
+              name="project-timezone"
+              defaultValue={value}
+              disabled={disabled}
+              onBlur={(event) => onCommit(event.target.value.trim())}
+            />
+          )}
         />
 
-        {forbidden && (
-          <p className="error" role="alert">
-            {t("error.public_sharing_disabled")}
-          </p>
-        )}
+        <Override
+          id="project-threshold"
+          label={t("settings.threshold")}
+          inherited={String(orgSettings?.default_shift_threshold_days ?? "")}
+          overridden={
+            overrides?.shift_threshold_days === null || overrides === undefined
+              ? null
+              : String(overrides.shift_threshold_days)
+          }
+          disabled={readOnly}
+          onInherit={() => save.mutate({ shift_threshold_days: null })}
+          onOverride={(value) => save.mutate({ shift_threshold_days: Number(value) })}
+          render={(value, onCommit, disabled) => (
+            <input
+              id="project-threshold"
+              name="project-threshold"
+              type="number"
+              min={0}
+              defaultValue={value}
+              disabled={disabled}
+              onBlur={(event) => onCommit(event.target.value)}
+            />
+          )}
+        />
 
-        {share.error !== null && !forbidden && (
-          <p className="error" role="alert">
-            {t(errorKey(share.error))}
-          </p>
-        )}
+        <Override
+          id="project-working-days"
+          label={t("settings.working_days")}
+          inherited={String(orgSettings?.working_days ?? "")}
+          overridden={
+            overrides?.working_days === null || overrides === undefined
+              ? null
+              : String(overrides.working_days)
+          }
+          disabled={readOnly}
+          onInherit={() => save.mutate({ working_days: null })}
+          onOverride={(value) => save.mutate({ working_days: Number(value) })}
+          render={(value, onCommit, disabled) => (
+            <WorkingDaysField
+              value={Number(value) || state.calendar.working_days}
+              disabled={disabled}
+              onChange={(mask) => onCommit(String(mask))}
+            />
+          )}
+        />
+
+        <DateListField
+          id="project-holidays"
+          label={t("settings.project.holidays_extra")}
+          hint={t("settings.project.holidays_extra_hint")}
+          value={overrides?.holidays_extra ?? []}
+          disabled={readOnly}
+          onCommit={(holidays_extra) => save.mutate({ holidays_extra })}
+        />
+
+        <DateListField
+          id="project-workdays"
+          label={t("settings.project.workdays_extra")}
+          hint={t("settings.project.workdays_extra_hint")}
+          value={overrides?.workdays_extra ?? []}
+          disabled={readOnly}
+          onCommit={(workdays_extra) => save.mutate({ workdays_extra })}
+        />
+
+        {/* Публичная ссылка — последним блоком: это не настройка расчёта, а
+            решение показать проект наружу. */}
+        {!readOnly && <SharePanel projectId={projectId} />}
       </section>
-
-      <SlugSection projectId={projectId} slug={settings.slug} />
     </main>
   );
 }
 
 /**
- * Раздел адреса.
+ * Значение, которое либо наследуется, либо задано этим проектом.
  *
- * Отдельным компонентом, потому что у него своё состояние — черновик слага и
- * живая проверка занятости, — и держать его в родителе значило бы
- * перерисовывать весь экран на каждую букву.
+ * Переключатель стоит прежде самого поля намеренно: сперва решается, чьё это
+ * значение, и только потом — какое. Обратный порядок предлагал бы править
+ * число, которое проекту не принадлежит.
  */
-function SlugSection({ projectId, slug }: { projectId: string; slug: string }) {
+function Override({
+  id,
+  label,
+  inherited,
+  overridden,
+  disabled,
+  onInherit,
+  onOverride,
+  render,
+}: {
+  id: string;
+  label: string;
+  /** Значение организации — то, что действует, пока переопределения нет. */
+  inherited: string;
+  /** `null` — наследуется. */
+  overridden: string | null;
+  disabled?: boolean;
+  onInherit: () => void;
+  onOverride: (value: string) => void;
+  render: (
+    value: string,
+    onCommit: (value: string) => void,
+    disabled: boolean,
+  ) => React.ReactNode;
+}) {
   const { t } = useLocale();
-  const client = useQueryClient();
-  const [draft, setDraft] = useState(slug);
-
-  // Слаг мог измениться в ответе сервера: он его нормализует, и «Редизайн
-  // 2026» возвращается как `redizayn-2026`. Поле обязано показать то, что
-  // на сервере, а не то, что человек набрал.
-  useEffect(() => setDraft(slug), [slug]);
-
-  const changed = draft.trim() !== "" && draft !== slug;
-
-  const check = useQuery({
-    queryKey: ["project", projectId, "slug-check", draft],
-    queryFn: () => checkSlug(projectId, draft),
-    // Спрашивать про неизменённый слаг незачем: он занят самим проектом.
-    enabled: changed,
-    retry: false,
-  });
-
-  const rename = useMutation({
-    mutationFn: () => renameSlug(projectId, draft),
-    onSuccess: () => client.invalidateQueries({ queryKey: ["project", projectId] }),
-  });
+  const inherits = overridden === null;
 
   return (
-    <section className="settings__section" aria-label={t("settings.slug.title")}>
-      <h2 className="settings__title">{t("settings.slug.title")}</h2>
-
-      <p className="field">
-        <label htmlFor="settings-slug">{t("settings.slug.field")}</label>
+    <div className="settings__override">
+      <span className="settings__override-label" id={`${id}-label`}>
+        {label}
+      </span>
+      <label className="settings__inherit">
         <input
-          id="settings-slug"
-          type="text"
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
+          type="checkbox"
+          checked={inherits}
+          disabled={disabled}
+          onChange={(event) => (event.target.checked ? onInherit() : onOverride(inherited))}
         />
-      </p>
-
-      {/* Подсказка прямо в поле, до отправки формы: занятый слаг не должен
-          выясняться нажатием кнопки. */}
-      {check.data && !check.data.available && (
-        <p className="settings__hint">
-          {t("settings.slug.taken")}{" "}
-          <button
-            type="button"
-            className="button--quiet"
-            onClick={() => setDraft(check.data.suggestion)}
-          >
-            {check.data.suggestion}
-          </button>
-        </p>
-      )}
-
-      {/* Переименование — единственный настоящий перевыпуск ссылки при адресе
-          из слагов. Человек обязан узнать об этом до нажатия, а не от клиента,
-          у которого перестала открываться ссылка. */}
-      <p className="muted">{t("settings.slug.warning")}</p>
-
-      {rename.error !== null && (
-        <p className="error" role="alert">
-          {t(errorKey(rename.error))}
-        </p>
-      )}
-
-      <button
-        type="button"
-        disabled={!changed || rename.isPending || check.data?.available === false}
-        onClick={() => rename.mutate()}
-      >
-        {t("settings.slug.save")}
-      </button>
-    </section>
-  );
-}
-
-/**
- * Копирование адреса.
- *
- * Кнопки нет вовсе, если браузер не умеет буфер обмена: `navigator.clipboard`
- * отсутствует на http и в старых браузерах, и кнопка, которая ничего не
- * делает, хуже её отсутствия — поле рядом остаётся выделяемым руками.
- */
-function CopyButton({ value }: { value: string }) {
-  const { t } = useLocale();
-  const [copied, setCopied] = useState(false);
-
-  if (typeof navigator === "undefined" || !navigator.clipboard) return null;
-
-  return (
-    <button
-      type="button"
-      className="button--quiet"
-      onClick={() => {
-        void navigator.clipboard.writeText(value).then(
-          () => setCopied(true),
-          // Отказ буфера обмена (нет разрешения, окно не в фокусе) ничего не
-          // ломает: адрес остаётся в поле и выделяется руками.
-          () => setCopied(false),
-        );
-      }}
-    >
-      {copied ? t("settings.share.copied") : t("settings.share.copy")}
-    </button>
+        {t("settings.inherit", { value: inherited })}
+      </label>
+      {!inherits && render(overridden, onOverride, Boolean(disabled))}
+    </div>
   );
 }

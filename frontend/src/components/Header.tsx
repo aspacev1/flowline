@@ -1,9 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link, NavLink } from "react-router-dom";
 
 import { ORG_QUERY_KEY, organization } from "../api/org";
 import { useAuth } from "../auth/AuthProvider";
 import { useLocale } from "../i18n/LocaleProvider";
 import { LocaleSwitch } from "./LocaleSwitch";
+import { OrgSwitch } from "./OrgSwitch";
 
 export function Header() {
   const { t } = useLocale();
@@ -23,9 +25,28 @@ export function Header() {
           Пока оно не пришло, подпись держит название продукта, а не пустота,
           которая дёргала бы шапку по высоте. */}
       <span className="header__brand">{org.data?.name ?? t("app.title")}</span>
+      <OrgSwitch />
+
+      {/* Состав организации — второй экран приложения, и добраться до него
+          иначе неоткуда: приглашения живут там же. Роли `client` маршрут
+          отвечает отказом, но ссылка остаётся видимой — прятать её значило бы
+          решать про доступ на клиенте, а решает про него сервер. */}
+      <nav className="header__nav">
+        <NavLink to="/projects">{t("nav.projects")}</NavLink>
+        <NavLink to="/members">{t("nav.members")}</NavLink>
+      </nav>
 
       <div className="header__side">
         {user && <span className="muted">{t("auth.greeting", { name: user.name })}</span>}
+        {/* Настройки организации показываются только владельцу: остальным
+            маршрут открылся бы на выключенных полях, то есть обещал бы
+            действие, которого нет. */}
+        {org.data?.role === "owner" && (
+          <>
+            <Link to="/settings/organization">{t("nav.org_settings")}</Link>
+          </>
+        )}
+        {user && <Link to="/settings/profile">{t("nav.profile")}</Link>}
         <LocaleSwitch />
         <button type="button" className="button--quiet" onClick={() => void logout()}>
           {t("nav.logout")}

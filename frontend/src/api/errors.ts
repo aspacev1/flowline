@@ -13,10 +13,18 @@ const AUTH_CODES = new Set([
   "session_expired",
   "validation_error",
   "password_too_short",
+  "invalid_token",
+  "token_expired",
+  "already_verified",
+  "too_many_requests",
 ]);
 
 const PLAIN_CODES = new Set([
   "network",
+  // Отказ, придуманный клиентом, а не сервером: при оборванной связи изменение
+  // не отправляется вовсе. Живёт в общем списке, потому что показывается тем же
+  // способом, что и отказ сервера, — человеку разницы нет.
+  "offline",
   "no_organization",
   "forbidden",
   "project_not_found",
@@ -36,16 +44,65 @@ const PLAIN_CODES = new Set([
   "already_assigned",
   "assignment_not_found",
   "negative_position",
-  "comment_empty",
-  "comment_author_required",
-  // Публикация и гостевой доступ.
+  "nothing_to_undo",
+  "batch_not_found",
   "slug_taken",
   "slug_empty",
-  "public_sharing_disabled",
-  "not_published",
-  "comments_disabled",
+  "unsupported_locale",
+  // Приглашения. Просроченное, отозванное и уже принятое — три разных кода и
+  // три разных сообщения: человек должен понимать, просить ли новую ссылку
+  // или он уже в системе и достаточно войти.
+  // Публичный доступ и комментарии.
+  "link_not_found",
+  "sharing_disabled",
+  "share_link_not_found",
+  "comments_closed",
+  "comment_empty",
+  "comment_too_long",
   "guest_name_required",
   "too_many_comments",
+  // Приглашения. Три состояния мёртвой ссылки названы порознь, а не одним
+  // «ссылка недействительна»: по «просрочено» человек просит новую, по
+  // «принято» просто входит, по «отозвано» идёт к тому, кто звал.
+  "invite_not_found",
+  "invite_expired",
+  "invite_revoked",
+  "invite_accepted",
+  "invite_wrong_email",
+  "invite_rate_limited",
+  "invalid_email",
+  "unknown_role",
+  "project_ids_need_client_role",
+  "organization_not_found",
+  // Отказы почты. Отдельный код у каждого: «письмо не ушло» и «почта в этой
+  // установке не настроена» чинятся разными людьми.
+  "mail_failed",
+  "mail_not_configured",
+  "mail_disabled",
+  "invite_for_another_address",
+  "invite_rate_limited",
+  "email_not_verified",
+  "role_not_invitable",
+  // AI. Сбой модели — состояние, о котором человеку говорят словами:
+  // переписка и черновик при этом сохраняются.
+  "llm_not_configured",
+  "llm_unreachable",
+  "llm_refused",
+  "llm_schema_mismatch",
+  "llm_bad_json",
+  "llm_bad_shape",
+  "llm_key_unreadable",
+  "llm_failed",
+  "api_key_required",
+  "wrong_step",
+  "already_applied",
+  "ai_session_not_found",
+  "interview_exhausted",
+  "nothing_asked",
+  // Обычно этот отказ не доходит до человека: интерфейс спрашивает причину и
+  // повторяет операцию. Перевод нужен для того случая, когда спросить негде —
+  // например, окно закрыли до ответа сервера.
+  "reason_required",
 ]);
 
 /** Ключ словаря, которым объясняется ошибка. Сырой код наружу не выходит. */

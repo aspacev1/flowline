@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timezone
 
 import pytest
 from sqlalchemy.exc import IntegrityError
@@ -144,9 +144,10 @@ def test_comment_without_a_task_belongs_to_the_project(db):
     assert comment.created_at is not None
 
 
-def test_project_has_at_most_one_share_link(db):
-    """Адрес выводится из слагов и потому ровно один. Второй ряд означал бы
-    два разных адреса к одному проекту — и вопрос, какой из них главный."""
+def test_project_has_at_most_one_active_share_link(db):
+    """Действующий адрес у проекта один: второй означал бы два разных адреса и
+    вопрос, какой из них главный. Отозванных при этом сколько угодно — это
+    журнал того, какой адрес когда умер, а не мусор."""
     org = Organization(name="Acme", slug="acme")
     db.add(org)
     db.flush()
@@ -154,7 +155,7 @@ def test_project_has_at_most_one_share_link(db):
     db.add(project)
     db.flush()
 
-    link = ShareLink(project_id=project.id)
+    link = ShareLink(project_id=project.id, token="tok-1")
     db.add(link)
     db.flush()
 
@@ -163,5 +164,12 @@ def test_project_has_at_most_one_share_link(db):
 
     with pytest.raises(IntegrityError):
         with db.begin_nested():
-            db.add(ShareLink(project_id=project.id))
+            db.add(ShareLink(project_id=project.id, token="tok-2"))
             db.flush()
+
+    # А после отзыва место освобождается: публикация заново — обычное дело.
+    link.revoked_at = datetime.now(timezone.utc)
+    db.flush()
+    db.add(ShareLink(project_id=project.id, token="tok-3"))
+    db.flush()
+

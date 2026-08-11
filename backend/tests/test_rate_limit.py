@@ -1,61 +1,55 @@
-from app.rate_limit import RateLimiter
+from app.rate_limit import SlidingWindow
 
 
-def test_allows_up_to_the_limit_and_then_refuses():
-    clock = [0.0]
-    limiter = RateLimiter(limit=3, window_seconds=60, now=lambda: clock[0])
+def test_allows_up_to_the_limit_inside_the_window():
+    window = SlidingWindow(limit=2, window=60.0)
 
-    assert [limiter.allow("ip") for _ in range(3)] == [True, True, True]
-    assert limiter.allow("ip") is False
+    assert window.allow("a", now=0.0) is True
+    assert window.allow("a", now=1.0) is True
+    assert window.allow("a", now=2.0) is False
 
 
-def test_the_window_slides_rather_than_resetting_on_a_schedule():
-    """Окно скользит: три реплики в 12:00:59 не должны обнуляться в 12:01:00
-    просто потому, что началась новая минута."""
-    clock = [0.0]
-    limiter = RateLimiter(limit=2, window_seconds=60, now=lambda: clock[0])
+def test_the_window_slides_instead_of_resetting_on_the_hour():
+    window = SlidingWindow(limit=2, window=60.0)
+    window.allow("a", now=0.0)
+    window.allow("a", now=30.0)
 
-    limiter.allow("ip")
-    clock[0] = 59.0
-    limiter.allow("ip")
-    assert limiter.allow("ip") is False
+    assert window.allow("a", now=59.0) is False
+    # Ушло только первое обращение: окно скользящее, а не «обнулиться в
+    # начале часа», иначе на границе часа проходит двойной потолок.
+    assert window.allow("a", now=61.0) is True
+    assert window.allow("a", now=62.0) is False
 
-    clock[0] = 61.0  # первая вышла из окна, вторая ещё в нём
-    assert limiter.allow("ip") is True
-    assert limiter.allow("ip") is False
+
+def test_a_refusal_does_not_extend_the_ban():
+    window = SlidingWindow(limit=1, window=60.0)
+    window.allow("a", now=0.0)
+
+    for moment in (10.0, 20.0, 30.0):
+        assert window.allow("a", now=moment) is False
+
+    # Отказ ничего не записывает: иначе тот, кто жмёт кнопку дальше,
+    # продлевал бы себе запрет каждым нажатием.
+    assert window.allow("a", now=61.0) is True
 
 
 def test_keys_are_counted_apart():
-    clock = [0.0]
-    limiter = RateLimiter(limit=1, window_seconds=60, now=lambda: clock[0])
+    window = SlidingWindow(limit=1, window=60.0)
 
-    assert limiter.allow("first") is True
-    assert limiter.allow("second") is True
-    assert limiter.allow("first") is False
+    assert window.allow("a", now=0.0) is True
+    assert window.allow("b", now=0.0) is True
 
 
-def test_keys_that_fell_out_of_the_window_stop_taking_memory():
-    """Иначе счётчик — это утечка: адресов много, окно короткое, а словарь
-    растёт вечно."""
-    clock = [0.0]
-    limiter = RateLimiter(limit=1, window_seconds=60, now=lambda: clock[0])
-
-    limiter.allow("ip")
-    clock[0] = 120.0
-    limiter.allow("other")
-
-    assert limiter.tracked_keys() == {"other"}
+def test_a_zero_limit_refuses_everything():
+    assert SlidingWindow(limit=0, window=60.0).allow("a", now=0.0) is False
 
 
-def test_a_refused_attempt_does_not_extend_the_window():
-    """Иначе гость, долбящий кнопку, продлевает себе запрет бесконечно —
-    наказание вместо ограничения."""
-    clock = [0.0]
-    limiter = RateLimiter(limit=1, window_seconds=60, now=lambda: clock[0])
+def test_stale_keys_do_not_pile_up_forever():
+    window = SlidingWindow(limit=1, window=60.0)
 
-    limiter.allow("ip")
-    clock[0] = 30.0
-    assert limiter.allow("ip") is False
+    for index in range(SlidingWindow.SWEEP_EVERY * 2):
+        window.allow(f"guest-{index}", now=float(index))
 
-    clock[0] = 61.0
-    assert limiter.allow("ip") is True
+    # Уборка идёт раз в SWEEP_EVERY обращений, поэтому точное число ключей
+    # не фиксируется: важно, что словарь не растёт линейно по числу адресов.
+    assert len(window) < SlidingWindow.SWEEP_EVERY

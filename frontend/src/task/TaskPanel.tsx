@@ -5,7 +5,9 @@ import { errorKey } from "../api/errors";
 import { MEMBERS_QUERY_KEY, members as fetchMembers } from "../api/org";
 import { CRITICALITY_LEVELS } from "../api/projects";
 import type { Criticality, Op, ProjectState, Task } from "../api/projects";
+import { baselineOf, deviationDays, endShiftDays, isBeyondPlan } from "../project/baseline";
 import { patchTask, reorderTask } from "../project/optimistic";
+import { isShiftCancelled } from "../project/ShiftReason";
 import { useProjectMutation } from "../project/useProjectMutation";
 import { formatShortDate } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
@@ -76,7 +78,10 @@ export function TaskPanel({
     // Отказ уже откачен внутри `apply`: здесь остаётся объяснить его словами и
     // вернуть поле к тому, что осталось в состоянии.
     apply(op, optimistic).catch((refusal: unknown) => {
-      setError(refusal);
+      // Отказ объяснять сдвиг — не ошибка: человек нажал «Вернуть», и поле
+      // обязано вернуться к сохранённому значению молча. Сообщение об ошибке
+      // здесь читалось бы как «что-то сломалось», хотя сломаться нечему.
+      if (!isShiftCancelled(refusal)) setError(refusal);
       setRefusals((count) => count + 1);
     });
   };
@@ -144,6 +149,8 @@ export function TaskPanel({
           {t(errorKey(error))}
         </p>
       )}
+
+      <Baseline task={task} state={state} />
 
       {/* `key` по задаче: переход к соседней начинает поля заново, а не доносит
           в новую карточку недописанный текст из прежней. */}
@@ -293,5 +300,53 @@ export function TaskPanel({
 
       <Comments projectId={projectId} taskId={task.id} />
     </aside>
+  );
+}
+
+/**
+ * Сводка отклонения от базового плана.
+ *
+ * Отдельным блоком наверху карточки, а не строкой среди полей: это не поле —
+ * его нельзя править, и стоя между «датой старта» и «длительностью», оно
+ * читалось бы как ещё одно значение, которое кто-то ввёл.
+ *
+ * Список переносов с причинами живёт ниже, в ленте истории: причина стоит
+ * рядом со своим событием и датой, а второй список тех же событий здесь
+ * означал бы два места, где одно и то же расходится.
+ */
+function Baseline({ task, state }: { task: Task; state: ProjectState }) {
+  const { t } = useLocale();
+
+  if (isBeyondPlan(state, task)) {
+    return <p className="panel__baseline muted">{t("plan.beyond_plan_explained")}</p>;
+  }
+
+  const baseline = baselineOf(task);
+  if (baseline === null) return null;
+
+  const shift = endShiftDays(task);
+  const deviation = deviationDays(task) ?? 0;
+
+  return (
+    <p className="panel__baseline">
+      <span className="muted">
+        {t("gantt.baseline", {
+          from: formatShortDate(t, baseline.start),
+          to: formatShortDate(t, baseline.end),
+        })}
+      </span>
+      {shift !== null && shift !== 0 && (
+        <span className={shift > 0 ? "panel__deviation is-late" : "panel__deviation is-early"}>
+          {shift > 0
+            ? t("gantt.deviation_late", { days: t("common.days", { count: shift }) })
+            : t("gantt.deviation_early", { days: t("common.days", { count: -shift }) })}
+        </span>
+      )}
+      {deviation > 0 && (
+        <span className="muted">
+          {t("plan.deviation_summary", { days: t("common.days", { count: deviation }) })}
+        </span>
+      )}
+    </p>
   );
 }

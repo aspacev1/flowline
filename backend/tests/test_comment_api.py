@@ -63,12 +63,14 @@ def test_posting_a_comment_returns_it_signed_by_its_author(authed, project_id):
     assert response.status_code == 201
     body = response.json()
     assert body["body"] == "Согласовано"
-    assert body["author"]["name"] == "Alex"
-    assert body["guest_name"] is None
+    assert body["author"] == {"name": "Alex", "guest": False}
     assert body["task_id"] is None
 
 
-def test_thread_of_a_task_is_separate_from_the_project_thread(authed, project_id):
+def test_the_task_thread_is_narrower_than_the_project_thread(authed, project_id):
+    """Карточка задачи показывает разговор о ней. Лента проекта — весь его
+    разговор, включая реплики к строкам: второе место, куда надо заглянуть,
+    чтобы не пропустить сказанное, здесь заводить не за чем."""
     task_id = _task_id(authed, project_id)
     authed.post(f"/api/projects/{project_id}/comments", json={"body": "о проекте"})
     authed.post(
@@ -79,7 +81,7 @@ def test_thread_of_a_task_is_separate_from_the_project_thread(authed, project_id
     of_project = authed.get(f"/api/projects/{project_id}/comments").json()
 
     assert [c["body"] for c in of_task] == ["о задаче"]
-    assert [c["body"] for c in of_project] == ["о проекте"]
+    assert [c["body"] for c in of_project] == ["о проекте", "о задаче"]
 
 
 def test_empty_comment_is_refused_with_a_machine_code(authed, project_id):

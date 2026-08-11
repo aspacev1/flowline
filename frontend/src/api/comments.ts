@@ -1,37 +1,39 @@
 import { request } from "./client";
 
-/**
- * Ключ ветки лежит под ключом проекта: `["project", id, ...]`.
- *
- * Та же причина, что и у журнала ревизий: изменение проекта сбрасывает всё
- * поддерево одним `invalidateQueries` по префиксу, и списку ключей, который
- * однажды забудут пополнить, взяться неоткуда.
- */
-export function commentsQueryKey(projectId: string, taskId: string) {
-  return ["project", projectId, "comments", taskId] as const;
-}
-
 export type Comment = {
   id: string;
+  /** `null` — реплика к проекту целиком, а не к задаче. */
   task_id: string | null;
-  /** Текст человека. Не переводится. */
+  /**
+   * Подпись под репликой. Гость и участник подписаны одинаково — именем;
+   * различает их признак `guest`, а не форма записи.
+   */
+  author: { name: string; guest: boolean };
   body: string;
   created_at: string;
-  /** Участник с аккаунтом — или null, если реплику оставил гость. */
-  author: { id: string; name: string } | null;
-  /** Имя гостя. Заполнено ровно тогда, когда `author` пуст. */
-  guest_name: string | null;
 };
 
-export function listTaskComments(projectId: string, taskId: string): Promise<Comment[]> {
-  return request<Comment[]>(
-    `/api/projects/${projectId}/comments?task_id=${encodeURIComponent(taskId)}`,
-  );
+export function commentsQueryKey(projectId: string, taskId?: string) {
+  // Задача в конце ключа, а не отдельным ключом: лента задачи — это та же
+  // лента проекта, отфильтрованная сервером, и обновление одной обязано
+  // задевать другую.
+  return taskId === undefined
+    ? (["project", projectId, "comments"] as const)
+    : (["project", projectId, "comments", taskId] as const);
 }
 
-export function postComment(projectId: string, taskId: string, body: string): Promise<Comment> {
+export function listComments(projectId: string, taskId?: string): Promise<Comment[]> {
+  const query = taskId === undefined ? "" : `?task_id=${encodeURIComponent(taskId)}`;
+  return request<Comment[]>(`/api/projects/${projectId}/comments${query}`);
+}
+
+export function addComment(
+  projectId: string,
+  body: string,
+  taskId?: string,
+): Promise<Comment> {
   return request<Comment>(`/api/projects/${projectId}/comments`, {
     method: "POST",
-    body: JSON.stringify({ body, task_id: taskId }),
+    body: JSON.stringify(taskId === undefined ? { body } : { body, task_id: taskId }),
   });
 }

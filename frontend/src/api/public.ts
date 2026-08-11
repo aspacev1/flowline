@@ -3,49 +3,57 @@ import type { Comment } from "./comments";
 import type { ProjectState } from "./projects";
 
 /**
- * Ключ публичной страницы — по слагам, а не по идентификатору проекта:
- * идентификатора гость не знает и знать не должен.
- */
-export function publicProjectKey(orgSlug: string, projectSlug: string) {
-  return ["public", orgSlug, projectSlug] as const;
-}
-
-export function publicCommentsKey(orgSlug: string, projectSlug: string) {
-  return ["public", orgSlug, projectSlug, "comments"] as const;
-}
-
-/**
- * Проект глазами гостя.
+ * Публичная страница: то же состояние проекта плюс то, что есть только у неё.
  *
- * `internal_note` и `assignee_ids` необязательны не по забывчивости: сервер их
- * не присылает вовсе, и тип обязан описывать это честно — иначе разметка
- * однажды обратится к полю, которого в ответе нет.
+ * Исполнители в нём всегда пусты, а внутренней заметки нет вовсе — это решает
+ * сервер, а не разметка. Тип честно наследует `ProjectState`: поля те же,
+ * иначе публичная страница не смогла бы отдать его той же диаграмме.
  */
-export type PublicProjectState = ProjectState & { comments_enabled: boolean };
+export type PublicProjectState = ProjectState & {
+  org: { name: string; slug: string };
+  comments_enabled: boolean;
+};
 
-function base(orgSlug: string, projectSlug: string): string {
-  return `/api/public/${encodeURIComponent(orgSlug)}/${encodeURIComponent(projectSlug)}`;
+export function publicProjectQueryKey(orgSlug: string, projectSlug: string, token: string) {
+  return ["public", orgSlug, projectSlug, token] as const;
+}
+
+export function publicCommentsQueryKey(orgSlug: string, projectSlug: string, token: string) {
+  return ["public", orgSlug, projectSlug, token, "comments"] as const;
+}
+
+function publicPath(orgSlug: string, projectSlug: string, token: string, suffix = ""): string {
+  // Токен уходит параметром запроса — так же, как он приходит в адресе
+  // страницы. Кодируется каждая часть: слаг строит сервер, но подставляет их
+  // сюда адресная строка, а в ней может оказаться что угодно.
+  const path = `/api/public/${encodeURIComponent(orgSlug)}/${encodeURIComponent(projectSlug)}`;
+  return `${path}${suffix}?s=${encodeURIComponent(token)}`;
 }
 
 export function getPublicProject(
   orgSlug: string,
   projectSlug: string,
+  token: string,
 ): Promise<PublicProjectState> {
-  return request<PublicProjectState>(base(orgSlug, projectSlug));
+  return request<PublicProjectState>(publicPath(orgSlug, projectSlug, token));
 }
 
-export function listPublicComments(orgSlug: string, projectSlug: string): Promise<Comment[]> {
-  return request<Comment[]>(`${base(orgSlug, projectSlug)}/comments`);
-}
-
-export function postPublicComment(
+export function listPublicComments(
   orgSlug: string,
   projectSlug: string,
-  body: string,
-  guestName: string,
+  token: string,
+): Promise<Comment[]> {
+  return request<Comment[]>(publicPath(orgSlug, projectSlug, token, "/comments"));
+}
+
+export function addPublicComment(
+  orgSlug: string,
+  projectSlug: string,
+  token: string,
+  comment: { name: string; body: string; task_id?: string },
 ): Promise<Comment> {
-  return request<Comment>(`${base(orgSlug, projectSlug)}/comments`, {
+  return request<Comment>(publicPath(orgSlug, projectSlug, token, "/comments"), {
     method: "POST",
-    body: JSON.stringify({ body, guest_name: guestName }),
+    body: JSON.stringify(comment),
   });
 }

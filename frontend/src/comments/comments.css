@@ -1,40 +1,56 @@
-/* Ветка обсуждения. Одна на карточку задачи и на публичную страницу: реплика
-   гостя и реплика участника обязаны выглядеть одинаково. */
+.comments {
+  margin-top: var(--gap);
+  padding: var(--gap);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.comments__title {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
 
 .comments__list {
-  margin: 0;
-  padding: 0;
   list-style: none;
+  margin: 0 0 var(--gap);
+  padding: 0;
+  display: grid;
+  gap: 12px;
 }
 
-.comments__item {
-  margin-bottom: 12px;
-  font-size: 13px;
-}
-
-/* Подпись мельче и тише самой реплики: читают текст, а не шапку над ним. */
-.comments__meta {
+.comment__head {
   display: flex;
-  flex-wrap: wrap;
+  align-items: baseline;
   gap: 8px;
   margin: 0;
-  color: var(--text-muted);
-  font-size: 12px;
+  font-size: 14px;
 }
 
-.comments__author {
+.comment__author {
   font-weight: 600;
 }
 
-/* pre-wrap: человек разбивает реплику на абзацы, и склеивать их в сплошную
-   строку значит переписывать за ним. anywhere — на случай ссылки без
-   пробелов: без него она растянула бы колонку. */
-.comments__body {
+/* Пометка «гость» видна словом, а не только цветом: реплика человека без
+   аккаунта отличается от реплики участника по смыслу, и различие обязано
+   пережить чёрно-белую печать и дальтонизм. */
+.comment__guest {
+  font-size: 12px;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+}
+
+.comment__body {
   margin: 2px 0 0;
+  /* Переводы строк человека сохраняются: список из трёх пунктов, введённый в
+     три строки, не должен слипаться в одну. */
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
-.comments__form {
-  margin-top: 12px;
+.comments textarea {
+  width: 100%;
+  resize: vertical;
 }
