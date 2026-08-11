@@ -1,0 +1,39 @@
+/* Палитра задаётся переменными, а не значениями по месту: тёмная тема
+   переопределяет только их, и ни один компонент об этом не знает. */
+:root {
+  --bg: #f7f7f8;
+  --surface: #ffffff;
+  --border: #d9d9de;
+  --text: #1c1c1f;
+  --text-muted: #62626b;
+  --accent: #2f5bd7;
+  --accent-text: #ffffff;
+  --danger: #b3261e;
+  --radius: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #17171a;
+    --surface: #202024;
+    --border: #34343a;
+    --text: #ecedee;
+    --text-muted: #9b9ba4;
+    --accent: #7d9cf0;
+    --accent-text: #12121a;
+    --danger: #f2b8b5;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+}
