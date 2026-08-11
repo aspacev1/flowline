@@ -121,7 +121,9 @@
     "unknown_criticality": "Belə kritiklik səviyyəsi yoxdur",
     "already_assigned": "Bu adam tapşırığa artıq təyin olunub",
     "assignment_not_found": "Bu adam onsuz da tapşırığa təyin olunmayıb",
-    "negative_position": "Sətri qoymağa yer yoxdur: mövqe mənfidir"
+    "negative_position": "Sətri qoymağa yer yoxdur: mövqe mənfidir",
+    "comment_empty": "Boş şərh göndərmək olmaz",
+    "comment_author_required": "Şərhi imzalayacaq kimsə yoxdur"
   },
   "projects": {
     "title": "Layihələr",
@@ -204,6 +206,13 @@
     "delete_category": "kateqoriyanı sildi",
     "rename_category": "kateqoriyanın adını «{from}» → «{to}» dəyişdi",
     "set_category_color": "kateqoriyanın rəngini dəyişdi"
+  },
+  "comments": {
+    "title": "Müzakirə",
+    "empty": "Hələ müzakirə olunmayıb",
+    "field": "Şərh",
+    "submit": "Göndər",
+    "guest": "{name} (qonaq)"
   },
   "gantt": {
     "empty": "Layihədə hələ bir dənə də kateqoriya yoxdur. Kateqoriya yaradın, tapşırıqlar isə onun içində olacaq",

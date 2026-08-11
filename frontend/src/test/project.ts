@@ -170,6 +170,9 @@ export function projectFixtures() {
     // Журнал карточки. Пустой по умолчанию: тест, которому история важна,
     // объявляет её сам.
     http.get("/api/projects/p1/revisions", () => HttpResponse.json([])),
+    // Ветка обсуждения. Пустая по умолчанию — по тому же доводу, что и
+    // журнал: тест, которому она важна, объявляет её сам.
+    http.get("/api/projects/p1/comments", () => HttpResponse.json([])),
     http.post("/api/projects/p1/mutations", async ({ request }) => {
       const body = (await request.json()) as Sent;
       sent.push(body);

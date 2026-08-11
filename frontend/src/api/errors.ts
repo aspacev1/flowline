@@ -36,6 +36,8 @@ const PLAIN_CODES = new Set([
   "already_assigned",
   "assignment_not_found",
   "negative_position",
+  "comment_empty",
+  "comment_author_required",
 ]);
 
 /** Ключ словаря, которым объясняется ошибка. Сырой код наружу не выходит. */

@@ -121,7 +121,9 @@
     "unknown_criticality": "There is no such criticality level",
     "already_assigned": "This person is already assigned to the task",
     "assignment_not_found": "This person is not assigned to the task anyway",
-    "negative_position": "Nowhere to put the row: the position is negative"
+    "negative_position": "Nowhere to put the row: the position is negative",
+    "comment_empty": "An empty comment cannot be sent",
+    "comment_author_required": "There is no one to sign this comment"
   },
   "projects": {
     "title": "Projects",
@@ -204,6 +206,13 @@
     "delete_category": "deleted the category",
     "rename_category": "renamed the category from “{from}” to “{to}”",
     "set_category_color": "changed the category colour"
+  },
+  "comments": {
+    "title": "Discussion",
+    "empty": "Nothing discussed yet",
+    "field": "Comment",
+    "submit": "Send",
+    "guest": "{name} (guest)"
   },
   "gantt": {
     "empty": "This project has no categories yet. Create a category — tasks live inside it",
