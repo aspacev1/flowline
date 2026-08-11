@@ -1,0 +1,249 @@
+/* Диаграмма Ганта. Переменные — те же, что и у остального интерфейса: тёмная
+   тема переопределяет палитру в одном месте и сюда не заглядывает. */
+
+.gantt {
+  --gantt-label: 220px;
+  --gantt-row: 32px;
+  --gantt-head: 48px;
+}
+
+.gantt__summary {
+  margin: 0 0 var(--gap);
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  font-weight: 600;
+}
+
+.gantt__summary.is-late {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.gantt__summary.is-fine {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+
+.gantt__empty {
+  margin: 0;
+}
+
+/* Прокручивается лента, а не страница: левая колонка обязана остаться на
+   месте, и sticky работает только внутри своего прокручиваемого предка. */
+.gantt__scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.gantt__canvas {
+  /* по ширине содержимого: иначе лента обрезается по ширине окна */
+  display: inline-block;
+  min-width: 100%;
+}
+
+.gantt__head-row {
+  display: flex;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.gantt__head {
+  position: relative;
+  height: var(--gantt-head);
+}
+
+.gantt__months,
+.gantt__days {
+  position: relative;
+  height: calc(var(--gantt-head) / 2);
+}
+
+.gantt__month,
+.gantt__day {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  border-left: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.gantt__day {
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1.1;
+  gap: 1px;
+}
+
+.gantt__day-number {
+  color: var(--text);
+}
+
+.gantt__month-label {
+  padding: 0 6px;
+  white-space: nowrap;
+}
+
+.gantt__body {
+  position: relative;
+}
+
+.gantt__grid {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  /* Сетка начинается там, где кончается закреплённая колонка. */
+  left: var(--gantt-label);
+}
+
+.gantt__grid-day {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--border);
+}
+
+/* Один и тот же признак нерабочего дня и в шапке, и в теле: заливка,
+   обрывающаяся под шапкой, читается как дефект отрисовки. */
+.is-nonworking {
+  background: var(--nonworking);
+}
+
+.gantt__deadline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px dashed var(--danger);
+}
+
+.gantt__today {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 2px solid var(--accent);
+}
+
+.gantt__rows {
+  position: relative;
+  z-index: 1;
+}
+
+.gantt__row {
+  display: flex;
+  align-items: center;
+  height: var(--gantt-row);
+}
+
+.gantt__label {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 var(--gantt-label);
+  width: var(--gantt-label);
+  height: 100%;
+  padding: 0 12px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.gantt__corner {
+  height: var(--gantt-head);
+}
+
+.gantt__label-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gantt__row--category .gantt__label-name {
+  font-weight: 600;
+}
+
+.gantt__dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.gantt__flag {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.gantt__lane {
+  position: relative;
+  height: 100%;
+}
+
+.gantt__span {
+  position: absolute;
+  top: 50%;
+  height: 4px;
+  transform: translateY(-50%);
+  border-radius: 2px;
+  opacity: 0.6;
+}
+
+.gantt__bar {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 20px;
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  white-space: nowrap;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bar);
+  color: var(--text);
+  font-size: 12px;
+  text-align: left;
+}
+
+/* Критичность — цвет из темы, а не из данных: уровней четыре, они заданы
+   перечислением, и подбирать им цвета на сервере незачем. */
+.gantt__bar[data-criticality="low"] {
+  background: var(--bar-low);
+}
+
+.gantt__bar[data-criticality="high"] {
+  background: var(--bar-high);
+}
+
+.gantt__bar[data-criticality="critical"] {
+  background: var(--bar-critical);
+}
+
+.gantt__bar.is-late {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.gantt__progress {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: rgb(0 0 0 / 18%);
+  pointer-events: none;
+}

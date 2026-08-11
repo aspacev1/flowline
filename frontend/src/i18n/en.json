@@ -65,5 +65,15 @@
       "title": "New project",
       "name": "Name"
     }
+  },
+  "gantt": {
+    "empty": "This project has no categories yet. Create a category — tasks live inside it",
+    "today": "Today",
+    "deadline": "Deadline {date}",
+    "late": "Ends after the deadline",
+    "summary": {
+      "late": "The project ends {end} — {days} after the {deadline} deadline",
+      "fits": "On track for {deadline} — {days} to spare"
+    }
   }
 }

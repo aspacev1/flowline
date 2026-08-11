@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 
 import { errorKey } from "../api/errors";
 import { getProject, projectQueryKey } from "../api/projects";
+import { Gantt } from "../gantt/Gantt";
 import { useLocale } from "../i18n/LocaleProvider";
 
 /**
@@ -43,7 +44,13 @@ export function Project() {
 
   return (
     <main className="screen screen--wide">
-      <h1>{query.data.name}</h1>
+      <div className="screen__head">
+        {/* Название проекта — содержимое пользователя: приходит с сервера как
+            есть и не переводится ни при каком языке интерфейса. */}
+        <h1>{query.data.name}</h1>
+      </div>
+
+      <Gantt state={query.data} />
     </main>
   );
 }

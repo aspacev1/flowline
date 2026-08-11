@@ -9,6 +9,12 @@
   --accent: #2f5bd7;
   --accent-text: #ffffff;
   --danger: #b3261e;
+  --ok: #1f7a4d;
+  --nonworking: #ececf0;
+  --bar: #d7dcea;
+  --bar-low: #e6e7ec;
+  --bar-high: #f7dfb8;
+  --bar-critical: #f5c7c3;
   --radius: 8px;
   --gap: 16px;
 }
@@ -23,6 +29,12 @@
     --accent: #7d9cf0;
     --accent-text: #12121a;
     --danger: #f2b8b5;
+    --ok: #7ad3a4;
+    --nonworking: #26262b;
+    --bar: #3a4054;
+    --bar-low: #2c2c33;
+    --bar-high: #5a4a2a;
+    --bar-critical: #5c3230;
   }
 }
 
