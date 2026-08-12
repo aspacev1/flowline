@@ -123,6 +123,23 @@
         "title": "Body_undo_last_api_projects__project_id__undo_post",
         "type": "object"
       },
+      "Body_undo_whole_batch_api_projects__project_id__batches__batch_id__undo_post": {
+        "properties": {
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "title": "Body_undo_whole_batch_api_projects__project_id__batches__batch_id__undo_post",
+        "type": "object"
+      },
       "CommentIn": {
         "properties": {
           "body": {
@@ -3806,7 +3823,7 @@
     },
     "/api/projects/{project_id}/batches/{batch_id}/undo": {
       "post": {
-        "description": "Откат пачки целиком — одной кнопкой, как обещано про применение AI.",
+        "description": "Откат пачки целиком — одной кнопкой, как обещано про применение AI.\n\nПричина принимается по той же логике, что у одиночной отмены: откат\nпроходит проверку порога, и пачка, двигавшая сроки дальше порога, без\nпричины была бы неоткатываемой.",
         "operationId": "undo_whole_batch_api_projects__project_id__batches__batch_id__undo_post",
         "parameters": [
           {
@@ -3846,6 +3863,15 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_undo_whole_batch_api_projects__project_id__batches__batch_id__undo_post"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
             "content": {
