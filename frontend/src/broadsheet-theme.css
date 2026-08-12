@@ -1,0 +1,101 @@
+/* Broadsheet поверх Flowline.
+   Подключение: в frontend/src/main.tsx (или App.tsx) импортировать ПОСЛЕ styles.css:
+     import "./styles.css";
+     import "./broadsheet-theme.css";
+   Файл только переопределяет токены и несколько правил ленты — компоненты не трогаем. */
+
+@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap');
+
+:root {
+  /* Broadsheet — только светлая тема (система не показывает тёмных поверхностей).
+     Файл идёт после styles.css, поэтому эти значения перебивают и dark-медиазапрос. */
+  color-scheme: light;
+
+  /* Чернила #201e1d */
+  --ink: 32 30 29;
+
+  /* Бумага, а не белый: страница и поверхность — один тон */
+  --bg: #f3f2f2;
+  --bg-subtle: #eae9e9;
+  --surface: #f3f2f2;
+
+  /* Циан — действие и «сегодня» */
+  --accent: #0088b0;
+  --accent-hover: #1186ac;
+  --accent-soft: rgb(0 136 176 / 12%);
+
+  /* Магента — просрочка, сорванный дедлайн, блокер (вместо красного) */
+  --danger: #d6006c;
+  --danger-soft: rgb(214 0 108 / 10%);
+
+  /* «В срок» — тёмный шаг цианового ряда (зелёного в системе нет) */
+  --ok: #006786;
+  --ok-soft: rgb(0 136 176 / 10%);
+
+  --input-bg: rgb(32 30 29 / 5%);
+
+  /* Метки — светлые ступени рамп Broadsheet (neutral / accent / yellow / accent-2) */
+  --tag-gray: #eae7e7;
+  --tag-blue: #cbeeff;
+  --tag-yellow: #f6e6b3;
+  --tag-red: #ffdee6;
+  --tag-green: #e9f8ff;
+
+  --bar: var(--tag-blue);
+  --bar-low: var(--tag-gray);
+  --bar-high: var(--tag-yellow);
+  --bar-critical: var(--tag-red);
+  --nonworking: rgb(32 30 29 / 4%);
+
+  --shadow-sm: 0 1px 2px rgb(45 43 43 / 14%);
+  --shadow-md: 0 3px 10px rgb(45 43 43 / 16%);
+
+  /* Печатные радиусы */
+  --radius-sm: 1px;
+  --radius: 2px;
+  --radius-lg: 4px;
+
+  /* Серифный набор — и заголовки, и хром */
+  --font: "Source Serif 4", Georgia, "Times New Roman", serif;
+}
+
+/* ── Лента: не коробка, а полоса набора под газетной линейкой ── */
+
+.gantt__scroll {
+  box-shadow: none;
+  border-radius: 0;
+  border-top: 3px solid rgb(var(--ink));
+  border-bottom: 1px solid rgb(var(--ink) / 16%);
+  background: transparent;
+}
+
+.gantt__head-row,
+.gantt__label {
+  background: var(--bg);
+}
+
+/* Месяц — серифный заголовок, не капс вразрядку */
+.gantt__month-label {
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.gantt__day-weekday {
+  font-style: italic;
+}
+
+/* Дедлайн — сплошная магентовая засечка (в макете), не пунктир */
+.gantt__deadline {
+  border-left-style: solid;
+}
+
+/* Итог-выноска — без заливки: иерархию несёт набор, не плашка */
+.gantt__summary {
+  background: transparent;
+  padding-left: 0;
+}
+.gantt__summary.is-late { background: transparent; }
+.gantt__summary.is-fine { background: transparent; }
