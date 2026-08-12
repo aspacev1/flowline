@@ -296,8 +296,11 @@
     "nudge": "Move “{name}” by {days}?",
     "nudge_dismiss": "Dismiss the suggestion",
     "legend": {
-      "late": "Late · +N days",
-      "deadline": "Deadline"
+      "active": "In progress",
+      "done": "Done",
+      "planned": "Planned",
+      "blocker": "Blocker",
+      "late": "Deadline missed · +N days"
     },
     "pill": {
       "blocker": "blocker",

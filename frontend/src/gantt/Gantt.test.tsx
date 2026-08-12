@@ -159,17 +159,41 @@ describe("диаграмма", () => {
     });
   });
 
-  it("показывает легенду: уровни критичности и обе вертикали", () => {
+  it("показывает легенду: статусы, блокер и обе вертикали", () => {
     draw(STATE, "ru");
-    expect(screen.getByText("Низкая")).toBeInTheDocument();
-    expect(screen.getByText("Критическая")).toBeInTheDocument();
-    expect(screen.getByText("Дедлайн")).toBeInTheDocument();
+    expect(screen.getByText("В работе")).toBeInTheDocument();
+    expect(screen.getByText("Готово")).toBeInTheDocument();
+    expect(screen.getByText("Запланировано")).toBeInTheDocument();
+    expect(screen.getByText("Блокер")).toBeInTheDocument();
     expect(screen.getByText("Сегодня")).toBeInTheDocument();
   });
 
   it("в пустом проекте легенды нет: расшифровывать нечего", () => {
     draw({ ...STATE, categories: [], tasks: [] }, "ru");
-    expect(screen.queryByText("Низкая")).not.toBeInTheDocument();
+    expect(screen.queryByText("В работе")).not.toBeInTheDocument();
+  });
+
+  it("статус полоски считается из прогресса и дат", () => {
+    // Начатая в прошлом и не готовая — «в работе»; стопроцентная — «готово»;
+    // со стартом в будущем — «запланировано».
+    draw({
+      ...STATE,
+      tasks: [
+        { ...STATE.tasks[0], id: "t1", name: "Идёт", position: 0 },
+        { ...STATE.tasks[0], id: "t2", name: "Сделана", position: 1, progress_pct: 100 },
+        {
+          ...STATE.tasks[0],
+          id: "t3",
+          name: "Будет",
+          position: 2,
+          start_date: "2100-01-04",
+          end_date: "2100-01-10",
+        },
+      ],
+    });
+    expect(screen.getByRole("img", { name: /Идёт/ })).toHaveAttribute("data-status", "active");
+    expect(screen.getByRole("img", { name: /Сделана/ })).toHaveAttribute("data-status", "done");
+    expect(screen.getByRole("img", { name: /Будет/ })).toHaveAttribute("data-status", "planned");
   });
 
   it("помечает пилюлями блокера и того, кто его ждёт", () => {
