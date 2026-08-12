@@ -9,7 +9,8 @@
     "days": {
       "one": "{count} gün",
       "other": "{count} gün"
-    }
+    },
+    "days_short": "{count} gün"
   },
   "calendar": {
     "date": "{day} {month}",
@@ -306,7 +307,14 @@
       "blocker": "bloker",
       "blocks": "Bloklayır: {names}",
       "waits": "gözləyir: {name}"
-    }
+    },
+    "tasks_col": "Tapşırıqlar",
+    "task_count": {
+      "one": "{count} tapşırıq",
+      "other": "{count} tapşırıq"
+    },
+    "toggle_category": "«{name}» kateqoriyasını qatla və ya aç",
+    "caption": "Al qırmızı kəsik — ilkin son tarixdir; «+N gün» yazısı tarixin nə qədər sürüşdüyünü göstərir. Al qırmızı ox — pozulmuş asılılıqdır: tapşırıq blokeri hazır olmamış başlayıb."
   },
   "share": {
     "open": "İctimai keçid",

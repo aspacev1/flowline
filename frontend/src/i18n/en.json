@@ -9,7 +9,8 @@
     "days": {
       "one": "{count} day",
       "other": "{count} days"
-    }
+    },
+    "days_short": "{count} d"
   },
   "calendar": {
     "date": "{month} {day}",
@@ -306,7 +307,14 @@
       "blocker": "blocker",
       "blocks": "Blocks: {names}",
       "waits": "waits for: {name}"
-    }
+    },
+    "tasks_col": "Tasks",
+    "task_count": {
+      "one": "{count} task",
+      "other": "{count} tasks"
+    },
+    "toggle_category": "Collapse or expand “{name}”",
+    "caption": "The magenta tick is the original deadline; the “+N d” label shows how far the date slipped. A magenta arrow is a violated dependency: the task started before its blocker was done."
   },
   "share": {
     "open": "Public link",

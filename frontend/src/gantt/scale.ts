@@ -7,7 +7,7 @@ import { addDays, toISO, toUtc } from "./timescale";
  * значение на всех, и оно здесь, чтобы разметка и тесты называли одно и то же
  * число одним именем.
  */
-export const DAY_WIDTH = 26;
+export const DAY_WIDTH = 27;
 
 /**
  * Высота строки в пикселях.
@@ -17,7 +17,7 @@ export const DAY_WIDTH = 26;
  * расходятся при первой же правке оформления, и стрелки уезжают со строк.
  * Разметка ставит эту величину переменной `--gantt-row`, и CSS берёт её оттуда.
  */
-export const ROW_HEIGHT = 32;
+export const ROW_HEIGHT = 42;
 
 /** Первое число месяца, в который попала дата. */
 function firstOfMonth(iso: string): string {

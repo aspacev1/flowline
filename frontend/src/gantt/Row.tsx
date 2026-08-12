@@ -22,6 +22,10 @@ export function CategoryRow({
   addLabel,
   onAddTask,
   reorder,
+  open = true,
+  onToggle,
+  toggleLabel,
+  countLabel,
 }: {
   category: Category;
   tasks: Task[];
@@ -29,6 +33,12 @@ export function CategoryRow({
   addLabel: string;
   onAddTask?: (categoryId: string) => void;
   reorder?: Reorder;
+  /** Развёрнута ли категория: свёрнутая прячет свои строки задач. */
+  open?: boolean;
+  onToggle?: () => void;
+  toggleLabel?: string;
+  /** «3 задачи» — счётчик рядом с названием, как в макете. */
+  countLabel?: string;
 }) {
   const span =
     tasks.length === 0
@@ -47,8 +57,23 @@ export function CategoryRow({
       onPointerUp={() => reorder?.drop()}
     >
       <div className="gantt__label">
+        {onToggle && (
+          // Шеврон — кнопка сворачивания, как в макете: свёрнутая категория
+          // остаётся строкой с полосой охвата, её задачи прячутся.
+          <button
+            type="button"
+            className="gantt__chevron"
+            aria-expanded={open}
+            aria-label={toggleLabel}
+            title={toggleLabel}
+            onClick={onToggle}
+          >
+            {open ? "▾" : "▸"}
+          </button>
+        )}
         <span className="gantt__dot" style={{ background: category.color }} aria-hidden="true" />
         <span className="gantt__label-name">{category.name}</span>
+        {countLabel && <span className="gantt__count">{countLabel}</span>}
         {onAddTask && (
           // Подпись включает название категории: на десятке категорий десять
           // кнопок «Добавить задачу» при чтении с экрана неразличимы, и
@@ -196,6 +221,13 @@ export function TaskRow({
             {waitsPill}
           </span>
         )}
+        {shift !== null && shift > 0 && deviationLabel && (
+          // «+N дн.» и в левой колонке тоже, как в макете: сдвиг виден и там,
+          // где полоска уехала за горизонт прокрутки.
+          <span className="gantt__pill gantt__pill--late" title={baselineLabel}>
+            {deviationLabel}
+          </span>
+        )}
         {late && (
           <span className="gantt__flag" title={lateLabel} role="img" aria-label={lateLabel}>
             !
@@ -233,6 +265,18 @@ export function TaskRow({
             }}
             title={baselineLabel}
             data-testid={`ghost-${task.id}`}
+            aria-hidden="true"
+          />
+        )}
+
+        {baseline && shift !== null && shift > 0 && (
+          // Засечка первоначального дедлайна, как в макете: вертикальная
+          // магентовая черта там, где задача должна была кончиться по плану.
+          <i
+            className="gantt__mark"
+            style={{ left: scale.xOf(baseline.end) + scale.dayWidth }}
+            title={baselineLabel}
+            data-testid={`mark-${task.id}`}
             aria-hidden="true"
           />
         )}
@@ -287,7 +331,10 @@ export function TaskRow({
             style={{ width: `${task.progress_pct}%` }}
             aria-hidden="true"
           />
-          {task.name}
+          {/* Название — в отдельном узле: в макете полоска нема, имя живёт в
+              левой колонке, и тема прячет этот узел, не трогая доступное имя
+              кнопки (оно задано aria-label выше). */}
+          <span className="gantt__bar-name">{task.name}</span>
         </Bar>
       </div>
     </div>

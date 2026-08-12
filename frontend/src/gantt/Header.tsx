@@ -11,11 +11,14 @@ import type { Scale } from "./timescale";
 export function Header({
   scale,
   calendar,
+  today,
   monthLabel,
   weekdayLabel,
 }: {
   scale: Scale;
   calendar: Calendar;
+  /** Сегодняшний день по ISO: его колонка в шапке выделяется. */
+  today: string;
   monthLabel: (iso: string) => string;
   weekdayLabel: (weekday: number) => string;
 }) {
@@ -40,11 +43,15 @@ export function Header({
           <div
             key={day.date}
             data-day={day.date}
-            className={`gantt__day${isWorkingDay(day.date, calendar, day.weekday) ? "" : " is-nonworking"}`}
+            className={`gantt__day${isWorkingDay(day.date, calendar, day.weekday) ? "" : " is-nonworking"}${
+              day.date === today ? " is-today" : ""
+            }`}
             style={{ left: day.x, width: scale.dayWidth }}
           >
-            <span className="gantt__day-number">{day.dayOfMonth}</span>
+            {/* День недели над числом, как в макете: курсивная строка сверху —
+                примета набора Broadsheet, и число под ней читается крупнее. */}
             <span className="gantt__day-weekday">{weekdayLabel(day.weekday)}</span>
+            <span className="gantt__day-number">{day.dayOfMonth}</span>
           </div>
         ))}
       </div>
