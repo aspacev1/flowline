@@ -473,9 +473,13 @@ def test_public_operations_are_a_subset_of_the_internal_ones():
     модель, — норма, но новое поле восстановления, случайно попавшее в
     публичную, здесь и всплывёт.
     """
-    assert set(PublicCreateTask.model_fields) | {"task_id", "position"} == set(
-        CreateTask.model_fields
-    )
+    assert set(PublicCreateTask.model_fields) | {
+        "task_id",
+        "position",
+        "assignees",
+        "dependencies",
+        "comments",
+    } == set(CreateTask.model_fields)
     assert set(PublicCreateCategory.model_fields) | {"category_id", "position"} == set(
         CreateCategory.model_fields
     )

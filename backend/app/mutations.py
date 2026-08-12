@@ -1,5 +1,5 @@
 import uuid
-from datetime import date
+from datetime import date, datetime
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -10,6 +10,7 @@ from app.config import get_settings
 from app.models import (
     CRITICALITY_LEVELS,
     Category,
+    Comment,
     Criticality,
     Dependency,
     Membership,
@@ -18,6 +19,7 @@ from app.models import (
     Revision,
     Task,
     TaskAssignee,
+    User,
 )
 from app.plans import deviation_days
 from app.settings_resolution import resolve_shift_threshold
@@ -102,6 +104,14 @@ class CreateTask(BaseModel):
     baseline_duration: int | None = None
     task_id: uuid.UUID | None = None
     position: int | None = None
+    # Поля восстановления удалённой задачи. Удаление уносит каскадом связи,
+    # назначения и комментарии; без их снимка в inverse отмена возвращала бы
+    # голую строку задачи, а разговор с клиентом и стрелки на диаграмме
+    # пропадали бы безвозвратно. По проводу, как и остальные поля
+    # восстановления, не принимаются — их нет в публичной модели.
+    assignees: list[uuid.UUID] = Field(default_factory=list)
+    dependencies: list[dict] = Field(default_factory=list)
+    comments: list[dict] = Field(default_factory=list)
 
 
 class MoveTask(BaseModel):
@@ -262,6 +272,12 @@ _MODELS = {
 
 _MAX_TEXT_LEN = get_settings().max_text_len
 
+#: Дальний край дат, которые принимает провод. Не date.max: календарь ищет
+#: рабочие дни на годы вперёд от старта (перенос конца за праздники), и дата
+#: у самого края опрокидывала бы арифметику дат за пределы поддерживаемого.
+#: 2200 год — заведомо дальше любого реального плана и заведомо ближе края.
+MAX_WIRE_DATE = date(2200, 12, 31)
+
 
 class _Wire(BaseModel):
     model_config = ConfigDict(extra="forbid", use_enum_values=True)
@@ -277,20 +293,20 @@ class PublicCreateTask(_Wire):
     type: Literal["create_task"] = "create_task"
     category_id: uuid.UUID
     name: str = Field(min_length=1, max_length=300)
-    start_date: date
+    start_date: date = Field(le=MAX_WIRE_DATE)
     duration_days: int = Field(ge=1)
     description: str = Field(default="", max_length=_MAX_TEXT_LEN)
     internal_note: str = Field(default="", max_length=_MAX_TEXT_LEN)
     criticality: Criticality = Criticality.NORMAL
     progress_pct: int = Field(default=0, ge=0, le=100)
-    baseline_start: date | None = None
+    baseline_start: date | None = Field(default=None, le=MAX_WIRE_DATE)
     baseline_duration: int | None = Field(default=None, ge=1)
 
 
 class PublicMoveTask(_Wire):
     type: Literal["move_task"] = "move_task"
     task_id: uuid.UUID
-    start_date: date
+    start_date: date = Field(le=MAX_WIRE_DATE)
 
 
 class PublicSetDuration(_Wire):
@@ -458,6 +474,96 @@ def _find_assignment(
 _TASK_FIELDS = ("name", "description", "internal_note")
 
 
+def _snapshot_task_links(db: DbSession, task: Task) -> dict:
+    """Связи, назначения и комментарии задачи — в форме для журнала.
+
+    Снимается перед удалением: каскад унесёт эти строки вместе с задачей, и
+    другого источника для их восстановления не существует — журнал ревизий
+    хранит операции над задачами, а не над их окружением.
+    """
+    assignees = [
+        str(row.user_id)
+        for row in db.scalars(
+            select(TaskAssignee).where(TaskAssignee.task_id == task.id).order_by(TaskAssignee.id)
+        )
+    ]
+    dependencies = [
+        {"from_task_id": str(row.from_task_id), "to_task_id": str(row.to_task_id)}
+        for row in db.scalars(
+            select(Dependency)
+            .where((Dependency.from_task_id == task.id) | (Dependency.to_task_id == task.id))
+            .order_by(Dependency.id)
+        )
+    ]
+    comments = [
+        {
+            "id": str(row.id),
+            "author_user_id": str(row.author_user_id) if row.author_user_id else None,
+            "guest_name": row.guest_name,
+            "body": row.body,
+            "created_at": row.created_at.isoformat(),
+        }
+        for row in db.scalars(
+            select(Comment).where(Comment.task_id == task.id).order_by(Comment.created_at)
+        )
+    ]
+    snapshot = {}
+    if assignees:
+        snapshot["assignees"] = assignees
+    if dependencies:
+        snapshot["dependencies"] = dependencies
+    if comments:
+        snapshot["comments"] = comments
+    return snapshot
+
+
+def _restore_task_links(db: DbSession, project: Project, task: Task, op: CreateTask) -> None:
+    """Возвращает восстановленной задаче то, что унёс каскад удаления.
+
+    Мир с момента удаления мог уйти вперёд, поэтому каждая строка
+    восстанавливается по возможности, а не по требованию: связь со второй
+    задачей, которой больше нет, назначение на пользователя, чей аккаунт
+    удалён, — молча пропускаются. Пропуск — это ровно то, что каскад сделал бы
+    с такой строкой сам; отказ всей отмены из-за неё оставил бы человека
+    вовсе без задачи.
+    """
+    if op.assignees:
+        existing_users = set(db.scalars(select(User.id).where(User.id.in_(op.assignees))))
+        for user_id in op.assignees:
+            if user_id in existing_users and _find_assignment(db, task.id, user_id) is None:
+                db.add(TaskAssignee(task_id=task.id, user_id=user_id))
+
+    for link in op.dependencies:
+        from_id = uuid.UUID(link["from_task_id"])
+        to_id = uuid.UUID(link["to_task_id"])
+        other_id = to_id if from_id == task.id else from_id
+        other = db.get(Task, other_id)
+        if other is None or other.project_id != project.id:
+            continue
+        if _find_dependency(db, project, from_id, to_id) is None:
+            db.add(Dependency(project_id=project.id, from_task_id=from_id, to_task_id=to_id))
+
+    for row in op.comments:
+        author_id = uuid.UUID(row["author_user_id"]) if row.get("author_user_id") else None
+        if author_id is not None and db.get(User, author_id) is None:
+            # Ограничение «ровно один автор» не даст переподписать реплику
+            # гостевым именем, а реплика без автора запрещена — пропуск.
+            continue
+        db.add(
+            Comment(
+                id=uuid.UUID(row["id"]),
+                project_id=project.id,
+                task_id=task.id,
+                author_user_id=author_id,
+                guest_name=row.get("guest_name"),
+                body=row["body"],
+                created_at=datetime.fromisoformat(row["created_at"]),
+            )
+        )
+
+    db.flush()
+
+
 def _swap(payload: dict) -> dict:
     """Обратная операция отличается от прямой только местами from и to.
 
@@ -545,6 +651,7 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
         )
         db.add(task)
         db.flush()
+        _restore_task_links(db, project, task, op)
         return (
             {
                 "type": "create_task",
@@ -757,20 +864,29 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
             row.position = slot
         db.flush()
 
-        after_pos = {str(row.id): row.position for row in rows}
-        after_cat = {str(row.id): str(row.category_id) for row in rows}
+        # В журнал идёт дифф, а не снимок всего проекта: перестановка задевает
+        # одну-две категории, а снимок на тысячу задач писал бы килобайты в
+        # jsonb на каждое перетаскивание — и ровно столько же тащил бы в
+        # ответе мутации и в истории. Отмене нужны только строки, чьи позиция
+        # или категория изменились: остальные и так стоят как стояли.
+        changed = [
+            row
+            for row in rows
+            if before_pos[str(row.id)] != row.position
+            or before_cat[str(row.id)] != str(row.category_id)
+        ]
         forward = {
             "type": "reorder_task",
             "task_id": str(task.id),
-            "from": before_pos,
-            "to": after_pos,
-            "categories_from": before_cat,
-            "categories_to": after_cat,
+            "from": {str(row.id): before_pos[str(row.id)] for row in changed},
+            "to": {str(row.id): row.position for row in changed},
+            "categories_from": {str(row.id): before_cat[str(row.id)] for row in changed},
+            "categories_to": {str(row.id): str(row.category_id) for row in changed},
         }
         inverse = {
             "type": "apply_positions",
-            "positions": before_pos,
-            "categories": before_cat,
+            "positions": {str(row.id): before_pos[str(row.id)] for row in changed},
+            "categories": {str(row.id): before_cat[str(row.id)] for row in changed},
         }
         return forward, inverse
 
@@ -779,10 +895,24 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
         before_cat: dict[str, str] = {}
         for raw_id, position in op.positions.items():
             row = _require_task(db, project, raw_id)
+            # Обе карты пишутся одной рукой и обязаны совпадать по ключам, но
+            # запись журнала — данные, а не код: рассинхрон должен быть
+            # отказом с кодом, а не KeyError, который наружу выйдет
+            # пятисоткой.
+            target_category = op.categories.get(raw_id)
+            if target_category is None:
+                raise InvalidOperation(
+                    "positions_categories_mismatch",
+                    f"в карте категорий нет задачи {raw_id}",
+                )
+            # Категорию с тех пор могли удалить: вставка в неё упала бы по
+            # внешнему ключу — тоже пятисоткой, хотя это обычный отказ
+            # «категории больше нет».
+            _require_category(db, project, target_category)
             before_pos[str(row.id)] = row.position
             before_cat[str(row.id)] = str(row.category_id)
             row.position = position
-            row.category_id = op.categories[raw_id]
+            row.category_id = target_category
         db.flush()
         # Ключи приводятся к строкам: в модели они uuid.UUID, а json.dumps
         # на пути в jsonb на таком ключе падает — запись журнала не легла бы
@@ -835,6 +965,10 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
             "position": task.position,
             "baseline_start": task.baseline_start.isoformat() if task.baseline_start else None,
             "baseline_duration": task.baseline_duration,
+            # Каскад удаления уносит и окружение задачи — снимок несёт его с
+            # собой, иначе отмена вернёт голую строку без связей, назначений
+            # и разговора.
+            **_snapshot_task_links(db, task),
         }
         db.delete(task)
         db.flush()
@@ -985,6 +1119,32 @@ def undo(
     )
 
 
+def undo_last(
+    db: DbSession,
+    project: Project,
+    *,
+    actor_id: uuid.UUID | None,
+    reason: str | None = None,
+) -> tuple[Revision, Revision]:
+    """Отмена последнего изменения: выбор ревизии и применение — одним замком.
+
+    Выбор здесь, а не в маршруте, закрывает гонку двойной отмены: два
+    одновременных нажатия «Отменить» читали last_undoable из одного снимка,
+    оба находили одну и ту же ревизию — и проигравший блокировку внутри
+    apply_op применял её отмену второй раз, возвращая проект туда, откуда
+    первый только что ушёл. Под замком проекта второй запрос ждёт первого и
+    выбирает уже следующую ревизию — или узнаёт, что отменять нечего.
+
+    Возвращает пару (запись отмены, отменённая ревизия): маршруту нужны обе.
+    """
+    db.execute(select(Project.id).where(Project.id == project.id).with_for_update())
+    revision = last_undoable(db, project)
+    if revision is None:
+        raise NotFoundInProject("nothing_to_undo", "отменять нечего")
+    applied = undo(db, project, revision, actor_id=actor_id, reason=reason)
+    return applied, revision
+
+
 def last_undoable(db: DbSession, project: Project) -> Revision | None:
     """Ревизия, которую отменит кнопка «Отменить».
 
@@ -1009,7 +1169,12 @@ def last_undoable(db: DbSession, project: Project) -> Revision | None:
 
 
 def undo_batch(
-    db: DbSession, project: Project, batch_id: uuid.UUID, *, actor_id: uuid.UUID | None
+    db: DbSession,
+    project: Project,
+    batch_id: uuid.UUID,
+    *,
+    actor_id: uuid.UUID | None,
+    reason: str | None = None,
 ) -> list[Revision]:
     """Откат пачки целиком — той, что применил AI одной кнопкой.
 
@@ -1023,7 +1188,15 @@ def undo_batch(
 
     Отмены получают общий свой batch_id: в журнале откат пачки читается одним
     действием, а не россыпью не связанных между собой записей.
+
+    Причина принимается и раздаётся каждой отмене: откат проходит ту же
+    проверку порога, что и всякое изменение сроков, и без причины пачка,
+    двигавшая даты дальше порога, была бы неоткатываемой вовсе.
     """
+    # Тот же замок и по той же причине, что в undo_last: без него два
+    # одновременных отката читают список ревизий из одного снимка и каждый
+    # применяет все отмены — по две на ревизию.
+    db.execute(select(Project.id).where(Project.id == project.id).with_for_update())
     undone = select(Revision.undoes_seq).where(
         Revision.project_id == project.id, Revision.undoes_seq.is_not(None)
     )
@@ -1043,6 +1216,6 @@ def undo_batch(
 
     undo_batch_id = uuid.uuid4()
     return [
-        undo(db, project, revision, actor_id=actor_id, batch_id=undo_batch_id)
+        undo(db, project, revision, actor_id=actor_id, reason=reason, batch_id=undo_batch_id)
         for revision in revisions
     ]

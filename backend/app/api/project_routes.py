@@ -23,9 +23,13 @@ from app.mutations import (
     apply_op,
     last_undoable,
     to_internal,
-    undo,
     undo_batch,
 )
+
+# Псевдоним, потому что обработчик маршрута ниже называется так же — имя
+# обработчика менять нельзя без нужды: из него FastAPI строит operationId,
+# на который завязан снимок контракта.
+from app.mutations import undo_last as undo_last_revision
 from app.orgs import current_membership
 from app.plans import approve_plan, plan_versions
 from app.projects import create_project as create_project_entity
@@ -306,12 +310,13 @@ def undo_last(
     """
     context.require(Action.PROJECT_WRITE)
 
-    revision = last_undoable(db, context.project)
-    if revision is None:
-        raise HTTPException(status_code=404, detail="nothing_to_undo")
-
+    # Выбор отменяемой ревизии — внутри undo_last, под замком проекта: выбор
+    # здесь, в маршруте, давал бы двум одновременным нажатиям одну и ту же
+    # ревизию, и второе отменяло бы уже отменённое (см. mutations.undo_last).
     try:
-        applied = undo(db, context.project, revision, actor_id=context.user.id, reason=reason)
+        applied, revision = undo_last_revision(
+            db, context.project, actor_id=context.user.id, reason=reason
+        )
     except MutationError as error:
         raise _refuse(error)
 
@@ -325,14 +330,22 @@ def undo_last(
 @router.post("/{project_id}/batches/{batch_id}/undo", status_code=201)
 def undo_whole_batch(
     batch_id: uuid.UUID,
+    reason: str | None = Body(default=None, embed=True),
     context: ProjectContext = Depends(project_context),
     db: DbSession = Depends(get_db),
 ):
-    """Откат пачки целиком — одной кнопкой, как обещано про применение AI."""
+    """Откат пачки целиком — одной кнопкой, как обещано про применение AI.
+
+    Причина принимается по той же логике, что у одиночной отмены: откат
+    проходит проверку порога, и пачка, двигавшая сроки дальше порога, без
+    причины была бы неоткатываемой.
+    """
     context.require(Action.PROJECT_WRITE)
 
     try:
-        applied = undo_batch(db, context.project, batch_id, actor_id=context.user.id)
+        applied = undo_batch(
+            db, context.project, batch_id, actor_id=context.user.id, reason=reason
+        )
     except MutationError as error:
         raise _refuse(error)
 
