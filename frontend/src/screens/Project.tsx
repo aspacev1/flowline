@@ -15,6 +15,7 @@ import { OfflineBar } from "../live/OfflineBar";
 import { useProjectLive } from "../live/useProjectLive";
 import { DependencyNudge, DependencyNudgeProvider } from "../project/DependencyNudge";
 import { PlanApproval } from "../project/PlanApproval";
+import { ProjectHead } from "../project/ProjectHead";
 import { ShiftReasonProvider } from "../project/ShiftReason";
 import { UndoButton } from "../project/UndoButton";
 import { TaskPanel } from "../task/TaskPanel";
@@ -106,70 +107,75 @@ export function Project() {
       <DependencyNudgeProvider>
         <LiveProvider live={live}>
           <main className="screen screen--wide">
-            <div className="screen__head">
-              {/* Название проекта — содержимое пользователя: приходит с сервера как
-                  есть и не переводится ни при каком языке интерфейса. */}
-              <h1>{query.data.name}</h1>
-
-              {/* Гостю кнопки не показываются вовсе: они обещали бы действие,
-                  которое сервер отклонит. */}
-              <div className="screen__actions">
-                {/* Публикация — действие уровня проекта, поэтому кнопка стоит в его
-                    шапке, а не в настройках, до которых ещё нет экрана. Гостю и
-                    читателю она не показывается: сервер такую попытку отклонит. */}
-                {canWrite && (
-                  <button
-                    type="button"
-                    className="button--quiet"
-                    disabled={offline}
-                    onClick={() => setSharing(true)}
-                  >
-                    {t("share.open")}
-                  </button>
-                )}
-                {/* Из всех действий шапки заливку получает одно — создание
-                    задачи: остальные приглушены. Пять сплошных кнопок подряд
-                    не оставляют главному действию ни единого шанса быть
-                    замеченным, и человек читает их все по очереди каждый
-                    раз. */}
-                {canWrite && (
-                  <button
-                    type="button"
-                    className="button--quiet"
-                    disabled={offline}
-                    onClick={() => setAddingCategory(true)}
-                  >
-                    {t("category.create")}
-                  </button>
-                )}
-                {/* Задачу некуда класть, пока нет ни одной категории: кнопка,
-                    открывающая форму с пустым списком категорий, обещает действие,
-                    которое не может состояться. */}
-                {canWrite && query.data.categories.length > 0 && (
-                  <button
-                    type="button"
-                    disabled={offline}
-                    onClick={() => setAddingTaskIn(query.data.categories[0].id)}
-                  >
-                    {t("task.create")}
-                  </button>
-                )}
-                {/* Отмена — там же, где остальные действия над проектом, и только
-                    тому, кто может писать: гостю она обещала бы отказ сервера. */}
-                {editable && <UndoButton projectId={projectId} state={query.data} />}
+            <ProjectHead
+              state={query.data}
+              showPlan
+              planAction={
                 <PlanApproval
                   projectId={projectId}
                   state={query.data}
                   canApprove={editable}
-                  // Переутверждение — право владельца: оно сдвигает базу, от
+                  // Пересогласование — право владельца: оно сдвигает базу, от
                   // которой считаются все объяснённые сдвиги.
                   canReapprove={role === "owner" && !offline}
                 />
-                {canWrite && (
-                  <Link to={`/projects/${projectId}/settings`}>{t("settings.project.link")}</Link>
-                )}
-              </div>
-            </div>
+              }
+              // Гостю кнопки не передаются вовсе: они обещали бы действие,
+              // которое сервер отклонит.
+              actions={
+                <>
+                  {/* Порядок — по весу действия, и первым стоит главное:
+                      создание задачи. Заливку из всей шапки получает оно одно,
+                      остальные контурные. Пять сплошных плашек подряд не
+                      оставляют главному действию ни единого шанса быть
+                      замеченным, и человек читает их все по очереди каждый раз.
+
+                      Задачу при этом некуда класть, пока нет ни одной
+                      категории: кнопка, открывающая форму с пустым списком
+                      категорий, обещает действие, которое не может
+                      состояться. */}
+                  {canWrite && query.data.categories.length > 0 && (
+                    <button
+                      type="button"
+                      disabled={offline}
+                      onClick={() => setAddingTaskIn(query.data.categories[0].id)}
+                    >
+                      {t("task.create")}
+                    </button>
+                  )}
+                  {canWrite && (
+                    <button
+                      type="button"
+                      className="button--quiet"
+                      disabled={offline}
+                      onClick={() => setAddingCategory(true)}
+                    >
+                      {t("category.create")}
+                    </button>
+                  )}
+                  {/* Публикация — действие уровня проекта, поэтому кнопка стоит
+                      в его шапке, а не в настройках. Гостю и читателю она не
+                      показывается: сервер такую попытку отклонит. */}
+                  {canWrite && (
+                    <button
+                      type="button"
+                      className="button--quiet"
+                      disabled={offline}
+                      onClick={() => setSharing(true)}
+                    >
+                      {t("share.open")}
+                    </button>
+                  )}
+                  {/* Отмена — там же, где остальные действия над проектом, и
+                      только тому, кто может писать: гостю она обещала бы отказ
+                      сервера. */}
+                  {editable && <UndoButton projectId={projectId} state={query.data} />}
+                  {canWrite && (
+                    <Link to={`/projects/${projectId}/settings`}>{t("settings.project.link")}</Link>
+                  )}
+                </>
+              }
+            />
 
             {offline && <OfflineBar syncedAt={query.dataUpdatedAt || null} />}
 

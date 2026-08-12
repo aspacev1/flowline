@@ -92,7 +92,7 @@ describe("порог сдвига", () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
-  it("до утверждения плана ничего не спрашивается", async () => {
+  it("до согласования плана ничего не спрашивается", async () => {
     const sent = captureMutations();
     renderProject(); // черновик: plan_approved_at = null
 
@@ -177,7 +177,7 @@ describe("базовый план на диаграмме", () => {
     expect(screen.queryByTestId("deviation-t1")).not.toBeInTheDocument();
   });
 
-  it("помечает задачу, добавленную после утверждения", async () => {
+  it("помечает задачу, добавленную после согласования", async () => {
     renderProject(APPROVED_WITH_EXTRA);
 
     expect(

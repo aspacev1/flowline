@@ -23,26 +23,26 @@ function captureApprovals(): number[] {
   return calls;
 }
 
-describe("утверждение плана", () => {
+describe("согласование плана", () => {
   it("черновик предлагает утвердить, и это уходит одним щелчком", async () => {
     const approvals = captureApprovals();
     renderProject();
 
-    await userEvent.click(await screen.findByRole("button", { name: "Утвердить план" }));
+    await userEvent.click(await screen.findByRole("button", { name: "Согласовать план" }));
 
     await waitFor(() => expect(approvals).toHaveLength(1));
   });
 
-  it("утверждённый план предлагает переутвердить — и спрашивает подтверждение", async () => {
+  it("согласованный план предлагает пересогласовать — и спрашивает подтверждение", async () => {
     const approvals = captureApprovals();
     renderProject(APPROVED);
 
-    await userEvent.click(await screen.findByRole("button", { name: /Переутвердить план/ }));
+    await userEvent.click(await screen.findByRole("button", { name: "Пересогласовать" }));
 
-    // Один щелчок ничего не переутверждает: действие сдвигает базу, от которой
+    // Один щелчок ничего не пересогласовывает: действие сдвигает базу, от которой
     // считаются все объяснённые сдвиги.
     expect(approvals).toHaveLength(0);
-    await userEvent.click(screen.getByRole("button", { name: "Переутвердить" }));
+    await userEvent.click(screen.getByRole("button", { name: "Да, пересогласовать" }));
     await waitFor(() => expect(approvals).toHaveLength(1));
   });
 
@@ -50,6 +50,6 @@ describe("утверждение плана", () => {
     renderProject(APPROVED, { canWrite: false });
     await screen.findByRole("button", { name: /Логотип/ });
 
-    expect(screen.queryByRole("button", { name: /Утвердить|Переутвердить/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Согласовать|Пересогласовать/ })).toBeNull();
   });
 });

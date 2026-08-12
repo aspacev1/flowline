@@ -14,6 +14,7 @@ import { LocaleSwitch } from "../components/LocaleSwitch";
 import { Gantt } from "../gantt/Gantt";
 import { usePrefersReducedMotion } from "../gantt/motion";
 import { useLocale } from "../i18n/LocaleProvider";
+import { ProjectHead } from "../project/ProjectHead";
 
 /**
  * Проект, открытый по публичной ссылке.
@@ -92,9 +93,10 @@ export function PublicProject() {
       </header>
 
       <main className="screen screen--wide">
-        <div className="screen__head">
-          <h1>{project.data.name}</h1>
-        </div>
+        {/* Та же шапка, что и на рабочем экране, но без действий и без строки
+            плана: клиенту по ссылке обещаны сроки и объём, а не версия
+            согласования и внутренние расхождения с ней. */}
+        <ProjectHead state={project.data} />
 
         <div className={`project__body${reducedMotion ? " motion-off" : ""}`}>
           <Gantt projectId={project.data.id} state={project.data} canWrite={false} />
