@@ -294,7 +294,16 @@
     "deviation_late": "+{days}",
     "deviation_early": "−{days}",
     "nudge": "Move “{name}” by {days}?",
-    "nudge_dismiss": "Dismiss the suggestion"
+    "nudge_dismiss": "Dismiss the suggestion",
+    "legend": {
+      "late": "Late · +N days",
+      "deadline": "Deadline"
+    },
+    "pill": {
+      "blocker": "blocker",
+      "blocks": "Blocks: {names}",
+      "waits": "waits for: {name}"
+    }
   },
   "share": {
     "open": "Public link",

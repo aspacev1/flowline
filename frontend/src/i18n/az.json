@@ -294,7 +294,16 @@
     "deviation_late": "+{days}",
     "deviation_early": "−{days}",
     "nudge": "«{name}» tapşırığını {days} irəli çəkim?",
-    "nudge_dismiss": "Təklifi bağla"
+    "nudge_dismiss": "Təklifi bağla",
+    "legend": {
+      "late": "Gecikmə · +N gün",
+      "deadline": "Son tarix"
+    },
+    "pill": {
+      "blocker": "bloker",
+      "blocks": "Bloklayır: {names}",
+      "waits": "gözləyir: {name}"
+    }
   },
   "share": {
     "open": "İctimai keçid",

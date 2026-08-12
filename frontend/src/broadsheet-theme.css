@@ -107,6 +107,11 @@
   box-shadow: inset 0 0 0 1px rgb(var(--ink) / 40%);
 }
 
+/* Плашка блокера в легенде — той же магентой, что и сама полоска. */
+.gantt__swatch[data-criticality="critical"] {
+  background: #d82071;
+}
+
 /* Итог-выноска — без заливки: иерархию несёт набор, не плашка */
 .gantt__summary {
   background: transparent;

@@ -107,6 +107,9 @@ export function TaskRow({
   beyondPlanLabel,
   baselineLabel,
   deviationLabel,
+  blockerPill,
+  blockerTitle,
+  waitsPill,
 }: {
   projectId: string;
   task: Task;
@@ -127,6 +130,12 @@ export function TaskRow({
   baselineLabel?: string;
   /** Готовая подпись бейджа отклонения, например «+7 дней». */
   deviationLabel?: string;
+  /** Пилюля «блокер»: задача, которой ждут другие. */
+  blockerPill?: string;
+  /** Подсказка к пилюле: кого именно эта задача держит. */
+  blockerTitle?: string;
+  /** Пилюля «ждёт: имя» у задачи-приёмника связи. */
+  waitsPill?: string;
 }) {
   const { offset, handlers } = useDragDates({ projectId, task, scale, enabled: canWrite });
   const baseline = baselineOf(task);
@@ -165,6 +174,18 @@ export function TaskRow({
           </span>
         )}
         <span className="gantt__label-name">{task.name}</span>
+        {blockerPill && (
+          // Пилюля «блокер» — рядом с названием, как в макете Broadsheet: кого
+          // именно держит задача, видно из подсказки и из стрелок.
+          <span className="gantt__pill gantt__pill--blocker" title={blockerTitle}>
+            {blockerPill}
+          </span>
+        )}
+        {waitsPill && (
+          <span className="gantt__pill" title={waitsPill}>
+            {waitsPill}
+          </span>
+        )}
         {late && (
           <span className="gantt__flag" title={lateLabel} role="img" aria-label={lateLabel}>
             !
