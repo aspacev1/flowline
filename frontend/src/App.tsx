@@ -2,6 +2,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 
 import "./styles.css";
+// Тема Broadsheet: обязана идти после styles.css — перебивает токены,
+// включая тёмный медиазапрос (Broadsheet — только светлая).
+import "./broadsheet-theme.css";
 import { AppRoutes } from "./AppRoutes";
 import { AuthProvider } from "./auth/AuthProvider";
 import { LocaleProvider } from "./i18n/LocaleProvider";
