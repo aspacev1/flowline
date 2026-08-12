@@ -41,10 +41,11 @@
   --tag-red: #ffdee6;
   --tag-green: #e9f8ff;
 
-  --bar: var(--tag-blue);
-  --bar-low: var(--tag-gray);
-  --bar-high: var(--tag-yellow);
-  --bar-critical: var(--tag-red);
+  /* Статусы макета: полоска «в работе» — насыщенный шаг цианового ряда
+     (accent-500), блокер — магента (accent-2-600). Светлые ступени рамп для
+     полосок больше не используются — они остаются меткам. */
+  --bar: #38a6cf;
+  --bar-critical: #d82071;
   --nonworking: rgb(32 30 29 / 4%);
 
   --shadow-sm: 0 1px 2px rgb(45 43 43 / 14%);
@@ -92,12 +93,55 @@
   border-left-style: solid;
 }
 
+/* Насыщенные заливки макета требуют белого текста; контурная «запланировано»
+   остаётся на чернилах. */
+.gantt__bar[data-status="active"],
+.gantt__bar[data-status="active"].is-late {
+  color: #fff;
+}
+
+/* «Готово» — тёмный шаг нейтральной рампы (neutral-800), не чистые чернила:
+   готовое — факт, а не акцент. */
+.gantt__bar[data-status="done"],
+.gantt__bar[data-status="done"]:hover,
+.gantt__swatch[data-status="done"] {
+  background: #444141;
+  color: #f3f2f2;
+}
+
+/* Контур «запланировано» — средний шаг нейтральной рампы (neutral-500). */
+.gantt__bar[data-status="planned"],
+.gantt__bar[data-status="planned"]:hover,
+.gantt__swatch[data-status="planned"] {
+  box-shadow: inset 0 0 0 1.5px #9b9797;
+}
+
 /* Блокер — залит магентой целиком, как в макете: светлой ступени рампы мало,
    задача, которая держит остальных, обязана быть видна с расстояния. */
 .gantt__bar[data-criticality="critical"],
 .gantt__bar[data-criticality="critical"]:hover {
   background: #d82071;
   color: #fff;
+}
+
+/* Готовый блокер — как всякое «готово»: тёмный, не тревожный. */
+.gantt__bar[data-criticality="critical"][data-status="done"],
+.gantt__bar[data-criticality="critical"][data-status="done"]:hover {
+  background: #444141;
+}
+
+/* Призрак плана и полоса категории — газетно-бледные и нейтральные, как в
+   макете: вспомогательные линии не спорят с полосками за внимание.
+   Полоса категории красится инлайном в цвет категории — потому !important. */
+.gantt__ghost {
+  height: 2px;
+  background: rgb(var(--ink) / 25%);
+}
+
+.gantt__span {
+  background: rgb(var(--ink) / 30%) !important;
+  opacity: 1;
+  height: 4px;
 }
 
 /* Просроченный блокер: магентовые текст и обводка из базовой темы на магентовой

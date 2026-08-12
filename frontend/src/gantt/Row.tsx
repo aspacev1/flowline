@@ -95,6 +95,7 @@ export function TaskRow({
   projectId,
   task,
   scale,
+  today,
   late,
   lateLabel,
   title,
@@ -114,6 +115,8 @@ export function TaskRow({
   projectId: string;
   task: Task;
   scale: Scale;
+  /** Сегодняшний день по ISO — от него считается статус «запланировано». */
+  today: string;
   late: boolean;
   lateLabel: string;
   title: string;
@@ -140,6 +143,13 @@ export function TaskRow({
   const { offset, handlers } = useDragDates({ projectId, task, scale, enabled: canWrite });
   const baseline = baselineOf(task);
   const shift = endShiftDays(task);
+
+  // Статус — вычисляется, а не хранится: «готово» — это стопроцентный
+  // прогресс, «запланировано» — старт в будущем, остальное — «в работе».
+  // Отдельное поле статуса рассинхронизировалось бы с этими двумя при первой
+  // же правке дат или прогресса.
+  const status =
+    task.progress_pct >= 100 ? "done" : task.start_date > today ? "planned" : "active";
 
   return (
     <div
@@ -251,6 +261,7 @@ export function TaskRow({
             offset === 0 ? "" : " is-dragging"
           }`}
           data-criticality={task.criticality}
+          data-status={status}
           style={{
             // Пока полоску тащат, она стоит там, где палец, — а не там, где
             // ей полагается по датам. Сами даты меняются только по ответу
