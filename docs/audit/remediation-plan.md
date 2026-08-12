@@ -2,7 +2,8 @@
 
 Дорожная карта устранения находок шести аудитов кода (безопасность, ядро
 бэкенда, API/realtime, фронтенд-инженерия, инфраструктура, тесты) и отдельного
-UX-аудита. Ветка разработки: `claude/project-ux-efficiency-analysis-t6hqtg`.
+UX-аудита. План составлен в ветке `claude/project-ux-efficiency-analysis-t6hqtg`;
+исполнение идёт волнами, ветка волны 0 — `claude/remediation-plan-stepwise-n7cjaw`.
 
 Задачи сгруппированы в **девять последовательных волн**. Порядок задан
 зависимостями, а не только серьёзностью: сначала — сеть, ловящая регрессии,
@@ -28,16 +29,23 @@ UX-аудита. Ветка разработки: `claude/project-ux-efficiency-
 Ни одной правки, меняющей поведение, пока нет барьера, который поймает
 регрессию. Самый дешёвый и самый важный этап.
 
-- [ ] **0.1** 🔴 **S** — CI: GitHub Actions с сервисным Postgres → `pytest`,
+- [x] **0.1** 🔴 **S** — CI: GitHub Actions с сервисным Postgres → `pytest`,
   `vitest run`, `tsc -b`, `oxlint`, `docker compose build`. Прогон на push и PR.
-- [ ] **0.2** 🔴 **S** — Тест миграций: `alembic upgrade head` на чистой базе +
+  _`.github/workflows/ci.yml`: три job — backend (pytest+Postgres), frontend
+  (lint, tsc, тесты, актуальность контракта API), docker (compose build)._
+- [x] **0.2** 🔴 **S** — Тест миграций: `alembic upgrade head` на чистой базе +
   сверка с `create_all` (`compare_metadata`); проверка `downgrade`.
-- [ ] **0.3** 🔴 **S** — Бэкапы БД: `pg_dump` по расписанию (sidecar/cron) +
+  _`tests/test_migrations.py`; сразу поймал и починил невыполнимый downgrade
+  `9c584d8968ac` (drop безымянного FK)._
+- [x] **0.3** 🔴 **S** — Бэкапы БД: `pg_dump` по расписанию (sidecar/cron) +
   документированная проверка восстановления. Убрать `docker compose down -v` из
   README как штатный вариант, добавить раздел «Резервное копирование».
-- [ ] **0.4** 🟠 **M** — Контракт API: снимок `app.openapi()` в бэкенд-тестах +
+  _Сервис `backup` в compose + `docker/backup.sh`; README дополнен._
+- [x] **0.4** 🟠 **M** — Контракт API: снимок `app.openapi()` в бэкенд-тестах +
   генерация фронтовых типов из него (или тест паритета ключей ответа).
-- [ ] **0.5** 🟠 **S** — Покрытие в CI: `pytest-cov` + `@vitest/coverage-v8`.
+  _`tests/test_openapi_contract.py` → `backend/openapi.json` →
+  `npm run gen:api` → `src/api/schema.d.ts`; дифф проверяется в CI._
+- [x] **0.5** 🟠 **S** — Покрытие в CI: `pytest-cov` + `@vitest/coverage-v8`.
   Добавить правило `exhaustive-deps` в oxlint.
 
 **Ворота:** CI зелёный на текущем коде.

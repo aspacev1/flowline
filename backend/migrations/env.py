@@ -18,7 +18,14 @@ from app.config import get_settings
 from app.db import Base
 from app import models  # noqa: F401  импорт ради регистрации таблиц
 
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+# Адрес базы можно переопределить, не трогая настройки приложения: тест
+# миграций гоняет upgrade/downgrade по одноразовой чистой базе, а не по той,
+# что в DATABASE_URL. Поддерживаются оба канала alembic: config.attributes —
+# для вызова из python (тесты), `-x db_url=…` — для командной строки.
+_url_override = config.attributes.get("db_url") or context.get_x_argument(
+    as_dictionary=True
+).get("db_url")
+config.set_main_option("sqlalchemy.url", _url_override or get_settings().database_url)
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,

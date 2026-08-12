@@ -19,8 +19,11 @@ docker compose up --build
 
 Первый запуск занимает несколько минут: собираются образы бэкенда и фронтенда,
 поднимается Postgres и накатывается схема. Дальше `docker compose up` стартует
-за секунды. Остановка — `docker compose down`, вместе с данными —
-`docker compose down -v`.
+за секунды. Остановка — `docker compose down`: данные живут в томе `pgdata` и
+остановку переживают. Команда `docker compose down -v` — не «остановка
+получше», а снос установки вместе с базой, безвозвратный; если она зачем-то
+понадобилась, сначала убедись, что в `./backups` лежит свежий дамп (раздел
+«Резервное копирование»).
 
 Интерфейс открывается на <http://localhost:8080> — там регистрация, вход и
 список проектов. Порт меняется переменной `WEB_PORT` в `.env`, если 8080 уже
@@ -56,6 +59,41 @@ docker compose up --build
 Когда связь рвётся, интерфейс говорит об этом полоской «нет связи, показаны
 данные на 14:32» и запирает редактирование до восстановления, а восстановив,
 перезапрашивает проект целиком — пропущенное не доигрывается.
+
+## Резервное копирование
+
+Дампы снимает сервис `backup` из `docker-compose.yml` — тем же образом
+`postgres:16`, что и сама база, поэтому версии `pg_dump` и сервера не
+расходятся. Раз в сутки он кладёт в `./backups` на хосте файл вида
+`flowline-20260811-031500.dump` (сжатый формат `pg_restore -Fc`) и удаляет
+дампы старше двух недель. Расписание и глубина хранения меняются переменными
+`BACKUP_INTERVAL_SECONDS` и `BACKUP_KEEP_DAYS` в `.env`. Каталог `./backups`
+лежит вне томов Docker намеренно: бэкап обязан переживать
+`docker compose down -v`. Он же — то, что стоит забирать с машины наружу
+(rsync, объектное хранилище), если установка не одноразовая.
+
+Восстановление из дампа:
+
+```sh
+docker compose stop api            # чтобы никто не писал в базу под ногами
+docker compose exec -T db pg_restore -U flowline -d flowline \
+  --clean --if-exists < backups/flowline-20260811-031500.dump
+docker compose start api
+```
+
+Бэкап, который ни разу не восстанавливали, — это лотерейный билет, а не бэкап.
+Раз в месяц (и после каждого изменения схемы) проверяй свежий дамп
+восстановлением во временную базу — процедура не трогает рабочие данные:
+
+```sh
+docker compose exec db createdb -U flowline restore_check
+docker compose exec -T db pg_restore -U flowline -d restore_check \
+  < backups/flowline-20260811-031500.dump
+# счётчики должны быть похожи на правду, а не нули
+docker compose exec db psql -U flowline -d restore_check \
+  -c 'select count(*) from users' -c 'select count(*) from tasks'
+docker compose exec db dropdb -U flowline restore_check
+```
 
 ## Показать проект наружу
 

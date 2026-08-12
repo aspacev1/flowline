@@ -1,0 +1,111 @@
+# Страховочная сетка (волна 0 плана исправлений): ни одна правка поведения не
+# въезжает в main без прогона тестов бэкенда на настоящем Postgres, проверки
+# типов и линта фронтенда, его тестов и сборки docker-образов.
+#
+# push ограничен main, чтобы ветка с открытым PR не гоняла всё дважды:
+# pull_request покрывает ветки, push — сам main после слияния.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    name: Бэкенд (pytest + Postgres)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: flowline
+          POSTGRES_PASSWORD: flowline
+          POSTGRES_DB: flowline
+        ports: ["5432:5432"]
+        # Без healthcheck шаги стартуют раньше, чем база готова принимать
+        # подключения, и прогон мигает «connection refused» на ровном месте.
+        options: >-
+          --health-cmd "pg_isready -U flowline"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://flowline:flowline@localhost:5432/flowline
+      APP_SECRET: ci-secret-not-for-production
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+
+      - name: Зависимости
+        run: uv sync --locked
+
+      # Тесты работают не с базой из DATABASE_URL, а с выведенной из неё
+      # `<имя>_test` (см. backend/tests/conftest.py) — её нужно создать.
+      # Локально это делает docker/postgres-init, у сервисного контейнера
+      # GitHub Actions таких скриптов нет.
+      - name: Тестовая база
+        run: psql postgresql://flowline:flowline@localhost:5432/flowline -c 'CREATE DATABASE flowline_test'
+
+      - name: Тесты с покрытием
+        run: uv run pytest --cov=app --cov-report=term-missing
+
+  frontend:
+    name: Фронтенд (типы, линт, тесты, контракт API)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Зависимости
+        run: npm ci
+
+      - name: Линт
+        run: npm run lint
+
+      - name: Типы
+        run: npx tsc -b
+
+      # Типы API в src/api/schema.d.ts генерируются из backend/openapi.json
+      # (а тот — снимок app.openapi(), закреплённый бэкенд-тестом). Если после
+      # генерации есть дифф — снимок обновили, а типы забыли: `npm run gen:api`
+      # и закоммитить результат.
+      - name: Контракт API актуален
+        run: |
+          npm run gen:api
+          git diff --exit-code -- src/api/schema.d.ts
+
+      - name: Тесты с покрытием
+        run: npx vitest run --coverage
+
+  docker:
+    name: Сборка образов (docker compose build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      # compose объявляет env_file: .env и не разбирает конфигурацию без него;
+      # для сборки достаточно шаблона.
+      - name: .env из шаблона
+        run: cp .env.example .env
+
+      - name: Сборка
+        run: docker compose build
