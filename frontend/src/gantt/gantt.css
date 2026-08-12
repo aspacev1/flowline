@@ -74,22 +74,17 @@
   background: var(--bar);
 }
 
-.gantt__swatch[data-criticality="low"] {
-  background: var(--bar-low);
+.gantt__swatch[data-status="done"] {
+  background: var(--text);
 }
 
-.gantt__swatch[data-criticality="high"] {
-  background: var(--bar-high);
+.gantt__swatch[data-status="planned"] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--text-faint);
 }
 
 .gantt__swatch[data-criticality="critical"] {
   background: var(--bar-critical);
-}
-
-/* Просрочка — обводка без заливки, как у полоски с is-late. */
-.gantt__swatch--late {
-  background: transparent;
-  box-shadow: inset 0 0 0 1px var(--danger);
 }
 
 /* Вертикали дедлайна и «сегодня» — образец линии, а не плашка. */
@@ -534,21 +529,30 @@
   cursor: grab;
 }
 
-/* Критичность — цвет из темы, а не из данных: уровней четыре, они заданы
-   перечислением, и подбирать им цвета на сервере незачем. */
-.gantt__bar[data-criticality="low"],
-.gantt__bar[data-criticality="low"]:hover {
-  background: var(--bar-low);
+/* Цвет полоски означает статус, как в макете Broadsheet: заливка — в работе,
+   контур без заливки — запланировано, тёмная — готово. Критичность цветом
+   не кодируется — кроме блокера ниже: полутонов здесь достаточно, а два
+   одновременных цветовых кода на одной полоске не прочитал бы никто. */
+.gantt__bar[data-status="planned"],
+.gantt__bar[data-status="planned"]:hover {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--text-faint);
 }
 
-.gantt__bar[data-criticality="high"],
-.gantt__bar[data-criticality="high"]:hover {
-  background: var(--bar-high);
-}
-
+/* Блокер — критическая задача: залита тревожным цветом поверх любого статуса,
+   кроме «готово». */
 .gantt__bar[data-criticality="critical"],
 .gantt__bar[data-criticality="critical"]:hover {
   background: var(--bar-critical);
+  box-shadow: none;
+}
+
+/* Готовый блокер никого не держит: тёмная заливка сильнее тревожной. */
+.gantt__bar[data-status="done"],
+.gantt__bar[data-status="done"]:hover {
+  background: var(--text);
+  color: var(--surface);
+  box-shadow: none;
 }
 
 .gantt__bar.is-late {

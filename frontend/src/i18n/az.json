@@ -296,8 +296,11 @@
     "nudge": "«{name}» tapşırığını {days} irəli çəkim?",
     "nudge_dismiss": "Təklifi bağla",
     "legend": {
-      "late": "Gecikmə · +N gün",
-      "deadline": "Son tarix"
+      "active": "İşdədir",
+      "done": "Hazırdır",
+      "planned": "Planlaşdırılıb",
+      "blocker": "Bloker",
+      "late": "Son tarix pozulub · +N gün"
     },
     "pill": {
       "blocker": "bloker",
