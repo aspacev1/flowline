@@ -79,6 +79,23 @@ export function endShiftDays(task: Task): number | null {
   return daysBetween(baseline.end, task.end_date);
 }
 
+/**
+ * Разошёлся ли план с тем, что согласовали.
+ *
+ * Считается по тем же двум признакам, которыми диаграмма помечает отдельные
+ * задачи: уехавшие от базового плана даты и работа, добавленная сверх плана.
+ * Третьего признака — флага «изменён» на самом проекте — сознательно нет: он
+ * был бы вычислим из этих же полей и однажды разошёлся бы с ними.
+ *
+ * Черновик не «изменён» ни при каких правках: сравнивать его не с чем.
+ */
+export function changedSinceApproval(state: ProjectState): boolean {
+  if (!state.plan_approved_at) return false;
+  return state.tasks.some(
+    (task) => isBeyondPlan(state, task) || (deviationDays(task) ?? 0) !== 0,
+  );
+}
+
 export type ShiftRequest = {
   taskName: string;
   deviationDays: number;

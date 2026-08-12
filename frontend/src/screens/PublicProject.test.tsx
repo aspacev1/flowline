@@ -84,7 +84,7 @@ describe("публичная страница", () => {
 
     expect(screen.queryByRole("button", { name: "Новая категория" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Новая задача" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Публичная ссылка" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Поделиться" })).not.toBeInTheDocument();
   });
 
   it("объясняет отозванную ссылку, а не показывает пустой экран", async () => {

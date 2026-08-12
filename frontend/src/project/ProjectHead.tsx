@@ -1,0 +1,113 @@
+import type { ReactNode } from "react";
+
+import type { ProjectState } from "../api/projects";
+import { formatDate } from "../i18n/dates";
+import { useLocale } from "../i18n/LocaleProvider";
+import { changedSinceApproval } from "./baseline";
+
+/**
+ * Шапка проекта: действия, строка плана, название, сводка.
+ *
+ * Четыре яруса сверху вниз, а не заголовок с действиями в одну строку. Причина
+ * та же, по которой в газете шапка набирается лесенкой: у ярусов разный вес, и
+ * поставленные в ряд они спорят за первый взгляд. Действия наверху — это то,
+ * ради чего сюда возвращаются; название крупное — то, куда попал; сводка под
+ * ним отвечает на «сколько это и когда» до того, как человек начнёт считать
+ * полоски глазами.
+ *
+ * Строка плана стоит между действиями и названием намеренно: расхождение с
+ * согласованным планом — состояние проекта, а не действие над ним, и его
+ * читают вместе с названием, а не среди кнопок.
+ */
+export function ProjectHead({
+  state,
+  actions,
+  planAction,
+  showPlan = false,
+}: {
+  state: ProjectState;
+  /** Кнопки над названием. Гостю не передаются вовсе — их у него нет. */
+  actions?: ReactNode;
+  /** Кнопка согласования плана. Своей строки не рисует — становится в строку плана. */
+  planAction?: ReactNode;
+  /**
+   * Показывать ли строку плана. Публичная страница её не показывает: версия
+   * плана и расхождение с ним — внутренняя кухня, а не то, что обещано клиенту
+   * по ссылке.
+   */
+  showPlan?: boolean;
+}) {
+  const { t } = useLocale();
+  const period = projectPeriod(state);
+
+  const counts = t("project.counts", {
+    categories: t("project.category_count", { count: state.categories.length }),
+    tasks: t("gantt.task_count", { count: state.tasks.length }),
+  });
+
+  return (
+    <header className="project-head">
+      {actions && <div className="project-head__actions">{actions}</div>}
+
+      {showPlan && (
+        <p className="project-head__plan">
+          <span className="project-head__plan-label">
+            {state.plan_approved_at
+              ? t("plan.line", { version: state.plan_version })
+              : t("plan.line_draft")}
+          </span>
+          {/* Расхождение называется словами, а не значком: «изменён после
+              согласования» человек понимает без легенды, а восклицательный
+              знак приходится расшифровывать наведением. */}
+          {changedSinceApproval(state) && (
+            <span className="project-head__plan-note">{t("plan.changed")}</span>
+          )}
+          {planAction}
+        </p>
+      )}
+
+      {/* Название и сводка — одна пара, а не два яруса шапки: сводка читается
+          как подпись под названием и держится его, а не общего ритма. */}
+      <div className="project-head__titles">
+        {/* Название проекта — содержимое пользователя: приходит с сервера как
+            есть и не переводится ни при каком языке интерфейса. */}
+        <h1 className="project-head__title">{state.name}</h1>
+
+        <p className="project-head__meta">
+          {period
+            ? t("project.meta", {
+                period: t("project.period", {
+                  from: formatDate(t, period.from),
+                  to: formatDate(t, period.to),
+                }),
+                counts,
+              })
+            : counts}
+        </p>
+      </div>
+    </header>
+  );
+}
+
+/**
+ * Срок проекта: от самого раннего старта до самого позднего окончания.
+ *
+ * Не окно ленты: то округлено до целых месяцев, чтобы шапка диаграммы не
+ * начиналась с обрезанного месяца, и «27 июля — 6 сентября» превратилось бы в
+ * нём в «1 июля — 30 сентября». Здесь нужен именно срок работ.
+ *
+ * Посчитанное сервером окончание проекта учитывается наравне с задачами: оно
+ * бывает позже последней из них, и сводка, забывшая про него, обещала бы срок
+ * короче настоящего. Проект без задач срока не имеет — и строки о нём тоже.
+ */
+function projectPeriod(state: ProjectState): { from: string; to: string } | null {
+  if (state.tasks.length === 0) return null;
+  // Строки ISO сравниваются лексикографически ровно как даты: у них
+  // фиксированная ширина полей и старший разряд слева.
+  const from = state.tasks.map((task) => task.start_date).reduce((a, b) => (a < b ? a : b));
+  const to = [
+    ...state.tasks.map((task) => task.end_date),
+    ...(state.project_end ? [state.project_end] : []),
+  ].reduce((a, b) => (a > b ? a : b));
+  return { from, to };
+}
