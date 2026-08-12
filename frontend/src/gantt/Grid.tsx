@@ -20,6 +20,7 @@ export function Grid({
   today,
   deadlineLabel,
   todayLabel,
+  todayChip,
 }: {
   scale: Scale;
   calendar: Calendar;
@@ -27,6 +28,8 @@ export function Grid({
   today: string;
   deadlineLabel: string;
   todayLabel: string;
+  /** Дата в чипе на линии «сегодня», уже отформатированная, например «12 авг». */
+  todayChip?: string;
 }) {
   const withinWindow = (date: string) => date >= scale.from && date <= scale.to;
 
@@ -50,7 +53,9 @@ export function Grid({
       )}
 
       {withinWindow(today) && (
-        <div className="gantt__today" style={{ left: scale.xOf(today) }} title={todayLabel} />
+        <div className="gantt__today" style={{ left: scale.xOf(today) }} title={todayLabel}>
+          {todayChip && <span className="gantt__today-chip">{todayChip}</span>}
+        </div>
       )}
     </div>
   );

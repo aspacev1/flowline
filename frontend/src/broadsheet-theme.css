@@ -92,6 +92,26 @@
   border-left-style: solid;
 }
 
+/* Блокер — залит магентой целиком, как в макете: светлой ступени рампы мало,
+   задача, которая держит остальных, обязана быть видна с расстояния. */
+.gantt__bar[data-criticality="critical"],
+.gantt__bar[data-criticality="critical"]:hover {
+  background: #d82071;
+  color: #fff;
+}
+
+/* Просроченный блокер: магентовые текст и обводка из базовой темы на магентовой
+   заливке невидимы — текст остаётся белым, обводка чернильная. */
+.gantt__bar[data-criticality="critical"].is-late {
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgb(var(--ink) / 40%);
+}
+
+/* Плашка блокера в легенде — той же магентой, что и сама полоска. */
+.gantt__swatch[data-criticality="critical"] {
+  background: #d82071;
+}
+
 /* Итог-выноска — без заливки: иерархию несёт набор, не плашка */
 .gantt__summary {
   background: transparent;

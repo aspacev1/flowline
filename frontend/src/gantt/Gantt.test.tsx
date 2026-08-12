@@ -159,6 +159,39 @@ describe("диаграмма", () => {
     });
   });
 
+  it("показывает легенду: уровни критичности и обе вертикали", () => {
+    draw(STATE, "ru");
+    expect(screen.getByText("Низкая")).toBeInTheDocument();
+    expect(screen.getByText("Критическая")).toBeInTheDocument();
+    expect(screen.getByText("Дедлайн")).toBeInTheDocument();
+    expect(screen.getByText("Сегодня")).toBeInTheDocument();
+  });
+
+  it("в пустом проекте легенды нет: расшифровывать нечего", () => {
+    draw({ ...STATE, categories: [], tasks: [] }, "ru");
+    expect(screen.queryByText("Низкая")).not.toBeInTheDocument();
+  });
+
+  it("помечает пилюлями блокера и того, кто его ждёт", () => {
+    draw({
+      ...STATE,
+      tasks: [
+        STATE.tasks[0],
+        {
+          ...STATE.tasks[0],
+          id: "t2",
+          name: "Макет",
+          position: 1,
+          start_date: "2026-03-11",
+          end_date: "2026-03-17",
+        },
+      ],
+      dependencies: [{ from_task_id: "t1", to_task_id: "t2" }],
+    });
+    expect(screen.getByText("блокер")).toBeInTheDocument();
+    expect(screen.getByText("ждёт: Логотип")).toBeInTheDocument();
+  });
+
   it("окно ленты дотягивается до дедлайна, даже если задачи кончились раньше", () => {
     const { container } = draw(STATE);
     // Дедлайн 1 июня и окончание проекта 8 июня обязаны быть на ленте: иначе

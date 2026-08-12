@@ -296,7 +296,16 @@
     "deviation_late": "+{days}",
     "deviation_early": "−{days}",
     "nudge": "Подвинуть «{name}» на {days}?",
-    "nudge_dismiss": "Закрыть предложение"
+    "nudge_dismiss": "Закрыть предложение",
+    "legend": {
+      "late": "Просрочка · +N дн.",
+      "deadline": "Дедлайн"
+    },
+    "pill": {
+      "blocker": "блокер",
+      "blocks": "Блокирует: {names}",
+      "waits": "ждёт: {name}"
+    }
   },
   "share": {
     "open": "Публичная ссылка",

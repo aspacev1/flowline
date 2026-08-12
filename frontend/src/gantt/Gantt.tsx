@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 
 import type { Category, ProjectState, Task } from "../api/projects";
 import { endShiftDays, isBeyondPlan } from "../project/baseline";
-import { formatDate, formatMonth, weekdayNarrow } from "../i18n/dates";
+import { formatDate, formatMonth, formatShortDate, weekdayNarrow } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
 import { Grid } from "./Grid";
 import { Header } from "./Header";
@@ -81,6 +81,22 @@ export function Gantt({
 
   const isLate = (task: Task) => state.deadline !== null && task.end_date > state.deadline;
 
+  // Пилюли связей в левой колонке: у источника — «блокер», у приёмника —
+  // «ждёт: имя». Считаются по списку зависимостей, а не хранятся у задачи:
+  // второго признака, который обязан совпадать со связями, быть не должно.
+  const nameOf = new Map(state.tasks.map((task) => [task.id, task.name]));
+  const blocksOf = new Map<string, string[]>();
+  const waitsOf = new Map<string, string[]>();
+  for (const link of state.dependencies) {
+    const from = nameOf.get(link.from_task_id);
+    const to = nameOf.get(link.to_task_id);
+    // Связь без задачи не рисуется и стрелкой (см. Arrows) — пилюля из неё
+    // тоже не делается.
+    if (from === undefined || to === undefined) continue;
+    blocksOf.set(link.from_task_id, [...(blocksOf.get(link.from_task_id) ?? []), to]);
+    waitsOf.set(link.to_task_id, [...(waitsOf.get(link.to_task_id) ?? []), from]);
+  }
+
   /** Подпись бейджа отклонения. Ноль дней бейджа не получает: он ни о чём. */
   const deviationLabel = (task: Task) => {
     const shift = endShiftDays(task);
@@ -122,6 +138,8 @@ export function Gantt({
     >
       <Summary state={state} formatDay={formatDay} />
 
+      {categories.length > 0 && <Legend hasDeadline={state.deadline !== null} />}
+
       {categories.length === 0 ? (
         <p className="empty gantt__empty">{t("gantt.empty")}</p>
       ) : (
@@ -147,6 +165,7 @@ export function Gantt({
                   state.deadline ? t("gantt.deadline", { date: formatDay(state.deadline) }) : ""
                 }
                 todayLabel={t("gantt.today")}
+                todayChip={formatShortDate(t, today)}
               />
 
               <Arrows
@@ -188,6 +207,17 @@ export function Gantt({
                           beyondPlanLabel={t("gantt.beyond_plan")}
                           baselineLabel={baselineLabel(task)}
                           deviationLabel={deviationLabel(task)}
+                          blockerPill={blocksOf.has(task.id) ? t("gantt.pill.blocker") : undefined}
+                          blockerTitle={
+                            blocksOf.has(task.id)
+                              ? t("gantt.pill.blocks", { names: blocksOf.get(task.id)!.join(", ") })
+                              : undefined
+                          }
+                          waitsPill={
+                            waitsOf.has(task.id)
+                              ? t("gantt.pill.waits", { name: waitsOf.get(task.id)!.join(", ") })
+                              : undefined
+                          }
                         />
                       ))}
                     </div>
@@ -199,6 +229,43 @@ export function Gantt({
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Легенда — строка условных обозначений над лентой, как в макете Broadsheet.
+ *
+ * Постоянная, а не по наведению: цвета полосок означают критичность, и без
+ * расшифровки жёлтая полоска — просто жёлтая полоска. Подписи — те же ключи,
+ * что и в карточке задачи: легенда обязана называть уровни так же, как поле,
+ * в котором их выбирают.
+ */
+function Legend({ hasDeadline }: { hasDeadline: boolean }) {
+  const { t } = useLocale();
+  const levels = ["low", "normal", "high", "critical"] as const;
+  return (
+    <p className="gantt__legend">
+      {levels.map((level) => (
+        <span key={level} className="gantt__legend-item">
+          <i className="gantt__swatch" data-criticality={level} aria-hidden="true" />
+          {t(`task.criticality.${level}`)}
+        </span>
+      ))}
+      <span className="gantt__legend-item">
+        <i className="gantt__swatch gantt__swatch--late" aria-hidden="true" />
+        {t("gantt.legend.late")}
+      </span>
+      {hasDeadline && (
+        <span className="gantt__legend-item">
+          <i className="gantt__swatch gantt__swatch--line gantt__swatch--deadline" aria-hidden="true" />
+          {t("gantt.legend.deadline")}
+        </span>
+      )}
+      <span className="gantt__legend-item">
+        <i className="gantt__swatch gantt__swatch--line gantt__swatch--today" aria-hidden="true" />
+        {t("gantt.today")}
+      </span>
+    </p>
   );
 }
 

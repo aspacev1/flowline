@@ -48,6 +48,66 @@
   margin: 0;
 }
 
+/* Легенда над лентой. Плашки — те же цвета и скругление, что у полосок:
+   легенда, нарисованная другими фигурами, расшифровывала бы саму себя. */
+.gantt__legend {
+  display: flex;
+  align-items: center;
+  gap: 6px 14px;
+  flex-wrap: wrap;
+  margin: 0 0 var(--gap);
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.gantt__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.gantt__swatch {
+  width: 22px;
+  height: 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bar);
+}
+
+.gantt__swatch[data-criticality="low"] {
+  background: var(--bar-low);
+}
+
+.gantt__swatch[data-criticality="high"] {
+  background: var(--bar-high);
+}
+
+.gantt__swatch[data-criticality="critical"] {
+  background: var(--bar-critical);
+}
+
+/* Просрочка — обводка без заливки, как у полоски с is-late. */
+.gantt__swatch--late {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+
+/* Вертикали дедлайна и «сегодня» — образец линии, а не плашка. */
+.gantt__swatch--line {
+  width: 2px;
+  height: 14px;
+  border-radius: 0;
+  background: transparent;
+}
+
+.gantt__swatch--deadline {
+  background: var(--danger);
+}
+
+.gantt__swatch--today {
+  background: var(--accent);
+}
+
 /* Прокручивается лента, а не страница: левая колонка обязана остаться на
    месте, и sticky работает только внутри своего прокручиваемого предка. */
 .gantt__scroll {
@@ -163,6 +223,23 @@
   border-left: 2px solid var(--accent);
 }
 
+/* Чип с датой на линии «сегодня». Поверх строк (сетка лежит под ними), но
+   z-index стоит на чипе, а не на линии: линия должна остаться под полосками. */
+.gantt__today-chip {
+  position: absolute;
+  top: 4px;
+  left: 1px;
+  transform: translateX(-50%);
+  z-index: 2;
+  padding: 1px 7px;
+  border-radius: var(--radius-lg);
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 /* Слой стрелок. Поверх сетки, но под строками: полоска, на которую стрелка
    указывает, не должна оказаться под линией. Событий не принимает — сквозь
    него тащат полоски. */
@@ -182,6 +259,12 @@
      артефакт отрисовки. */
   stroke-linejoin: round;
   stroke-linecap: round;
+}
+
+/* Нарушенная связь — задача начата до готовности той, которой она ждёт:
+   цвет тревоги, а не оформления, чтобы нахлёст было видно с расстояния. */
+.arrows polyline.is-violated {
+  stroke: var(--danger);
 }
 
 .gantt__rows {
@@ -266,6 +349,29 @@
 .gantt__flag {
   color: var(--danger);
   font-weight: 700;
+}
+
+/* Пилюли связей в левой колонке: «блокер» у источника, «ждёт: имя» у
+   приёмника. Название уступает им место последним — пилюля без текста
+   бессмысленна, а имя задачи хотя бы обрезается узнаваемо. */
+.gantt__pill {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 1px 7px;
+  border-radius: var(--radius-lg);
+  background: var(--hover);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.gantt__pill--blocker {
+  flex: 0 0 auto;
+  background: var(--danger-soft);
+  color: var(--danger);
 }
 
 /* Ручка перетаскивания: появляется при наведении на строку. Постоянно видимая

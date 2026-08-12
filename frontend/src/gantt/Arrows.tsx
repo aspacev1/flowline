@@ -56,6 +56,9 @@ export function Arrows({
       return {
         key: `${link.from_task_id}-${link.to_task_id}`,
         points: elbow(startX, startY, endX, endY),
+        // Нарушенная связь: приёмник начат, пока источник ещё не кончился.
+        // Конец отрезка включительный, поэтому совпадение дат — тоже нахлёст.
+        violated: to.start_date <= from.end_date,
       };
     })
     .filter((line) => line !== null);
@@ -72,7 +75,11 @@ export function Arrows({
       focusable="false"
     >
       {lines.map((line) => (
-        <polyline key={line.key} points={line.points} />
+        <polyline
+          key={line.key}
+          points={line.points}
+          className={line.violated ? "is-violated" : undefined}
+        />
       ))}
     </svg>
   );
