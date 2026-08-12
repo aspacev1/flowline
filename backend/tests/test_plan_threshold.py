@@ -248,3 +248,64 @@ def test_undo_of_a_shift_beyond_the_threshold_asks_as_well(db, project, category
         undo(db, project, back, actor_id=None)
 
     assert task.start_date == date(2026, 3, 2)
+
+
+def test_a_duration_edit_is_not_charged_for_the_start_shift(db, project, category):
+    """Волна 1.7: измерения не смешиваются.
+
+    Задача с объяснённо уехавшим стартом (7 дней при пороге 2) правит
+    длительность на день — в пределах порога. До исправления отклонение
+    считалось как max по обоим измерениям, и правка длительности требовала
+    причину за чужой сдвиг старта.
+    """
+    task = _task(db, project, category)
+    approve_plan(db, project, actor_id=None)
+    apply_op(
+        db,
+        project,
+        MoveTask(task_id=task.id, start_date=date(2026, 3, 9)),
+        actor_id=None,
+        reason="подрядчик сорвал срок",
+    )
+
+    apply_op(db, project, SetDuration(task_id=task.id, duration_days=6), actor_id=None)
+
+    assert task.duration_days == 6
+
+
+def test_the_reported_deviation_belongs_to_the_edited_dimension(db, project, category):
+    """Заголовок X-Shift-Deviation-Days называет число из правимого измерения.
+
+    Старт уехал на 7, правится длительность на 4: отказ обязан назвать 4 —
+    интерфейс показывает это число человеку как «на сколько уводит ваша
+    правка», и 7 в нём было бы ложью.
+    """
+    task = _task(db, project, category)
+    approve_plan(db, project, actor_id=None)
+    apply_op(
+        db,
+        project,
+        MoveTask(task_id=task.id, start_date=date(2026, 3, 9)),
+        actor_id=None,
+        reason="подрядчик сорвал срок",
+    )
+
+    with pytest.raises(ReasonRequired) as error:
+        apply_op(db, project, SetDuration(task_id=task.id, duration_days=9), actor_id=None)
+
+    assert error.value.deviation_days == 4
+
+
+def test_without_arguments_deviation_reports_the_larger_dimension(db, project, category):
+    task = _task(db, project, category)
+    approve_plan(db, project, actor_id=None)
+    apply_op(
+        db,
+        project,
+        MoveTask(task_id=task.id, start_date=date(2026, 3, 9)),
+        actor_id=None,
+        reason="подрядчик сорвал срок",
+    )
+
+    # Вопрос «насколько задача ушла от обещанного» — по-прежнему max.
+    assert deviation_days(task) == 7
