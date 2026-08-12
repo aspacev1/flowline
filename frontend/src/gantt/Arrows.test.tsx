@@ -51,6 +51,28 @@ describe("стрелки связей", () => {
     expect(points.at(-1)![0]).toBe(to.left);
   });
 
+  it("подсвечивает нарушенную связь, когда приёмник начат до готовности источника", async () => {
+    // Конец отрезка включительный: старт в последний день источника — уже
+    // нахлёст, и такую стрелку лента красит цветом тревоги.
+    const { container } = renderProject({
+      ...WITH_DEPENDENCY,
+      tasks: [
+        WITH_DEPENDENCY.tasks[0],
+        { ...WITH_DEPENDENCY.tasks[1], start_date: "2026-03-10" },
+      ],
+    });
+    await screen.findByRole("button", { name: /Логотип/ });
+
+    expect(container.querySelector("svg.arrows polyline")).toHaveClass("is-violated");
+  });
+
+  it("не подсвечивает связь, когда приёмник начинается после источника", async () => {
+    const { container } = renderProject(WITH_DEPENDENCY);
+    await screen.findByRole("button", { name: /Логотип/ });
+
+    expect(container.querySelector("svg.arrows polyline")).not.toHaveClass("is-violated");
+  });
+
   it("не рисует стрелку в задачу, которой нет в проекте", async () => {
     // Связь переживает задачу ровно на один ответ сервера: её удалили в
     // соседней вкладке. Рисовать стрелку в пустоту нельзя — она уходит в

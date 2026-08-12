@@ -184,6 +184,12 @@
   stroke-linecap: round;
 }
 
+/* Нарушенная связь — задача начата до готовности той, которой она ждёт:
+   цвет тревоги, а не оформления, чтобы нахлёст было видно с расстояния. */
+.arrows polyline.is-violated {
+  stroke: var(--danger);
+}
+
 .gantt__rows {
   position: relative;
   z-index: 1;
