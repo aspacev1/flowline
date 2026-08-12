@@ -2,21 +2,32 @@ import secrets
 from collections.abc import Callable
 from typing import TypeVar
 
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DataError, IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
-from app.text import slugify
+from app.text import SLUG_MAX_LEN, slugify
 
 MAX_ATTEMPTS = 5
 
 T = TypeVar("T")
 
 
+def _with_suffix(base: str, suffix: str) -> str:
+    """База с суффиксом, вместе не длиннее колонки.
+
+    Суффикс пришивается к уже обрезанному слагу, поэтому урезается база, а не
+    суффикс: суффикс — это и есть гарантия уникальности, терять его символы
+    нельзя.
+    """
+    trimmed = base[: SLUG_MAX_LEN - len(suffix)].rstrip("-")
+    return f"{trimmed}{suffix}"
+
+
 def _candidate(name: str, *, forced: bool, is_taken: Callable[[str], bool], fallback: str) -> str:
     base = slugify(name, fallback=fallback)
     if not forced and not is_taken(base):
         return base
-    return f"{base}-{secrets.token_hex(3)}"
+    return _with_suffix(base, f"-{secrets.token_hex(3)}")
 
 
 def suggest_free_slug(
@@ -38,10 +49,10 @@ def suggest_free_slug(
     if not is_taken(base):
         return base
     for number in range(2, limit + 2):
-        candidate = f"{base}-{number}"
+        candidate = _with_suffix(base, f"-{number}")
         if not is_taken(candidate):
             return candidate
-    return f"{base}-{secrets.token_hex(3)}"
+    return _with_suffix(base, f"-{secrets.token_hex(3)}")
 
 
 def slug_check(raw: str, *, is_taken: Callable[[str], bool], fallback: str = "project") -> dict:
@@ -86,8 +97,13 @@ def insert_with_unique_slug(
     Число попыток ограничено, чтобы IntegrityError по другой причине —
     например, по внешнему ключу — не превратился в вечный цикл: исчерпав
     попытки, поднимаем последнюю ошибку как есть.
+
+    DataError ловится наравне с IntegrityError: слаг обрезается до колонки
+    ещё в slugify, но у сущности есть и другие строковые поля, а прерванной
+    без отката до SAVEPOINT осталась бы вся транзакция сессии — вместе с
+    изменениями, не имеющими к слагу никакого отношения.
     """
-    last_error: IntegrityError | None = None
+    last_error: DataError | IntegrityError | None = None
     for attempt in range(MAX_ATTEMPTS):
         slug = _candidate(name, forced=attempt > 0, is_taken=is_taken, fallback=fallback)
         entity = build(slug)
@@ -95,7 +111,7 @@ def insert_with_unique_slug(
             with db.begin_nested():
                 db.add(entity)
                 db.flush()
-        except IntegrityError as exc:
+        except (DataError, IntegrityError) as exc:
             last_error = exc
             continue
         return entity

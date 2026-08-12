@@ -36,10 +36,18 @@ def normalize_email(raw: str) -> str:
     return unicodedata.normalize("NFKC", raw.strip()).casefold()
 
 
-def slugify(raw: str, fallback: str = "project") -> str:
+# Ширина колонок slug в organizations и projects (models.py). Слаг длиннее
+# уезжал бы в базу как есть и возвращался DataError на усечении — то есть
+# пятисоткой, а не адресом. Транслитерация умеет удлинять текст («щ» → «sch»),
+# поэтому граница на входе формы недостаточна: укорачивает сама slugify.
+SLUG_MAX_LEN = 100
+
+
+def slugify(raw: str, fallback: str = "project", *, max_length: int = SLUG_MAX_LEN) -> str:
     transliterated = "".join(_TRANSLIT.get(ch, ch) for ch in raw)
     lowered = transliterated.lower()
     stripped = unicodedata.normalize("NFKD", lowered)
     ascii_only = "".join(ch for ch in stripped if not unicodedata.combining(ch))
     slug = re.sub(r"[^a-z0-9]+", "-", ascii_only).strip("-")
+    slug = slug[:max_length].rstrip("-")
     return slug or fallback
