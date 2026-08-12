@@ -164,7 +164,7 @@ describe("базовый план на диаграмме", () => {
     });
 
     expect(await screen.findByTestId("ghost-t1")).toBeInTheDocument();
-    expect(screen.getByTestId("deviation-t1")).toHaveTextContent("+7 дней");
+    expect(screen.getByTestId("deviation-t1")).toHaveTextContent("+7 дн.");
   });
 
   it("не рисует бейдж, пока задача стоит по плану", async () => {
