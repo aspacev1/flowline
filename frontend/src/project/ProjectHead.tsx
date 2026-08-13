@@ -47,44 +47,44 @@ export function ProjectHead({
 
   return (
     <header className="project-head">
-      {actions && <div className="project-head__actions">{actions}</div>}
+      <div className="project-head__main">
+        {/* Название и сводка — одна пара, как в макете Planora: имя проекта
+            слева, ключевые действия справа, служебные данные строкой ниже. */}
+        <div className="project-head__titles">
+          {/* Название проекта — содержимое пользователя: приходит с сервера как
+              есть и не переводится ни при каком языке интерфейса. */}
+          <h1 className="project-head__title">{state.name}</h1>
 
-      {showPlan && (
-        <p className="project-head__plan">
-          <span className="project-head__plan-label">
-            {state.plan_approved_at
-              ? t("plan.line", { version: state.plan_version })
-              : t("plan.line_draft")}
-          </span>
-          {/* Расхождение называется словами, а не значком: «изменён после
-              согласования» человек понимает без легенды, а восклицательный
-              знак приходится расшифровывать наведением. */}
-          {changedSinceApproval(state) && (
-            <span className="project-head__plan-note">{t("plan.changed")}</span>
-          )}
-          {planAction}
-        </p>
-      )}
+          <p className="project-head__meta">
+            {period
+              ? t("project.meta", {
+                  period: t("project.period", {
+                    from: formatDate(t, period.from),
+                    to: formatDate(t, period.to),
+                  }),
+                  counts,
+                })
+              : counts}
+            {showPlan && (
+              <span className="project-head__plan-inline">
+                <span className="project-head__dot">•</span>
+                <span className="project-head__plan-label">
+                  {state.plan_approved_at
+                    ? t("plan.line", { version: state.plan_version })
+                    : t("plan.line_draft")}
+                </span>
+                {changedSinceApproval(state) && (
+                  <span className="project-head__plan-note">{t("plan.changed")}</span>
+                )}
+              </span>
+            )}
+          </p>
+        </div>
 
-      {/* Название и сводка — одна пара, а не два яруса шапки: сводка читается
-          как подпись под названием и держится его, а не общего ритма. */}
-      <div className="project-head__titles">
-        {/* Название проекта — содержимое пользователя: приходит с сервера как
-            есть и не переводится ни при каком языке интерфейса. */}
-        <h1 className="project-head__title">{state.name}</h1>
-
-        <p className="project-head__meta">
-          {period
-            ? t("project.meta", {
-                period: t("project.period", {
-                  from: formatDate(t, period.from),
-                  to: formatDate(t, period.to),
-                }),
-                counts,
-              })
-            : counts}
-        </p>
+        {actions && <div className="project-head__actions">{actions}</div>}
       </div>
+
+      {showPlan && planAction && <div className="project-head__approval">{planAction}</div>}
     </header>
   );
 }
