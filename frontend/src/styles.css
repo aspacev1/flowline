@@ -1360,36 +1360,6 @@ input[type="checkbox"] {
   user-select: none;
 }
 
-/* Стопка аватаров: перекрытие говорит «их несколько», не занимая строку. */
-.avatar-stack {
-  display: inline-flex;
-  align-items: center;
-}
-
-.avatar-stack .avatar + .avatar,
-.avatar-stack .avatar + .avatar-stack__more {
-  margin-left: -8px;
-}
-
-.avatar-stack .avatar {
-  box-shadow: 0 0 0 2px var(--surface);
-}
-
-.avatar-stack__more {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: var(--hover);
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 700;
-  box-shadow: 0 0 0 2px var(--surface);
-}
-
 /* --- плашка статуса --- */
 
 /* Один словарь цветов на весь продукт: список, карточка и легенда обязаны

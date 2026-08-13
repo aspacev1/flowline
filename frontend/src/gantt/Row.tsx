@@ -1,8 +1,6 @@
 import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 
 import type { Category, Task } from "../api/projects";
-import { Avatar } from "../components/Avatar";
-import { StatusChip } from "../components/StatusChip";
 import { baselineOf, endShiftDays } from "../project/baseline";
 import { useDragDates } from "./useDragDates";
 import { halfOf } from "./useReorder";
@@ -10,50 +8,18 @@ import type { Reorder } from "./useReorder";
 import type { Scale } from "./timescale";
 
 /**
- * Левая колонка — три ячейки, как в макете Planora: задача, владелец, статус.
+ * Левая колонка — единственная ячейка задачи.
  *
- * Это ячейки одной закреплённой колонки, а не три sticky-колонки: закреплять
- * их по отдельности значило бы считать три ширины в двух местах — здесь и в
- * стилях — и однажды разъехаться.
+ * Обёрнута в тот же `gantt__cell`, что и раньше держал три ячейки: сама
+ * закреплённая колонка (`gantt__label`) от этого не меняется, меняется
+ * только то, что в ней лежит.
  */
-function LabelCells({
-  task,
-  owner,
-  status,
-}: {
-  task: ReactNode;
-  owner: ReactNode;
-  status: ReactNode;
-}) {
-  return (
-    <>
-      <span className="gantt__cell gantt__cell--task">{task}</span>
-      <span className="gantt__cell gantt__cell--owner">{owner}</span>
-      <span className="gantt__cell gantt__cell--status">{status}</span>
-    </>
-  );
-}
-
-/** Стопка владельцев: два аватара, остальные — числом. */
-export function OwnerStack({ names }: { names: string[] }) {
-  if (names.length === 0) {
-    // Прочерк, а не пустота: пустая ячейка читается как «забыли отрисовать»,
-    // прочерк — как «владелец не назначен».
-    return <span className="gantt__no-owner">—</span>;
-  }
-  return (
-    <span className="avatar-stack">
-      {names.slice(0, 2).map((name) => (
-        <Avatar key={name} name={name} size={28} />
-      ))}
-      {names.length > 2 && <span className="avatar-stack__more">+{names.length - 2}</span>}
-    </span>
-  );
+function LabelCells({ task }: { task: ReactNode }) {
+  return <span className="gantt__cell gantt__cell--task">{task}</span>;
 }
 
 /**
- * Строка-заголовок категории: шеврон, название, прочерк владельца и процент
- * готовности вместо статуса — свёртка по задачам, посчитанная в Gantt.
+ * Строка-заголовок категории: шеврон и название.
  *
  * Полоса рисуется по крайним датам содержимого, а не по отдельно хранимым
  * границам категории: вторых не существует, и заводить их значило бы держать
@@ -69,7 +35,6 @@ export function CategoryRow({
   open = true,
   onToggle,
   toggleLabel,
-  progressLabel,
 }: {
   category: Category;
   tasks: Task[];
@@ -81,8 +46,6 @@ export function CategoryRow({
   open?: boolean;
   onToggle?: () => void;
   toggleLabel?: string;
-  /** «67%» — готовность категории, взвешенная по длительности задач. */
-  progressLabel?: string;
 }) {
   const span =
     tasks.length === 0
@@ -135,10 +98,6 @@ export function CategoryRow({
               )}
             </>
           }
-          owner={<span className="gantt__no-owner">—</span>}
-          status={
-            progressLabel && <span className="gantt__percent">{progressLabel}</span>
-          }
         />
       </div>
 
@@ -184,7 +143,6 @@ export function TaskRow({
   beyondPlanLabel,
   baselineLabel,
   deviationLabel,
-  owners = [],
   statusLabel,
   showBaseline = true,
 }: {
@@ -207,9 +165,7 @@ export function TaskRow({
   baselineLabel?: string;
   /** Готовая подпись бейджа отклонения, например «+7 дней». */
   deviationLabel?: string;
-  /** Имена владельцев для колонки: уже развёрнуты из идентификаторов. */
-  owners?: string[];
-  /** Подпись плашки статуса на языке читателя. */
+  /** Подпись плашки статуса — нужна только полоске «заблокировано». */
   statusLabel?: string;
   /** Рисовать ли призрак и засечку базового плана — флажок меню «Вид». */
   showBaseline?: boolean;
@@ -275,8 +231,6 @@ export function TaskRow({
               )}
             </>
           }
-          owner={<OwnerStack names={owners} />}
-          status={statusLabel && <StatusChip status={task.status} label={statusLabel} />}
         />
       </div>
 

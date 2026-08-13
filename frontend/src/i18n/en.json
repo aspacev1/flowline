@@ -367,9 +367,7 @@
     "caption": "Footnote"
   },
   "col": {
-    "task": "Task",
-    "owner": "Owner",
-    "status": "Status"
+    "task": "Task"
   },
     "reorder": "Reorder “{name}”",
     "deadline": "Deadline {date}",

@@ -367,9 +367,7 @@
     "caption": "Qeyd"
   },
   "col": {
-    "task": "Tapşırıq",
-    "owner": "Sahib",
-    "status": "Status"
+    "task": "Tapşırıq"
   },
     "reorder": "«{name}» sətrini daşı",
     "deadline": "Son tarix {date}",
