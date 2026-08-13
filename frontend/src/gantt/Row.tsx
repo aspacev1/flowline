@@ -2,6 +2,7 @@ import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 
 import type { Category, Task } from "../api/projects";
 import { baselineOf, endShiftDays } from "../project/baseline";
+import { useBarTip } from "./BarTip";
 import { useDragDates } from "./useDragDates";
 import { halfOf } from "./useReorder";
 import type { Reorder } from "./useReorder";
@@ -175,6 +176,7 @@ export function TaskRow({
   showBaseline?: boolean;
 }) {
   const { offset, handlers } = useDragDates({ projectId, task, scale, enabled: canWrite });
+  const tip = useBarTip(task);
   const baseline = baselineOf(task);
   const shift = endShiftDays(task);
 
@@ -306,13 +308,39 @@ export function TaskRow({
             } as CSSProperties
           }
           {...handlers}
+          // Наведение и жест живут на одних и тех же событиях, поэтому
+          // обработчики сложены руками, а не наложены спредом: спред оставил бы
+          // от каждой пары только последнюю.
+          onPointerEnter={tip.onPointerEnter}
+          onPointerMove={(event) => {
+            handlers.onPointerMove(event);
+            tip.onPointerMove(event);
+          }}
+          onPointerDown={(event) => {
+            handlers.onPointerDown(event);
+            tip.onPointerDown();
+          }}
+          onPointerUp={(event) => {
+            handlers.onPointerUp(event);
+            tip.onPointerUp();
+          }}
+          onPointerCancel={() => {
+            handlers.onPointerCancel();
+            tip.onPointerCancel();
+          }}
+          onPointerLeave={tip.onPointerLeave}
+          onFocus={tip.onFocus}
+          onBlur={tip.onBlur}
           // Имя названо явно вместе с датами, а не оставлено содержимому
-          // кнопки: у полоски есть и `title`, и обрезаемый по ширине текст, и
-          // браузеры расходятся в том, что из этого станет доступным именем.
-          // Живая проверка показала полоску, которая читается с экрана как
+          // кнопки: у полоски есть обрезаемый по ширине текст, и браузеры
+          // расходятся в том, что из этого станет доступным именем. Живая
+          // проверка показала полоску, которая читается с экрана как
           // «14 августа — 20 августа» — без названия задачи вовсе.
+          //
+          // Нативного `title` у полоски нет намеренно: поверх карточки
+          // наведения через секунду вылезала бы вторая, браузерная, и об одном
+          // и том же говорили бы два разных окна.
           aria-label={`${task.name}, ${title}`}
-          title={title}
           aria-expanded={onSelect ? selected : undefined}
           onClick={() => onSelect?.(task.id)}
         >

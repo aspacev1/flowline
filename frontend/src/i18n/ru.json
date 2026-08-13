@@ -450,6 +450,9 @@
       "blocker": "Блокер",
       "late": "Дедлайн сорван · +N дн."
     },
+    "tip": {
+      "more": "{name} +{count}"
+    },
     "task_count": {
       "one": "{count} задача",
       "few": "{count} задачи",
