@@ -192,6 +192,11 @@ def comments_out(db: DbSession, comments: Sequence[Comment]) -> list[dict]:
             },
             "body": comment.body,
             "created_at": comment.created_at.isoformat(),
+            # Гостю поле не врёт: в его ленту внутренние реплики не попадают
+            # вовсе (list_comments include_internal=False), так что здесь
+            # у него всегда false. Участнику признак нужен, чтобы лента
+            # различала «в сторону» и общий разговор.
+            "internal": comment.internal,
         }
         for comment in comments
     ]

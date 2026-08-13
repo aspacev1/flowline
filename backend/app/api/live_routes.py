@@ -1,7 +1,9 @@
 import asyncio
+import time
 import uuid
 from collections.abc import Callable
 from contextlib import AbstractContextManager
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, WebSocket
 from sqlalchemy.orm import Session as DbSession
@@ -10,6 +12,7 @@ from starlette.websockets import WebSocketDisconnect
 from app.access import Action, can, parse_role, visible_op
 from app.api.deps import project_granted as has_project_grant
 from app.auth import SESSION_COOKIE, session_for_token
+from app.config import get_settings
 from app.db import SessionLocal
 from app.live import Subscriber, hub
 from app.models import Project, Role
@@ -32,6 +35,38 @@ CLOSE_LAGGING = 4409
 HEARTBEAT_SECONDS = 25
 
 HEARTBEAT = {"type": "heartbeat"}
+
+# Как часто перепроверять, что подписчику всё ещё можно читать проект. Сокет
+# живёт часами, а право за это время отзывают: человека выводят из
+# организации, сессию закрывают «выйти на всех устройствах». Проверять на
+# каждом сообщении — поход в базу на каждую ревизию каждому читателю;
+# раз в минуту — самое большее минута жизни отозванного доступа.
+RECHECK_SECONDS = 60.0
+
+
+def _origin_allowed(websocket: WebSocket) -> bool:
+    """Пришло ли рукопожатие со своей страницы.
+
+    Кука уезжает с WebSocket-рукопожатием с любого сайта: SameSite=Lax
+    считает его top-level навигацией. Без проверки Origin чужая страница
+    открывает сокет от имени залогиненного посетителя и читает живую ленту
+    его проекта. Браузер Origin подделать не даёт; запрос без Origin — не
+    браузер, ему CSRF не грозит (кука сама не подставится), поэтому
+    отсутствие заголовка — проход.
+    """
+    origin = websocket.headers.get("origin")
+    if origin is None:
+        return True
+    source = urlsplit(origin).hostname
+    if source is None:
+        return False
+    allowed = {
+        urlsplit(f"//{websocket.headers.get('host', '')}").hostname,
+        urlsplit(f"//{websocket.headers.get('x-forwarded-host', '')}").hostname,
+        urlsplit(get_settings().public_base_url).hostname,
+    }
+    allowed.discard(None)
+    return source.lower() in allowed
 
 
 def db_scope() -> Callable[[], AbstractContextManager[DbSession]]:
@@ -91,9 +126,14 @@ async def _drain(websocket: WebSocket) -> None:
 
 
 async def _pump(
-    websocket: WebSocket, subscriber: Subscriber, role: Role | str | None, granted: bool
+    websocket: WebSocket,
+    subscriber: Subscriber,
+    role: Role | str | None,
+    granted: bool,
+    still_allowed: Callable[[], bool] | None = None,
 ) -> None:
     reader = asyncio.create_task(_drain(websocket))
+    last_recheck = time.monotonic()
     try:
         while True:
             incoming = asyncio.create_task(subscriber.next())
@@ -109,6 +149,16 @@ async def _pump(
                 # вместе с подпиской.
                 incoming.cancel()
                 return
+
+            # Переавторизация: и перед рассылкой, и на пустом ходу — сокет,
+            # которому больше нельзя, закрывается не позже RECHECK_SECONDS
+            # после отзыва права, а не «когда-нибудь при перезагрузке».
+            if still_allowed is not None and time.monotonic() - last_recheck >= RECHECK_SECONDS:
+                last_recheck = time.monotonic()
+                if not still_allowed():
+                    incoming.cancel()
+                    await websocket.close(code=CLOSE_UNAUTHENTICATED)
+                    return
 
             if incoming not in done:
                 incoming.cancel()
@@ -142,8 +192,15 @@ async def project_live(
     из этого повод перепроверять членство на каждой ревизии значило бы ходить
     в базу на каждое сообщение каждому читателю.
     """
+    # Origin — до всего остального: чужой странице не положено даже узнать,
+    # есть ли у посетителя сессия.
+    if not _origin_allowed(websocket):
+        await _refuse(websocket, CLOSE_UNAUTHENTICATED)
+        return
+
+    token = websocket.cookies.get(SESSION_COOKIE)
     with session_scope() as db:
-        session = session_for_token(db, websocket.cookies.get(SESSION_COOKIE))
+        session = session_for_token(db, token)
         if session is None:
             await _refuse(websocket, CLOSE_UNAUTHENTICATED)
             return
@@ -165,8 +222,31 @@ async def project_live(
             await _refuse(websocket, CLOSE_NOT_FOUND)
             return
 
+    def still_allowed() -> bool:
+        """Право читать проект, проверенное заново, — для переавторизации.
+
+        Короткая сессия базы на каждую проверку — тем же приёмом, что и при
+        подключении: держать соединение из пула под живущим часами сокетом
+        нельзя, а раз в минуту открыть и закрыть — не стоит ничего.
+        """
+        with session_scope() as db:
+            fresh = session_for_token(db, token)
+            if fresh is None:
+                return False
+            membership = active_membership(db, fresh)
+            if membership is None:
+                return False
+            current = db.get(Project, project_id)
+            if current is None or current.org_id != membership.org_id:
+                return False
+            return can(
+                parse_role(membership.role),
+                Action.PROJECT_READ,
+                project_granted=has_project_grant(db, project_id, fresh.user_id),
+            )
+
     # Сессия закрыта до accept(): дальше обработчик только ждёт, и держать за
     # этим ожиданием соединение с базой не за что.
     await websocket.accept()
     with hub.subscribe(project_id) as subscriber:
-        await _pump(websocket, subscriber, role, granted)
+        await _pump(websocket, subscriber, role, granted, still_allowed)

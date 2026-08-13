@@ -52,6 +52,8 @@ class ProjectOut(BaseModel):
 class CommentIn(BaseModel):
     body: str = Field(min_length=1)
     task_id: uuid.UUID | None = None
+    #: Реплика «в сторону»: видна участникам, гостю публичной ссылки — нет.
+    internal: bool = False
 
 
 @router.post("", response_model=ProjectOut, status_code=201)
@@ -476,6 +478,7 @@ def create_project_comment(
             body=payload.body,
             task_id=payload.task_id,
             author=context.user,
+            internal=payload.internal,
         )
     except CommentRejected as error:
         # task_not_found — не ошибка формата: та же 404, что и у мутаций,

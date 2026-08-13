@@ -12,6 +12,7 @@
 
 import json
 import logging
+import re
 import smtplib
 from dataclasses import dataclass
 from email.message import EmailMessage
@@ -171,24 +172,42 @@ class ApiTransport:
             raise MailError(f"почтовый API недоступен: {exc}") from exc
 
 
+# Токены в письмах — это base64/hex-строки длиной от двадцати символов;
+# обычные слова любого из языков установки до неё не дотягивают. Маскируется
+# хвост, а не вся строка: по первым символам письмо в журнале можно сопоставить
+# с записью в базе, не получив при этом рабочей ссылки.
+_TOKEN_LIKE = re.compile(r"[A-Za-z0-9_\-]{20,}")
+
+
+def _mask_secrets(text: str) -> str:
+    return _TOKEN_LIKE.sub(lambda match: match.group(0)[:6] + "…", text)
+
+
 class LogTransport:
-    """MAIL_TRANSPORT=none: письмо целиком уходит в журнал и больше никуда.
+    """MAIL_TRANSPORT=none и log: письмо уходит в журнал и больше никуда.
 
     Установка без почтового сервера должна оставаться полноценной, поэтому
-    выключенная почта — это не ошибка. Текст пишется целиком, а не одной
-    строкой «письмо подавлено»: при локальной разработке журнал — это
-    единственный почтовый ящик, и ссылку из письма надо откуда-то взять.
+    выключенная почта — это не ошибка. Разница между двумя значениями — в
+    том, что попадает в журнал. Журнал боевой установки читают не только
+    администраторы: он уезжает в агрегаторы и хранится дольше, чем живут
+    токены, а ссылка подтверждения или приглашения в нём — это готовый вход
+    в чужой аккаунт. Поэтому `none` маскирует токены, и полный текст письма
+    печатает только `log` — явный выбор режима разработки, где журнал и есть
+    почтовый ящик.
     """
 
-    def __init__(self, *, sender: str = "") -> None:
+    def __init__(self, *, sender: str = "", reveal_secrets: bool = False) -> None:
         self._sender = sender
+        self._reveal_secrets = reveal_secrets
 
     def deliver(self, letter: Letter) -> None:
+        body = letter.body if self._reveal_secrets else _mask_secrets(letter.body)
         logger.info(
-            "почта выключена (MAIL_TRANSPORT=none), письмо осталось здесь:\n"
+            "почта в журнал (MAIL_TRANSPORT=%s), письмо осталось здесь:\n"
             "From: %s\nTo: %s\nSubject: %s\n\n%s",
+            "log" if self._reveal_secrets else "none",
             self._sender or "—",
             letter.to,
             letter.subject,
-            letter.body,
+            body,
         )

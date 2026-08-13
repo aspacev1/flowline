@@ -11,8 +11,11 @@ config = context.config
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
+# disable_existing_loggers=False: умолчание fileConfig глушит все уже
+# созданные логгеры приложения — миграция, выполненная на старте, оставляла
+# бы процесс наполовину немым (а тесты — зависимыми от порядка запуска).
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 from app.config import get_settings
 from app.db import Base

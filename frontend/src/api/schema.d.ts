@@ -181,7 +181,17 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Login Route */
+        /**
+         * Login Route
+         * @description Вход. Два предела частоты — на два разных способа перебора.
+         *
+         *     По IP считаются все попытки: один адрес, молотящий вход, — это перебор
+         *     паролей по словарю, чьи бы адреса он ни пробовал. По аккаунту — только
+         *     неудачи: это перебор паролей к конкретному человеку с многих адресов, и
+         *     считать успехи здесь нельзя — успешный вход с двух устройств заперал бы
+         *     владельца. Счётчики в базе, а не в памяти процесса: перезапуск или
+         *     вторая реплика не должны обнулять предел (см. app.throttle).
+         */
         post: operations["login_route_api_auth_login_post"];
         delete?: never;
         options?: never;
@@ -231,6 +241,31 @@ export interface paths {
         patch: operations["update_me_api_auth_me_patch"];
         trace?: never;
     };
+    "/api/auth/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change Password Route
+         * @description Смена пароля. Требует прежний: одной сессии для этого мало —
+         *     иначе украденная кука меняла бы пароль владельцу.
+         *
+         *     Остальные сессии закрываются тут же: смена пароля — это обычно ответ на
+         *     подозрение, что он утёк, и оставлять чужие входы жить дальше значило бы
+         *     делать вид, что смена что-то решила. Текущая сессия остаётся.
+         */
+        post: operations["change_password_route_api_auth_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/register": {
         parameters: {
             query?: never;
@@ -242,6 +277,26 @@ export interface paths {
         put?: never;
         /** Register Route */
         post: operations["register_route_api_auth_register_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/sessions/close-others": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Close Other Sessions Route
+         * @description «Выйти на всех устройствах», кроме этого.
+         */
+        post: operations["close_other_sessions_route_api_auth_sessions_close_others_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -857,6 +912,9 @@ export interface paths {
          *     Выключенные комментарии — это запрет писать, а не приказ спрятать уже
          *     сказанное: разговор, который клиент видел вчера, не должен исчезнуть от
          *     щелчка переключателем.
+         *
+         *     Внутренние реплики гость не видит: это разговор команды «в сторону»,
+         *     а не часть публичной страницы.
          */
         get: operations["public_comments_api_public__org_slug___project_slug__comments_get"];
         put?: never;
@@ -903,6 +961,11 @@ export interface components {
         CommentIn: {
             /** Body */
             body: string;
+            /**
+             * Internal
+             * @default false
+             */
+            internal: boolean;
             /** Task Id */
             task_id?: string | null;
         };
@@ -1148,6 +1211,13 @@ export interface components {
             week_start: number;
             /** Working Days */
             working_days: number;
+        };
+        /** PasswordIn */
+        PasswordIn: {
+            /** Current Password */
+            current_password: string;
+            /** New Password */
+            new_password: string;
         };
         /** PreviewOut */
         PreviewOut: {
@@ -1544,6 +1614,11 @@ export interface components {
              * @default false
              */
             deliver: boolean;
+        };
+        /** SessionsClosedOut */
+        SessionsClosedOut: {
+            /** Closed */
+            closed: number;
         };
         /**
          * ShareOut
@@ -2174,6 +2249,39 @@ export interface operations {
             };
         };
     };
+    change_password_route_api_auth_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                flowline_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     register_route_api_auth_register_post: {
         parameters: {
             query?: never;
@@ -2196,6 +2304,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    close_other_sessions_route_api_auth_sessions_close_others_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                flowline_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionsClosedOut"];
                 };
             };
             /** @description Validation Error */

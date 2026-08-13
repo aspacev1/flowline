@@ -282,3 +282,25 @@ def test_the_internal_note_is_stripped_for_a_role_that_may_not_read_it(authed, p
         event = socket.receive_json()
         assert event["op"]["type"] == "create_task"
         assert "internal_note" not in event["op"]
+
+
+# --- волна 2.10: Origin на рукопожатии ---------------------------------------
+
+
+def test_a_socket_from_a_foreign_origin_is_refused(authed, project_id):
+    """Кука уезжает с рукопожатием с любого сайта (SameSite=Lax считает его
+    навигацией), и без проверки Origin чужая страница читала бы живую ленту
+    от имени залогиненного посетителя."""
+    with authed.websocket_connect(
+        f"/api/projects/{project_id}/live", headers={"origin": "https://evil.example"}
+    ) as socket:
+        with pytest.raises(WebSocketDisconnect) as refusal:
+            socket.receive_json()
+    assert refusal.value.code == CLOSE_UNAUTHENTICATED
+
+
+def test_a_socket_from_our_own_origin_connects(authed, project_id):
+    with authed.websocket_connect(
+        f"/api/projects/{project_id}/live", headers={"origin": "http://testserver"}
+    ):
+        pass  # рукопожатие состоялось — этого достаточно

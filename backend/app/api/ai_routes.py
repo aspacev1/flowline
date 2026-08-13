@@ -8,30 +8,37 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
 from app.access import Action, can, parse_role
-from app.ai import intake
+from app.ai import intake, usage
 from app.ai.credentials import credential, provider_for, save_credential
 from app.ai.provider import LlmError, LlmProvider
 from app.auth import current_user
+from app.config import get_settings
 from app.db import get_db
 from app.models import AiSession, Membership, Organization, Project, Task, User
+from app.orgs import current_membership
+from app import throttle
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
 
 
-def _membership(db: DbSession, user: User) -> Membership:
-    membership = db.scalar(
-        select(Membership).where(Membership.user_id == user.id).order_by(Membership.id)
-    )
-    if membership is None:
-        raise HTTPException(status_code=403, detail="no_organization")
+# Членство берётся из current_membership — то есть из организации, выбранной
+# переключателем на сессии, — а не «первое по id», как было. Первое по id
+# делало AI слепым к переключателю: человек, работающий во второй
+# организации, читал и настраивал ключ LLM первой, тратил её токены и
+# складывал AI-сессии в неё же — то есть в чужую для текущего экрана
+# организацию.
+
+
+def _admin(membership: Membership = Depends(current_membership)) -> Membership:
+    if not can(parse_role(membership.role), Action.ORG_ADMIN):
+        raise HTTPException(status_code=403, detail="forbidden")
     return membership
 
 
-def _writer(db: DbSession, user: User) -> tuple[Organization, Membership]:
-    membership = _membership(db, user)
+def _writer(membership: Membership = Depends(current_membership)) -> Membership:
     if not can(parse_role(membership.role), Action.PROJECT_WRITE):
         raise HTTPException(status_code=403, detail="forbidden")
-    return db.get(Organization, membership.org_id), membership
+    return membership
 
 
 def _refuse(error: Exception) -> HTTPException:
@@ -70,10 +77,9 @@ class CredentialOut(BaseModel):
 
 
 @router.get("/credential", response_model=CredentialOut)
-def read_credential(user: User = Depends(current_user), db: DbSession = Depends(get_db)):
-    membership = _membership(db, user)
-    if not can(parse_role(membership.role), Action.ORG_ADMIN):
-        raise HTTPException(status_code=403, detail="forbidden")
+def read_credential(
+    membership: Membership = Depends(_admin), db: DbSession = Depends(get_db)
+):
     row = credential(db, db.get(Organization, membership.org_id))
     if row is None:
         return CredentialOut(provider="", base_url="", model="", configured=False)
@@ -84,11 +90,10 @@ def read_credential(user: User = Depends(current_user), db: DbSession = Depends(
 
 @router.put("/credential", response_model=CredentialOut)
 def write_credential(
-    payload: CredentialIn, user: User = Depends(current_user), db: DbSession = Depends(get_db)
+    payload: CredentialIn,
+    membership: Membership = Depends(_admin),
+    db: DbSession = Depends(get_db),
 ):
-    membership = _membership(db, user)
-    if not can(parse_role(membership.role), Action.ORG_ADMIN):
-        raise HTTPException(status_code=403, detail="forbidden")
     org = db.get(Organization, membership.org_id)
     try:
         row = save_credential(
@@ -99,6 +104,10 @@ def write_credential(
             model=payload.model,
             api_key=payload.api_key,
         )
+    except LlmError as error:
+        # Небезопасный адрес (не https, приватная сеть) — отказ формы с
+        # кодом, а не пятисотка и не молчаливое сохранение дыры.
+        raise HTTPException(status_code=422, detail=error.code)
     except ValueError:
         raise HTTPException(status_code=422, detail="api_key_required")
     return CredentialOut(
@@ -117,8 +126,28 @@ def _session(db: DbSession, org: Organization, session_id: uuid.UUID) -> AiSessi
 
 
 def _provider(db: DbSession, org: Organization) -> LlmProvider:
+    """Провайдер организации за двумя воротами: частота и суточный бюджет.
+
+    Ворота стоят здесь, потому что здесь сходятся все пути к модели —
+    интервью, тезисы, черновик, разбиение задачи. Отдельная проверка в
+    каждом маршруте — это маршрут, в котором её однажды забудут.
+
+    Частота считается в базе тем же механизмом, что вход и регистрация:
+    предел, обнуляемый перезапуском, — не предел. Расход записывает
+    MeteredProvider — после ответа модели, потому что до ответа неизвестен.
+    """
+    settings = get_settings()
+    if not throttle.hit(
+        db,
+        f"ai:org:{org.id}",
+        limit=settings.ai_requests_per_minute,
+        window_seconds=60,
+    ):
+        raise HTTPException(status_code=429, detail="ai_rate_limited")
+    if not usage.budget_left(db, org):
+        raise HTTPException(status_code=429, detail="ai_budget_exhausted")
     try:
-        return provider_for(db, org)
+        return usage.MeteredProvider(provider_for(db, org), db, org)
     except LlmError as error:
         raise _refuse(error)
 
@@ -149,9 +178,11 @@ class StartIn(BaseModel):
 
 @router.post("/sessions", status_code=201)
 def start_session(
-    payload: StartIn, user: User = Depends(current_user), db: DbSession = Depends(get_db)
+    payload: StartIn, user: User = Depends(current_user),
+    membership: Membership = Depends(_writer),
+    db: DbSession = Depends(get_db),
 ):
-    org, _ = _writer(db, user)
+    org = db.get(Organization, membership.org_id)
     provider = _provider(db, org)
     try:
         session = intake.start(
@@ -164,9 +195,11 @@ def start_session(
 
 @router.get("/sessions/{session_id}")
 def read_session(
-    session_id: uuid.UUID, user: User = Depends(current_user), db: DbSession = Depends(get_db)
+    session_id: uuid.UUID, user: User = Depends(current_user),
+    membership: Membership = Depends(_writer),
+    db: DbSession = Depends(get_db),
 ):
-    org, _ = _writer(db, user)
+    org = db.get(Organization, membership.org_id)
     return _out(_session(db, org, session_id))
 
 
@@ -181,9 +214,10 @@ def answer_question(
     session_id: uuid.UUID,
     payload: AnswerIn,
     user: User = Depends(current_user),
+    membership: Membership = Depends(_writer),
     db: DbSession = Depends(get_db),
 ):
-    org, _ = _writer(db, user)
+    org = db.get(Organization, membership.org_id)
     session = _session(db, org, session_id)
     try:
         intake.answer(db, session, payload.text, _provider(db, org))
@@ -196,10 +230,12 @@ def answer_question(
 
 @router.post("/sessions/{session_id}/summary")
 def build_summary(
-    session_id: uuid.UUID, user: User = Depends(current_user), db: DbSession = Depends(get_db)
+    session_id: uuid.UUID, user: User = Depends(current_user),
+    membership: Membership = Depends(_writer),
+    db: DbSession = Depends(get_db),
 ):
     """Ворота 1: «вот что я понял про проект»."""
-    org, _ = _writer(db, user)
+    org = db.get(Organization, membership.org_id)
     session = _session(db, org, session_id)
     try:
         intake.make_summary(db, session, _provider(db, org))
@@ -219,9 +255,10 @@ def edit_summary(
     session_id: uuid.UUID,
     payload: SummaryIn,
     user: User = Depends(current_user),
+    membership: Membership = Depends(_writer),
     db: DbSession = Depends(get_db),
 ):
-    org, _ = _writer(db, user)
+    org = db.get(Organization, membership.org_id)
     session = _session(db, org, session_id)
     try:
         intake.edit_summary(db, session, payload.theses)
@@ -232,10 +269,12 @@ def edit_summary(
 
 @router.post("/sessions/{session_id}/draft")
 def build_draft(
-    session_id: uuid.UUID, user: User = Depends(current_user), db: DbSession = Depends(get_db)
+    session_id: uuid.UUID, user: User = Depends(current_user),
+    membership: Membership = Depends(_writer),
+    db: DbSession = Depends(get_db),
 ):
     """Ворота 2, главные: черновик. В проект не записано ничего."""
-    org, _ = _writer(db, user)
+    org = db.get(Organization, membership.org_id)
     session = _session(db, org, session_id)
     try:
         intake.make_draft(db, session, _provider(db, org))
@@ -259,9 +298,10 @@ def edit_draft(
     session_id: uuid.UUID,
     payload: DraftIn,
     user: User = Depends(current_user),
+    membership: Membership = Depends(_writer),
     db: DbSession = Depends(get_db),
 ):
-    org, _ = _writer(db, user)
+    org = db.get(Organization, membership.org_id)
     session = _session(db, org, session_id)
     try:
         intake.edit_draft(db, session, payload.draft)
@@ -285,10 +325,11 @@ def apply_session(
     session_id: uuid.UUID,
     payload: ApplyIn,
     user: User = Depends(current_user),
+    membership: Membership = Depends(_writer),
     db: DbSession = Depends(get_db),
 ):
     """Шаг 4: применение пачкой мутаций с общим batch_id."""
-    org, _ = _writer(db, user)
+    org = db.get(Organization, membership.org_id)
     session = _session(db, org, session_id)
     try:
         project, batch_id = intake.apply_draft(db, session, name=payload.name, actor=user)
@@ -314,10 +355,12 @@ def _own_task(db: DbSession, org: Organization, task_id: uuid.UUID) -> tuple[Pro
 
 @router.post("/tasks/{task_id}/split")
 def propose_split(
-    task_id: uuid.UUID, user: User = Depends(current_user), db: DbSession = Depends(get_db)
+    task_id: uuid.UUID, user: User = Depends(current_user),
+    membership: Membership = Depends(_writer),
+    db: DbSession = Depends(get_db),
 ):
     """Предложение разбить задачу. Ничего не пишет: применяется по кнопке."""
-    org, _ = _writer(db, user)
+    org = db.get(Organization, membership.org_id)
     _, task = _own_task(db, org, task_id)
     try:
         parts = intake.propose_split(db, task, _provider(db, org), locale=user.locale)
@@ -337,9 +380,10 @@ def apply_split(
     task_id: uuid.UUID,
     payload: SplitIn,
     user: User = Depends(current_user),
+    membership: Membership = Depends(_writer),
     db: DbSession = Depends(get_db),
 ):
-    org, _ = _writer(db, user)
+    org = db.get(Organization, membership.org_id)
     project, task = _own_task(db, org, task_id)
     try:
         batch_id = intake.apply_split(db, project, task, payload.parts, actor=user)

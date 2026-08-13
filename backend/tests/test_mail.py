@@ -23,7 +23,7 @@ from app.mail.transports import ApiTransport, Letter, LogTransport, MailError, S
 def _settings(**env: str) -> Settings:
     return Settings(
         _env_file=None,
-        app_secret="test",
+        app_secret="test-secret-not-for-production",
         database_url="postgresql+psycopg://u:p@host/db",
         **env,
     )

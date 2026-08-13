@@ -38,6 +38,12 @@ class Settings(BaseSettings):
     app_secret: str
 
     public_base_url: str = _LOCAL_BASE_URL
+    #: Флаг Secure сессионной куки. None — вывести автоматически: из схемы
+    #: пришедшего запроса (за прокси — из X-Forwarded-Proto) либо из
+    #: PUBLIC_BASE_URL. Явное значение — для установок, где автоматика
+    #: ошибается: например, TLS терминируется до прокси, не передающего
+    #: X-Forwarded-Proto.
+    cookie_secure: bool | None = None
     default_locale: str = "az"
     supported_locales: str = "az,en,ru"
     signup_mode: str = "open"
@@ -53,13 +59,57 @@ class Settings(BaseSettings):
     public_sharing_enabled: bool = True
     guest_comment_rate_limit: int = 10
 
+    # Пределы входа и регистрации (0 — выключить соответствующий предел).
+    # По IP считаются все попытки, по аккаунту — только неудачные: успешный
+    # вход с двух устройств не должен запирать человека, а вот десяток
+    # неверных паролей к одному адресу — это перебор, чей бы он ни был.
+    login_rate_limit_per_ip: int = 30
+    login_rate_limit_per_account: int = 10
+    signup_rate_limit_per_ip: int = 10
+    auth_rate_window_seconds: int = 900
+
+    # Пределы AI: запросов к модели в минуту и токенов в сутки — на
+    # организацию (0 — без предела). Бюджет стережёт деньги владельца ключа:
+    # без него один участник может выжечь месячный лимит ключа за вечер.
+    ai_requests_per_minute: int = 10
+    ai_daily_token_budget: int = 200_000
+
     ai_max_questions: int = 12
     ai_schema_retries: int = 2
     ai_request_timeout: int = 60
+    #: Разрешить адрес LLM со схемой http и в приватных диапазонах. По
+    #: умолчанию запрещено (защита от SSRF: адрес задаёт пользователь, а
+    #: ходит по нему сервер); true — осознанный выбор self-hosted установки
+    #: с локальной моделью в своей сети.
+    ai_allow_private_urls: bool = False
 
     max_tasks_per_project: int = 2000
     max_text_len: int = 4000
     log_level: str = "INFO"
+
+    @field_validator("app_secret")
+    @classmethod
+    def _refuse_a_secret_that_is_not_one(cls, value: str) -> str:
+        """Отказывается стартовать с секретом-заглушкой или огрызком.
+
+        APP_SECRET подписывает сессии и шифрует ключи LLM. Значение из
+        .env.example, оставшееся как есть, означает, что куку любой установки
+        может подделать любой, кто читал репозиторий, — и это должно быть
+        отказом старта, а не тихой дырой. Короткий секрет — та же дыра в
+        профиль: его перебирают.
+
+        Ротация секрета — не бесплатная операция: сохранённые ключи LLM
+        зашифрованы прежним значением и после смены не расшифруются
+        (см. app/crypto.py) — их придётся ввести заново.
+        """
+        if value == "change-me-to-a-long-random-string":
+            raise ValueError(
+                "APP_SECRET остался значением из .env.example — задай свой: "
+                "openssl rand -hex 32"
+            )
+        if len(value) < 16:
+            raise ValueError("APP_SECRET короче 16 символов — задай длиннее: openssl rand -hex 32")
+        return value
 
     @field_validator("database_url")
     @classmethod

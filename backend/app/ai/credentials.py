@@ -23,6 +23,13 @@ def save_credential(
     Иначе правка адреса модели требовала бы вводить ключ заново — а взять его
     неоткуда: наружу он не отдаётся никогда.
     """
+    # Адрес проверяется при сохранении, чтобы администратор узнал об отказе
+    # сразу, в форме, а не на первом запросе к модели. Проверка на каждом
+    # запросе при этом остаётся (см. provider): DNS мог смениться после.
+    from app.ai.netguard import ensure_public_https
+
+    ensure_public_https(base_url)
+
     existing = db.scalar(select(OrgLlmCredential).where(OrgLlmCredential.org_id == org.id))
     if existing is None:
         if not api_key:
