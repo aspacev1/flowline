@@ -226,8 +226,6 @@
     "more": "Digər əməllər"
   },
   "home": {
-    "title": "Əsas səhifə",
-    "all_projects": "Bütün layihələr",
     "greeting": "Salam, {name} — layihə portfeli bir baxışda",
     "tasks": {
       "one": "{count} tapşırıq",

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { errorKey } from "../api/errors";
 import type { ProjectState } from "../api/projects";
 import { useAuth } from "../auth/AuthProvider";
+import { CreateProjectActions } from "../components/CreateProjectActions";
 import { StatusChip } from "../components/StatusChip";
 import { formatShortDate } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
@@ -24,8 +25,11 @@ export function Home() {
   return (
     <main className="screen">
       <div className="screen__head">
-        <h1>{t("home.title")}</h1>
-        <Link to="/projects">{t("home.all_projects")}</Link>
+        {/* Заголовок раздела повторяет пункт колонки, по которому сюда
+            попадают: пункт зовётся «Проекты», и страница обязана называться
+            так же, иначе щелчок выглядит промахом. */}
+        <h1>{t("projects.title")}</h1>
+        <CreateProjectActions />
       </div>
 
       {user && <p className="muted">{t("home.greeting", { name: user.name })}</p>}
