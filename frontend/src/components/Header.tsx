@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { Link, NavLink } from "react-router-dom";
 
 import { ORG_QUERY_KEY, organization } from "../api/org";
@@ -21,9 +21,38 @@ import { OrgSwitch } from "./OrgSwitch";
  * делу: имя, профиль, язык, выход. Так пункт «Выйти» не оказывается соседом
  * пункта «Проекты», по которому целятся чаще всего.
  */
+const COLLAPSED_KEY = "planora.sidebar_collapsed";
+
+function storedCollapsed(): boolean {
+  try {
+    return localStorage.getItem(COLLAPSED_KEY) === "1";
+  } catch {
+    // Приватный режим браузера умеет запрещать localStorage. Колонка при
+    // этом просто открывается развёрнутой — это не повод падать.
+    return false;
+  }
+}
+
 export function Header() {
   const { t } = useLocale();
   const { user, logout } = useAuth();
+  const [collapsed, setCollapsed] = useState(storedCollapsed);
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        if (next) {
+          localStorage.setItem(COLLAPSED_KEY, "1");
+        } else {
+          localStorage.removeItem(COLLAPSED_KEY);
+        }
+      } catch {
+        // см. storedCollapsed()
+      }
+      return next;
+    });
+  };
 
   const org = useQuery({
     queryKey: ORG_QUERY_KEY,
@@ -39,16 +68,30 @@ export function Header() {
   const title = org.data?.name ?? t("app.title");
 
   return (
-    <header className="sidebar">
+    <header className={`sidebar${collapsed ? " sidebar--collapsed" : ""}`}>
       <div className="sidebar__workspace">
         {/* Квадрат с первой буквой — не украшение: в колонке одинаковых строк
-            цветное пятно находится глазом быстрее, чем читается слово. */}
+            цветное пятно находится глазом быстрее, чем читается слово. В
+            свёрнутой колонке он остаётся единственной видимой строкой — по
+            нему видно, что это за приложение и чья это организация. */}
         <span className="sidebar__avatar" aria-hidden="true">
           {[...title][0] ?? "F"}
         </span>
         <span className="sidebar__brand" title={title}>
           {title}
         </span>
+        {/* Кнопка живёт в обоих состояниях: свёрнутую колонку без неё нечем
+            развернуть обратно. */}
+        <button
+          type="button"
+          className="sidebar__toggle"
+          onClick={toggleCollapsed}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? t("nav.sidebar_expand") : t("nav.sidebar_collapse")}
+          title={collapsed ? t("nav.sidebar_expand") : t("nav.sidebar_collapse")}
+        >
+          <IconSidebar collapsed={collapsed} />
+        </button>
       </div>
 
       <OrgSwitch />
@@ -145,6 +188,20 @@ function Icon({ children }: { children: ReactNode }) {
     >
       {children}
     </svg>
+  );
+}
+
+/* Панель с выделенной колонкой и стрелкой внутри: стрелка показывает, куда
+   уедет колонка по щелчку, поэтому в развёрнутом виде она смотрит влево, в
+   свёрнутом — вправо. Слова рядом с этим значком нет, поэтому имя кнопке
+   даёт `aria-label`, а не текст. */
+function IconSidebar({ collapsed }: { collapsed: boolean }) {
+  return (
+    <Icon>
+      <rect x="2" y="2.5" width="12" height="11" rx="2" />
+      <path d="M6 2.5v11" />
+      {collapsed ? <path d="m9 6 2.2 2-2.2 2" /> : <path d="m11.2 6-2.2 2 2.2 2" />}
+    </Icon>
   );
 }
 
