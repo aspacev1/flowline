@@ -1,4 +1,5 @@
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { beforeEach, describe, expect, it } from "vitest";
 
@@ -32,5 +33,20 @@ describe("шапка", () => {
     renderApp({ route: "/projects", locale: "ru" });
 
     expect(await screen.findByText("Привет, Алексей")).toBeInTheDocument();
+  });
+
+  it("сворачивается по кнопке и запоминает выбор", async () => {
+    renderApp({ route: "/projects", locale: "ru" });
+
+    await userEvent.click(await screen.findByRole("button", { name: "Скрыть меню" }));
+
+    // Кнопка сменила имя — колонка свёрнута, и выбор пережил бы перезагрузку.
+    expect(screen.getByRole("button", { name: "Показать меню" })).toBeInTheDocument();
+    expect(localStorage.getItem("planora.sidebar_collapsed")).toBe("1");
+
+    await userEvent.click(screen.getByRole("button", { name: "Показать меню" }));
+
+    expect(screen.getByRole("button", { name: "Скрыть меню" })).toBeInTheDocument();
+    expect(localStorage.getItem("planora.sidebar_collapsed")).toBeNull();
   });
 });
