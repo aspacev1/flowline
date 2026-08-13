@@ -67,15 +67,22 @@ def add_comment(
     task_id: uuid.UUID | None = None,
     author: User | None = None,
     guest_name: str | None = None,
+    internal: bool = False,
 ) -> Comment:
     """Добавляет реплику от участника или от гостя.
 
     Ровно один автор: участник подписан аккаунтом, гость — именем, которое он
     ввёл. Оба сразу или ни одного — ошибка вызывающего, а не входных данных,
     поэтому здесь она поднимается как ValueError, а не как отказ с кодом.
+
+    Внутренняя реплика гостю недоступна в обе стороны: он её не видит и не
+    может написать. Гость с internal — ошибка вызывающего кода: публичный
+    маршрут признака не принимает вовсе.
     """
     if (author is None) == (guest_name is None):
         raise ValueError("у комментария должен быть ровно один автор: участник или гость")
+    if internal and author is None:
+        raise ValueError("внутренняя реплика не может быть гостевой")
 
     comment = Comment(
         project_id=project.id,
@@ -83,6 +90,7 @@ def add_comment(
         author_user_id=author.id if author is not None else None,
         guest_name=_clean_guest_name(guest_name) if guest_name is not None else None,
         body=_clean_body(body),
+        internal=internal,
     )
     db.add(comment)
     db.flush()
@@ -90,16 +98,26 @@ def add_comment(
 
 
 def list_comments(
-    db: DbSession, project: Project, *, task_id: uuid.UUID | None = None
+    db: DbSession,
+    project: Project,
+    *,
+    task_id: uuid.UUID | None = None,
+    include_internal: bool = True,
 ) -> Sequence[Comment]:
     """Лента проекта, при желании — одной задачи.
 
     Старые сверху: разговор читается сверху вниз, в отличие от журнала
     ревизий, где нужна последняя запись.
+
+    include_internal=False — лента глазами гостя публичной ссылки: реплики
+    «в сторону» в неё не попадают. Фильтр здесь, а не в маршруте: маршрутов,
+    отдающих ленту, два, и расходиться им нельзя.
     """
     query = select(Comment).where(Comment.project_id == project.id)
     if task_id is not None:
         query = query.where(Comment.task_id == task_id)
+    if not include_internal:
+        query = query.where(Comment.internal.is_(False))
     return db.scalars(query.order_by(Comment.created_at, Comment.id)).all()
 
 

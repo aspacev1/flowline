@@ -70,7 +70,11 @@ def build_transport(settings: Settings) -> Transport:
             key=settings.mail_api_key,
             sender=settings.mail_from,
         )
-    return LogTransport(sender=settings.mail_from)
+    # log — режим разработки: журнал и есть почтовый ящик, токены видны.
+    # none — боевой «почты нет»: текст письма в журнале, но токены замаскированы.
+    return LogTransport(
+        sender=settings.mail_from, reveal_secrets=settings.mail_transport == "log"
+    )
 
 
 def send(*, to: str, template: str, params: Mapping[str, object], locale: str) -> bool:
