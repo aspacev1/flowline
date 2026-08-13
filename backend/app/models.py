@@ -118,6 +118,56 @@ class Session(Base):
         ForeignKey("organizations.id", ondelete="SET NULL")
     )
 
+    # Последнее обращение с этой сессией — для idle-таймаута: украденная кука
+    # с брошенного устройства не должна жить все тридцать дней срока годности
+    # только потому, что её однажды выдали. Обновляется с шагом (см.
+    # app.auth), а не на каждый запрос: иначе каждое чтение проекта — это
+    # ещё и запись в таблицу сессий.
+    last_used_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+class ThrottleEvent(Base):
+    """Событие для счётчиков частоты: одна строка — одна учтённая попытка.
+
+    В базе, а не в памяти процесса, потому что вход и регистрацию — в
+    отличие от гостевых комментариев — стерегут не от заливки, а от перебора
+    паролей: предохранитель, который обнуляется перезапуском процесса и не
+    виден соседней реплике, там не предохранитель. База — единственное
+    общее хранилище этой архитектуры (внешних сервисов у продукта нет).
+
+    Ключ — произвольная строка вида «login:ip:…»; составитель сам отвечает
+    за её уникальность между применениями. Старые строки подметаются
+    попутно при каждом обращении к своему ключу.
+    """
+
+    __tablename__ = "throttle_events"
+    __table_args__ = (Index("ix_throttle_events_bucket_at", "bucket", "at"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    bucket: Mapped[str] = mapped_column(String(120))
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AiUsage(Base):
+    """Расход токенов LLM организацией за календарные сутки.
+
+    Отдельно от AiSession.tokens_used: сессия считает свой разговор, а
+    бюджет — всё, что организация потратила за день, включая точечные
+    действия вроде разбиения задачи, у которых сессии нет вовсе.
+    """
+
+    __tablename__ = "ai_usage"
+    __table_args__ = (UniqueConstraint("org_id", "day"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE")
+    )
+    day: Mapped[date] = mapped_column(Date)
+    tokens: Mapped[int] = mapped_column(Integer, default=0)
+
 
 class EmailVerification(Base):
     """Одноразовая ссылка подтверждения адреса.
@@ -253,6 +303,12 @@ class Comment(Base):
     )
     guest_name: Mapped[str | None] = mapped_column(String(80))
     body: Mapped[str] = mapped_column(Text)
+    # Внутренняя реплика: видна участникам, гостю публичной ссылки — нет.
+    # По умолчанию false — разговор с клиентом остаётся общим, как и был;
+    # признак ставит автор, решивший говорить «в сторону». server_default
+    # закрывает и старые строки: до появления признака все реплики были
+    # публичными по факту.
+    internal: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
     # clock_timestamp(), а не now(): now() отдаёт время начала транзакции, и
     # две реплики, вставленные в одной, получают одинаковую метку — а
     # порядок в разговоре держится именно на ней. У журнала ревизий для
