@@ -6,7 +6,7 @@
 # только при их изменении, а не на каждую правку компонента. Отдельная стадия
 # нужна ещё и потому, что на неё опирается dev: там npm ci уже сделан, а
 # `npm run build` — нет, и dev-серверу нечего ждать.
-FROM node:22-alpine AS deps
+FROM node:22-alpine@sha256:c610fcdfb1d5b4740dd70c284ed3cb16bb857e0f7166196e36a5501df7a3aa32 AS deps
 WORKDIR /app
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
@@ -24,6 +24,11 @@ COPY frontend/ ./
 RUN npm run build
 
 # Последняя стадия — та, что собирается по умолчанию, без указания target.
-FROM caddy:2-alpine AS runtime
+FROM caddy:2-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648 AS runtime
 COPY --from=build /app/dist /srv
 COPY Caddyfile /etc/caddy/Caddyfile
+# Не root: Caddy слушает 8080 (непривилегированный) и пишет только в свои
+# каталоги данных — им и отдаётся владелец. adduser -S — системный
+# пользователь без пароля и домашнего каталога.
+RUN adduser -S -u 10001 web && chown -R web /data /config
+USER web

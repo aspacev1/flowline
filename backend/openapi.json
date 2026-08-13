@@ -324,6 +324,10 @@
             "title": "Default Locale",
             "type": "string"
           },
+          "live_enabled": {
+            "title": "Live Enabled",
+            "type": "boolean"
+          },
           "mail_enabled": {
             "title": "Mail Enabled",
             "type": "boolean"
@@ -349,7 +353,8 @@
           "signup_mode",
           "supported_locales",
           "default_locale",
-          "public_sharing_enabled"
+          "public_sharing_enabled",
+          "live_enabled"
         ],
         "title": "InstallConfig",
         "type": "object"
@@ -3041,6 +3046,7 @@
     },
     "/api/health": {
       "get": {
+        "description": "Liveness: процесс жив и отвечает. В базу не ходит намеренно — упавшая\nбаза не повод перезапускать процесс, а ровно это оркестратор и делает с\nпровалившим liveness.",
         "operationId": "health_api_health_get",
         "responses": {
           "200": {
@@ -3059,6 +3065,23 @@
           }
         },
         "summary": "Health"
+      }
+    },
+    "/api/health/ready": {
+      "get": {
+        "description": "Readiness: готов ли процесс обслуживать запросы по-настоящему, то есть\nдостаёт ли до базы. Отдельно от liveness: на этот отвечает «нет» — и\nбалансировщик уводит трафик, не убивая процесс.",
+        "operationId": "readiness_api_health_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Readiness"
       }
     },
     "/api/invitations/{token}": {

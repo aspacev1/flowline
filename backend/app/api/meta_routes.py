@@ -23,6 +23,10 @@ class InstallConfig(BaseModel):
     supported_locales: list[str]
     default_locale: str
     public_sharing_enabled: bool
+    #: Есть ли на установке живая лента (WebSocket). На serverless её нет, и
+    #: клиенту не за чем тратить попытки подключения и пугать полоской «нет
+    #: связи» там, где связи не бывает.
+    live_enabled: bool
 
 
 @router.get("/config", response_model=InstallConfig)
@@ -34,4 +38,5 @@ def install_config():
         supported_locales=settings.locales,
         default_locale=settings.default_locale,
         public_sharing_enabled=settings.public_sharing_enabled,
+        live_enabled=bool(settings.live_enabled),
     )

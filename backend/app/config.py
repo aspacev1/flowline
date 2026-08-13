@@ -87,6 +87,18 @@ class Settings(BaseSettings):
     max_text_len: int = 4000
     log_level: str = "INFO"
 
+    #: Работает ли на этой установке живая лента (WebSocket). None — вывести:
+    #: на Vercel сокетов нет (serverless обрывает upgrade), в остальных
+    #: раскладках — есть. Клиент читает признак из /api/config и не тратит
+    #: попытки подключения там, где их не к чему прикладывать.
+    live_enabled: bool | None = None
+
+    @model_validator(mode="after")
+    def _resolve_live_enabled(self) -> Self:
+        if self.live_enabled is None:
+            self.live_enabled = os.getenv("VERCEL") is None
+        return self
+
     @field_validator("app_secret")
     @classmethod
     def _refuse_a_secret_that_is_not_one(cls, value: str) -> str:

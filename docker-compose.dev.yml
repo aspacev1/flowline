@@ -29,9 +29,10 @@ services:
       # (см. backend/Dockerfile) и этим монтированием не задевается.
       - ./backend:/app
     # --reload вместо простого запуска: uvicorn сам следит за файлами в /app.
-    # Миграции остаются первым шагом — правка модели обычно приезжает вместе с
-    # новой ревизией alembic, и накатывать её вручную после каждого up незачем.
-    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    # Миграции накатывает сервис migrate из базового файла — но по коду,
+    # запечённому в образ. Правишь миграции — пересобери его:
+    #   docker compose ... up --build migrate
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   web:
     # target: dev — стадия с Vite вместо стадии с Caddy. Порт снаружи тот же

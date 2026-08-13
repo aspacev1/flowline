@@ -1,7 +1,20 @@
+# Ротация журналов — одна на все сервисы: без предела journald/json-файлы
+# растут до заполнения диска, и первым об этом узнаёт база по соседству.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
-    image: postgres:16
+    image: postgres:16@sha256:95206741a5b214807675e14165369d05b93a9cf692223b616d07cca227e74b0b
     restart: unless-stopped
+    logging: *default-logging
+    # Потолок памяти прикрывает соседей: без него один тяжёлый запрос или
+    # утечка съедает всю машину, и OOM-killer выбирает жертву сам — обычно
+    # не ту. Числа — с запасом от рабочего профиля маленькой установки.
+    mem_limit: 512m
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-flowline}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-flowline}
@@ -23,6 +36,28 @@ services:
       interval: 5s
       retries: 10
 
+  # Миграции — отдельный одноразовый шаг, а не префикс команды api. Причины
+  # две. Первая — graceful shutdown: `sh -c "alembic && uvicorn"` оставляет
+  # PID 1 оболочке, которая не пересылает SIGTERM, и остановка контейнера
+  # превращалась в SIGKILL по таймауту — с оборванными на полуслове
+  # соединениями. Вторая — реплики: каждый экземпляр api накатывал бы схему
+  # параллельно; теперь накатывает один migrate (плюс advisory-lock в
+  # migrations/env.py как страховка от гонки).
+  # Если миграция не прошла, api не стартует (condition ниже) — свежая
+  # установка не поднимет uvicorn поверх пустой базы.
+  migrate:
+    build: ./backend
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-flowline}:${POSTGRES_PASSWORD:-flowline}@db:5432/${POSTGRES_DB:-flowline}
+    command: alembic upgrade head
+    depends_on:
+      db: {condition: service_healthy}
+    restart: "no"
+    logging: *default-logging
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
   api:
     build: ./backend
     restart: unless-stopped
@@ -39,22 +74,29 @@ services:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-flowline}:${POSTGRES_PASSWORD:-flowline}@db:5432/${POSTGRES_DB:-flowline}
     depends_on:
       db: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
     # Наружу api, как и база, не публикуется: снаружи он и так доступен —
     # через 8080, где Caddy отдаёт /api/* в него же. 8000 — порт занятой
     # судьбы (второй uvicorn, чужой проект), и ради дубля того, что уже есть
     # на 8080, свежий клон падал бы с «port is already allocated». Прямой
     # доступ к api нужен при разработке — там его и открывает
     # docker-compose.dev.yml.
-    # Схема накатывается перед стартом сервера, а не «когда-нибудь руками»:
-    # иначе свежая установка поднимает uvicorn поверх пустой базы, и это
-    # незаметно, потому что единственный маршрут, который не ходит в базу
-    # (/api/health), продолжает отвечать «ok». `&&` обязателен: если миграция
-    # не прошла, сервер не должен подняться и делать вид, что всё в порядке.
-    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    # Команда — сам uvicorn, без оболочки: PID 1 получает SIGTERM и гасится
+    # мягко — дорабатывает начатые запросы и закрывает сокеты с кодом, по
+    # которому клиент переподключается. init: true добавляет крошечный init
+    # для уборки зомби и пересылки сигналов тому, что порождает сам uvicorn.
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    init: true
+    # Секунд на дорабатывание запросов при остановке: дольше умолчания в 10 —
+    # под ними живут вызовы LLM и почты, которым разрешено до 10–60 секунд.
+    stop_grace_period: 30s
+    logging: *default-logging
+    mem_limit: 512m
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
     # Проверка живости идёт через python, а не curl или wget: в python-slim нет
     # ни того, ни другого, и healthcheck на них молча висел бы в unhealthy.
-    # start_period покрывает время миграций — до их конца сервер не отвечает,
-    # и без запаса контейнер успел бы объявить себя больным на здоровом старте.
+    # start_period покрывает первый старт после миграций.
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
       interval: 5s
@@ -68,7 +110,7 @@ services:
     # не запускает ничего, кроме сервера, и любая самодеятельность внутри него
     # теряется при обновлении образа. Тот же образ postgres:16 — чтобы версия
     # pg_dump всегда совпадала с версией сервера.
-    image: postgres:16
+    image: postgres:16@sha256:95206741a5b214807675e14165369d05b93a9cf692223b616d07cca227e74b0b
     restart: unless-stopped
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD:-flowline}
@@ -85,6 +127,10 @@ services:
     entrypoint: ["sh", "/backup.sh"]
     depends_on:
       db: {condition: service_healthy}
+    logging: *default-logging
+    mem_limit: 256m
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
 
   web:
     # Контекст сборки — корень, а не ./frontend: в образ нужен и Caddyfile,
@@ -98,6 +144,11 @@ services:
     depends_on:
       api: {condition: service_healthy}
     ports: ["${WEB_PORT:-8080}:8080"]
+    init: true
+    logging: *default-logging
+    mem_limit: 256m
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
 
 volumes:
   pgdata:

@@ -255,9 +255,25 @@ def check_project_slug(
     return slug_check(slug, is_taken=taken)
 
 
+def _publish(
+    background: BackgroundTasks, db: DbSession, project_id: uuid.UUID, event: dict
+) -> None:
+    """Коммит и рассылка события в комнату проекта.
+
+    Одна форма на все пишущие маршруты — тем же порядком, что и в мутациях:
+    сперва коммит (клиент, получив сигнал, перечитывает проект, и до коммита
+    перечитал бы старое), затем задача рассылки. До волны 3 в хаб публиковал
+    только маршрут мутаций: отмена, откат пачки, настройки, план и
+    комментарии соседних вкладок доезжали до людей только перезагрузкой.
+    """
+    db.commit()
+    background.add_task(hub.publish, project_id, event)
+
+
 @router.patch("/{project_id}")
 def update_project(
     payload: ProjectSettingsIn,
+    background: BackgroundTasks,
     context: ProjectContext = Depends(project_context),
     db: DbSession = Depends(get_db),
 ):
@@ -290,11 +306,23 @@ def update_project(
         db.rollback()
         raise HTTPException(status_code=409, detail="slug_taken")
 
-    return get_project(context, db)
+    response = get_project(context, db)
+    if updates:
+        # Настройки двигают раскладку у всех (календарь, порог), но записи в
+        # журнале не имеют — событие несёт синтетический op: клиенту от него
+        # нужен только повод перечитать проект.
+        _publish(
+            background,
+            db,
+            project.id,
+            {"type": "revision", "op": {"type": "settings_changed"}},
+        )
+    return response
 
 
 @router.post("/{project_id}/undo", status_code=201)
 def undo_last(
+    background: BackgroundTasks,
     reason: str | None = Body(default=None, embed=True),
     context: ProjectContext = Depends(project_context),
     db: DbSession = Depends(get_db),
@@ -322,6 +350,15 @@ def undo_last(
     except MutationError as error:
         raise _refuse(error)
 
+    # Отмена — такая же ревизия, как и мутация, и разъезжается по комнате той
+    # же формой события.
+    _publish(
+        background,
+        db,
+        context.project.id,
+        {"type": "revision", **_revision_entry(applied, context.user.name, applied.op)},
+    )
+
     return {
         "seq": applied.seq,
         "undone_seq": revision.seq,
@@ -332,6 +369,7 @@ def undo_last(
 @router.post("/{project_id}/batches/{batch_id}/undo", status_code=201)
 def undo_whole_batch(
     batch_id: uuid.UUID,
+    background: BackgroundTasks,
     reason: str | None = Body(default=None, embed=True),
     context: ProjectContext = Depends(project_context),
     db: DbSession = Depends(get_db),
@@ -351,12 +389,27 @@ def undo_whole_batch(
     except MutationError as error:
         raise _refuse(error)
 
+    # Одно событие на пачку, а не по событию на отмену: клиент по сигналу
+    # перечитывает проект целиком, и десять сигналов подряд — это десять
+    # одинаковых перечитываний.
+    _publish(
+        background,
+        db,
+        context.project.id,
+        {
+            "type": "revision",
+            **_revision_entry(applied[-1], context.user.name, applied[-1].op),
+        },
+    )
+
     return {"undone": len(applied), "seq": applied[-1].seq}
 
 
 @router.post("/{project_id}/plan/approvals", status_code=201)
 def approve_plan_route(
-    context: ProjectContext = Depends(project_context), db: DbSession = Depends(get_db)
+    background: BackgroundTasks,
+    context: ProjectContext = Depends(project_context),
+    db: DbSession = Depends(get_db),
 ):
     """Утверждение плана, оно же переутверждение.
 
@@ -369,11 +422,20 @@ def approve_plan_route(
     context.require(Action.PLAN_APPROVE if first_time else Action.PLAN_REAPPROVE)
 
     version = approve_plan(db, context.project, actor_id=context.user.id)
-    return {
+    payload = {
         "version": version.version,
         "approved_at": version.approved_at.isoformat(),
         "tasks": len(version.snapshot),
     }
+    # Утверждение меняет базовые значения всех задач — соседние вкладки должны
+    # увидеть новые «обещания», не дожидаясь перезагрузки.
+    _publish(
+        background,
+        db,
+        context.project.id,
+        {"type": "revision", "op": {"type": "plan_approved"}},
+    )
+    return payload
 
 
 @router.get("/{project_id}/plan/approvals")
@@ -467,6 +529,7 @@ def list_project_comments(
 @router.post("/{project_id}/comments", status_code=201)
 def create_project_comment(
     payload: CommentIn,
+    background: BackgroundTasks,
     context: ProjectContext = Depends(project_context),
     db: DbSession = Depends(get_db),
 ):
@@ -485,4 +548,10 @@ def create_project_comment(
         # ссылающихся на чужую задачу.
         status = 404 if error.code == "task_not_found" else 422
         raise HTTPException(status_code=status, detail=error.code)
-    return comments_out(db, [comment])[0]
+    response = comments_out(db, [comment])[0]
+    # Событие несёт только факт «в ленте новое», не текст: внутреннюю реплику
+    # нельзя раздавать в комнату, где сидит и клиент, а решать по подписчику,
+    # как у ревизий, здесь не из чего — тело реплики клиент дочитает по HTTP,
+    # где фильтр уже есть.
+    _publish(background, db, context.project.id, {"type": "comment"})
+    return response

@@ -1,6 +1,15 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Request, Response
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Cookie,
+    Depends,
+    Header,
+    HTTPException,
+    Request,
+    Response,
+)
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
@@ -162,6 +171,7 @@ def register_route(
     payload: RegisterIn,
     response: Response,
     request: Request,
+    background: BackgroundTasks,
     db: DbSession = Depends(get_db),
     accept_language: str | None = Header(default=None),
 ):
@@ -214,11 +224,15 @@ def register_route(
         request,
         open_session(db, user, active_org_id=invitation.org_id if invitation else None),
     )
-    # Письмо уходит синхронно, но регистрацию не решает: недоступный
-    # почтовый сервер не повод не пускать человека в только что созданную
-    # организацию. Отказ уже записан в журнал внутри mail.send, повторная
-    # отправка доступна отдельным маршрутом.
-    send_verification(db, user)
+    # Письмо — после ответа, а не в его теле: SMTP-серверу разрешено думать
+    # до десяти секунд, и всё это время человек смотрел бы на замерший
+    # экран регистрации. Судьбу регистрации письмо не решает и раньше не
+    # решало: отказ доставки пишется в журнал внутри mail.send, повторная
+    # отправка доступна отдельным маршрутом. Коммит — до постановки задачи:
+    # фоновая задача выполняется раньше, чем закрывается зависимость get_db,
+    # и аккаунт должен быть в базе независимо от судьбы письма.
+    db.commit()
+    background.add_task(send_verification, db, user)
     return _to_out(user)
 
 

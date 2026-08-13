@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 
+import { commentsQueryKey } from "../api/comments";
 import { projectQueryKey } from "../api/projects";
 
 /**
@@ -131,7 +132,13 @@ export function useProjectLive(projectId: string): Live {
 
       socket.onmessage = (message: MessageEvent) => {
         listen();
-        if (messageType(message.data) === "revision") refetch();
+        const type = messageType(message.data);
+        if (type === "revision") refetch();
+        // Событие о реплике несёт только факт «в ленте новое» — текст клиент
+        // дочитывает по HTTP, где действует фильтр внутренних реплик.
+        if (type === "comment") {
+          void queryClient.invalidateQueries({ queryKey: commentsQueryKey(projectId) });
+        }
       };
 
       socket.onclose = (event: CloseEvent) => {

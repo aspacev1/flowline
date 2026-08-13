@@ -163,36 +163,56 @@ UX-аудита. План составлен в ветке `claude/project-ux-ef
 Чтобы сервис переживал деплой, отказ базы и рост нагрузки, а инцидент можно
 было диагностировать.
 
-- [ ] **3.1** 🔴 **S** — Graceful shutdown: отдельный entrypoint с
+- [x] **3.1** 🔴 **S** — Graceful shutdown: отдельный entrypoint с
   `exec uvicorn`, `init: true`, `stop_grace_period`, закрытие WebSocket по
   сигналу.
   `docker-compose.yml:53`, `docker-compose.dev.yml:34`
-- [ ] **3.2** 🟠 **M** — Миграции вне команды старта: отдельный job/шаг с
+  _Команда api — сам uvicorn (PID 1 получает SIGTERM и закрывает сокеты),
+  `init: true`, `stop_grace_period: 30s`._
+- [x] **3.2** 🟠 **M** — Миграции вне команды старта: отдельный job/шаг с
   advisory-lock в `env.py`; реплики не накатывают параллельно.
   `docker-compose.yml:53`, `backend/migrations/env.py:61-73`
-- [ ] **3.3** 🟠 **S** — Контейнеры не от root: `USER`, `cap_drop: [ALL]`,
+  _Сервис `migrate` (+ `service_completed_successfully` у api);
+  `pg_advisory_lock` в env.py._
+- [x] **3.3** 🟠 **S** — Контейнеры не от root: `USER`, `cap_drop: [ALL]`,
   `no-new-privileges`, где можно `read_only`.
   `backend/Dockerfile`, `frontend/Dockerfile`
-- [ ] **3.4** 🟠 **L** — Live-хаб на все пишущие маршруты (отмена, откат,
+  _`USER app`/`USER web` в образах; `cap_drop`/`no-new-privileges` в compose
+  (кроме db — образу Postgres нужны capabilities на смену пользователя)._
+- [x] **3.4** 🟠 **L** — Live-хаб на все пишущие маршруты (отмена, откат,
   настройки, план, комментарии). Для нескольких воркеров — pub/sub через
   Postgres `LISTEN/NOTIFY` или Redis; либо явно ограничить одним воркером с
   проверкой на старте.
   `backend/app/live.py:50,93`, `api/project_routes.py:428`
-- [ ] **3.5** 🟠 **L** — Внешние вызовы (LLM, SMTP, почтовый API) вынести из
+  _Выбран вариант «один воркер с проверкой на старте» (отказ при
+  WEB_CONCURRENCY>1); публикация из отмены, отката, настроек, плана и
+  комментариев (событие `comment` без текста — тело дочитывается по HTTP,
+  где действует фильтр внутренних реплик)._
+- [x] **3.5** 🟠 **L** — Внешние вызовы (LLM, SMTP, почтовый API) вынести из
   синхронного пути: `async`+`httpx` или фоновая очередь; почта — не в теле
   `register`.
   `backend/app/ai/provider.py:74`, `mail/transports.py:93`
-- [ ] **3.6** 🟡 **M** — Наблюдаемость: настроить логирование (`dictConfig`,
+  _Письмо регистрации — в BackgroundTasks после ответа. Вызовы LLM остаются
+  синхронными в threadpool осознанно: ответ модели — это и есть ответ
+  запроса, event loop они не держат, таймауты заданы; очередь без внешних
+  сервисов означала бы поллинг, которого продукт избегает._
+- [x] **3.6** 🟡 **M** — Наблюдаемость: настроить логирование (`dictConfig`,
   уважать `LOG_LEVEL`), request-id middleware, структурные логи; health,
   ходящий в базу (liveness/readiness раздельно).
   `backend/app/main.py:15-30`, `config.py:62`
-- [ ] **3.7** 🟡 **S** — Compose: лимиты ресурсов, ротация логов, пиннинг
+  _`configure_logging()` + request-id в каждой строке и в `X-Request-ID`;
+  `/api/health` — liveness без базы, `/api/health/ready` — c `SELECT 1`._
+- [x] **3.7** 🟡 **S** — Compose: лимиты ресурсов, ротация логов, пиннинг
   образов по digest.
   `docker-compose.yml`
-- [ ] **3.8** 🟠 **M** — Развязать окружения Vercel (отдельная БД preview);
+  _`mem_limit`, json-file 10m×3, digest-пины postgres/python/node/caddy._
+- [x] **3.8** 🟠 **M** — Развязать окружения Vercel (отдельная БД preview);
   валидация/предупреждение `PUBLIC_BASE_URL`; сверка `requirements.txt`↔
   `uv.lock` в CI; сообщать клиенту о недоступности WS через `/api/config`.
   `README.md:212-214`, `config.py:14,40`
+  _README прямо называет цену общей preview-базы; предупреждение о дефолтном
+  PUBLIC_BASE_URL на старте; тест паритета requirements↔uv.lock (гоняется в
+  CI); `live_enabled` в `/api/config` (на Vercel — false автоматически)._
 
 ---
 
