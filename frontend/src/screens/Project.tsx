@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, NavLink, useParams } from "react-router-dom";
 
 import { errorKey } from "../api/errors";
 import { getProject, projectQueryKey } from "../api/projects";
@@ -14,8 +14,8 @@ import { useProjectLive } from "../live/useProjectLive";
 import { DependencyNudge, DependencyNudgeProvider } from "../project/DependencyNudge";
 import { PlanApproval } from "../project/PlanApproval";
 import { ProjectHead } from "../project/ProjectHead";
+import { ProjectHistory } from "../project/ProjectHistory";
 import { ShiftReasonProvider } from "../project/ShiftReason";
-import { UndoButton } from "../project/UndoButton";
 import { TaskPanel } from "../task/TaskPanel";
 import { CategoryForm, suggestColor } from "./CategoryForm";
 import { ShareDialog } from "./ShareDialog";
@@ -29,7 +29,7 @@ import { TaskForm } from "./TaskForm";
  * означает и несуществующий проект, и чужой: интерфейс не знает разницы и не
  * притворяется, что знает.
  */
-export function Project() {
+export function Project({ tab = "gantt" }: { tab?: "gantt" | "history" } = {}) {
   const { t } = useLocale();
   const { projectId = "" } = useParams();
   const canWrite = useCanWrite();
@@ -93,22 +93,6 @@ export function Project() {
             <ProjectHead
               state={query.data}
               showPlan
-              // Публикация — действие уровня проекта, поэтому кнопка стоит
-              // вплотную к его названию, а не в настройках и не в общем ряду
-              // справа: она следует за именем любой длины. Гостю и читателю не
-              // показывается: сервер такую попытку отклонит.
-              titleAction={
-                canWrite ? (
-                  <button
-                    type="button"
-                    className="button--quiet"
-                    disabled={offline}
-                    onClick={() => setSharing(true)}
-                  >
-                    {t("share.open")}
-                  </button>
-                ) : undefined
-              }
               planAction={
                 <PlanApproval
                   projectId={projectId}
@@ -123,10 +107,21 @@ export function Project() {
               // которое сервер отклонит.
               actions={
                 <>
-                  {/* Отмена — там же, где остальные действия над проектом, и
-                      только тому, кто может писать: гостю она обещала бы отказ
-                      сервера. */}
-                  {editable && <UndoButton projectId={projectId} state={query.data} />}
+                  {/* Публикация — действие над проектом, и стоит она в общем
+                      ряду действий, а не вплотную к названию: у названия теперь
+                      живёт состояние плана, а действия собраны в одном месте.
+                      Гостю и читателю не показывается: сервер такую попытку
+                      отклонит. */}
+                  {canWrite && (
+                    <button
+                      type="button"
+                      className="button--quiet"
+                      disabled={offline}
+                      onClick={() => setSharing(true)}
+                    >
+                      {t("share.open")}
+                    </button>
+                  )}
                   {/* Настройки — здесь, а не в боковом меню, куда они на время
                       уезжали: колонка одна на всё приложение, а настройки —
                       этого проекта, и слово «Настройки» в общем ряду не
@@ -147,13 +142,31 @@ export function Project() {
 
             {offline && <OfflineBar syncedAt={query.dataUpdatedAt || null} />}
 
+            {/* Вкладки — в адресе, а не в состоянии экрана: на историю
+                ссылаются в переписке, и ссылка обязана открывать её сразу. */}
+            <nav className="tabs" aria-label={t("history.tabs_label")}>
+              <NavLink to={`/projects/${projectId}`} end className={tabClass}>
+                {t("history.tab_gantt")}
+              </NavLink>
+              <NavLink to={`/projects/${projectId}/history`} className={tabClass}>
+                {t("history.tab_history")}
+              </NavLink>
+            </nav>
+
+            {tab === "history" && (
+              <ProjectHistory projectId={projectId} state={query.data} canUndo={editable} />
+            )}
+
             {/* Предложение подвинуть связанную задачу — над лентой, а не поверх
                 неё: оно ненавязчивое и не должно закрывать то, что человек только
                 что подвинул. */}
-            {editable && <DependencyNudge projectId={projectId} state={query.data} />}
+            {tab === "gantt" && editable && (
+              <DependencyNudge projectId={projectId} state={query.data} />
+            )}
 
             {/* Диаграмма занимает всю ширину, пока карточка закрыта: пустая колонка
                 справа отнимает у ленты треть экрана ради ничего. */}
+            {tab === "gantt" && (
             <div className={`project__body${reducedMotion ? " motion-off" : ""}`}>
               <Gantt
                 projectId={projectId}
@@ -208,6 +221,7 @@ export function Project() {
                 />
               )}
             </div>
+            )}
 
             {sharing && <ShareDialog projectId={projectId} onClose={() => setSharing(false)} />}
 
@@ -223,6 +237,7 @@ export function Project() {
               <TaskForm
                 projectId={projectId}
                 categories={query.data.categories}
+                tasks={query.data.tasks}
                 initialCategoryId={addingTaskIn}
                 onClose={() => setAddingTaskIn(null)}
               />
@@ -232,4 +247,12 @@ export function Project() {
       </DependencyNudgeProvider>
     </ShiftReasonProvider>
   );
+}
+
+/**
+ * Текущая вкладка помечается классом, а не цветом: подчёркивание снизу
+ * показывает границы вкладки целиком, и по нему видно, куда попадёт щелчок.
+ */
+function tabClass({ isActive }: { isActive: boolean }) {
+  return `tabs__link${isActive ? " is-current" : ""}`;
 }

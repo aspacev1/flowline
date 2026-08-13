@@ -239,7 +239,7 @@
     "title": "My tasks",
     "empty": {
       "title": "Nothing is assigned to you",
-      "hint": "Tasks where you are the owner will gather here, across every project"
+      "hint": "Tasks where you are an assignee will gather here, across every project"
     },
     "overdue": "Past its end date"
   },
@@ -302,7 +302,7 @@
       "end": "End",
       "progress": "Done, %",
       "progress_aria": "{pct}% done",
-      "assignees": "Owner",
+      "assignees": "Assignees",
       "depends_on": "Depends on",
       "blocks": "Blocks",
       "add_link": "Add a link…",
@@ -315,10 +315,18 @@
       "title": "New task",
       "name": "Name",
       "description": "Description",
+      "status": "Status",
       "category": "Category",
       "criticality": "Criticality",
       "start": "Start date",
       "duration": "Duration, working days",
+      "progress": "Done, %",
+      "internal_note": "Internal note",
+      "depends_on": "Depends on",
+      "blocks": "Blocks",
+      "add_link": "Add a link…",
+      "add_link_to": "Add to “{label}”",
+      "unlink": "Remove the link with “{name}”",
       "assignees": "Assignees",
       "submit": "Create task"
     }
@@ -342,13 +350,49 @@
     "delete_task": "deleted the task",
     "reorder_task": "moved the task",
     "assign_user": "added an assignee",
+    "assign_user_named": "added an assignee: {name}",
     "unassign_user": "removed an assignee",
+    "unassign_user_named": "removed an assignee: {name}",
     "add_dependency": "added a link",
+    "add_dependency_named": "added a link: {from} → {to}",
     "remove_dependency": "removed a link",
+    "remove_dependency_named": "removed a link: {from} → {to}",
     "create_category": "created the category",
     "delete_category": "deleted the category",
     "rename_category": "renamed the category from “{from}” to “{to}”",
-    "set_category_color": "changed the category colour"
+    "set_category_color": "changed the category colour",
+    "tabs_label": "Project sections",
+    "tab_gantt": "Chart",
+    "tab_history": "History",
+    "feed_empty": "No changes yet",
+    "show_more": "Show more",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "no_actor": "AI",
+    "undone": "undone",
+    "undone_by": "undone · {name}",
+    "undo_badge": "undo",
+    "batch": "batch of changes · {count}",
+    "batch_undo": "batch rollback · {count}",
+    "expand": "expand",
+    "collapse": "collapse",
+    "milestone": "Plan approved · v{version}",
+    "undo_batch": "Undo the whole batch",
+    "filter": {
+      "person": "Author",
+      "task": "Task",
+      "type": "Change type",
+      "all": "All",
+      "reset": "Reset filters",
+      "group": {
+        "dates": "Dates",
+        "status": "Status and progress",
+        "fields": "Name and fields",
+        "structure": "Structure",
+        "people": "Assignees",
+        "links": "Links"
+      }
+    }
   },
   "gantt": {
     "empty": "This project has no categories yet. Create a category — tasks live inside it",
@@ -535,8 +579,6 @@
     "save": "Save"
   },
   "undo": {
-    "last": "Undo: {what}",
-    "batch": "Undo the whole batch",
     "action": "Undo"
   },
   "settings": {
@@ -572,9 +614,7 @@
       "workdays_extra_hint": "Brings specific non-working dates back"
     },
     "profile": {
-      "title": "Profile",
-      "locale": "Interface language",
-      "locale_hint": "Kept in your profile: the same language greets you on any computer"
+      "title": "Profile"
     },
     "llm": {
       "title": "LLM connection",

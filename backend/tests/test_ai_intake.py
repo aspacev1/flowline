@@ -454,7 +454,7 @@ def test_the_session_walks_the_whole_way_over_http(authed, db, org, monkeypatch)
 
     state = authed.get(f"/api/projects/{project_id}").json()
     assert sorted(category["name"] for category in state["categories"]) == ["Дизайн", "Разработка"]
-    # Пачка видна как одно действие: кнопка отмены предложит откатить её целиком.
+    # Пачка видна как одно действие: откатывается она целиком, а не по одной операции.
     assert state["undoable"]["batch_id"] == applied.json()["batch_id"]
 
 

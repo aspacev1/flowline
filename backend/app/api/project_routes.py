@@ -16,7 +16,16 @@ from app.calendar import CalendarError
 from app.comments import CommentRejected, add_comment, list_comments
 from app.db import get_db
 from app.live import hub
-from app.models import IdempotencyRecord, Membership, Project, ProjectAccess, Revision, User
+from app.models import (
+    Category,
+    IdempotencyRecord,
+    Membership,
+    Project,
+    ProjectAccess,
+    Revision,
+    Task,
+    User,
+)
 from app.mutations import (
     MutationError,
     NotFoundInProject,
@@ -159,13 +168,92 @@ def _revision_entry(revision: Revision, actor_name: str | None, op: dict) -> dic
         ),
         # Причина — текст человека: отдаётся как есть и не переводится.
         "reason": revision.reason,
+        # Пачка и пометка отмены. По batch_id лента сворачивает применение AI
+        # в одну строку; по undoes_seq помечает отменённые записи — запись об
+        # отмене всегда новее отменённой, так что при чтении с головы журнала
+        # пара сходится на клиенте без второго запроса.
+        "batch_id": str(revision.batch_id) if revision.batch_id else None,
+        "undoes_seq": revision.undoes_seq,
         "op": op,
     }
+
+
+# Ключи операций, несущие идентификаторы сущностей, — по виду сущности.
+# Словарь, а не разбор по типам операций: новая операция с task_id получает
+# имя в ленте бесплатно, без правки этого места.
+_OP_ID_KEYS = {
+    "task": ("task_id", "from_task_id", "to_task_id"),
+    "category": ("category_id",),
+    "user": ("user_id",),
+}
+
+
+def _referenced_ids(op: dict) -> set[str]:
+    """Все идентификаторы сущностей, которые упоминает операция."""
+    return {
+        str(op[key]) for keys in _OP_ID_KEYS.values() for key in keys if op.get(key)
+    }
+
+
+def _names_for(db: DbSession, project: Project, ops: list[dict]) -> dict[str, str]:
+    """uuid → имя для всего, на что ссылаются операции страницы.
+
+    Лента всего проекта без имён нечитаема: «перенёс старт с 12 на 19 марта»
+    не говорит, чей это старт. Карточке задачи имена не нужны — там сущность
+    одна и она в заголовке, — но форма ответа одна на обоих: две формы одного
+    журнала разъехались бы на первом же добавленном поле.
+
+    Имена живых задач и категорий берутся из таблиц; удалённых — из снимка
+    восстановления в их delete-ревизии: журнал — единственное место, где имя
+    пережило удаление. Идентификатор, имени которого нет нигде (пользователь
+    стёр аккаунт), в словарь не попадает — клиент обходится фразой без имени.
+    """
+    ids: dict[str, set[str]] = {kind: set() for kind in _OP_ID_KEYS}
+    for op in ops:
+        for kind, keys in _OP_ID_KEYS.items():
+            for key in keys:
+                if op.get(key):
+                    ids[kind].add(str(op[key]))
+
+    names: dict[str, str] = {}
+    for kind, model in (("task", Task), ("category", Category), ("user", User)):
+        if ids[kind]:
+            for row in db.execute(
+                select(model.id, model.name).where(model.id.in_(ids[kind]))
+            ):
+                names[str(row.id)] = row.name
+
+    # Удалённые задачи и категории: имя достаётся из inverse их delete-ревизии.
+    # Свежайшая запись побеждает — переименованная и потом удалённая сущность
+    # называется так, как в момент удаления.
+    for op_type, key, missing in (
+        ("delete_task", "task_id", ids["task"] - set(names)),
+        ("delete_category", "category_id", ids["category"] - set(names)),
+    ):
+        if not missing:
+            continue
+        deletions = db.scalars(
+            select(Revision)
+            .where(
+                Revision.project_id == project.id,
+                Revision.op["type"].astext == op_type,
+                Revision.op[key].astext.in_(missing),
+            )
+            .order_by(Revision.seq.desc())
+        ).all()
+        for revision in deletions:
+            entity_id = str(revision.op[key])
+            name = revision.inverse.get("name")
+            if entity_id not in names and name:
+                names[entity_id] = name
+    return names
 
 
 @router.get("/{project_id}/revisions")
 def list_revisions(
     task_id: uuid.UUID | None = None,
+    actor_id: uuid.UUID | None = None,
+    types: list[str] | None = Query(default=None),
     limit: int = Query(default=200, ge=1, le=1000),
     before_seq: int | None = Query(default=None, ge=1),
     context: ProjectContext = Depends(project_context),
@@ -177,6 +265,10 @@ def list_revisions(
     браузере, и один и тот же перенос обязан читаться на трёх языках. Сервер
     словарей сообщений не держит сознательно (см. MutationError).
 
+    Фильтры — по автору и по типам операций — считает сервер, а не клиент:
+    лента листается курсором, и клиентский отсев превращал бы «Показать ещё»
+    в лотерею — страница есть, а подходящих записей в ней может не быть.
+
     Обратная операция наружу не выходит: она нужна отмене, а отмены пока нет.
     Отдавать её «на будущее» значило бы удваивать вес ленты и заодно удваивать
     поверхность, на которой заметка может утечь.
@@ -187,6 +279,10 @@ def list_revisions(
         # выбирать все ревизии проекта и отсеивать их в Python значило бы
         # тащить журнал целиком ради одной карточки.
         query = query.where(Revision.op["task_id"].astext == str(task_id))
+    if actor_id is not None:
+        query = query.where(Revision.actor_user_id == actor_id)
+    if types:
+        query = query.where(Revision.op["type"].astext.in_(types))
     # Курсор для «показать раньше»: следующая страница начинается со
     # старейшей записи предыдущей. Номер, а не смещение: журнал растёт с
     # головы, и OFFSET сдвигался бы с каждой новой ревизией.
@@ -205,13 +301,24 @@ def list_revisions(
         ).all()
     }
 
-    return [
-        _revision_entry(
-            revision,
-            actors.get(revision.actor_user_id),
-            visible_op(revision.op, context.role, project_granted=context.granted),
-        )
+    # Имена — по видимой форме операции, а не по хранимой: то, что роль не
+    # вправе видеть, не должно и называться.
+    ops = [
+        visible_op(revision.op, context.role, project_granted=context.granted)
         for revision in revisions
+    ]
+    names = _names_for(db, context.project, ops)
+
+    return [
+        {
+            **_revision_entry(revision, actors.get(revision.actor_user_id), op),
+            "names": {
+                entity_id: names[entity_id]
+                for entity_id in _referenced_ids(op)
+                if entity_id in names
+            },
+        }
+        for revision, op in zip(revisions, ops)
     ]
 
 

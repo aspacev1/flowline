@@ -615,14 +615,15 @@ h2 {
   gap: 6px;
 }
 
-/* Кнопка в этой строке стоит вплотную к названию и едет за ним: длиннее имя —
-   правее кнопка, а не пост у правого края. flex-wrap — на случай имени во всю
-   ширину: кнопка переносится под него, а не выдавливается за экран. baseline —
-   чтобы у крупного заголовка и невысокой кнопки совпадала опорная линия
-   текста. */
+/* Состояние плана в этой строке стоит вплотную к названию и едет за ним:
+   длиннее имя — правее плашка, а не пост у правого края. flex-wrap — на случай
+   имени во всю ширину: плашка переносится под него, а не выдавливается за
+   экран. Выравнивание по центру, а не по базовой линии: рядом с названием
+   стоит не строка текста, а группа из плашки и кнопки, и опорной линии у неё
+   на всех нет. */
 .project-head__title-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   flex-wrap: wrap;
   gap: 8px 16px;
 }
@@ -791,10 +792,12 @@ button:disabled:hover {
 }
 
 /* В колонке переключатель занимает ровно свою ширину: растянутый на всю
-   колонку, он выглядел бы полосой навигации, а не выбором из трёх букв. */
+   колонку, он выглядел бы полосой навигации, а не выбором из трёх букв.
+   Отступ слева — тот же, что у пунктов: буквы начинаются там же, где их
+   значки, и нижний ряд не разъезжается на два левых края. */
 .sidebar .locale-switch {
   align-self: flex-start;
-  margin: 4px 0 4px 8px;
+  margin: 4px 0 4px var(--sidebar-gutter);
 }
 
 /* В поле профиля — по той же причине: поле тянет содержимое на всю свою
@@ -925,6 +928,71 @@ input[type="checkbox"] {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+/* --- связи задачи в форме --- */
+
+/* Те же плашки и тот же «добавить связь…», что и в карточке: связь, заведённую
+   при создании, снимают потом уже там, и второй способ выбирать то же самое
+   пришлось бы объяснять заново. */
+.links__label {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.links__list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.links__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--input-bg);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.links__remove {
+  height: auto;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-faint);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.links__remove:hover {
+  background: transparent;
+  box-shadow: none;
+  color: var(--danger);
+}
+
+/* Узкий список среди плашек, а не поле во всю строку: это команда, а не
+   значение поля. */
+.links__add {
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  min-height: 0;
+  padding: 3px 8px;
+  font-size: 13px;
+  color: var(--text-muted);
 }
 
 .fieldset,

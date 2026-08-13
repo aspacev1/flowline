@@ -2,27 +2,23 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { ApiError } from "../api/client";
-import { errorKey } from "../api/errors";
 import { projectQueryKey, undoBatch, undoLast } from "../api/projects";
 import type { ProjectState } from "../api/projects";
-import { useLocale } from "../i18n/LocaleProvider";
-import { formatEvent } from "../task/formatEvent";
 import { useAskShiftReason } from "./ShiftReason";
 import { thresholdOf } from "./baseline";
 
 /**
- * Кнопка «Отменить».
+ * Отмена последнего изменения — механика кнопок в ленте истории.
  *
- * Называет, что именно она отменит: «Отменить: перенёс старт с 12 на 19
- * марта». Безымянная кнопка отмены заставляет вспоминать, что было последним
- * действием, — а вспоминают неверно как раз тогда, когда торопятся исправить
- * ошибку.
+ * Кнопка отменяет строго то, что сервер назвал в `state.undoable`: выбор
+ * отменяемого — решение сервера, и лента его не переспаривает. Тост после
+ * переноса полоски (useDragDates) зовёт ту же ручку отдельно: у него нет
+ * `state.undoable` — он отменяет ровно то, что сам только что отправил.
  *
  * Пачку отменяет целиком: применение AI — это десятки операций с общим
  * `batch_id`, и отменять их по одной значило бы тридцать нажатий подряд.
  */
-export function UndoButton({ projectId, state }: { projectId: string; state: ProjectState }) {
-  const { t, locale } = useLocale();
+export function useUndo(projectId: string, state: ProjectState) {
   const queryClient = useQueryClient();
   const askReason = useAskShiftReason();
   const [error, setError] = useState<unknown>(null);
@@ -62,26 +58,5 @@ export function UndoButton({ projectId, state }: { projectId: string; state: Pro
     onError: setError,
   });
 
-  if (!undoable) return null;
-
-  const what = formatEvent(undoable.op, locale);
-
-  return (
-    <>
-      <button
-        type="button"
-        className="button--quiet"
-        onClick={() => mutation.mutate()}
-        disabled={mutation.isPending}
-        title={what}
-      >
-        {undoable.batch_id ? t("undo.batch") : t("undo.last", { what })}
-      </button>
-      {error !== null && (
-        <span className="error" role="alert">
-          {t(errorKey(error))}
-        </span>
-      )}
-    </>
-  );
+  return { undoable, mutation, error };
 }

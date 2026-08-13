@@ -23,16 +23,28 @@ export function patchTask(state: ProjectState, taskId: string, patch: Partial<Ta
  * задачу готовой, откат ниже ста возвращает готовую в работу, а «готово»
  * руками доводит прогресс до ста. Больше сервер ничего не выводит — и клиент
  * не должен, иначе полоска мигнёт чужим значением между догадкой и ответом.
+ *
+ * Правило вынесено двумя чистыми функциями, потому что спрашивают его не
+ * только догадки: форма создания задачи сводит те же два поля до отправки —
+ * `create_task` кладёт статус и прогресс такими, какими их прислали, и без
+ * этой сцепки задача рождалась бы «готовой» с нулём процентов.
  */
+export function statusForProgress(status: TaskStatus, pct: number): TaskStatus {
+  return pct >= 100 ? "done" : status === "done" ? "in_progress" : status;
+}
+
+export function progressForStatus(status: TaskStatus, pct: number): number {
+  return status === "done" ? 100 : pct;
+}
+
 export function patchProgress(state: ProjectState, taskId: string, pct: number): ProjectState {
   return {
     ...state,
-    tasks: state.tasks.map((task) => {
-      if (task.id !== taskId) return task;
-      const status: TaskStatus =
-        pct >= 100 ? "done" : task.status === "done" && pct < 100 ? "in_progress" : task.status;
-      return { ...task, progress_pct: pct, status };
-    }),
+    tasks: state.tasks.map((task) =>
+      task.id === taskId
+        ? { ...task, progress_pct: pct, status: statusForProgress(task.status, pct) }
+        : task,
+    ),
   };
 }
 
@@ -41,7 +53,7 @@ export function patchStatus(state: ProjectState, taskId: string, status: TaskSta
     ...state,
     tasks: state.tasks.map((task) =>
       task.id === taskId
-        ? { ...task, status, progress_pct: status === "done" ? 100 : task.progress_pct }
+        ? { ...task, status, progress_pct: progressForStatus(status, task.progress_pct) }
         : task,
     ),
   };

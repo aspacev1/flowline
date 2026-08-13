@@ -42,6 +42,23 @@ describe("шапка проекта", () => {
     expect(screen.queryByText("изменён после согласования")).toBeNull();
   });
 
+  it("состояние плана стоит в строке названия, а не хвостом за сводкой", async () => {
+    renderProject(APPROVED);
+
+    // Проверяется именно место: текст плашки виден и в сводке, а расхождение с
+    // согласованным планом читают вместе с именем проекта.
+    const label = await screen.findByText("План проекта · v1");
+    expect(label.closest(".project-head__title-row")).not.toBeNull();
+    expect(label.closest(".project-head__meta")).toBeNull();
+  });
+
+  it("публикация стоит в общем ряду действий, а не вплотную к названию", async () => {
+    renderProject();
+
+    const share = await screen.findByRole("button", { name: "Поделиться" });
+    expect(share.closest(".project-head__actions")).not.toBeNull();
+  });
+
   it("работа сверх плана помечает план как изменённый", async () => {
     renderProject(APPROVED_WITH_EXTRA);
 
