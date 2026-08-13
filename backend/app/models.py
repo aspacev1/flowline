@@ -104,7 +104,11 @@ class Session(Base):
     __tablename__ = "sessions"
 
     id: Mapped[uuid.UUID] = _uuid_pk()
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    # По владельцу сессии ищут «выйти на всех устройствах» и уборка
+    # просроченных при входе.
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     token_hash: Mapped[str] = mapped_column(String(128), unique=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -167,6 +171,30 @@ class AiUsage(Base):
     )
     day: Mapped[date] = mapped_column(Date)
     tokens: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class IdempotencyRecord(Base):
+    """Ответ, однажды выданный на пишущий запрос с ключом идемпотентности.
+
+    Повтор запроса с тем же ключом (ретрай сети, двойной клик) получает
+    сохранённый ответ вместо второго применения: мутация «сдвинуть на день»,
+    применённая дважды, — это сдвиг на два дня, и клиент, чей первый ответ
+    потерялся в сети, не должен уметь это устроить.
+
+    Строки живут сутки и подметаются попутно: ретраи приходят в течение
+    секунд, ключ старше суток — это уже не ретрай.
+    """
+
+    __tablename__ = "idempotency_records"
+    __table_args__ = (UniqueConstraint("project_id", "key"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE")
+    )
+    key: Mapped[str] = mapped_column(String(120))
+    response: Mapped[dict] = mapped_column(JSONB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class EmailVerification(Base):
@@ -293,8 +321,11 @@ class Comment(Base):
     project_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("projects.id", ondelete="CASCADE"), index=True
     )
-    # null — комментарий к проекту целиком, а не к задаче.
-    task_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"))
+    # null — комментарий к проекту целиком, а не к задаче. Лента задачи
+    # ищется ровно по этой колонке.
+    task_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("tasks.id", ondelete="CASCADE"), index=True
+    )
     # CASCADE, а не SET NULL: обнулённый автор оставил бы запись без подписи
     # вовсе — ни аккаунта, ни имени гостя, — то есть нарушил бы ограничение
     # ниже прямо в момент удаления человека.
@@ -382,12 +413,37 @@ class Category(Base):
 
 class Task(Base):
     __tablename__ = "tasks"
+    __table_args__ = (
+        # Позиция уникальна внутри категории — это и есть модель порядка.
+        # DEFERRABLE INITIALLY DEFERRED: перестановка перенумеровывает
+        # несколько строк одной транзакцией, и проверка в момент каждого
+        # UPDATE ловила бы промежуточные дубли, которых в итоге нет.
+        UniqueConstraint(
+            "category_id",
+            "position",
+            name="uq_tasks_category_position",
+            deferrable=True,
+            initially="DEFERRED",
+        ),
+        # Инварианты домена держит база, а не только слой мутаций: второй
+        # путь записи (восстановление из журнала, ручной SQL) не должен уметь
+        # положить строку, которую слой мутаций не принял бы.
+        CheckConstraint("progress_pct BETWEEN 0 AND 100", name="ck_tasks_progress_pct"),
+        CheckConstraint("duration_days >= 1", name="ck_tasks_duration_days"),
+        CheckConstraint(
+            "criticality IN (" + ", ".join(f"'{level}'" for level in CRITICALITY_LEVELS) + ")",
+            name="ck_tasks_criticality",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = _uuid_pk()
     project_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("projects.id", ondelete="CASCADE"), index=True
     )
-    category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id", ondelete="CASCADE"))
+    # Строки ганта группируются по категории — выборка идёт с этой колонки.
+    category_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("categories.id", ondelete="CASCADE"), index=True
+    )
     name: Mapped[str] = mapped_column(String(300))
     description: Mapped[str] = mapped_column(Text, default="")
     internal_note: Mapped[str] = mapped_column(Text, default="")
@@ -424,7 +480,11 @@ class PlanVersion(Base):
         ForeignKey("projects.id", ondelete="CASCADE"), index=True
     )
     version: Mapped[int] = mapped_column(Integer)
-    approved_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    # SET NULL: удаление аккаунта не должно ни падать по внешнему ключу,
+    # ни уносить летопись утверждений — запись остаётся, автор забывается.
+    approved_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
     approved_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -439,7 +499,11 @@ class TaskAssignee(Base):
 
     id: Mapped[uuid.UUID] = _uuid_pk()
     task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"))
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    # «Задачи этого человека» ищутся с колонки user_id; составной уникальный
+    # (task_id, user_id) ведёт не с неё и здесь бесполезен.
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
 
 
 class Dependency(Base):
@@ -447,9 +511,16 @@ class Dependency(Base):
     __table_args__ = (UniqueConstraint("from_task_id", "to_task_id"),)
 
     id: Mapped[uuid.UUID] = _uuid_pk()
-    project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"))
+    # Связи проекта читаются целиком на каждый GET состояния.
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
     from_task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"))
-    to_task_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"))
+    # Обратный конец: «кто ждёт эту задачу» и снимок связей при её удалении.
+    # Прямой конец покрыт префиксом уникального (from_task_id, to_task_id).
+    to_task_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tasks.id", ondelete="CASCADE"), index=True
+    )
 
 
 class OrgLlmCredential(Base):
@@ -492,7 +563,10 @@ class AiSession(Base):
     project_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("projects.id", ondelete="SET NULL")
     )
-    created_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    # SET NULL — по той же причине, что у plan_versions.approved_by.
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
     # Язык интервью фиксируется на сессии, а не берётся из профиля каждый раз:
     # человек, переключивший интерфейс посреди интервью, иначе получил бы
     # черновик наполовину на одном языке, наполовину на другом.
@@ -508,12 +582,22 @@ class AiSession(Base):
 
 class Revision(Base):
     __tablename__ = "revisions"
-    __table_args__ = (UniqueConstraint("project_id", "seq"),)
+    __table_args__ = (
+        UniqueConstraint("project_id", "seq"),
+        # GIN по полезной нагрузке: история задачи ищется вхождением
+        # task_id в op (см. serialization), и без индекса это последовательное
+        # чтение всего журнала проекта на каждое открытие карточки.
+        Index("ix_revisions_op_gin", "op", postgresql_using="gin"),
+    )
 
     id: Mapped[uuid.UUID] = _uuid_pk()
     project_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"))
     seq: Mapped[int] = mapped_column(Integer)
-    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    # SET NULL: журнал ревизий переживает удаление автора — история проекта
+    # не собственность аккаунта.
+    actor_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
     # jsonb, а не json: все три фичи, ради которых ведётся журнал, ищут по
     # содержимому полезной нагрузки. json хранит сырой текст, не умеет
     # операторов вхождения и не индексируется GIN. Продукт только под
