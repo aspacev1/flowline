@@ -1,13 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 
 import { addComment, commentsQueryKey, listComments } from "../api/comments";
 import { errorKey } from "../api/errors";
 import { getProject, projectQueryKey } from "../api/projects";
 import { useCanWrite, useOrgRole } from "../auth/permissions";
 import { CommentThread } from "../comments/CommentThread";
-import { Menu } from "../components/Menu";
 import { Gantt } from "../gantt/Gantt";
 import { usePrefersReducedMotion } from "../gantt/motion";
 import { useLocale } from "../i18n/LocaleProvider";
@@ -145,20 +144,10 @@ export function Project() {
                       только тому, кто может писать: гостю она обещала бы отказ
                       сервера. */}
                   {editable && <UndoButton projectId={projectId} state={query.data} />}
-                  {/* Кебаб «⋯», как в макете: редкие действия не стоят своей
-                      кнопки в первом ряду. */}
-                  {canWrite && (
-                    <Menu
-                      label={<span aria-hidden="true">⋯</span>}
-                      buttonLabel={t("project.more")}
-                      showCaret={false}
-                      buttonClass="button--quiet project-head__more"
-                    >
-                      <Link className="menu__item" to={`/projects/${projectId}/settings`}>
-                        {t("settings.project.link")}
-                      </Link>
-                    </Menu>
-                  )}
+                  {/* Кебаб «⋯» здесь раньше держал единственный пункт —
+                      «Настройки», а больше в нём ничего не было. Пункт переехал
+                      в боковое меню, и меню с одной строкой внутри осталось не
+                      о чем открывать. */}
                 </>
               }
             />

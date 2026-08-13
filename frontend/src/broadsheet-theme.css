@@ -105,7 +105,7 @@ button { height: var(--control); padding: 0 18px; border-radius: 7px; font-size:
 
 .project__body { gap: 0; align-items: stretch; }
 .project__body > .gantt { min-width: 0; }
-.gantt { --gantt-label: 540px; --gantt-row: 72px; --gantt-head: 96px; --gantt-today-chip: 26px; }
+.gantt { --gantt-label: 320px; --gantt-row: 72px; --gantt-head: 96px; --gantt-today-chip: 26px; }
 /* Легенда, сводка по дедлайну и сноска больше не прячутся отсюда: их
    показывает и прячет меню «Вид» — скрытая стилем разметка была бы враньём
    для чтения с экрана. */
@@ -126,8 +126,8 @@ button { height: var(--control); padding: 0 18px; border-radius: 7px; font-size:
 .gantt__row:hover .gantt__lane, .gantt__row:hover .gantt__label { background: #f9fbff; }
 .gantt__row.is-selected .gantt__lane, .gantt__row.is-selected .gantt__label { background: #eef5ff; }
 .gantt__row--category .gantt__label-name { font-size: 18px; font-weight: 700; color: #1f2937; }
-/* Отступ вложенности — внутри ячейки задачи, а не у всей колонки: ячейки
-   владельца и статуса обязаны стоять на одной вертикали у категории и задачи. */
+/* Отступ вложенности — внутри ячейки задачи, а не у всей колонки: иначе
+   подсветка строки при наведении и выделении обрезалась бы слева. */
 .gantt__row:not(.gantt__row--category) .gantt__cell--task { padding-left: 56px; }
 .gantt__row:not(.gantt__row--category) .gantt__label-name { font-size: 16px; color: #1f2937; }
 .gantt__grid-day { border-left: 1px dashed #dfe5ee; }
@@ -455,10 +455,8 @@ body:has(.screen--narrow) {
   .project-toolbar__month { order: 10; width: 100%; margin: 4px 0 0; }
   .project-toolbar__segments { margin-left: auto; }
   .project-toolbar__segments button { min-width: auto; padding: 0 11px; font-size: 13px; }
-  .gantt { --gantt-label: 240px; }
+  .gantt { --gantt-label: 180px; }
   .gantt__row:not(.gantt__row--category) .gantt__cell--task { padding-left: 18px; }
-  /* В узком экране колонкам владельца и статуса места нет: имя важнее. */
-  .gantt__cell--owner, .gantt__cell--status { display: none; }
   .panel { padding: 26px 20px; }
 }
 
@@ -475,9 +473,6 @@ body:has(.screen--narrow) {
   .modal__actions { align-items: stretch; flex-direction: column; }
   .modal__actions button { width: 100%; }
 }
-
-/* Кебаб в шапке — квадрат под остальную высоту кнопок. */
-.project-head__more { width: var(--control); padding: 0; font-size: 20px; letter-spacing: 1px; }
 
 /* Меню тулбара — той же высоты, что сегменты. */
 .project-toolbar .menu__button { height: 40px; }

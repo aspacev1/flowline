@@ -222,8 +222,7 @@
     "category_count": {
       "one": "{count} category",
       "other": "{count} categories"
-    },
-    "more": "More actions"
+    }
   },
   "home": {
     "greeting": "Hello, {name} — here is your portfolio at a glance",
@@ -261,7 +260,19 @@
     "new": {
       "title": "New category",
       "name": "Name",
-      "color": "Colour"
+      "color": "Colour",
+      "colors": {
+        "blue": "Blue",
+        "purple": "Purple",
+        "orange": "Orange",
+        "green": "Green",
+        "red": "Red",
+        "yellow": "Yellow",
+        "cyan": "Cyan",
+        "pink": "Pink",
+        "slate": "Grey",
+        "brown": "Brown"
+      }
     }
   },
   "task": {
@@ -368,9 +379,7 @@
     "caption": "Footnote"
   },
   "col": {
-    "task": "Task",
-    "owner": "Owner",
-    "status": "Status"
+    "task": "Task"
   },
     "reorder": "Reorder “{name}”",
     "deadline": "Deadline {date}",

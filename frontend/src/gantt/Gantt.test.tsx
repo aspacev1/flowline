@@ -63,8 +63,9 @@ function drawWithToolbar(locale: Locale = "ru") {
 }
 
 describe("диаграмма", () => {
-  // Диаграмма сама спрашивает состав — для колонки «Владелец». Здесь она
-  // рисуется без остального приложения, и запрос надо описать самим.
+  // Диаграмма сама спрашивает состав — для фильтра «Владелец» в меню
+  // «Фильтр». Здесь она рисуется без остального приложения, и запрос надо
+  // описать самим.
   beforeEach(() =>
     server.use(http.get("/api/org/members", () => HttpResponse.json([]))),
   );
@@ -246,25 +247,7 @@ describe("диаграмма", () => {
     expect(screen.getByRole("img", { name: /Встала/ })).toHaveAttribute("data-status", "blocked");
   });
 
-  it("колонка статуса несёт плашку, категория — процент готовности", () => {
-    const { container } = draw(
-      {
-        ...STATE,
-        tasks: [
-          // 5 дней готово + 5 дней на 40% → взвешенная готовность 70%.
-          { ...STATE.tasks[0], id: "t1", name: "Готовая", status: "done", progress_pct: 100 },
-          { ...STATE.tasks[0], id: "t2", name: "Идущая", position: 1 },
-        ],
-      },
-      "ru",
-    );
-    const chips = container.querySelectorAll(".status-chip");
-    expect(chips.length).toBe(2);
-    expect(screen.getByText("Готово")).toBeInTheDocument();
-    expect(screen.getByText("70%")).toBeInTheDocument();
-  });
-
-  it("фильтр по статусу прячет строки, но не переписывает итог категории", async () => {
+  it("фильтр по статусу прячет строки, но не задачи других статусов", async () => {
     draw(
       {
         ...STATE,
@@ -280,8 +263,6 @@ describe("диаграмма", () => {
 
     expect(screen.queryByRole("img", { name: /Идущая/ })).not.toBeInTheDocument();
     expect(screen.getByRole("img", { name: /Готовая/ })).toBeInTheDocument();
-    // Процент категории — по всем задачам, а не по видимым.
-    expect(screen.getByText("70%")).toBeInTheDocument();
   });
 
   it("свёрнутая категория прячет свои задачи, развёрнутая возвращает", async () => {

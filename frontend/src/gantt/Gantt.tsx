@@ -7,7 +7,6 @@ import { TASK_STATUSES } from "../api/projects";
 import type { Category, ProjectState, Task, TaskStatus } from "../api/projects";
 import { Menu } from "../components/Menu";
 import { endShiftDays, isBeyondPlan } from "../project/baseline";
-import { progressOf } from "../project/progress";
 import { formatDate, formatMonth, weekdayNarrow } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
 import { Grid } from "./Grid";
@@ -68,15 +67,15 @@ export function Gantt({
   const reducedMotion = usePrefersReducedMotion();
   const [zoom, setZoom] = useState<"day" | "week" | "month">("week");
 
-  // Имена для колонки «Владелец». Отказ — не ошибка ленты: гостю и роли
-  // `client` состав не отдаётся, и колонка честно показывает прочерки.
+  // Состав нужен только фильтру «Владелец» в меню «Фильтр» — колонки с
+  // аватарами в таблице больше нет. Отказ — не ошибка ленты: гостю и роли
+  // `client` состав не отдаётся, и фильтр по владельцу тогда просто не рисуется.
   const membersQuery = useQuery({
     queryKey: MEMBERS_QUERY_KEY,
     queryFn: fetchMembers,
     retry: false,
     staleTime: Infinity,
   });
-  const memberName = new Map((membersQuery.data ?? []).map((member) => [member.id, member.name]));
 
   // Фильтр — состояние экрана: сосед по проекту не должен получать чужой
   // фильтр, поэтому он не уходит ни на сервер, ни в адрес.
@@ -338,12 +337,6 @@ export function Gantt({
                 <span className="gantt__cell gantt__cell--task">
                   <span className="gantt__corner-label">{t("gantt.col.task")}</span>
                 </span>
-                <span className="gantt__cell gantt__cell--owner">
-                  <span className="gantt__corner-label">{t("gantt.col.owner")}</span>
-                </span>
-                <span className="gantt__cell gantt__cell--status">
-                  <span className="gantt__corner-label">{t("gantt.col.status")}</span>
-                </span>
               </div>
               <Header
                 scale={scale}
@@ -382,14 +375,13 @@ export function Gantt({
               <div className="gantt__rows">
                 {categories.map((category: Category) => {
                   const tasks = tasksByCategory.get(category.id) ?? [];
-                  const progress = progressOf(allByCategory.get(category.id) ?? []);
                   const open = !closed.has(category.id);
                   return (
                     <div key={category.id} className="gantt__group">
                       <CategoryRow
                         category={category}
-                        // Полоса охвата и процент — по всем задачам категории:
-                        // фильтр прячет строки, но не переписывает итоги.
+                        // Полоса охвата — по всем задачам категории: фильтр
+                        // прячет строки, но не переписывает итоги.
                         tasks={allByCategory.get(category.id) ?? []}
                         scale={scale}
                         addLabel={t("task.add_to", { category: category.name })}
@@ -398,7 +390,6 @@ export function Gantt({
                         open={open}
                         onToggle={() => toggleCategory(category.id)}
                         toggleLabel={t("gantt.toggle_category", { name: category.name })}
-                        progressLabel={progress === null ? undefined : `${progress}%`}
                       />
                       {open &&
                         tasks.map((task) => (
@@ -419,9 +410,6 @@ export function Gantt({
                           beyondPlanLabel={t("gantt.beyond_plan")}
                           baselineLabel={baselineLabel(task)}
                           deviationLabel={deviationLabel(task)}
-                          owners={task.assignee_ids
-                            .map((id) => memberName.get(id))
-                            .filter((name): name is string => name !== undefined)}
                           statusLabel={t(`task.status.${task.status}`)}
                           showBaseline={view.baseline}
                         />

@@ -937,6 +937,55 @@ input[type="checkbox"] {
   font-weight: 500;
 }
 
+/* Палитра: готовые цвета кружками в один ряд. Ряд переносится, а не жмёт
+   кружки, — на узком экране лучше две строки, чем десять неразличимых точек. */
+.swatches {
+  margin: 0 0 var(--gap);
+}
+
+.swatches__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* Кружок — это сама радиокнопка: `appearance: none` снимает вид платформы,
+   оставляя поведение. Цвет приходит из разметки через `--swatch`: он берётся
+   из палитры категорий и в стилях повторяться не должен. */
+.swatch {
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  background: var(--swatch);
+  border: 0;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 12%) inset;
+  cursor: pointer;
+}
+
+.swatch:hover {
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 12%) inset,
+    0 0 0 2px var(--surface),
+    0 0 0 3px var(--border-strong);
+}
+
+/* Выбранное — кольцо цветом самого кружка, отбитое от него полем фона:
+   галочка внутри читалась бы не на всяком цвете, а кольцо видно на любом. */
+.swatch:checked {
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 12%) inset,
+    0 0 0 2px var(--surface),
+    0 0 0 4px var(--swatch);
+}
+
+.swatch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
 /* Рубильник Notion: дорожка со скользящей точкой. `role="switch"` уже сказал
    читалке, что это переключатель, — здесь остаётся показать то же глазу. */
 .switch {
@@ -1358,36 +1407,6 @@ input[type="checkbox"] {
   font-weight: 700;
   line-height: 1;
   user-select: none;
-}
-
-/* Стопка аватаров: перекрытие говорит «их несколько», не занимая строку. */
-.avatar-stack {
-  display: inline-flex;
-  align-items: center;
-}
-
-.avatar-stack .avatar + .avatar,
-.avatar-stack .avatar + .avatar-stack__more {
-  margin-left: -8px;
-}
-
-.avatar-stack .avatar {
-  box-shadow: 0 0 0 2px var(--surface);
-}
-
-.avatar-stack__more {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: var(--hover);
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 700;
-  box-shadow: 0 0 0 2px var(--surface);
 }
 
 /* --- плашка статуса --- */

@@ -66,4 +66,18 @@ describe("экран проекта", () => {
     expect(screen.getAllByRole("status").length).toBeGreaterThan(0);
     await screen.findByRole("button", { name: /Логотип/ });
   });
+
+  it("настройки проекта — пункт бокового меню, а не отдельный кебаб", async () => {
+    server.use(...sessionHandlers(), http.get("/api/projects/p1", () => HttpResponse.json(STATE)));
+
+    renderApp({ route: "/projects/p1", locale: "ru" });
+
+    await screen.findByRole("heading", { name: "Редизайн" });
+    expect(screen.getByRole("link", { name: "Настройки" })).toHaveAttribute(
+      "href",
+      "/projects/p1/settings",
+    );
+    // Кебаб «⋯» больше не рисуется — в нём был единственный пункт, и тот переехал.
+    expect(screen.queryByRole("button", { name: /Ещё действия/i })).not.toBeInTheDocument();
+  });
 });

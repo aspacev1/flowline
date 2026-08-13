@@ -222,8 +222,7 @@
     "category_count": {
       "one": "{count} kateqoriya",
       "other": "{count} kateqoriya"
-    },
-    "more": "Digər əməllər"
+    }
   },
   "home": {
     "greeting": "Salam, {name} — layihə portfeli bir baxışda",
@@ -261,7 +260,19 @@
     "new": {
       "title": "Yeni kateqoriya",
       "name": "Ad",
-      "color": "Rəng"
+      "color": "Rəng",
+      "colors": {
+        "blue": "Mavi",
+        "purple": "Bənövşəyi",
+        "orange": "Narıncı",
+        "green": "Yaşıl",
+        "red": "Qırmızı",
+        "yellow": "Sarı",
+        "cyan": "Firuzəyi",
+        "pink": "Çəhrayı",
+        "slate": "Boz",
+        "brown": "Qəhvəyi"
+      }
     }
   },
   "task": {
@@ -368,9 +379,7 @@
     "caption": "Qeyd"
   },
   "col": {
-    "task": "Tapşırıq",
-    "owner": "Sahib",
-    "status": "Status"
+    "task": "Tapşırıq"
   },
     "reorder": "«{name}» sətrini daşı",
     "deadline": "Son tarix {date}",
