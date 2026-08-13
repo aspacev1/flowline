@@ -239,7 +239,7 @@
     "title": "My tasks",
     "empty": {
       "title": "Nothing is assigned to you",
-      "hint": "Tasks where you are the owner will gather here, across every project"
+      "hint": "Tasks where you are an assignee will gather here, across every project"
     },
     "overdue": "Past its end date"
   },
@@ -302,7 +302,7 @@
       "end": "End",
       "progress": "Done, %",
       "progress_aria": "{pct}% done",
-      "assignees": "Owner",
+      "assignees": "Assignees",
       "depends_on": "Depends on",
       "blocks": "Blocks",
       "add_link": "Add a link…",
@@ -315,10 +315,18 @@
       "title": "New task",
       "name": "Name",
       "description": "Description",
+      "status": "Status",
       "category": "Category",
       "criticality": "Criticality",
       "start": "Start date",
       "duration": "Duration, working days",
+      "progress": "Done, %",
+      "internal_note": "Internal note",
+      "depends_on": "Depends on",
+      "blocks": "Blocks",
+      "add_link": "Add a link…",
+      "add_link_to": "Add to “{label}”",
+      "unlink": "Remove the link with “{name}”",
       "assignees": "Assignees",
       "submit": "Create task"
     }
@@ -367,7 +375,7 @@
   },
   "filter": {
     "status": "Status",
-    "owner": "Owner",
+    "owner": "Assignee",
     "all": "Anyone",
     "clear": "Clear the filter"
   },

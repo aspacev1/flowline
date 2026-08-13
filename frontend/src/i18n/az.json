@@ -239,7 +239,7 @@
     "title": "Tapşırıqlarım",
     "empty": {
       "title": "Sizə hələ heç nə təyin olunmayıb",
-      "hint": "Sahibi olduğunuz tapşırıqlar burada yığılacaq — bütün layihələr üzrə"
+      "hint": "İcraçısı olduğunuz tapşırıqlar burada yığılacaq — bütün layihələr üzrə"
     },
     "overdue": "Son tarixi keçib"
   },
@@ -302,7 +302,7 @@
       "end": "Son",
       "progress": "Tamamlanıb, %",
       "progress_aria": "{pct}% hazırdır",
-      "assignees": "Sahib",
+      "assignees": "İcraçılar",
       "depends_on": "Asılıdır",
       "blocks": "Bloklayır",
       "add_link": "Əlaqə əlavə et…",
@@ -315,10 +315,18 @@
       "title": "Yeni tapşırıq",
       "name": "Ad",
       "description": "Təsvir",
+      "status": "Status",
       "category": "Kateqoriya",
       "criticality": "Kritiklik",
       "start": "Başlama tarixi",
       "duration": "Müddət, iş günü",
+      "progress": "Tamamlanıb, %",
+      "internal_note": "Daxili qeyd",
+      "depends_on": "Asılıdır",
+      "blocks": "Bloklayır",
+      "add_link": "Əlaqə əlavə et…",
+      "add_link_to": "«{label}» siyahısına əlavə et",
+      "unlink": "«{name}» ilə əlaqəni sil",
       "assignees": "İcraçılar",
       "submit": "Tapşırıq yarat"
     }
@@ -367,7 +375,7 @@
   },
   "filter": {
     "status": "Status",
-    "owner": "Sahib",
+    "owner": "İcraçı",
     "all": "Hər kəs",
     "clear": "Filtri təmizlə"
   },

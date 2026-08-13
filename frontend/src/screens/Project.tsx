@@ -223,6 +223,7 @@ export function Project() {
               <TaskForm
                 projectId={projectId}
                 categories={query.data.categories}
+                tasks={query.data.tasks}
                 initialCategoryId={addingTaskIn}
                 onClose={() => setAddingTaskIn(null)}
               />
