@@ -75,6 +75,19 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
+        # Advisory-lock на всё время накатки: две реплики (или migrate,
+        # запущенный дважды) не должны исполнять одну миграцию параллельно —
+        # DDL вперемешку даёт неопределённое состояние схемы. Ключ —
+        # произвольная константа, одна на приложение; замок отпускается сам
+        # с закрытием соединения, в том числе при падении миграции.
+        from sqlalchemy import text
+
+        connection.execute(text("SELECT pg_advisory_lock(573929041)"))
+        # Немедленный commit закрывает транзакцию, которую SQLAlchemy открыл
+        # под сам SELECT (autobegin): оставленная открытой, она поглотила бы
+        # DDL миграций и откатила его при закрытии соединения. Замок при этом
+        # не отпускается — pg_advisory_lock живёт сессией, а не транзакцией.
+        connection.commit()
         context.configure(
             connection=connection, target_metadata=target_metadata
         )

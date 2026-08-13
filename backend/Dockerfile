@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.12-slim@sha256:229a2c5bfa27522db7815ea81f9bed70af17ccb9de9fc7ad142b1877b5830d36
 
 COPY --from=ghcr.io/astral-sh/uv:0.5.11 /uv /usr/local/bin/uv
 
@@ -27,6 +27,13 @@ RUN if [ "$INSTALL_DEV" = "true" ]; then \
     fi
 
 COPY . .
+
+# Не root: процессу сервера не нужно ничего, кроме чтения кода и сокета на
+# непривилегированном порту. Уязвимость в приложении под root — это root в
+# контейнере; под отдельным пользователем — это пользователь без прав записи
+# даже в собственный код.
+RUN useradd --system --no-create-home --uid 10001 app
+USER app
 
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
