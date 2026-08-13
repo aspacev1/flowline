@@ -552,8 +552,6 @@
     "save": "Save"
   },
   "undo": {
-    "last": "Undo: {what}",
-    "batch": "Undo the whole batch",
     "action": "Undo"
   },
   "settings": {

@@ -15,7 +15,6 @@ import { DependencyNudge, DependencyNudgeProvider } from "../project/DependencyN
 import { PlanApproval } from "../project/PlanApproval";
 import { ProjectHead } from "../project/ProjectHead";
 import { ShiftReasonProvider } from "../project/ShiftReason";
-import { UndoButton } from "../project/UndoButton";
 import { TaskPanel } from "../task/TaskPanel";
 import { CategoryForm, suggestColor } from "./CategoryForm";
 import { ShareDialog } from "./ShareDialog";
@@ -93,22 +92,6 @@ export function Project() {
             <ProjectHead
               state={query.data}
               showPlan
-              // Публикация — действие уровня проекта, поэтому кнопка стоит
-              // вплотную к его названию, а не в настройках и не в общем ряду
-              // справа: она следует за именем любой длины. Гостю и читателю не
-              // показывается: сервер такую попытку отклонит.
-              titleAction={
-                canWrite ? (
-                  <button
-                    type="button"
-                    className="button--quiet"
-                    disabled={offline}
-                    onClick={() => setSharing(true)}
-                  >
-                    {t("share.open")}
-                  </button>
-                ) : undefined
-              }
               planAction={
                 <PlanApproval
                   projectId={projectId}
@@ -123,10 +106,21 @@ export function Project() {
               // которое сервер отклонит.
               actions={
                 <>
-                  {/* Отмена — там же, где остальные действия над проектом, и
-                      только тому, кто может писать: гостю она обещала бы отказ
-                      сервера. */}
-                  {editable && <UndoButton projectId={projectId} state={query.data} />}
+                  {/* Публикация — действие над проектом, и стоит она в общем
+                      ряду действий, а не вплотную к названию: у названия теперь
+                      живёт состояние плана, а действия собраны в одном месте.
+                      Гостю и читателю не показывается: сервер такую попытку
+                      отклонит. */}
+                  {canWrite && (
+                    <button
+                      type="button"
+                      className="button--quiet"
+                      disabled={offline}
+                      onClick={() => setSharing(true)}
+                    >
+                      {t("share.open")}
+                    </button>
+                  )}
                   {/* Настройки — здесь, а не в боковом меню, куда они на время
                       уезжали: колонка одна на всё приложение, а настройки —
                       этого проекта, и слово «Настройки» в общем ряду не

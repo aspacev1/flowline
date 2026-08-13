@@ -358,7 +358,7 @@ UX-аудита. План составлен в ветке `claude/project-ux-ef
   `frontend/src/gantt/gantt.css:11`, `task/panel.css:22`, `styles.css:542-551`
 - [ ] **6.9** 🔴 **S** — Автор в `undoable`: откатывать только своё либо явно
   называть автора чужого действия.
-  `frontend/src/project/UndoButton.tsx:30`, `api/projects.ts:95`
+  `frontend/src/gantt/useDragDates.ts:60`, `api/projects.ts:95`
 - [ ] **6.10** 🟠 **M** — Сохранение глубокой ссылки при входе (`state.from`);
   адрес открытой задачи в URL (открывает путь к крошкам).
   `frontend/src/auth/RequireAuth.tsx:25`, `screens/Project.tsx:49`
