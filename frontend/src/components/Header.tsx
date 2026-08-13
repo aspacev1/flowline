@@ -69,30 +69,28 @@ export function Header() {
 
   return (
     <header className={`sidebar${collapsed ? " sidebar--collapsed" : ""}`}>
-      <div className="sidebar__workspace">
+      {/* Логотип сам сворачивает и разворачивает колонку: отдельная кнопка со
+          стрелкой занимала место в самой узкой строке приложения и требовала
+          прицела в 24 пикселя, а логотип — крупная мишень, которая остаётся
+          видимой в обоих состояниях. */}
+      <button
+        type="button"
+        className="sidebar__workspace"
+        onClick={toggleCollapsed}
+        aria-expanded={!collapsed}
+        aria-label={collapsed ? t("nav.sidebar_expand") : t("nav.sidebar_collapse")}
+        title={collapsed ? t("nav.sidebar_expand") : t("nav.sidebar_collapse")}
+      >
         {/* Квадрат с первой буквой — не украшение: в колонке одинаковых строк
             цветное пятно находится глазом быстрее, чем читается слово. В
             свёрнутой колонке он остаётся единственной видимой строкой — по
-            нему видно, что это за приложение и чья это организация. */}
+            нему видно, что это за приложение и чья это организация, и по нему
+            же колонка разворачивается обратно. */}
         <span className="sidebar__avatar" aria-hidden="true">
           {[...title][0] ?? "F"}
         </span>
-        <span className="sidebar__brand" title={title}>
-          {title}
-        </span>
-        {/* Кнопка живёт в обоих состояниях: свёрнутую колонку без неё нечем
-            развернуть обратно. */}
-        <button
-          type="button"
-          className="sidebar__toggle"
-          onClick={toggleCollapsed}
-          aria-expanded={!collapsed}
-          aria-label={collapsed ? t("nav.sidebar_expand") : t("nav.sidebar_collapse")}
-          title={collapsed ? t("nav.sidebar_expand") : t("nav.sidebar_collapse")}
-        >
-          <IconSidebar collapsed={collapsed} />
-        </button>
-      </div>
+        <span className="sidebar__brand">{title}</span>
+      </button>
 
       {/* Приветствие — сразу под логотипом и только по имени: полное имя с
           фамилией в узкой колонке обрезалось бы многоточием, а здоровается
@@ -190,20 +188,6 @@ function Icon({ children }: { children: ReactNode }) {
     >
       {children}
     </svg>
-  );
-}
-
-/* Панель с выделенной колонкой и стрелкой внутри: стрелка показывает, куда
-   уедет колонка по щелчку, поэтому в развёрнутом виде она смотрит влево, в
-   свёрнутом — вправо. Слова рядом с этим значком нет, поэтому имя кнопке
-   даёт `aria-label`, а не текст. */
-function IconSidebar({ collapsed }: { collapsed: boolean }) {
-  return (
-    <Icon>
-      <rect x="2" y="2.5" width="12" height="11" rx="2" />
-      <path d="M6 2.5v11" />
-      {collapsed ? <path d="m9 6 2.2 2-2.2 2" /> : <path d="m11.2 6-2.2 2 2.2 2" />}
-    </Icon>
   );
 }
 

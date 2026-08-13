@@ -220,10 +220,12 @@ body {
 
 /* Строка организации — верхний пункт колонки: квадрат с первой буквой и
    название. Квадрат не украшение, а якорь для глаза: в списке одинаковых
-   строк цветное пятно находится быстрее слова. */
+   строк цветное пятно находится быстрее слова. Строка же и сворачивает
+   колонку, поэтому она кнопка. */
 .sidebar__workspace {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 8px;
   min-width: 0;
   padding: 6px 8px;
@@ -253,51 +255,51 @@ body {
   font-weight: 600;
 }
 
-/* Кнопка сворачивания — тихий квадрат со значком, а не кнопка с заливкой:
-   она орган самой колонки, а не действие страницы. */
-button.sidebar__toggle {
-  flex: 0 0 auto;
-  margin-left: auto;
-  width: 24px;
-  height: 24px;
-  padding: 0;
+/* Логотип-кнопка гасит всё, чем кнопка выдаёт себя: заливку, тень, высоту
+   органа управления. Она орган самой колонки, а не действие страницы, и
+   выглядеть обязана строкой с логотипом — подсветка появляется только под
+   курсором, чтобы щелчок был обещан заранее. */
+button.sidebar__workspace {
+  height: auto;
+  color: inherit;
   background: transparent;
-  color: var(--text-faint);
   box-shadow: none;
+  text-align: left;
 }
 
-button.sidebar__toggle:hover {
+button.sidebar__workspace:hover {
   background: var(--hover);
-  color: var(--text-muted);
 }
 
 /* Свёрнутая колонка. Не исчезает целиком, а сжимается до узкой рейки с
    логотипом: пустой левый край читался бы как сломанная вёрстка, а рейка
-   говорит «меню здесь, оно свёрнуто». */
-.sidebar--collapsed {
-  flex-basis: var(--sidebar-collapsed);
-  width: var(--sidebar-collapsed);
-}
+   говорит «меню здесь, оно свёрнуто».
 
-/* Логотип и кнопка встают в столбик: в ширину рейки вдвоём они не помещаются,
-   а прятать кнопку нельзя — без неё колонку нечем развернуть. */
-.sidebar--collapsed .sidebar__workspace {
-  flex-direction: column;
-  gap: 8px;
-  padding: 6px 0;
-}
+   Всё это — только для широкого экрана: на узком колонка и так строка сверху,
+   сворачивать в ней нечего, и свёрнутое за столом состояние на телефоне
+   просто не действует. Отменять его правилами «обратно» пришлось бы в каждой
+   теме, поэтому проще его там не включать. */
+@media (min-width: 901px) {
+  .sidebar--collapsed {
+    flex-basis: var(--sidebar-collapsed);
+    width: var(--sidebar-collapsed);
+  }
 
-.sidebar--collapsed .sidebar__toggle {
-  margin-left: 0;
-}
+  /* В рейке от строки остаётся один логотип — он же и разворачивает колонку
+     обратно, поэтому встаёт по центру, а не жмётся к краю. */
+  .sidebar--collapsed .sidebar__workspace {
+    justify-content: center;
+    padding: 6px 0;
+  }
 
-.sidebar--collapsed .sidebar__brand,
-.sidebar--collapsed .sidebar__user,
-.sidebar--collapsed .org-switch,
-.sidebar--collapsed .sidebar__nav,
-.sidebar--collapsed .sidebar__section,
-.sidebar--collapsed .sidebar__foot {
-  display: none;
+  .sidebar--collapsed .sidebar__brand,
+  .sidebar--collapsed .sidebar__user,
+  .sidebar--collapsed .org-switch,
+  .sidebar--collapsed .sidebar__nav,
+  .sidebar--collapsed .sidebar__section,
+  .sidebar--collapsed .sidebar__foot {
+    display: none;
+  }
 }
 
 /* Подпись раздела колонки. Мельче и тише пунктов: она объясняет их, а не
@@ -449,36 +451,8 @@ button.sidebar__button:hover {
     width: auto;
   }
 
-  /* На узком экране колонка и так строка сверху — сворачивать нечего.
-     Кнопка прячется, а свёрнутое на широком экране состояние отменяется,
-     иначе человек, сложивший меню за столом, остался бы без него на
-     телефоне. */
-  button.sidebar__toggle {
-    display: none;
-  }
-
-  .sidebar--collapsed {
-    width: auto;
-  }
-
-  .sidebar--collapsed .sidebar__workspace {
-    flex-direction: row;
-    gap: 8px;
-    padding: 6px 8px 6px 0;
-  }
-
-  .sidebar--collapsed .sidebar__brand {
-    display: block;
-  }
-
-  .sidebar--collapsed .org-switch {
-    display: inline-flex;
-  }
-
-  .sidebar--collapsed .sidebar__nav,
-  .sidebar--collapsed .sidebar__foot {
-    display: flex;
-  }
+  /* Правил про свёрнутую колонку здесь нет: сворачивание включается только
+     от 901 пикселя, и отменять на телефоне нечего. */
 }
 
 /* --- шапка публичной страницы --- */
