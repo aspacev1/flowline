@@ -221,6 +221,16 @@
     "category_count": {
       "one": "{count} kateqoriya",
       "other": "{count} kateqoriya"
+    },
+    "metrics": {
+      "label": "Layihə icmalı",
+      "total": "Bütün tapşırıqlar",
+      "in_progress": "İşdədir",
+      "blocked": "Bloklanıb",
+      "overdue": "Layihə son tarixindən sonra",
+      "not_started": "Başlanmayıb",
+      "not_planned": "Plandan kənar",
+      "completed": "Tamamlanıb"
     }
   },
   "home": {
@@ -431,6 +441,9 @@
     "legend": {
       "blocker": "Bloker",
       "late": "Son tarix pozulub · +N gün"
+    },
+    "tip": {
+      "more": "{name} +{count}"
     },
     "task_count": {
       "one": "{count} tapşırıq",

@@ -1,4 +1,5 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 
@@ -41,6 +42,33 @@ describe("экран проекта", () => {
     expect(await screen.findByRole("button", { name: /Логотип/ })).toBeInTheDocument();
     // Название проекта — содержимое пользователя, оно не переводится.
     expect(screen.getByRole("heading", { name: "Редизайн" })).toBeInTheDocument();
+  });
+
+  it("подписывает исполнителей в карточке наведения именами из состава", async () => {
+    server.use(
+      // Раньше оснастки: из обработчиков одного вызова msw берёт первый
+      // подходящий, и объявленный после пустой состав так и остался бы пустым.
+      http.get("/api/org/members", () =>
+        HttpResponse.json([
+          { id: "u1", name: "Алексей", email: "a@b.c", role: "owner" },
+          { id: "u2", name: "Мария", email: "m@b.c", role: "editor" },
+        ]),
+      ),
+      ...sessionHandlers(),
+      http.get("/api/projects/p1", () =>
+        HttpResponse.json({
+          ...STATE,
+          tasks: [{ ...STATE.tasks[0], status: "in_progress", assignee_ids: ["u1", "u2"] }],
+        }),
+      ),
+    );
+
+    renderApp({ route: "/projects/p1", locale: "ru" });
+
+    await userEvent.hover(await screen.findByRole("button", { name: /Логотип/ }));
+
+    // Имена приходят с рабочего экрана: сама лента за составом не ходит.
+    await waitFor(() => expect(screen.getByTestId("bar-tip")).toHaveTextContent("Алексей +1"));
   });
 
   it("несуществующий и чужой проект неразличимы и объясняются словами", async () => {

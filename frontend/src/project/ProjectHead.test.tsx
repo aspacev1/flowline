@@ -1,6 +1,7 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import type { ProjectState } from "../api/projects";
 import {
   APPROVED,
   APPROVED_WITH_EXTRA,
@@ -10,6 +11,19 @@ import {
 } from "../test/project";
 
 beforeEach(projectFixtures);
+
+/**
+ * Цифра в ячейке полосы метрик.
+ *
+ * Ищется от подписи, а не от числа: чисел на экране много, и «1» нашлось бы
+ * в первой попавшейся. Поиск ограничен самой полосой — те же слова стоят и в
+ * легенде диаграммы, и в карточке задачи.
+ */
+async function metric(label: string): Promise<string> {
+  const strip = await screen.findByRole("list", { name: "Сводка по проекту" });
+  const cell = within(strip).getByText(label).closest(".project-head__metric");
+  return cell?.querySelector(".project-head__metric-value")?.textContent ?? "";
+}
 
 describe("шапка проекта", () => {
   it("называет срок работ и объём проекта", async () => {
@@ -86,5 +100,89 @@ describe("шапка проекта", () => {
     });
 
     expect(await screen.findByText("изменён после согласования")).toBeInTheDocument();
+  });
+});
+
+/**
+ * Пять задач, разложенных по всем четырём статусам, при дедлайне 1 июня.
+ *
+ * Две уходят за дедлайн, и одна из них — завершённая: пересечение «Завершено»
+ * и «После дедлайна проекта» заложено в оснастку нарочно, иначе тест на него
+ * проверял бы отсутствие пересечения, а не его.
+ */
+const MIXED: ProjectState = {
+  ...STATE,
+  tasks: [
+    { ...STATE.tasks[0], id: "t1", name: "В работе", status: "in_progress" },
+    { ...STATE.tasks[0], id: "t2", name: "Стоит", status: "blocked", position: 1 },
+    {
+      ...STATE.tasks[0],
+      id: "t3",
+      name: "Ещё не начата",
+      status: "planned",
+      position: 2,
+      start_date: "2026-06-15",
+      end_date: "2026-06-20",
+    },
+    {
+      ...STATE.tasks[0],
+      id: "t4",
+      name: "Готова, но поздно",
+      status: "done",
+      progress_pct: 100,
+      position: 3,
+      start_date: "2026-06-04",
+      end_date: "2026-06-10",
+    },
+    {
+      ...STATE.tasks[0],
+      id: "t5",
+      name: "Готова в срок",
+      status: "done",
+      progress_pct: 100,
+      position: 4,
+      start_date: "2026-03-25",
+      end_date: "2026-04-01",
+    },
+  ],
+};
+
+describe("полоса метрик", () => {
+  it("раскладывает задачи по четырём статусам, и они в сумме дают «всего»", async () => {
+    renderProject(MIXED);
+
+    expect(await metric("Всего задач")).toBe("5");
+    expect(await metric("В работе")).toBe("1");
+    expect(await metric("Заблокировано")).toBe("1");
+    expect(await metric("Не начато")).toBe("1");
+    expect(await metric("Завершено")).toBe("2");
+  });
+
+  it("считает просроченной и завершённую задачу, если она кончилась позже дедлайна", async () => {
+    renderProject(MIXED);
+
+    // Две задачи уходят за 1 июня, и одна из них уже готова. Пересечение с
+    // «Завершено» — не сбой счёта: это ответы на разные вопросы, «сделано ли»
+    // и «в срок ли».
+    expect(await metric("После дедлайна проекта")).toBe("2");
+    expect(await metric("Завершено")).toBe("2");
+  });
+
+  it("без дедлайна проекта просроченных нет", async () => {
+    renderProject({ ...MIXED, deadline: null });
+
+    expect(await metric("После дедлайна проекта")).toBe("0");
+  });
+
+  it("считает работу, добавленную сверх согласованного плана", async () => {
+    renderProject(APPROVED_WITH_EXTRA);
+
+    expect(await metric("Вне плана")).toBe("1");
+  });
+
+  it("у черновика вне плана нет ничего: сравнивать не с чем", async () => {
+    renderProject();
+
+    expect(await metric("Вне плана")).toBe("0");
   });
 });
