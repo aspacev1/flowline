@@ -15,6 +15,22 @@ import urllib.request
 from typing import Protocol
 
 
+class _NoRedirects(urllib.request.HTTPRedirectHandler):
+    """Отказ следовать за редиректами.
+
+    Адрес LLM проверяется на публичность до запроса, но проверка ничего не
+    стоит, если публичный адрес может ответить 302 на внутренний: редирект
+    выполняется уже без всякой проверки. Ответ 3xx превращается в HTTPError
+    и ловится как обычный отказ модели.
+    """
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # noqa: ARG002
+        return None
+
+
+_opener = urllib.request.build_opener(_NoRedirects())
+
+
 class LlmError(Exception):
     """Модель не ответила или ответила мусором.
 
@@ -70,8 +86,15 @@ class HttpProvider:
                 "Authorization": f"Bearer {self._key}",
             },
         )
+        # Проверка адреса — на каждом запросе, а не только при сохранении
+        # настроек: DNS-запись хоста могла смениться после сохранения
+        # (перепривязка — обычный приём SSRF). Импорт локальный, чтобы не
+        # завести цикл: netguard поднимает LlmError отсюда же.
+        from app.ai.netguard import ensure_public_https
+
+        ensure_public_https(self._url)
         try:
-            with urllib.request.urlopen(request, timeout=self._timeout) as response:
+            with _opener.open(request, timeout=self._timeout) as response:
                 body = json.loads(response.read())
         except urllib.error.HTTPError as error:
             raise LlmError("llm_refused", f"модель ответила {error.code}") from error

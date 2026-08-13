@@ -1,6 +1,17 @@
 import os
 
 os.environ.setdefault("APP_SECRET", "test-secret-not-for-production")
+# Тестовые адреса LLM — выдуманные хосты и localhost; проверка публичности
+# адреса (защита от SSRF, app/ai/netguard.py) резолвила бы их в сеть на
+# каждом тесте. Сама проверка тестируется отдельно, с явно выключенным
+# рубильником и подменённым резолвером — без единого настоящего DNS-запроса.
+os.environ.setdefault("AI_ALLOW_PRIVATE_URLS", "true")
+# Пределы частоты и бюджета AI в общем прогоне выключены: сквозной сценарий
+# интервью делает больше вызовов модели в секунду, чем позволено человеку в
+# минуту. Сами ворота проверяются отдельными тестами, которые включают предел
+# на конкретном объекте настроек.
+os.environ.setdefault("AI_REQUESTS_PER_MINUTE", "0")
+os.environ.setdefault("AI_DAILY_TOKEN_BUDGET", "0")
 
 import pytest
 from sqlalchemy import create_engine
