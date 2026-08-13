@@ -241,7 +241,8 @@ export function undoLast(projectId: string, reason?: string): Promise<{ seq: num
   });
 }
 
-/** Откатить пачку целиком — ту, что применил AI одной кнопкой. */
+/** Откатить пачку целиком — ту, что применил AI одной кнопкой. Зовёт лента
+ *  истории: в ней пачка стоит одной строкой и откатывается одним нажатием. */
 export function undoBatch(projectId: string, batchId: string): Promise<{ undone: number }> {
   return request(`/api/projects/${projectId}/batches/${batchId}/undo`, { method: "POST" });
 }

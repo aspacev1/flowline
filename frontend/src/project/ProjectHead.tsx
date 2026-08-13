@@ -6,36 +6,28 @@ import { useLocale } from "../i18n/LocaleProvider";
 import { changedSinceApproval } from "./baseline";
 
 /**
- * Шапка проекта: действия, строка плана, название, сводка.
+ * Шапка проекта: название с состоянием плана, сводка, действия справа.
  *
- * Четыре яруса сверху вниз, а не заголовок с действиями в одну строку. Причина
- * та же, по которой в газете шапка набирается лесенкой: у ярусов разный вес, и
- * поставленные в ряд они спорят за первый взгляд. Действия наверху — это то,
- * ради чего сюда возвращаются; название крупное — то, куда попал; сводка под
- * ним отвечает на «сколько это и когда» до того, как человек начнёт считать
- * полоски глазами.
+ * Название крупное — это то, куда попал; сводка под ним отвечает на «сколько
+ * это и когда» до того, как человек начнёт считать полоски глазами; действия
+ * стоят особняком справа — то, ради чего сюда возвращаются.
  *
- * Строка плана стоит между действиями и названием намеренно: расхождение с
- * согласованным планом — состояние проекта, а не действие над ним, и его
- * читают вместе с названием, а не среди кнопок.
+ * Состояние плана — версия, пометка о расхождении и кнопка согласования —
+ * стоит вплотную к названию, а не строкой ниже среди сводки. Расхождение с
+ * согласованным планом читается вместе с именем проекта: это то, в каком он
+ * состоянии, а не сколько в нём задач. В сводке оно висело хвостом за
+ * перечислением категорий и терялось ровно тогда, когда важнее всего.
  */
 export function ProjectHead({
   state,
   actions,
-  titleAction,
   planAction,
   showPlan = false,
 }: {
   state: ProjectState;
   /** Кнопки над названием. Гостю не передаются вовсе — их у него нет. */
   actions?: ReactNode;
-  /**
-   * Действие, живущее вплотную к названию, а не у правого края. Оно двигается
-   * вместе с названием: у короткого имени стоит рядом, за длинным переносится
-   * следом — расстояние от имени до кнопки всегда одно и то же.
-   */
-  titleAction?: ReactNode;
-  /** Кнопка согласования плана. Своей строки не рисует — становится в строку плана. */
+  /** Кнопка согласования плана. Своей строки не рисует — становится в строку названия. */
   planAction?: ReactNode;
   /**
    * Показывать ли строку плана. Публичная страница её не показывает: версия
@@ -62,7 +54,22 @@ export function ProjectHead({
               есть и не переводится ни при каком языке интерфейса. */}
           <div className="project-head__title-row">
             <h1 className="project-head__title">{state.name}</h1>
-            {titleAction}
+            {/* Состояние плана едет за названием: у короткого имени стоит
+                рядом, за длинным переносится следом — расстояние от имени до
+                плашки всегда одно и то же. */}
+            {showPlan && (
+              <span className="project-head__plan-inline">
+                <span className="project-head__plan-label">
+                  {state.plan_approved_at
+                    ? t("plan.line", { version: state.plan_version })
+                    : t("plan.line_draft")}
+                </span>
+                {changedSinceApproval(state) && (
+                  <span className="project-head__plan-note">{t("plan.changed")}</span>
+                )}
+                {planAction && <span className="project-head__approval">{planAction}</span>}
+              </span>
+            )}
           </div>
 
           <p className="project-head__meta">
@@ -75,20 +82,6 @@ export function ProjectHead({
                   counts,
                 })
               : counts}
-            {showPlan && (
-              <span className="project-head__plan-inline">
-                <span className="project-head__dot">•</span>
-                <span className="project-head__plan-label">
-                  {state.plan_approved_at
-                    ? t("plan.line", { version: state.plan_version })
-                    : t("plan.line_draft")}
-                </span>
-                {changedSinceApproval(state) && (
-                  <span className="project-head__plan-note">{t("plan.changed")}</span>
-                )}
-                {planAction && <span className="project-head__approval">{planAction}</span>}
-              </span>
-            )}
           </p>
         </div>
 

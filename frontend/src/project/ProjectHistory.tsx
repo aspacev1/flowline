@@ -319,7 +319,7 @@ export function ProjectHistory({
                       >
                         {t(open ? "history.collapse" : "history.expand")}
                       </button>
-                      {undoableBatch === row.batchId && undoButton(t("undo.batch"))}
+                      {undoableBatch === row.batchId && undoButton(t("history.undo_batch"))}
                     </p>
                     {open && (
                       <ol className="feed__list feed__list--nested">

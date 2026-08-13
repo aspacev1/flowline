@@ -215,6 +215,172 @@ describe("создание задачи", () => {
     expect(screen.getByRole("button", { name: /создать задачу/i })).toBeInTheDocument();
   });
 
+  it("несёт те же поля, что и карточка созданной задачи", async () => {
+    server.use(
+      // Свой состав — раньше общего из sessionHandlers: msw берёт первый
+      // подходящий обработчик в списке.
+      http.get("/api/org/members", () => HttpResponse.json(MEMBERS)),
+      ...sessionHandlers(),
+      http.get("/api/projects/p1", () => HttpResponse.json(STATE)),
+    );
+
+    renderApp({ route: "/projects/p1", locale: "ru" });
+    await openTaskForm();
+
+    // Поле, которого нет здесь, человек всё равно заполнит — открыв карточку
+    // сразу после создания. Разница между двумя списками полей означала бы
+    // лишь, что половину задачи заводят в два приёма.
+    expect(screen.getByLabelText(/^статус/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/выполнено, %/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/внутренняя заметка/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/добавить в «зависит от»/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/добавить в «блокирует»/i)).toBeInTheDocument();
+  });
+
+  it("отправляет статус, прогресс и заметку одной операцией создания", async () => {
+    const sent: { op: Record<string, unknown> }[] = [];
+    server.use(
+      // Свой состав — раньше общего из sessionHandlers: msw берёт первый
+      // подходящий обработчик в списке.
+      http.get("/api/org/members", () => HttpResponse.json(MEMBERS)),
+      ...sessionHandlers(),
+      http.get("/api/projects/p1", () => HttpResponse.json(STATE)),
+      http.post("/api/projects/p1/mutations", async ({ request }) => {
+        sent.push((await request.json()) as { op: Record<string, unknown> });
+        return HttpResponse.json({ seq: 3, op: {}, inverse: {} }, { status: 201 });
+      }),
+    );
+
+    renderApp({ route: "/projects/p1", locale: "ru" });
+    await openTaskForm();
+    await userEvent.type(screen.getByLabelText(/^название/i), "Макеты");
+    await userEvent.selectOptions(screen.getByLabelText(/^статус/i), "blocked");
+    await userEvent.clear(screen.getByLabelText(/выполнено, %/i));
+    await userEvent.type(screen.getByLabelText(/выполнено, %/i), "40");
+    await userEvent.type(screen.getByLabelText(/внутренняя заметка/i), "подрядчик молчит");
+    await userEvent.click(screen.getByRole("button", { name: /создать задачу/i }));
+
+    // Одна ревизия, а не три: разбивать заполненную форму на правки задним
+    // числом значило бы писать в историю то, чего человек не делал.
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0].op).toMatchObject({
+      type: "create_task",
+      status: "blocked",
+      progress_pct: 40,
+      internal_note: "подрядчик молчит",
+    });
+  });
+
+  it("сводит статус с прогрессом до отправки — как это делает карточка", async () => {
+    server.use(
+      // Свой состав — раньше общего из sessionHandlers: msw берёт первый
+      // подходящий обработчик в списке.
+      http.get("/api/org/members", () => HttpResponse.json(MEMBERS)),
+      ...sessionHandlers(),
+      http.get("/api/projects/p1", () => HttpResponse.json(STATE)),
+    );
+
+    renderApp({ route: "/projects/p1", locale: "ru" });
+    await openTaskForm();
+
+    // Сервер при создании сцепку не применяет: он кладёт оба поля такими,
+    // какими их прислали. Значит, свести их обязана форма — иначе задача
+    // рождается «готовой» с нулём процентов, а такого состояния правкой уже
+    // не получить.
+    await userEvent.selectOptions(screen.getByLabelText(/^статус/i), "done");
+    expect(screen.getByLabelText(/выполнено, %/i)).toHaveValue(100);
+
+    await userEvent.clear(screen.getByLabelText(/выполнено, %/i));
+    await userEvent.type(screen.getByLabelText(/выполнено, %/i), "60");
+    expect(screen.getByLabelText(/^статус/i)).toHaveValue("in_progress");
+
+    await userEvent.clear(screen.getByLabelText(/выполнено, %/i));
+    await userEvent.type(screen.getByLabelText(/выполнено, %/i), "100");
+    expect(screen.getByLabelText(/^статус/i)).toHaveValue("done");
+  });
+
+  it("связи выбираются в форме и уходят отдельными операциями", async () => {
+    const sent: { op: Record<string, unknown> }[] = [];
+    server.use(
+      // Свой состав — раньше общего из sessionHandlers: msw берёт первый
+      // подходящий обработчик в списке.
+      http.get("/api/org/members", () => HttpResponse.json(MEMBERS)),
+      ...sessionHandlers(),
+      http.get("/api/projects/p1", () => HttpResponse.json(STATE)),
+      http.post("/api/projects/p1/mutations", async ({ request }) => {
+        const body = (await request.json()) as { op: Record<string, unknown> };
+        sent.push(body);
+        return HttpResponse.json(
+          {
+            seq: sent.length + 2,
+            // У связи два конца, и один из них рождается только этим ответом.
+            op: body.op.type === "create_task" ? { task_id: "t9" } : {},
+            inverse: {},
+          },
+          { status: 201 },
+        );
+      }),
+    );
+
+    renderApp({ route: "/projects/p1", locale: "ru" });
+    await openTaskForm();
+    await userEvent.type(screen.getByLabelText(/^название/i), "Макеты");
+    await userEvent.selectOptions(screen.getByLabelText(/добавить в «зависит от»/i), "t1");
+
+    // Задача, уже выбранная одной стороной, не предлагается другой: A→B
+    // вместе с B→A — это цикл, и предлагать его значило бы предлагать отказ
+    // сервера.
+    expect(screen.queryByLabelText(/добавить в «блокирует»/i)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /создать задачу/i }));
+
+    await waitFor(() => expect(sent).toHaveLength(2));
+    expect(sent[1].op).toEqual({
+      type: "add_dependency",
+      from_task_id: "t1",
+      to_task_id: "t9",
+    });
+  });
+
+  it("выбранную связь можно снять до создания", async () => {
+    server.use(
+      // Свой состав — раньше общего из sessionHandlers: msw берёт первый
+      // подходящий обработчик в списке.
+      http.get("/api/org/members", () => HttpResponse.json(MEMBERS)),
+      ...sessionHandlers(),
+      http.get("/api/projects/p1", () => HttpResponse.json(STATE)),
+    );
+
+    renderApp({ route: "/projects/p1", locale: "ru" });
+    await openTaskForm();
+    await userEvent.selectOptions(screen.getByLabelText(/добавить в «зависит от»/i), "t1");
+    await userEvent.click(screen.getByRole("button", { name: /убрать связь с «Логотип»/i }));
+
+    expect(screen.queryByRole("button", { name: /убрать связь с «Логотип»/i })).not.toBeInTheDocument();
+    // Снятая связь возвращается в кандидаты обеих сторон.
+    expect(screen.getByLabelText(/добавить в «блокирует»/i)).toBeInTheDocument();
+  });
+
+  it("не даёт прогресс вне ста процентов", async () => {
+    server.use(
+      // Свой состав — раньше общего из sessionHandlers: msw берёт первый
+      // подходящий обработчик в списке.
+      http.get("/api/org/members", () => HttpResponse.json(MEMBERS)),
+      ...sessionHandlers(),
+      http.get("/api/projects/p1", () => HttpResponse.json(STATE)),
+    );
+
+    renderApp({ route: "/projects/p1", locale: "ru" });
+    await openTaskForm();
+    await userEvent.type(screen.getByLabelText(/^название/i), "Макеты");
+    await userEvent.clear(screen.getByLabelText(/выполнено, %/i));
+    await userEvent.type(screen.getByLabelText(/выполнено, %/i), "140");
+
+    // Отказ сервера по этому поводу человек увидел бы уже после отправки —
+    // а форма знает границу заранее.
+    expect(screen.getByRole("button", { name: /создать задачу/i })).toBeDisabled();
+  });
+
   it("критичность отправляется выбранная, а не всегда обычная", async () => {
     const sent: { op: Record<string, unknown> }[] = [];
     server.use(

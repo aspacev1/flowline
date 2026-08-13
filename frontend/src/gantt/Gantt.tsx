@@ -67,9 +67,9 @@ export function Gantt({
   const reducedMotion = usePrefersReducedMotion();
   const [zoom, setZoom] = useState<"day" | "week" | "month">("week");
 
-  // Состав нужен только фильтру «Владелец» в меню «Фильтр» — колонки с
+  // Состав нужен только фильтру «Исполнитель» в меню «Фильтр» — колонки с
   // аватарами в таблице больше нет. Отказ — не ошибка ленты: гостю и роли
-  // `client` состав не отдаётся, и фильтр по владельцу тогда просто не рисуется.
+  // `client` состав не отдаётся, и фильтр по исполнителю тогда просто не рисуется.
   const membersQuery = useQuery({
     queryKey: MEMBERS_QUERY_KEY,
     queryFn: fetchMembers,

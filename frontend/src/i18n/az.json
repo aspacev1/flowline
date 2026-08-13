@@ -239,7 +239,7 @@
     "title": "Tapşırıqlarım",
     "empty": {
       "title": "Sizə hələ heç nə təyin olunmayıb",
-      "hint": "Sahibi olduğunuz tapşırıqlar burada yığılacaq — bütün layihələr üzrə"
+      "hint": "İcraçısı olduğunuz tapşırıqlar burada yığılacaq — bütün layihələr üzrə"
     },
     "overdue": "Son tarixi keçib"
   },
@@ -302,7 +302,7 @@
       "end": "Son",
       "progress": "Tamamlanıb, %",
       "progress_aria": "{pct}% hazırdır",
-      "assignees": "Sahib",
+      "assignees": "İcraçılar",
       "depends_on": "Asılıdır",
       "blocks": "Bloklayır",
       "add_link": "Əlaqə əlavə et…",
@@ -315,10 +315,18 @@
       "title": "Yeni tapşırıq",
       "name": "Ad",
       "description": "Təsvir",
+      "status": "Status",
       "category": "Kateqoriya",
       "criticality": "Kritiklik",
       "start": "Başlama tarixi",
       "duration": "Müddət, iş günü",
+      "progress": "Tamamlanıb, %",
+      "internal_note": "Daxili qeyd",
+      "depends_on": "Asılıdır",
+      "blocks": "Bloklayır",
+      "add_link": "Əlaqə əlavə et…",
+      "add_link_to": "«{label}» siyahısına əlavə et",
+      "unlink": "«{name}» ilə əlaqəni sil",
       "assignees": "İcraçılar",
       "submit": "Tapşırıq yarat"
     }
@@ -369,6 +377,7 @@
     "expand": "aç",
     "collapse": "yığ",
     "milestone": "Plan təsdiqlənib · v{version}",
+    "undo_batch": "Bütün paketi geri al",
     "filter": {
       "person": "Müəllif",
       "task": "Tapşırıq",
@@ -402,7 +411,7 @@
   },
   "filter": {
     "status": "Status",
-    "owner": "Sahib",
+    "owner": "İcraçı",
     "all": "Hər kəs",
     "clear": "Filtri təmizlə"
   },
@@ -579,8 +588,6 @@
     "save": "Yadda saxla"
   },
   "undo": {
-    "last": "Geri al: {what}",
-    "batch": "Bütün paketi geri al",
     "action": "Geri al"
   },
   "settings": {
@@ -616,9 +623,7 @@
       "workdays_extra_hint": "Qeyri-iş günlərini geri qaytarır"
     },
     "profile": {
-      "title": "Profil",
-      "locale": "İnterfeys dili",
-      "locale_hint": "Profildə saxlanılır: başqa kompüterdən girəndə də eyni dil olacaq"
+      "title": "Profil"
     },
     "llm": {
       "title": "LLM qoşulması",

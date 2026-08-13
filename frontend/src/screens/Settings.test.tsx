@@ -213,26 +213,14 @@ describe("профиль", () => {
     server.use(...sessionHandlers());
   });
 
-  it("язык сохраняется в профиль, а не только в память браузера", async () => {
-    const patches: Patch[] = [];
-    server.use(
-      http.patch("/api/auth/me", async ({ request }) => {
-        const patch = (await request.json()) as Patch;
-        patches.push(patch);
-        return HttpResponse.json({ ...USER, ...patch });
-      }),
-    );
+  it("языка своего не рисует: переключатель один, и он в колонке", async () => {
     renderApp({ route: "/settings/profile" });
 
-    // Переключатель ровно один: свой `select` экран профиля больше не рисует,
-    // а из колонки переключатель убран — язык живёт там, где настройки.
-    const chooser = await screen.findByRole("group", { name: "Язык интерфейса" });
-    await userEvent.click(within(chooser).getByRole("button", { name: "AZ" }));
-
-    await waitFor(() => expect(patches).toEqual([{ locale: "az" }]));
-    // И интерфейс переключился сразу, не дожидаясь перезагрузки: заголовок
-    // экрана теперь азербайджанский.
-    expect(await screen.findByRole("heading", { name: "Profil" })).toBeInTheDocument();
+    await screen.findByRole("heading", { name: "Профиль" });
+    // Ровно один переключатель на окно — тот, что стоит в боковой колонке над
+    // «Настройками». Второй здесь означал бы две копии одного выбора рядом.
+    const chooser = screen.getByRole("group", { name: "Язык интерфейса" });
+    expect(chooser.closest(".sidebar")).not.toBeNull();
   });
 
   it("адрес показывается, но не правится", async () => {

@@ -79,10 +79,9 @@ button.sidebar__button { height: 40px; font-size: 16px; }
 .project-head__main { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; width: 100%; }
 .project-head__title { font-size: 34px; font-weight: 720; letter-spacing: -0.03em; line-height: 1.1; }
 .project-head__meta { margin-top: 12px; font-size: 16px; color: #6b7280; font-style: normal; }
-.project-head__plan-inline { display: inline-flex; align-items: center; gap: 9px; margin-left: 9px; flex-wrap: wrap; }
+.project-head__plan-inline { display: inline-flex; align-items: center; gap: 9px; flex-wrap: wrap; }
 .project-head__plan-label { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border: 1px solid #f3c77d; border-radius: 6px; background: #fff8ec; color: #c47a16; font-size: 15px; font-weight: 600; letter-spacing: 0; text-transform: none; }
 .project-head__plan-note { color: var(--danger); font-style: normal; }
-.project-head__dot { color: #9ca3af; }
 .project-head__actions { gap: 16px; justify-content: flex-end; }
 .project-head__actions a { display: inline-flex; align-items: center; height: var(--control); padding: 0 14px; border: 1px solid var(--border-strong); border-radius: 7px; text-decoration: none; color: #374151; }
 /* Кнопка согласования стоит в строке плана, сразу за плашкой версии, и её
@@ -484,7 +483,10 @@ body:has(.screen--narrow) {
   .project-head { padding-top: 24px; }
   .project-head__title { font-size: 29px; }
   .project-head__meta { font-size: 14px; }
-  .project-head__plan-inline { display: flex; margin: 10px 0 0; }
+  /* На узком экране состояние плана становится под название целой строкой, а
+     не жмётся к нему сбоку: имя проекта и без того занимает всю ширину.
+     Просвет задаёт `gap` строки — свой отступ здесь сложился бы с ним. */
+  .project-head__plan-inline { flex-basis: 100%; margin: 0; }
   .project-toolbar__primary { flex: 1; }
   .project-toolbar__segments { order: 20; width: 100%; }
   .project-toolbar__segments button { flex: 1; }
