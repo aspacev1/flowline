@@ -61,91 +61,314 @@
   /* Inter приезжает со сборкой (@fontsource-variable/inter, см. App.tsx), а не
      с CDN: установка самостоятельная, и шрифт обязан работать без интернета. */
   --font: "Inter Variable", Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  /* Тёмная поверхность поверх страницы: тост и всплывающая карточка ленты.
+     Она не «инверсия темы», а отдельная роль — сообщение, которое обязано
+     читаться поверх любого содержимого под ним. */
+  --overlay: #202838;
+  --overlay-text: #ffffff;
+  --overlay-muted: #929db0;
+  --overlay-strong: #d5dae5;
+  --overlay-accent: #b8c2ff;
 }
+
+/* --- основа --- */
 
 body { font-size: 14px; line-height: 1.45; background: var(--bg); }
 .app__main { min-height: 100vh; }
-/* Меры колонки крупнее базовых: квадрат логотипа здесь 34 пикселя, и колонка
-   значков равняется по нему — иначе подписи разделов не встают под названием
-   организации. Просвет между логотипом и разделами — тот же, что между самими
-   разделами: приветствия, которое раньше держало верхний блок, больше нет, и
-   лишний воздух над «Проектами» ничего не разделяет. */
-.sidebar { padding: 28px 16px 18px; gap: 14px; background: #fbfcff; border-right: 1px solid var(--border); --sidebar-gutter: 8px; --sidebar-mark: 34px; --sidebar-gap: 12px; }
+
+/* Кегль заголовка — 25 пикселей, как у названия проекта в макете, и столько же
+   у заголовка любой другой страницы. Прежние 38 остались от макета, у которого
+   заголовок был единственным крупным пятном на пустой странице; здесь под ним
+   стоит плотная лента, и заголовок в полтора раза выше неё читается как
+   объявление, а не как имя раздела. */
+h1 { font-size: 25px; font-weight: 700; letter-spacing: -0.025em; line-height: 1.25; }
+h2 { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
+
+/* Фокус — мягкое широкое кольцо макета вместо жёсткой двухпиксельной рамки:
+   органы управления здесь и так в рамке, и вторая рамка поверх первой читается
+   как ошибка ввода, а не как «вы здесь». */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible,
+a:focus-visible,
+[role="switch"]:focus-visible {
+  outline: 3px solid rgb(83 103 232 / 22%);
+  outline-offset: 1px;
+}
+
+/* --- боковая колонка --- */
+
+/* Тёмная колонка макета сюда не переносится (см. план, §1): здесь она светлая
+   и просто перекрашена. Меры крупнее базовых: квадрат логотипа 34 пикселя, и
+   колонка значков равняется по нему — иначе подписи разделов не встают под
+   названием организации. */
+.sidebar { padding: 24px 12px 16px; gap: 14px; background: var(--surface); border-right: 1px solid var(--border); --sidebar-gutter: 10px; --sidebar-mark: 34px; --sidebar-gap: 11px; }
 .sidebar__workspace { padding: 0 var(--sidebar-gutter); }
-.sidebar__avatar { width: 34px; height: 34px; border-radius: 9px; font-size: 0; position: relative; background: linear-gradient(135deg,#1c6dff 0 45%,#2459f5 45% 70%,#68a4ff 70%); }
-.sidebar__avatar::after { content: "P"; color: #fff; font-size: 22px; line-height: 1; font-weight: 800; }
-.sidebar__brand { font-size: 21px; font-weight: 650; color: #121826; }
+.sidebar__avatar { width: 34px; height: 34px; border-radius: 9px; font-size: 0; position: relative; background: linear-gradient(145deg, #7182ff, #4256d8); box-shadow: inset 0 0 0 1px rgb(255 255 255 / 18%); }
+.sidebar__avatar::after { content: "P"; color: #fff; font-size: 21px; line-height: 1; font-weight: 800; }
+.sidebar__brand { font-size: 16px; font-weight: 750; color: var(--text); }
 .sidebar__section { display: none; }
-.sidebar__nav { gap: 14px; }
-.sidebar__link { min-height: 40px; padding: 0 var(--sidebar-gutter); border-radius: 7px; color: #626b7a; font-size: 16px; }
-.sidebar__link.is-current { background: #eef4ff; color: var(--accent); }
+.sidebar__nav { gap: 3px; }
+.sidebar__link { min-height: 38px; padding: 0 var(--sidebar-gutter); border-radius: var(--radius-md); color: var(--text-muted); font-size: 14px; font-weight: 600; }
+.sidebar__link:hover { background: var(--hover); color: var(--text); }
+/* Текущий раздел — та же отметка в три пикселя слева, что и у выбранной строки
+   ленты: одно состояние «вы здесь» на всё приложение, а не два разных. */
+.sidebar__link.is-current { background: var(--accent-soft); color: var(--accent); box-shadow: inset 3px 0 var(--accent); }
 /* Ширину значку задаёт колонка (`flex-basis` от `--sidebar-mark`), здесь —
    только рост рисунка: он остаётся 22-пиксельным и стоит в середине колонки
    шириной с логотип. */
 .sidebar__icon { height: 22px; color: currentColor; }
-.sidebar__foot { border-top: 0; gap: 10px; }
-button.sidebar__button { height: 40px; font-size: 16px; }
+.sidebar__foot { border-top: 1px solid var(--border); gap: 4px; }
+button.sidebar__button { height: 38px; padding: 0 var(--sidebar-gutter); border-radius: var(--radius-md); font-size: 14px; font-weight: 600; }
 .org-switch { display: inline-flex; }
 .locale-switch { display: flex; }
 
+.sidebar .org-switch {
+  width: 100%;
+  justify-content: flex-start;
+  height: 32px;
+  padding: 0 var(--sidebar-gutter);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 13px;
+}
+
+.sidebar .locale-switch { align-self: stretch; margin: 4px var(--sidebar-gutter); }
+.sidebar .locale-switch button { flex: 1; }
+
+/* --- шапка публичной страницы --- */
+
+.header { height: 52px; padding: 0 22px; background: var(--surface); border-bottom: 1px solid var(--border); }
+
+/* --- шапка проекта --- */
+
 .screen--wide { padding: 0; }
-.project-head { margin: 0; padding: 32px 32px 28px; border-bottom: 1px solid var(--border); gap: 0; }
-.project-head__main { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; width: 100%; }
-.project-head__title { font-size: 34px; font-weight: 720; letter-spacing: -0.03em; line-height: 1.1; }
-.project-head__meta { margin-top: 12px; font-size: 16px; color: #6b7280; font-style: normal; }
+.project-head { margin: 0; padding: 22px 28px 18px; background: var(--surface); border-bottom: 1px solid var(--border); gap: 0; }
+.project-head__main { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; width: 100%; }
+.project-head__title { font-size: 25px; font-weight: 700; letter-spacing: -0.025em; line-height: 1.25; }
+.project-head__meta { margin-top: 7px; font-size: 13px; color: var(--text-muted); font-style: normal; }
 .project-head__plan-inline { display: inline-flex; align-items: center; gap: 9px; flex-wrap: wrap; }
-.project-head__plan-label { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border: 1px solid #f3c77d; border-radius: 6px; background: #fff8ec; color: #c47a16; font-size: 15px; font-weight: 600; letter-spacing: 0; text-transform: none; }
-.project-head__plan-note { color: var(--danger); font-style: normal; }
-.project-head__actions { gap: 16px; justify-content: flex-end; }
-.project-head__actions a { display: inline-flex; align-items: center; height: var(--control); padding: 0 14px; border: 1px solid var(--border-strong); border-radius: 7px; text-decoration: none; color: #374151; }
+
+/* Состояние плана — пилюля-бейдж макета с точкой: черновик янтарный,
+   согласованный зелёный. Прежняя прямоугольная плашка была всегда янтарной и
+   тем говорила «требует внимания» даже про согласованный план. */
+.project-head__plan-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 29px;
+  padding: 0 11px;
+  border: 1px solid #f3dcae;
+  border-radius: var(--radius-pill);
+  background: var(--warn-soft);
+  color: #785719;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.project-head__plan-label::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+
+.project-head__plan-label[data-state="approved"] { border-color: #bde5ce; background: var(--ok-soft); color: #176842; }
+.project-head__plan-label[data-state="approved"]::before { background: var(--ok); }
+
+.project-head__plan-note { color: var(--danger-strong); font-style: normal; font-size: 13px; font-weight: 600; }
+.project-head__actions { gap: 8px; justify-content: flex-end; }
+.project-head__actions a { display: inline-flex; align-items: center; height: var(--control); padding: 0 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-md); text-decoration: none; color: var(--text); }
 /* Кнопка согласования стоит в строке плана, сразу за плашкой версии, и её
    высота повторяет высоту плашки — иначе кнопка раздувает строку сводки. */
 .project-head__approval { display: inline-flex; align-items: center; }
-.project-head__approval button { height: 32px; padding: 0 12px; font-size: 15px; }
+.project-head__approval button { height: 29px; padding: 0 11px; font-size: 12px; }
 
-button { height: var(--control); padding: 0 18px; border-radius: 7px; font-size: 16px; font-weight: 600; box-shadow: 0 8px 18px rgb(36 89 245 / 22%); }
-.button--quiet { background: #fff; color: #374151; box-shadow: inset 0 0 0 1px var(--border-strong); }
-.button--quiet:hover { background: #f8fafc; }
-/* Ссылка-кнопка повторяет размеры кнопки темы: стоит с ней в одной строке и
-   обязана совпадать по высоте, иначе пара действий читается лесенкой. */
-.button-link { height: var(--control); padding: 0 18px; border-radius: 7px; font-size: 16px; font-weight: 600; background: #fff; text-decoration: none; }
-.button-link:hover { background: #f8fafc; }
+/* --- тулбар ленты --- */
 
-/* Тулбар ленты. Высота — от органа управления, а не от собственного числа:
-   с переходом на 36-пиксельные кнопки прежние 78 пикселей оставляли над
-   лентой полосу пустоты выше самой шапки ленты. */
-.project-toolbar { display: flex; align-items: center; gap: 8px; height: 54px; padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
-.project-toolbar__primary { padding: 0 14px; }
+/* Высота — от органа управления, а не от собственного числа: с 36-пиксельными
+   кнопками прежние 78 пикселей оставляли над лентой полосу пустоты выше самой
+   шапки ленты. */
+.project-toolbar { display: flex; align-items: center; gap: 8px; min-height: 54px; padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.project-toolbar__primary { padding: 0 12px; }
 .project-toolbar__divider { width: 1px; height: 24px; margin: 0 4px; background: var(--border); }
 .project-toolbar__spacer { flex: 1; }
+/* Меню тулбара — «Масштаб» и «Вид» — одной высоты между собой. */
+.project-toolbar .menu__button { height: var(--control); }
 
 .project__body { gap: 0; align-items: stretch; }
-
-.panel { flex: 0 0 388px; border-radius: 0; box-shadow: -1px 0 0 var(--border); min-height: calc(100vh - 0px); padding: 34px 32px; }
-.panel__title { font-size: 24px; }
-.panel__fields .panel__field, .panel__row { grid-template-columns: 112px minmax(0,1fr); gap: 16px; }
-.panel__key, .panel__fields .panel__field label { font-size: 15px; color: #4b5563; }
-.panel__history, .panel__comments { border-top-color: var(--border); }
+/* Лента обсуждения на публичной странице — колонкой для чтения, с полями от
+   краёв. В карточке задачи она же стоит внутри 404 пикселей, и поля с
+   ограничением ширины там рисуют вторую, вложенную страницу. */
 .comments { max-width: 740px; margin: 28px 32px; }
+/* Своей черты обсуждение в карточке не рисует: её уже нарисовал блок
+   `.panel__comments`, в который оно вложено, и две горизонтали подряд читаются
+   как два разных раздела там, где раздел один. */
+.panel .comments { max-width: none; margin: 0; padding-top: 0; border-top: 0; }
+
+/* --- кнопки --- */
+
+/* Кнопка макета: 36 пикселей, скругление 8, подпись в 13 и волосяная тень
+   вместо цветного ореола. Прежняя тень — синее облако в 18 пикселей — осталась
+   от другого акцента и висела под каждой кнопкой подряд, включая тихие: на
+   экране с пятью действиями это пять «главных». */
+button { height: var(--control); padding: 0 12px; border-radius: var(--radius-md); font-size: 13px; font-weight: 620; box-shadow: 0 2px 5px rgb(83 103 232 / 20%); }
+button:hover { background: var(--accent-hover); }
+
+.button--quiet { background: var(--surface); color: var(--text); box-shadow: inset 0 0 0 1px var(--border-strong), var(--shadow-sm); }
+.button--quiet:hover, .button--quiet:disabled:hover { background: var(--bg-subtle); box-shadow: inset 0 0 0 1px var(--border-strong), var(--shadow-sm); }
+.button--quiet[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); box-shadow: inset 0 0 0 1px transparent; }
+.button--alert { background: var(--surface); box-shadow: inset 0 0 0 1px var(--danger); }
+.button--alert:hover, .button--alert:disabled:hover { background: var(--danger-soft); box-shadow: inset 0 0 0 1px var(--danger); }
+
+/* Ссылка-кнопка повторяет размеры кнопки темы: стоит с ней в одной строке и
+   обязана совпадать по высоте, иначе пара действий читается лесенкой. Селектор
+   двойной: правило `.screen a` красит ссылки внутри страницы акцентом и весом
+   перебило бы одинокий класс — а кнопка рядом с главным действием обязана
+   оставаться чернильной, иначе синими окажутся обе. */
+.button-link,
+.screen .button-link { height: var(--control); padding: 0 12px; border-radius: var(--radius-md); font-size: 13px; font-weight: 620; color: var(--text); background: var(--surface); text-decoration: none; box-shadow: inset 0 0 0 1px var(--border-strong), var(--shadow-sm); }
+.button-link:hover, .screen .button-link:hover { background: var(--bg-subtle); }
+
+.locale-switch { padding: 3px; border-radius: 9px; background: #f1f3f7; }
+.locale-switch button { height: 29px; padding: 0 10px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 650; box-shadow: none; }
+.locale-switch button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgb(16 24 40 / 13%); }
+
+/* --- поля --- */
+
+select,
+textarea,
+input:where(:not([type="checkbox"]):not([type="radio"])) {
+  min-height: var(--control);
+  padding: 0 9px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: none;
+}
+
+textarea { padding: 9px 10px; line-height: 1.45; }
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* Подпись поля — 11 пикселей полужирным приглушённым, как в карточке задачи
+   макета. Мельче значения ровно затем, чтобы читалось значение: подпись
+   человек прочитывает один раз, а возвращается к ней глазами постоянно. */
+.field { gap: 6px; margin-bottom: 18px; }
+.field label, .field > .settings__key, .links__label, .settings__key { color: var(--text-muted); font-size: 11px; font-weight: 700; }
+/* Пояснение под подписью — мельче значения и крупнее подписи: набранное общим
+   кеглем, оно оказывалось заметнее самой подписи поля. */
+.field .muted { font-size: 12px; }
+
+.links__item, .panel__dep { border-radius: var(--radius-pill); background: var(--tag-gray); box-shadow: none; font-size: 12px; font-weight: 700; }
+.panel__dep { border: 0; }
+
+/* --- меню --- */
+
+.menu__pop { min-width: 220px; padding: 7px; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); box-shadow: var(--shadow-md); }
+.menu__item { min-height: 34px; gap: 9px; padding: 7px 9px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; }
+.menu__item:hover { background: var(--hover); }
+.menu__title { margin: 4px 5px 6px; font-size: 10px; letter-spacing: 0.06em; font-weight: 800; color: var(--text-muted); }
+.menu__sep { margin: 6px 0; }
+.menu__caret { color: var(--text-muted); }
+
+/* --- плашка статуса --- */
+
+/* Пилюля макета: 23 пикселя высотой, скругление 20, подпись полужирным
+   мелким. Кегль 11, а не 10 как в макете: там пилюля стоит в таблице и несёт
+   одно слово, здесь — целую фразу («3 заблокированы»), и на 10 она перестаёт
+   читаться с расстояния строки списка. */
+.status-chip { height: 23px; padding: 0 9px; border: 0; border-radius: var(--radius-pill); background: var(--tag-gray); color: var(--text-muted); font-size: 11px; font-weight: 700; }
+.status-chip[data-status="in_progress"] { background: var(--accent-soft); color: #4455c1; }
+.status-chip[data-status="done"] { background: var(--ok-soft); color: #187448; }
+.status-chip[data-status="planned"] { background: var(--tag-gray); color: var(--text-muted); }
+/* Заблокированное — тревогой, а не вниманием: в этой палитре янтарный означает
+   просрочку, и два разных состояния одним цветом здесь уже не назвать
+   (см. план, §4.2). */
+.status-chip[data-status="blocked"] { background: var(--danger-soft); color: #b8365a; }
+
+/* --- сообщения --- */
+
+.error,
+.ok,
+.callout {
+  padding: 10px 12px;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-md);
+  background: var(--danger-soft);
+  font-size: 13px;
+}
+
+.ok { background: var(--ok-soft); }
+.callout { color: var(--text); border-color: var(--border); background: var(--bg-subtle); }
+.nudge { padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-subtle); }
+.plan__confirm { padding: 4px 4px 4px 12px; border-radius: var(--radius-md); background: var(--danger-soft); }
+
+/* --- тост --- */
+
+/* Снекбар макета: тёмная плашка в 48 пикселей со скруглением 9 и подписью
+   действия в светло-синем. Заливка та же, что у карточки наведения на ленте, —
+   оба говорят поверх страницы и обязаны выглядеть одним голосом. */
+.toast {
+  bottom: 24px;
+  gap: 14px;
+  min-width: 345px;
+  height: 48px;
+  padding: 0 9px 0 15px;
+  border-radius: 9px;
+  background: var(--overlay);
+  color: var(--overlay-text);
+  font-size: 13px;
+  font-weight: 400;
+  box-shadow: 0 12px 26px rgb(16 24 40 / 24%);
+}
+
+.toast__check { width: 18px; height: 18px; border-color: rgb(255 255 255 / 45%); font-size: 10px; }
+.toast__message { flex: 1; }
+
+.toast__action {
+  height: 32px;
+  padding: 0 9px;
+  border-radius: var(--radius-sm);
+  color: var(--overlay-accent);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.toast__action:hover { background: rgb(255 255 255 / 8%); text-decoration: none; }
+
+/* --- окно --- */
+
+.modal__backdrop { backdrop-filter: blur(5px); }
+.modal { max-width: 480px; padding: 24px; border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); }
+.modal__title { margin-bottom: 20px; font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
+
+/* --- страницы --- */
 
 /* The original Planora pass focused on the Gantt route. These shared rules
    carry the same information hierarchy through the rest of the product. */
 .screen:not(.screen--wide):not(.screen--narrow) {
   width: min(100%, 1120px);
   max-width: 1120px;
-  padding: 48px 56px 88px;
+  padding: 32px 40px 80px;
 }
 
-.screen:not(.screen--wide) h1 {
-  font-size: clamp(30px, 3vw, 38px);
-  font-weight: 720;
-  letter-spacing: -0.035em;
-}
+.screen:not(.screen--wide) h1 { font-size: 25px; font-weight: 700; letter-spacing: -0.025em; }
 
 .screen__head {
   gap: 12px;
-  margin-bottom: 32px;
-  padding-bottom: 24px;
+  margin-bottom: 24px;
+  padding-bottom: 18px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -163,90 +386,71 @@ button { height: var(--control); padding: 0 18px; border-radius: 7px; font-size:
   display: inline-flex;
   align-items: center;
   min-height: var(--control);
-  padding: 0 14px;
+  padding: 0 12px;
   border: 1px solid var(--border-strong);
-  border-radius: var(--radius);
-  color: #374151;
-  font-weight: 600;
+  border-radius: var(--radius-md);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 620;
   text-decoration: none;
 }
 
-.screen__head > a:hover { background: var(--hover); }
+.screen__head > a:hover { background: var(--bg-subtle); }
 
-.screen a { color: var(--accent); text-decoration-color: rgb(36 89 245 / 35%); }
+.screen a { color: var(--accent); text-decoration-color: rgb(83 103 232 / 35%); }
+.screen a:hover, .header a:hover { background: transparent; text-decoration-color: var(--accent); }
+
+/* Выбранная вкладка — акцентом, а не чернилами: «вы здесь» во всём остальном
+   приложении говорит синий, и вкладки не повод заводить второй такой знак. */
+.tabs__link, .screen .tabs__link { padding: 8px 10px; font-size: 13px; font-weight: 620; text-decoration: none; }
+.tabs__link.is-current { border-bottom-color: var(--accent); color: var(--accent); }
 
 button {
   transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
 
-/* Логотип колонки исключён вместе с тихими кнопками: синяя тень под подписью
-   приложения означала бы, что она — главное действие экрана. */
-button:not(.button--quiet):not(.sidebar__button):not(.sidebar__workspace):hover {
-  box-shadow: 0 10px 22px rgb(36 89 245 / 28%);
-}
-
-select,
-textarea,
-input:where(:not([type="checkbox"]):not([type="radio"])) {
-  padding: 9px 12px;
-  background: #fff;
-  border: 1px solid var(--border-strong);
-  box-shadow: 0 1px 2px rgb(15 23 42 / 3%);
-}
-
-.field { gap: 8px; margin-bottom: 20px; }
-.field label, .field > .settings__key { color: #4b5563; font-size: 14px; font-weight: 600; }
-
-.error,
-.ok,
-.callout {
-  padding: 11px 13px;
-  border: 1px solid currentColor;
-  border-radius: var(--radius);
-  background: var(--danger-soft);
-}
-
-.ok { background: var(--ok-soft); }
-.callout { color: var(--text); border-color: var(--border); background: var(--bg-subtle); }
+/* --- вход --- */
 
 /* Authentication reads as a focused product entry point, not a loose form. */
 body:has(.screen--narrow) {
   min-height: 100vh;
   background:
-    radial-gradient(circle at 15% 10%, rgb(65 121 255 / 13%), transparent 30%),
-    linear-gradient(145deg, #f7faff 0%, #ffffff 52%, #f3f7ff 100%);
+    radial-gradient(circle at 15% 10%, rgb(83 103 232 / 10%), transparent 30%),
+    linear-gradient(145deg, #f7f9ff 0%, #ffffff 52%, var(--bg) 100%);
 }
 
 .screen--narrow {
   position: relative;
   width: calc(100% - 32px);
-  max-width: 460px;
+  max-width: 440px;
   margin: 72px auto;
-  padding: 42px;
+  padding: 36px;
   border: 1px solid var(--border);
-  border-radius: 18px;
-  background: rgb(255 255 255 / 94%);
-  box-shadow: 0 28px 70px rgb(31 56 113 / 13%);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
 }
 
 .screen--narrow::before {
   content: "P";
   display: grid;
   place-items: center;
-  width: 42px;
-  height: 42px;
-  margin-bottom: 30px;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 26px;
   border-radius: 11px;
-  background: linear-gradient(135deg, #1c6dff 0 45%, #2459f5 45% 70%, #68a4ff 70%);
+  background: linear-gradient(145deg, #7182ff, #4256d8);
   color: white;
-  font-size: 25px;
+  font-size: 23px;
   font-weight: 800;
-  box-shadow: 0 12px 24px rgb(36 89 245 / 24%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 18%);
 }
 
-.screen--narrow h1 { margin-bottom: 28px; }
+.screen--narrow h1 { margin-bottom: 24px; }
 .screen--narrow .muted:last-child { margin: 24px 0 0; text-align: center; }
 .screen--narrow form button[type="submit"] { margin-top: 8px; }
+
+/* --- списки --- */
 
 /* Project portfolio cards keep the scan path clear at both 2 and 20 items. */
 .projects {
@@ -257,39 +461,54 @@ body:has(.screen--narrow) {
 
 .projects li {
   position: relative;
-  min-height: 132px;
+  min-height: 124px;
   align-content: flex-end;
   align-items: flex-start;
-  padding: 24px;
+  padding: 20px;
   border: 1px solid var(--border);
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 8px 24px rgb(15 23 42 / 5%);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .projects li::before {
   content: "";
   width: 40px;
-  height: 6px;
-  margin-bottom: 26px;
-  border-radius: 99px;
-  background: linear-gradient(90deg, var(--accent) 0 58%, #93b4ff 58%);
+  height: 7px;
+  margin-bottom: 22px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent) 0 58%, #93a1f2 58%);
 }
 
 .projects li:hover {
-  border-color: #b9c9ef;
-  background: #fbfdff;
-  box-shadow: 0 14px 34px rgb(31 62 126 / 9%);
+  border-color: var(--border-strong);
+  background: var(--bg-subtle);
+  box-shadow: 0 8px 24px rgb(16 24 40 / 7%);
 }
 
-.projects li a { width: 100%; color: var(--text); font-size: 18px; font-weight: 700; }
-.projects__slug { margin: 3px 0 0; color: var(--text-faint); }
+.projects li a { width: 100%; color: var(--text); font-size: 16px; font-weight: 700; }
+.projects__slug { margin: 3px 0 0; color: var(--text-faint); font-size: 12px; }
+
+.home-card, .task-list, .report { border-color: var(--border); border-radius: var(--radius-lg); background: var(--surface); }
+/* Название карточки и ссылка на проект в строке задачи — чернилами, а не
+   акцентом: `.screen a` красит всякую ссылку страницы синим и подчёркивает её,
+   и в списке из двадцати строк это частокол. Открывается по щелчку вся строка,
+   а не подчёркнутое слово в ней. */
+.screen .home-card__name { color: var(--text); font-size: 16px; text-decoration: none; }
+.screen .task-list__project { color: var(--text-muted); text-decoration: none; }
+.screen .home-card__name:hover, .screen .task-list__project:hover { background: transparent; text-decoration: underline; }
+.home-card__bar, .home-card__bar i, .panel__progressbar, .panel__progressbar i { border-radius: var(--radius-lg); }
+.home-card__bar { height: 7px; background: var(--border); }
+.report thead th { font-size: 10px; font-weight: 800; letter-spacing: 0.06em; color: var(--text-muted); }
+.report__warn { color: var(--warn); }
+.report__late { color: var(--danger-strong); }
 
 .empty {
   position: relative;
-  padding: 64px 28px;
-  border: 1px dashed #c9d5eb;
-  background: linear-gradient(180deg, #fbfdff, #f7faff);
+  padding: 56px 24px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-subtle);
 }
 
 .empty::before {
@@ -298,8 +517,8 @@ body:has(.screen--narrow) {
   place-items: center;
   width: 44px;
   height: 44px;
-  margin: 0 auto 18px;
-  border-radius: 12px;
+  margin: 0 auto 16px;
+  border-radius: var(--radius-lg);
   background: var(--accent-soft);
   color: var(--accent);
   font-size: 28px;
@@ -311,61 +530,108 @@ body:has(.screen--narrow) {
 .members__list {
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: 12px;
-  background: #fff;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
 }
 
 .members li,
 .invite,
-.members__row { min-height: 56px; padding: 13px 16px; border-radius: 0; }
+.members__row { min-height: 52px; padding: 12px 16px; border-radius: 0; }
 .members li:last-child, .invite:last-child, .members__row:last-child { border-bottom: 0; }
+
+/* --- настройки --- */
 
 .settings {
   max-width: 680px;
-  gap: 20px;
+  gap: 18px;
 }
 
 .settings__fieldset,
 .fieldset,
 .settings__override {
-  padding: 20px;
+  padding: 18px;
   border-color: var(--border);
-  border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 6px 20px rgb(15 23 42 / 4%);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .settings__fieldset legend,
-.fieldset legend { padding: 0 8px; color: #374151; font-size: 14px; font-weight: 700; }
+.fieldset legend { padding: 0 8px; color: var(--text-muted); font-size: 11px; font-weight: 700; }
 
-.settings__day { min-height: 36px; padding: 6px 12px 6px 9px; border: 1px solid transparent; }
-.settings__day:has(input:checked) { border-color: #bfcefa; }
+.settings__day { min-height: var(--control); padding: 0 12px 0 9px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); font-size: 13px; }
+.settings__day:hover { background: var(--hover); }
+.settings__day:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
 
 .ai__question {
-  padding: 24px;
-  border-left: 4px solid var(--accent);
-  border-radius: 0 12px 12px 0;
-  background: linear-gradient(90deg, var(--accent-soft), #fbfdff);
-  font-size: 21px;
+  padding: 20px;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  background: var(--accent-soft);
+  font-size: 19px;
   line-height: 1.45;
 }
 
-.modal__backdrop { backdrop-filter: blur(5px); }
-.modal { max-width: 520px; padding: 30px; border: 1px solid rgb(255 255 255 / 65%); border-radius: 16px; }
-.modal__title { margin-bottom: 24px; font-size: 23px; font-weight: 720; }
+/* --- карточка задачи --- */
 
-.sidebar .org-switch {
-  width: 100%;
-  justify-content: flex-start;
-  height: 36px;
-  padding: 0 12px;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: #fff;
+/* Ширина — 404 пикселя макета. Карточка остаётся третьей колонкой, а не
+   оверлеем (см. план, §1), поэтому от ящика макета берётся только его
+   волосяная грань слева: тень в 12 пикселей под колонкой, стоящей в потоке,
+   рисовала бы обрыв страницы там, где её нет. */
+.panel { flex: 0 0 404px; border-radius: 0; box-shadow: -1px 0 0 var(--border-strong); min-height: 100%; padding: 18px 20px 30px; background: var(--surface); }
+.panel__head { padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.panel__title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
+.panel__fields { gap: 4px; padding-top: 16px; }
+.panel__fields .panel__field, .panel__row { grid-template-columns: 112px minmax(0, 1fr); gap: 12px; }
+.panel__key, .panel__fields .panel__field label { min-height: var(--control); color: var(--text-muted); font-size: 11px; font-weight: 700; }
+.panel__value { min-height: var(--control); }
+
+/* Поля карточки видны полями, а не текстом до наведения: у макета это ряд
+   органов управления в рамках, и лента рядом набрана так же плотно — поле,
+   проявляющееся только под курсором, здесь читалось бы как незаполненное. */
+.panel__fields input,
+.panel__fields select,
+.panel__fields textarea {
+  min-height: var(--control);
+  padding: 0 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: none;
 }
 
-.sidebar .locale-switch { align-self: stretch; margin: 4px 8px; }
-.sidebar .locale-switch button { flex: 1; }
+.panel__fields textarea { padding: 9px 10px; }
+.panel__fields input:hover:not(:disabled),
+.panel__fields select:hover:not(:disabled),
+.panel__fields textarea:hover:not(:disabled) { background: var(--surface); border-color: #c5ccda; }
+
+.panel__fields input:focus,
+.panel__fields select:focus,
+.panel__fields textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+/* Блок прогресса — рамка и подложка макета. Пустая подпись слева от полосы
+   здесь не нужна: блок занимает строку целиком, а не колонку значения.
+   Подложка взята токеном: две почти неразличимые серые макета (#fbfcfe у
+   полосы метрик и #fafbfc здесь) — это одна роль, а не две. */
+.panel__row:has(.panel__progressbar) {
+  display: block;
+  margin: 6px 0 10px;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg-subtle);
+}
+
+.panel__row:has(.panel__progressbar) .panel__key { display: none; }
+.panel__progressbar { height: 7px; background: var(--border); }
+
+.panel__chip { height: 23px; border-radius: var(--radius-pill); background: var(--tag-gray); font-size: 11px; font-weight: 700; }
+.panel__baseline { padding: 10px 12px; border-radius: var(--radius-md); background: var(--bg-subtle); box-shadow: inset 0 0 0 1px var(--border); font-size: 12px; }
+.panel__fieldset legend { font-size: 11px; font-weight: 700; color: var(--text-muted); }
+.panel__history, .panel__comments { border-top-color: var(--border); }
+.panel__history-title, .comments__title { font-size: 10px; font-weight: 800; letter-spacing: 0.06em; color: var(--text-muted); }
+
+/* --- адаптивность --- */
 
 @media (max-width: 900px) {
   .project-head, .project-toolbar { padding-left: 20px; padding-right: 20px; }
@@ -398,33 +664,34 @@ body:has(.screen--narrow) {
   .sidebar__avatar { width: 36px; height: 36px; }
   .sidebar__brand, .sidebar .org-switch, .sidebar__foot { display: none; }
   .sidebar__nav { flex-direction: row; gap: 6px; }
-  .sidebar__link { min-height: 38px; padding: 0 11px; font-size: 14px; }
+  .sidebar__link { min-height: 36px; padding: 0 11px; font-size: 13px; }
+  .sidebar__link.is-current { box-shadow: none; }
   .sidebar__icon { height: 18px; }
-  .screen:not(.screen--wide):not(.screen--narrow) { padding: 30px 20px 64px; }
+  .screen:not(.screen--wide):not(.screen--narrow) { padding: 24px 18px 56px; }
   .screen__head { align-items: stretch; }
   .screen__head h1 { flex-basis: 100%; margin-bottom: 8px; }
   .projects { grid-template-columns: 1fr; }
+  .project-head { padding: 16px 18px; }
   .project-head__main { flex-direction: column; }
   .project-head__actions { justify-content: flex-start; gap: 8px; }
   .project-toolbar { gap: 8px; }
   .project-toolbar__divider { display: none; }
-  .panel { padding: 26px 20px; }
+  .panel { padding: 18px 18px 26px; }
 }
 
 @media (max-width: 520px) {
-  .screen--narrow { margin: 24px auto; padding: 30px 24px; }
-  .project-head { padding-top: 24px; }
-  .project-head__title { font-size: 29px; }
-  .project-head__meta { font-size: 14px; }
+  .screen--narrow { margin: 24px auto; padding: 28px 22px; }
+  .project-head__title { font-size: 22px; }
+  .project-head__meta { font-size: 12px; }
   /* На узком экране состояние плана становится под название целой строкой, а
      не жмётся к нему сбоку: имя проекта и без того занимает всю ширину.
      Просвет задаёт `gap` строки — свой отступ здесь сложился бы с ним. */
   .project-head__plan-inline { flex-basis: 100%; margin: 0; }
   .project-toolbar__primary { flex: 1; }
-  .modal { padding: 24px 20px; }
+  .modal { padding: 22px 18px; }
   .modal__actions { align-items: stretch; flex-direction: column; }
   .modal__actions button { width: 100%; }
+  /* Тост во всю ширину минус поля: 345 пикселей минимальной ширины на узком
+     экране выпирают за край. */
+  .toast { min-width: 0; width: calc(100vw - 32px); }
 }
-
-/* Меню тулбара — «Масштаб» и «Вид» — одной высоты между собой. */
-.project-toolbar .menu__button { height: var(--control); }

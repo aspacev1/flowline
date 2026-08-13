@@ -944,8 +944,8 @@
   width: 235px;
   padding: 11px 12px;
   border-radius: 8px;
-  background: #202838;
-  color: #fff;
+  background: var(--overlay, #202838);
+  color: var(--overlay-text, #fff);
   font-size: 11px;
   line-height: 1.35;
   box-shadow: 0 12px 36px rgb(16 24 40 / 13%);
@@ -976,12 +976,12 @@
   display: grid;
   grid-template-columns: minmax(72px, 45%) 1fr;
   gap: 3px 8px;
-  color: #929db0;
+  color: var(--overlay-muted, #929db0);
   overflow-wrap: anywhere;
 }
 
 .gantt__tip-grid b {
-  color: #d5dae5;
+  color: var(--overlay-strong, #d5dae5);
   font-weight: 600;
 }
 
