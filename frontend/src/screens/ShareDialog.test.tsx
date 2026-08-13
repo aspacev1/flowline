@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { projectFixtures, renderProject } from "../test/project";
 import { server } from "../test/server";
 
-const URL = "https://flowline.example.com/p/seher-studiyasi/redizayn?s=sh4re-t0ken";
+const URL = "https://planora.example.com/p/seher-studiyasi/redizayn?s=sh4re-t0ken";
 
 const PUBLISHED = {
   allowed: true,

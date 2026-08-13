@@ -120,7 +120,7 @@ async def _lifespan(_: FastAPI):
 # /api/* перехватывает фолбэк на index.html, и штатные /docs с /openapi.json
 # были недоступны ровно там, где нужнее всего.
 app = FastAPI(
-    title="Flowline",
+    title="Planora",
     lifespan=_lifespan,
     docs_url="/api/docs",
     redoc_url="/api/redoc",

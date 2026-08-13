@@ -134,7 +134,7 @@ describe("публичная страница", () => {
     await waitFor(() => expect(sent).toHaveLength(1));
     expect(sent[0]).toEqual({ name: "Нигяр", body: "Сроки устраивают" });
     // Имя запоминается в браузере: второй раз гость его не вводит.
-    expect(localStorage.getItem("flowline.guest_name")).toBe("Нигяр");
+    expect(localStorage.getItem("planora.guest_name")).toBe("Нигяр");
   });
 
   it("гостевая реплика видна с пометкой «гость»", async () => {

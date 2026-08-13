@@ -16,9 +16,9 @@ services:
     # не ту. Числа — с запасом от рабочего профиля маленькой установки.
     mem_limit: 512m
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-flowline}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-flowline}
-      POSTGRES_DB: ${POSTGRES_DB:-flowline}
+      POSTGRES_USER: ${POSTGRES_USER:-planora}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-planora}
+      POSTGRES_DB: ${POSTGRES_DB:-planora}
     # Наружу база намеренно не публикуется. Приложению это не нужно — api
     # ходит в неё по внутренней сети compose, — а на хосте порт 5432 занят
     # чаще, чем свободен: локальный Postgres есть почти у всех, и свежий клон
@@ -28,11 +28,11 @@ services:
       - pgdata:/var/lib/postgresql/data
       # Скрипты отсюда Postgres выполняет один раз — при инициализации пустого
       # тома. Здесь создаётся база для тестов: без неё первый же прогон падает
-      # на «database flowline_test does not exist», а починка требует помнить
+      # на «database planora_test does not exist», а починка требует помнить
       # отдельную команду createdb, которую негде подсмотреть в момент падения.
       - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-flowline}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-planora}"]
       interval: 5s
       retries: 10
 
@@ -49,7 +49,7 @@ services:
     build: ./backend
     env_file: .env
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-flowline}:${POSTGRES_PASSWORD:-flowline}@db:5432/${POSTGRES_DB:-flowline}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-planora}:${POSTGRES_PASSWORD:-planora}@db:5432/${POSTGRES_DB:-planora}
     command: alembic upgrade head
     depends_on:
       db: {condition: service_healthy}
@@ -71,7 +71,7 @@ services:
       # только публикацией наружу и к внутреннему адресу отношения не имеет).
       # environment имеет приоритет над env_file, так что .env продолжает
       # обслуживать хост без изменений.
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-flowline}:${POSTGRES_PASSWORD:-flowline}@db:5432/${POSTGRES_DB:-flowline}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-planora}:${POSTGRES_PASSWORD:-planora}@db:5432/${POSTGRES_DB:-planora}
     depends_on:
       db: {condition: service_healthy}
       migrate: {condition: service_completed_successfully}
@@ -113,9 +113,9 @@ services:
     image: postgres:16@sha256:95206741a5b214807675e14165369d05b93a9cf692223b616d07cca227e74b0b
     restart: unless-stopped
     environment:
-      PGPASSWORD: ${POSTGRES_PASSWORD:-flowline}
-      POSTGRES_USER: ${POSTGRES_USER:-flowline}
-      POSTGRES_DB: ${POSTGRES_DB:-flowline}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-planora}
+      POSTGRES_USER: ${POSTGRES_USER:-planora}
+      POSTGRES_DB: ${POSTGRES_DB:-planora}
       # Как часто снимать дамп и сколько суток держать старые.
       BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
       BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}

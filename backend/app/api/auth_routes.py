@@ -280,10 +280,10 @@ def logout_route(
     response: Response,
     request: Request,
     db: DbSession = Depends(get_db),
-    flowline_session: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+    planora_session: str | None = Cookie(default=None, alias=SESSION_COOKIE),
 ):
-    if flowline_session:
-        close_session(db, flowline_session)
+    if planora_session:
+        close_session(db, planora_session)
     # Те же атрибуты, что и при установке: браузер сверяет их и с другим
     # набором оставил бы куку на месте.
     response.delete_cookie(SESSION_COOKIE, **_cookie_attributes(request))
@@ -306,7 +306,7 @@ def change_password_route(
     payload: PasswordIn,
     user: User = Depends(current_user),
     db: DbSession = Depends(get_db),
-    flowline_session: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+    planora_session: str | None = Cookie(default=None, alias=SESSION_COOKIE),
 ):
     """Смена пароля. Требует прежний: одной сессии для этого мало —
     иначе украденная кука меняла бы пароль владельцу.
@@ -321,7 +321,7 @@ def change_password_route(
         )
     except ValueError:
         raise HTTPException(status_code=403, detail="bad_credentials")
-    close_other_sessions(db, user, keep_raw_token=flowline_session)
+    close_other_sessions(db, user, keep_raw_token=planora_session)
 
 
 class SessionsClosedOut(BaseModel):
@@ -332,11 +332,11 @@ class SessionsClosedOut(BaseModel):
 def close_other_sessions_route(
     user: User = Depends(current_user),
     db: DbSession = Depends(get_db),
-    flowline_session: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+    planora_session: str | None = Cookie(default=None, alias=SESSION_COOKIE),
 ):
     """«Выйти на всех устройствах», кроме этого."""
     return SessionsClosedOut(
-        closed=close_other_sessions(db, user, keep_raw_token=flowline_session)
+        closed=close_other_sessions(db, user, keep_raw_token=planora_session)
     )
 
 

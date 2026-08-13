@@ -64,13 +64,13 @@ def test_an_unpublished_project_says_so_without_pretending_it_is_forbidden(authe
 
 
 def test_publishing_returns_a_readable_address(authed, project_id, monkeypatch):
-    monkeypatch.setenv("PUBLIC_BASE_URL", "https://flowline.example.com")
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://planora.example.com")
     get_settings.cache_clear()
 
     response = authed.post(f"/api/projects/{project_id}/share")
 
     assert response.status_code == 201
-    assert response.json()["url"].startswith("https://flowline.example.com/p/alex/redesign?s=")
+    assert response.json()["url"].startswith("https://planora.example.com/p/alex/redesign?s=")
 
 
 def test_reissuing_changes_the_address_and_kills_the_old_one(authed, project_id):

@@ -148,7 +148,7 @@ def test_the_log_transport_still_counts_as_a_mail_installation():
 
 def test_the_stub_writes_the_whole_letter_into_the_log(caplog):
     with caplog.at_level(logging.INFO):
-        LogTransport(sender="Flowline <no-reply@example.com>").deliver(
+        LogTransport(sender="Planora <no-reply@example.com>").deliver(
             Letter(to="alex@example.com", subject="Тема", body="https://example.com/verify?token=x")
         )
 
@@ -246,14 +246,14 @@ def test_a_password_is_never_sent_over_a_plaintext_connection(fake_smtp, monkeyp
 
 
 def test_a_letter_carries_date_and_a_message_id_from_the_sender_domain(fake_smtp):
-    SmtpTransport("smtps://mail.example.com", sender="Flowline <no-reply@flowline.app>").deliver(
+    SmtpTransport("smtps://mail.example.com", sender="Planora <no-reply@planora.app>").deliver(
         _letter()
     )
 
     message = fake_smtp.instances[0].messages[0]
     assert message["Date"]
     # Не hostname контейнера: внутреннее имя машины не должно уезжать наружу.
-    assert message["Message-ID"].endswith("@flowline.app>")
+    assert message["Message-ID"].endswith("@planora.app>")
     assert message["To"] == "alex@example.com"
     assert message["Subject"] == "Тема"
 
@@ -298,13 +298,13 @@ def test_the_api_transport_sends_the_letter_as_json_with_the_key(monkeypatch):
     monkeypatch.setattr("app.mail.transports.urlopen", fake_urlopen)
 
     ApiTransport(
-        url="https://api.example.com/emails", key="secret-key", sender="no-reply@flowline.app"
+        url="https://api.example.com/emails", key="secret-key", sender="no-reply@planora.app"
     ).deliver(_letter())
 
     assert captured["url"] == "https://api.example.com/emails"
     assert captured["headers"]["Authorization"] == "Bearer secret-key"
     assert captured["body"] == {
-        "from": "no-reply@flowline.app",
+        "from": "no-reply@planora.app",
         "to": ["alex@example.com"],
         "subject": "Тема",
         "text": "Текст",
@@ -380,7 +380,7 @@ def test_send_hands_the_rendered_letter_to_the_transport(mailbox):
 _INVITE = {
     "org": "Acme",
     "inviter": "Мария",
-    "link": "https://flowline.example.com/invite/abc",
+    "link": "https://planora.example.com/invite/abc",
     "expires": "2026-08-18",
 }
 
@@ -401,7 +401,7 @@ def test_the_invitation_says_who_invites_where_and_until_when():
     assert "Acme" in letter.subject
     assert "Мария" in letter.body
     assert "редактор" in letter.body
-    assert "https://flowline.example.com/invite/abc" in letter.body
+    assert "https://planora.example.com/invite/abc" in letter.body
     assert "2026-08-18" in letter.body
 
 
@@ -415,7 +415,7 @@ def test_the_invitation_speaks_the_language_of_the_organization():
 def test_an_unknown_organization_language_falls_back_instead_of_failing():
     """Язык организации — колонка в базе; попавшее в неё незнакомое значение
     не должно превращать приглашение в исключение."""
-    assert "https://flowline.example.com/invite/abc" in _invitation("kl").body
+    assert "https://planora.example.com/invite/abc" in _invitation("kl").body
 
 
 def test_an_unknown_role_reaches_the_letter_as_it_is():

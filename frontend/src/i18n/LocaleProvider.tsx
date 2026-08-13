@@ -9,7 +9,7 @@ import {
   type Params,
 } from "./index";
 
-const STORAGE_KEY = "flowline.locale";
+const STORAGE_KEY = "planora.locale";
 
 type LocaleContextValue = {
   locale: Locale;

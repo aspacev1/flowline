@@ -14,7 +14,7 @@ from app.security import hash_password, hash_token, new_token, verify_password
 from app.slugs import insert_with_unique_slug
 from app.text import normalize_email
 
-SESSION_COOKIE = "flowline_session"
+SESSION_COOKIE = "planora_session"
 SESSION_TTL = timedelta(days=30)
 
 # Сессия, которой не пользуются, умирает раньше своего срока годности:
@@ -209,17 +209,17 @@ def user_for_token(db: DbSession, raw_token: str | None) -> User | None:
 
 
 def current_session(
-    flowline_session: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+    planora_session: str | None = Cookie(default=None, alias=SESSION_COOKIE),
     db: DbSession = Depends(get_db),
 ) -> Session:
     """Запись сессии, а не только её владелец: на ней живёт выбранная
     организация, и переключателю нужна сама запись, чтобы её переписать."""
     # Отсутствие куки и негодная кука — разные коды: первое значит «войди»,
     # второе — «войди заново», и человеку это разные сообщения.
-    if not flowline_session:
+    if not planora_session:
         raise HTTPException(status_code=401, detail="not_authenticated")
 
-    record = session_for_token(db, flowline_session)
+    record = session_for_token(db, planora_session)
     if record is None:
         raise HTTPException(status_code=401, detail="session_expired")
 
@@ -227,7 +227,7 @@ def current_session(
 
 
 def current_user(
-    flowline_session: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+    planora_session: str | None = Cookie(default=None, alias=SESSION_COOKIE),
     db: DbSession = Depends(get_db),
 ) -> User:
-    return db.get(User, current_session(flowline_session, db).user_id)
+    return db.get(User, current_session(planora_session, db).user_id)

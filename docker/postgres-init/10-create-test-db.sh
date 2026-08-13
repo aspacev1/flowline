@@ -7,7 +7,7 @@
 #
 # Скрипт выполняется ровно один раз — на пустом каталоге данных. Если том
 # pgdata уже существовал до появления этого файла, базу нужно создать вручную:
-#   docker compose exec db createdb -U flowline flowline_test
+#   docker compose exec db createdb -U planora planora_test
 set -e
 
 createdb --username "$POSTGRES_USER" "${POSTGRES_DB}_test"

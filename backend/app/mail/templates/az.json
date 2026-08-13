@@ -1,11 +1,11 @@
 {
   "verify_email": {
-    "subject": "Flowline: e-poçt ünvanınızı təsdiqləyin",
-    "body": "Salam, {name}!\n\nE-poçt ünvanınızı təsdiqləmək üçün keçidi açın:\n\n{link}\n\nKeçid {hours} saat ərzində qüvvədədir. Əgər Flowline-da qeydiyyatdan keçməmisinizsə, bu məktubu nəzərə almayın."
+    "subject": "Planora: e-poçt ünvanınızı təsdiqləyin",
+    "body": "Salam, {name}!\n\nE-poçt ünvanınızı təsdiqləmək üçün keçidi açın:\n\n{link}\n\nKeçid {hours} saat ərzində qüvvədədir. Əgər Planora-da qeydiyyatdan keçməmisinizsə, bu məktubu nəzərə almayın."
   },
   "invitation": {
     "subject": "{org} təşkilatına dəvət",
-    "body": "{inviter} sizi Flowline-da «{org}» təşkilatına dəvət edir.\nRolunuz: {role}.\n\nQoşulmaq üçün keçid:\n{link}\n\nKeçid {expires} tarixinədək etibarlıdır.\n"
+    "body": "{inviter} sizi Planora-da «{org}» təşkilatına dəvət edir.\nRolunuz: {role}.\n\nQoşulmaq üçün keçid:\n{link}\n\nKeçid {expires} tarixinədək etibarlıdır.\n"
   },
   "roles": {
     "owner": "sahib",

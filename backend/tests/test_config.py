@@ -57,22 +57,22 @@ def test_the_query_string_of_a_managed_database_survives_the_rewrite() -> None:
 def test_public_base_url_comes_from_the_platform_when_nobody_set_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("VERCEL_PROJECT_PRODUCTION_URL", "flowline.vercel.app")
+    monkeypatch.setenv("VERCEL_PROJECT_PRODUCTION_URL", "planora.vercel.app")
 
     settings = _settings(database_url="postgresql+psycopg://u:p@host/db")
 
-    assert settings.public_base_url == "https://flowline.vercel.app"
+    assert settings.public_base_url == "https://planora.vercel.app"
 
 
 def test_a_deployment_without_a_project_domain_falls_back_to_its_own(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("VERCEL_PROJECT_PRODUCTION_URL", raising=False)
-    monkeypatch.setenv("VERCEL_URL", "flowline-abc123.vercel.app")
+    monkeypatch.setenv("VERCEL_URL", "planora-abc123.vercel.app")
 
     settings = _settings(database_url="postgresql+psycopg://u:p@host/db")
 
-    assert settings.public_base_url == "https://flowline-abc123.vercel.app"
+    assert settings.public_base_url == "https://planora-abc123.vercel.app"
 
 
 def test_an_explicit_public_base_url_wins_over_the_platform(
@@ -81,14 +81,14 @@ def test_an_explicit_public_base_url_wins_over_the_platform(
     # Свой домен, привязанный к проекту, платформа в своих переменных не
     # показывает — угадывание поверх заданного значения увело бы адрес
     # обратно на vercel.app.
-    monkeypatch.setenv("VERCEL_PROJECT_PRODUCTION_URL", "flowline.vercel.app")
+    monkeypatch.setenv("VERCEL_PROJECT_PRODUCTION_URL", "planora.vercel.app")
 
     settings = _settings(
         database_url="postgresql+psycopg://u:p@host/db",
-        public_base_url="https://flowline.example.com",
+        public_base_url="https://planora.example.com",
     )
 
-    assert settings.public_base_url == "https://flowline.example.com"
+    assert settings.public_base_url == "https://planora.example.com"
 
 
 def test_outside_the_platform_the_base_url_stays_local(

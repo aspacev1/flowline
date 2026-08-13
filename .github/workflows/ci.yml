@@ -20,19 +20,19 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_USER: flowline
-          POSTGRES_PASSWORD: flowline
-          POSTGRES_DB: flowline
+          POSTGRES_USER: planora
+          POSTGRES_PASSWORD: planora
+          POSTGRES_DB: planora
         ports: ["5432:5432"]
         # Без healthcheck шаги стартуют раньше, чем база готова принимать
         # подключения, и прогон мигает «connection refused» на ровном месте.
         options: >-
-          --health-cmd "pg_isready -U flowline"
+          --health-cmd "pg_isready -U planora"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
     env:
-      DATABASE_URL: postgresql+psycopg://flowline:flowline@localhost:5432/flowline
+      DATABASE_URL: postgresql+psycopg://planora:planora@localhost:5432/planora
       APP_SECRET: ci-secret-not-for-production
     defaults:
       run:
@@ -53,7 +53,7 @@ jobs:
       # Локально это делает docker/postgres-init, у сервисного контейнера
       # GitHub Actions таких скриптов нет.
       - name: Тестовая база
-        run: psql postgresql://flowline:flowline@localhost:5432/flowline -c 'CREATE DATABASE flowline_test'
+        run: psql postgresql://planora:planora@localhost:5432/planora -c 'CREATE DATABASE planora_test'
 
       - name: Тесты с покрытием
         run: uv run pytest --cov=app --cov-report=term-missing

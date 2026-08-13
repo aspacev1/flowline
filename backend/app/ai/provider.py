@@ -74,7 +74,7 @@ class HttpProvider:
                 # всё равно остаётся — обещаниям модели верить нельзя.
                 "response_format": {
                     "type": "json_schema",
-                    "json_schema": {"name": "flowline", "schema": schema, "strict": True},
+                    "json_schema": {"name": "planora", "schema": schema, "strict": True},
                 },
             }
         ).encode()
