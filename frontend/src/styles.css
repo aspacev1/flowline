@@ -510,6 +510,33 @@ button.sidebar__button:hover {
   gap: 4px;
 }
 
+/* --- товарный знак --- */
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.logo__mark {
+  flex: none;
+}
+
+.logo__word {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+
+/* Вход и регистрация открываются без выбранной организации — единственный
+   бренд на экране в этот момент планорин собственный, а не чей-то рабочий
+   пространственный. */
+.screen__logo {
+  display: block;
+  margin-bottom: 32px;
+}
+
 /* --- страница --- */
 
 /* Ширина колонки текста ограничена, как у страницы Notion: строка во весь
