@@ -260,7 +260,19 @@
     "new": {
       "title": "Yeni kateqoriya",
       "name": "Ad",
-      "color": "Rəng"
+      "color": "Rəng",
+      "colors": {
+        "blue": "Mavi",
+        "purple": "Bənövşəyi",
+        "orange": "Narıncı",
+        "green": "Yaşıl",
+        "red": "Qırmızı",
+        "yellow": "Sarı",
+        "cyan": "Firuzəyi",
+        "pink": "Çəhrayı",
+        "slate": "Boz",
+        "brown": "Qəhvəyi"
+      }
     }
   },
   "task": {

@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { server } from "../test/server";
 import { renderApp, sessionHandlers } from "../test/utils";
+import { CATEGORY_COLORS, suggestColor } from "./CategoryForm";
 
 const STATE = {
   id: "p1",
@@ -106,7 +107,7 @@ describe("создание категории", () => {
     expect(sent[0].op).not.toHaveProperty("category_id");
   });
 
-  it("предлагает цвет, но оставляет выбор человеку", async () => {
+  it("предлагает цвет из готовой палитры, но оставляет выбор человеку", async () => {
     server.use(
       ...sessionHandlers(),
       http.get("/api/projects/p1", () => HttpResponse.json(STATE)),
@@ -115,11 +116,42 @@ describe("создание категории", () => {
     renderApp({ route: "/projects/p1", locale: "ru" });
     await userEvent.click(await screen.findByRole("button", { name: /категория/i }));
 
-    const color = screen.getByLabelText<HTMLInputElement>(/цвет/i);
-    expect(color.value).toMatch(/^#[0-9a-f]{6}$/i);
+    // Выбор — это набор готовых цветов, а не пипетка: произвольный цвет умеет
+    // быть неотличимым от соседнего и нечитаемым на доске.
+    const swatches = screen.getAllByRole<HTMLInputElement>("radio");
+    expect(swatches).toHaveLength(CATEGORY_COLORS.length);
+    expect(swatches.map((swatch) => swatch.value)).toEqual(
+      CATEGORY_COLORS.map((option) => option.value),
+    );
+
+    const chosen = swatches.find((swatch) => swatch.checked);
     // Цвет предлагается по числу уже существующих категорий, а не берётся
     // первым из палитры: иначе две подряд созданные категории неразличимы.
-    expect(color.value).not.toBe(STATE.categories[0].color);
+    expect(chosen?.value).toBe(suggestColor(STATE.categories.length));
+    expect(chosen?.value).not.toBe(STATE.categories[0].color);
+  });
+
+  it("отправляет выбранный в палитре цвет", async () => {
+    const sent: { op: { color?: string } }[] = [];
+    server.use(
+      ...sessionHandlers(),
+      http.get("/api/projects/p1", () => HttpResponse.json(STATE)),
+      http.post("/api/projects/p1/mutations", async ({ request }) => {
+        sent.push((await request.json()) as { op: { color?: string } });
+        return HttpResponse.json({ seq: 2, op: {}, inverse: {} }, { status: 201 });
+      }),
+    );
+
+    renderApp({ route: "/projects/p1", locale: "ru" });
+    await userEvent.click(await screen.findByRole("button", { name: /категория/i }));
+    await userEvent.type(screen.getByLabelText(/название/i), "Аналитика");
+    // Кружок назван словом, а не кодом цвета: читалка обязана произнести
+    // выбор, а `#ec4899` произнести нечем.
+    await userEvent.click(screen.getByRole("radio", { name: "Розовый" }));
+    await userEvent.click(screen.getByRole("button", { name: /^создать$/i }));
+
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0].op.color).toBe("#ec4899");
   });
 
   it("не даёт отправить пустое название", async () => {

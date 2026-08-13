@@ -260,7 +260,19 @@
     "new": {
       "title": "New category",
       "name": "Name",
-      "color": "Colour"
+      "color": "Colour",
+      "colors": {
+        "blue": "Blue",
+        "purple": "Purple",
+        "orange": "Orange",
+        "green": "Green",
+        "red": "Red",
+        "yellow": "Yellow",
+        "cyan": "Cyan",
+        "pink": "Pink",
+        "slate": "Grey",
+        "brown": "Brown"
+      }
     }
   },
   "task": {
