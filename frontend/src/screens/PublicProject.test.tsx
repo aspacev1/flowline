@@ -89,7 +89,7 @@ describe("публичная страница", () => {
   });
 
   it("показывает гостю сводку по проекту, но без расхождений с планом", async () => {
-    server.use(guestSession(), noMembers(), publicProject(), noComments());
+    server.use(guestSession(), publicProject(), noComments());
 
     renderApp({ route: ROUTE, locale: "ru" });
 
