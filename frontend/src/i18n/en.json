@@ -222,8 +222,7 @@
     "category_count": {
       "one": "{count} category",
       "other": "{count} categories"
-    },
-    "more": "More actions"
+    }
   },
   "home": {
     "greeting": "Hello, {name} — here is your portfolio at a glance",

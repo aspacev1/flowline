@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useMatch } from "react-router-dom";
 
 import { ORG_QUERY_KEY, organization } from "../api/org";
 import { useAuth } from "../auth/AuthProvider";
+import { useCanWrite } from "../auth/permissions";
 import { useLocale } from "../i18n/LocaleProvider";
 import { LocaleSwitch } from "./LocaleSwitch";
 import { OrgSwitch } from "./OrgSwitch";
@@ -36,7 +37,16 @@ function storedCollapsed(): boolean {
 export function Header() {
   const { t } = useLocale();
   const { user, logout } = useAuth();
+  const canWrite = useCanWrite();
   const [collapsed, setCollapsed] = useState(storedCollapsed);
+
+  // Настройки проекта показываются, только пока он открыт: ссылка ведёт по
+  // его адресу, а вне проекта такого адреса попросту нет. Совпадает и с
+  // самой диаграммой, и с уже открытыми настройками — второй визит на тот же
+  // экран не должен прятать вход в него.
+  const projectMatch = useMatch("/projects/:projectId");
+  const projectSettingsMatch = useMatch("/projects/:projectId/settings");
+  const projectId = projectMatch?.params.projectId ?? projectSettingsMatch?.params.projectId;
 
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
@@ -135,6 +145,15 @@ export function Header() {
           <Link to="/settings/organization" className={navClass({ isActive: false })}>
             <IconGear />
             {t("nav.org_settings")}
+          </Link>
+        )}
+        {/* Настройки проекта — тем же правом, что и кебаб на диаграмме, откуда
+            эта ссылка сюда и переехала: гостю и читателю она обещала бы
+            действие, которое сервер отклонит. */}
+        {projectId && canWrite && (
+          <Link to={`/projects/${projectId}/settings`} className={navClass({ isActive: false })}>
+            <IconGear />
+            {t("settings.project.link")}
           </Link>
         )}
         {user && (

@@ -476,8 +476,5 @@ body:has(.screen--narrow) {
   .modal__actions button { width: 100%; }
 }
 
-/* Кебаб в шапке — квадрат под остальную высоту кнопок. */
-.project-head__more { width: var(--control); padding: 0; font-size: 20px; letter-spacing: 1px; }
-
 /* Меню тулбара — той же высоты, что сегменты. */
 .project-toolbar .menu__button { height: 40px; }
