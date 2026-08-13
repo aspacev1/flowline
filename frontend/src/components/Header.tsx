@@ -96,23 +96,19 @@ export function Header() {
 
       <OrgSwitch />
 
-      {/* Пять разделов, как в макете. Роли `client` часть маршрутов отвечает
+      {/* Четыре раздела. Роли `client` часть маршрутов отвечает
           отказом, но ссылки остаются видимыми — прятать их значило бы решать
           про доступ на клиенте, а решает про него сервер. */}
       <nav className="sidebar__nav">
-        {/* `end`, иначе «Главная» подсвечена на каждом адресе: все они
+        {/* `end`, иначе «Проекты» подсвечены на каждом адресе: все они
             начинаются с «/». */}
         <NavLink to="/" end className={navClass}>
-          <IconHome />
-          {t("nav.home")}
+          <IconBoard />
+          {t("nav.projects")}
         </NavLink>
         <NavLink to="/my-tasks" className={navClass}>
           <IconCheck />
           {t("nav.my_tasks")}
-        </NavLink>
-        <NavLink to="/projects" className={navClass}>
-          <IconBoard />
-          {t("nav.projects")}
         </NavLink>
         <NavLink to="/members" className={navClass}>
           <IconPeople />
@@ -201,15 +197,6 @@ function IconSidebar({ collapsed }: { collapsed: boolean }) {
       <rect x="2" y="2.5" width="12" height="11" rx="2" />
       <path d="M6 2.5v11" />
       {collapsed ? <path d="m9 6 2.2 2-2.2 2" /> : <path d="m11.2 6-2.2 2 2.2 2" />}
-    </Icon>
-  );
-}
-
-function IconHome() {
-  return (
-    <Icon>
-      <path d="M2.5 7.5 8 2.5l5.5 5" />
-      <path d="M4 6.8v6.7h8V6.8" />
     </Icon>
   );
 }
