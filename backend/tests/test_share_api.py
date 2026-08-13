@@ -74,8 +74,10 @@ def test_publishing_returns_a_readable_address(authed, project_id, monkeypatch):
 
 
 def test_reissuing_changes_the_address_and_kills_the_old_one(authed, project_id):
+    # Перевыпуск — отдельный маршрут (волна 4.6): повтор POST /share больше
+    # не убивает разосланный адрес, а отвечает 409.
     first = authed.post(f"/api/projects/{project_id}/share").json()["url"]
-    second = authed.post(f"/api/projects/{project_id}/share").json()["url"]
+    second = authed.post(f"/api/projects/{project_id}/share/rotate").json()["url"]
 
     assert first != second
     assert authed.get(_public_path(first)).status_code == 404

@@ -742,6 +742,8 @@ export interface paths {
          *
          *     Гостевые реплики приходят участнику вместе с остальными: смысл публичной
          *     ссылки в том, чтобы разговор с клиентом жил в проекте, а не в почте.
+         *
+         *     Отдаётся хвост разговора; «показать раньше» — курсором before.
          */
         get: operations["list_project_comments_api_projects__project_id__comments_get"];
         put?: never;
@@ -803,6 +805,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project_id}/plan/approvals/{version}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore Plan Version Route
+         * @description Возврат обещания к версии из летописи — переутверждение её снимка.
+         *
+         *     Право — то же, что у переутверждения: восстановление меняет baseline
+         *     всех задач ровно так же.
+         */
+        post: operations["restore_plan_version_route_api_projects__project_id__plan_approvals__version__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{project_id}/revisions": {
         parameters: {
             query?: never;
@@ -843,8 +868,9 @@ export interface paths {
         put?: never;
         /**
          * Issue Share
-         * @description Выпускает ссылку. Повторный вызов — это «перевыпустить»: прежний адрес
-         *     умирает в тот же момент.
+         * @description Первый выпуск ссылки. Если она уже есть — 409, а не тихий перевыпуск:
+         *     повтор запроса (двойной клик, ретрай сети) не должен убивать только что
+         *     разосланный адрес. Перевыпуск — отдельный маршрут ниже.
          */
         post: operations["issue_share_api_projects__project_id__share_post"];
         /** Revoke Share */
@@ -853,6 +879,26 @@ export interface paths {
         head?: never;
         /** Update Share */
         patch: operations["update_share_api_projects__project_id__share_patch"];
+        trace?: never;
+    };
+    "/api/projects/{project_id}/share/rotate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rotate Share
+         * @description Перевыпуск: прежний адрес умирает в тот же момент.
+         */
+        post: operations["rotate_share_api_projects__project_id__share_rotate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/projects/{project_id}/slug-check": {
@@ -3073,6 +3119,8 @@ export interface operations {
         parameters: {
             query?: {
                 task_id?: string | null;
+                limit?: number;
+                before?: string | null;
             };
             header?: never;
             path: {
@@ -3107,7 +3155,9 @@ export interface operations {
     create_project_comment_api_projects__project_id__comments_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 project_id: string;
             };
@@ -3144,7 +3194,9 @@ export interface operations {
     apply_mutation_api_projects__project_id__mutations_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                "Idempotency-Key"?: string | null;
+            };
             path: {
                 project_id: string;
             };
@@ -3244,11 +3296,46 @@ export interface operations {
             };
         };
     };
+    restore_plan_version_route_api_projects__project_id__plan_approvals__version__restore_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version: number;
+                project_id: string;
+            };
+            cookie?: {
+                flowline_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_revisions_api_projects__project_id__revisions_get: {
         parameters: {
             query?: {
                 task_id?: string | null;
                 limit?: number;
+                before_seq?: number | null;
             };
             header?: never;
             path: {
@@ -3414,6 +3501,39 @@ export interface operations {
             };
         };
     };
+    rotate_share_api_projects__project_id__share_rotate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: {
+                flowline_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShareOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     check_project_slug_api_projects__project_id__slug_check_get: {
         parameters: {
             query: {
@@ -3524,6 +3644,8 @@ export interface operations {
         parameters: {
             query?: {
                 task_id?: string | null;
+                limit?: number;
+                before?: string | null;
                 s?: string;
             };
             header?: never;
