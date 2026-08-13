@@ -22,12 +22,19 @@ import { changedSinceApproval } from "./baseline";
 export function ProjectHead({
   state,
   actions,
+  titleAction,
   planAction,
   showPlan = false,
 }: {
   state: ProjectState;
   /** Кнопки над названием. Гостю не передаются вовсе — их у него нет. */
   actions?: ReactNode;
+  /**
+   * Действие, живущее вплотную к названию, а не у правого края. Оно двигается
+   * вместе с названием: у короткого имени стоит рядом, за длинным переносится
+   * следом — расстояние от имени до кнопки всегда одно и то же.
+   */
+  titleAction?: ReactNode;
   /** Кнопка согласования плана. Своей строки не рисует — становится в строку плана. */
   planAction?: ReactNode;
   /**
@@ -53,7 +60,10 @@ export function ProjectHead({
         <div className="project-head__titles">
           {/* Название проекта — содержимое пользователя: приходит с сервера как
               есть и не переводится ни при каком языке интерфейса. */}
-          <h1 className="project-head__title">{state.name}</h1>
+          <div className="project-head__title-row">
+            <h1 className="project-head__title">{state.name}</h1>
+            {titleAction}
+          </div>
 
           <p className="project-head__meta">
             {period
@@ -76,6 +86,7 @@ export function ProjectHead({
                 {changedSinceApproval(state) && (
                   <span className="project-head__plan-note">{t("plan.changed")}</span>
                 )}
+                {planAction && <span className="project-head__approval">{planAction}</span>}
               </span>
             )}
           </p>
@@ -83,8 +94,6 @@ export function ProjectHead({
 
         {actions && <div className="project-head__actions">{actions}</div>}
       </div>
-
-      {showPlan && planAction && <div className="project-head__approval">{planAction}</div>}
     </header>
   );
 }

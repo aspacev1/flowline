@@ -111,6 +111,22 @@ export function Project() {
             <ProjectHead
               state={query.data}
               showPlan
+              // Публикация — действие уровня проекта, поэтому кнопка стоит
+              // вплотную к его названию, а не в настройках и не в общем ряду
+              // справа: она следует за именем любой длины. Гостю и читателю не
+              // показывается: сервер такую попытку отклонит.
+              titleAction={
+                canWrite ? (
+                  <button
+                    type="button"
+                    className="button--quiet"
+                    disabled={offline}
+                    onClick={() => setSharing(true)}
+                  >
+                    {t("share.open")}
+                  </button>
+                ) : undefined
+              }
               planAction={
                 <PlanApproval
                   projectId={projectId}
@@ -125,39 +141,6 @@ export function Project() {
               // которое сервер отклонит.
               actions={
                 <>
-                  {/* Порядок — по весу действия, и первым стоит главное:
-                      создание задачи. Заливку из всей шапки получает оно одно,
-                      остальные контурные. Пять сплошных плашек подряд не
-                      оставляют главному действию ни единого шанса быть
-                      замеченным, и человек читает их все по очереди каждый раз.
-
-                      Задачу при этом некуда класть, пока нет ни одной
-                      категории: кнопка, открывающая форму с пустым списком
-                      категорий, обещает действие, которое не может
-                      состояться. */}
-                  {canWrite && (
-                    <button
-                      type="button"
-                      className="button--quiet"
-                      disabled={offline}
-                      onClick={() => setAddingCategory(true)}
-                    >
-                      {t("category.create")}
-                    </button>
-                  )}
-                  {/* Публикация — действие уровня проекта, поэтому кнопка стоит
-                      в его шапке, а не в настройках. Гостю и читателю она не
-                      показывается: сервер такую попытку отклонит. */}
-                  {canWrite && (
-                    <button
-                      type="button"
-                      className="button--quiet"
-                      disabled={offline}
-                      onClick={() => setSharing(true)}
-                    >
-                      {t("share.open")}
-                    </button>
-                  )}
                   {/* Отмена — там же, где остальные действия над проектом, и
                       только тому, кто может писать: гостю она обещала бы отказ
                       сервера. */}
@@ -195,15 +178,32 @@ export function Project() {
                 state={query.data}
                 canWrite={editable}
                 toolbarAction={
-                  canWrite && query.data.categories.length > 0 ? (
-                    <button
-                      type="button"
-                      className="project-toolbar__primary"
-                      disabled={offline}
-                      onClick={() => setAddingTaskIn(query.data.categories[0].id)}
-                    >
-                      {t("task.create")}
-                    </button>
+                  canWrite ? (
+                    <>
+                      {/* Сначала категория, потом задача — в порядке, в каком
+                          проект и заполняют: задачу некуда класть, пока нет ни
+                          одной категории, и кнопка задачи до первой категории
+                          не показывается — форма с пустым списком категорий
+                          обещала бы действие, которое не может состояться. */}
+                      <button
+                        type="button"
+                        className="button--quiet"
+                        disabled={offline}
+                        onClick={() => setAddingCategory(true)}
+                      >
+                        {t("category.create")}
+                      </button>
+                      {query.data.categories.length > 0 && (
+                        <button
+                          type="button"
+                          className="project-toolbar__primary"
+                          disabled={offline}
+                          onClick={() => setAddingTaskIn(query.data.categories[0].id)}
+                        >
+                          {t("task.create")}
+                        </button>
+                      )}
+                    </>
                   ) : undefined
                 }
                 onAddTask={editable ? setAddingTaskIn : undefined}

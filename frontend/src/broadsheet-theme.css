@@ -71,14 +71,16 @@ body { font-size: 15px; background: var(--bg); }
 .project-head__main { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; width: 100%; }
 .project-head__title { font-size: 34px; font-weight: 720; letter-spacing: -0.03em; line-height: 1.1; }
 .project-head__meta { margin-top: 12px; font-size: 16px; color: #6b7280; font-style: normal; }
-.project-head__plan-inline { display: inline-flex; align-items: center; gap: 9px; margin-left: 9px; }
+.project-head__plan-inline { display: inline-flex; align-items: center; gap: 9px; margin-left: 9px; flex-wrap: wrap; }
 .project-head__plan-label { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border: 1px solid #f3c77d; border-radius: 6px; background: #fff8ec; color: #c47a16; font-size: 15px; font-weight: 600; letter-spacing: 0; text-transform: none; }
 .project-head__plan-note { color: var(--danger); font-style: normal; }
 .project-head__dot { color: #9ca3af; }
 .project-head__actions { gap: 16px; justify-content: flex-end; }
 .project-head__actions a { display: inline-flex; align-items: center; height: var(--control); padding: 0 14px; border: 1px solid var(--border-strong); border-radius: 7px; text-decoration: none; color: #374151; }
-.project-head__approval { position: absolute; right: 360px; top: 40px; }
-.project-head__approval .plan__confirm { box-shadow: var(--shadow-md); }
+/* Кнопка согласования стоит в строке плана, сразу за плашкой версии, и её
+   высота повторяет высоту плашки — иначе кнопка раздувает строку сводки. */
+.project-head__approval { display: inline-flex; align-items: center; }
+.project-head__approval button { height: 32px; padding: 0 12px; font-size: 15px; }
 
 button { height: var(--control); padding: 0 18px; border-radius: 7px; font-size: 16px; font-weight: 600; box-shadow: 0 8px 18px rgb(36 89 245 / 22%); }
 .button--quiet { background: #fff; color: #374151; box-shadow: inset 0 0 0 1px var(--border-strong); }
@@ -442,7 +444,6 @@ body:has(.screen--narrow) {
   .projects { grid-template-columns: 1fr; }
   .project-head__main { flex-direction: column; }
   .project-head__actions { justify-content: flex-start; gap: 8px; }
-  .project-head__approval { position: static; margin-top: 16px; }
   .project-toolbar { gap: 8px; }
   .project-toolbar__divider { display: none; }
   .project-toolbar__month { order: 10; width: 100%; margin: 4px 0 0; }

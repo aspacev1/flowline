@@ -75,7 +75,9 @@
     "reports": "Reports",
     "logout": "Log out",
     "org_settings": "Organization",
-    "profile": "Profile"
+    "profile": "Profile",
+    "sidebar_collapse": "Hide menu",
+    "sidebar_expand": "Show menu"
   },
   "locale": {
     "switch_label": "Interface language"

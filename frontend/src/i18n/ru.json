@@ -77,7 +77,9 @@
     "reports": "Отчёты",
     "logout": "Выйти",
     "org_settings": "Организация",
-    "profile": "Профиль"
+    "profile": "Профиль",
+    "sidebar_collapse": "Скрыть меню",
+    "sidebar_expand": "Показать меню"
   },
   "locale": {
     "switch_label": "Язык интерфейса"

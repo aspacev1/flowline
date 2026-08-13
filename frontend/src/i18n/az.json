@@ -75,7 +75,9 @@
     "reports": "Hesabatlar",
     "logout": "Çıxış",
     "org_settings": "Təşkilat",
-    "profile": "Profil"
+    "profile": "Profil",
+    "sidebar_collapse": "Menyunu gizlət",
+    "sidebar_expand": "Menyunu göstər"
   },
   "locale": {
     "switch_label": "İnterfeys dili"
