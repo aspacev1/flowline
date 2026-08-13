@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { drag } from "../test/pointer";
+import { drag, dragDays } from "../test/pointer";
 import { captureMutations, projectFixtures, renderProject } from "../test/project";
 import { server } from "../test/server";
 
@@ -15,7 +15,7 @@ describe("перетаскивание дат", () => {
     renderProject();
     const bar = await screen.findByRole("button", { name: /Логотип/ });
 
-    drag(bar, { fromX: 100, toX: 100 + 26 * 3 });
+    dragDays(bar, 3);
 
     await waitFor(() =>
       expect(sent[0].op).toMatchObject({ type: "move_task", start_date: "2026-03-07" }),
@@ -36,7 +36,7 @@ describe("перетаскивание дат", () => {
     renderProject();
     const bar = await screen.findByRole("button", { name: /Логотип/ });
 
-    drag(bar, { fromX: 100, toX: 100 + 26 * 2 });
+    dragDays(bar, 2);
 
     expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
   });
@@ -52,7 +52,7 @@ describe("перетаскивание дат", () => {
     const bar = await screen.findByRole("button", { name: /Логотип/ });
     const before = bar.style.left;
 
-    drag(bar, { fromX: 100, toX: 100 + 26 * 3 });
+    dragDays(bar, 3);
 
     await waitFor(() => expect(bar.style.left).toBe(before));
   });

@@ -400,20 +400,11 @@
   "moved": "Tapşırıq {date} tarixinə keçirildi",
   "toolbar": {
     "label": "Layihə vaxt xəttinin idarələri",
-    "previous": "Əvvəlki dövrü göstər",
-    "next": "Növbəti dövrü göstər",
-    "zoom": "Vaxt xəttinin miqyası",
+    "scale": "Miqyas: {value}",
     "day": "Gün",
     "week": "Həftə",
     "month": "Ay",
-    "filter": "Filtr",
     "view": "Görünüş"
-  },
-  "filter": {
-    "status": "Status",
-    "owner": "İcraçı",
-    "all": "Hər kəs",
-    "clear": "Filtri təmizlə"
   },
   "view": {
     "baseline": "Baza planı",

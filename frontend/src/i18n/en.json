@@ -400,20 +400,11 @@
   "moved": "Task moved to {date}",
   "toolbar": {
     "label": "Project timeline controls",
-    "previous": "Show the previous period",
-    "next": "Show the next period",
-    "zoom": "Timeline scale",
+    "scale": "Scale: {value}",
     "day": "Day",
     "week": "Week",
     "month": "Month",
-    "filter": "Filter",
     "view": "View"
-  },
-  "filter": {
-    "status": "Status",
-    "owner": "Assignee",
-    "all": "Anyone",
-    "clear": "Clear the filter"
   },
   "view": {
     "baseline": "Baseline plan",

@@ -1,10 +1,8 @@
-import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 
-import { MEMBERS_QUERY_KEY, members as fetchMembers } from "../api/org";
 import { TASK_STATUSES } from "../api/projects";
-import type { Category, ProjectState, Task, TaskStatus } from "../api/projects";
+import type { Category, ProjectState, Task } from "../api/projects";
 import { Menu } from "../components/Menu";
 import { endShiftDays, isBeyondPlan } from "../project/baseline";
 import { formatDate, formatMonth, weekdayNarrow } from "../i18n/dates";
@@ -16,6 +14,7 @@ import { CategoryRow, TaskRow } from "./Row";
 import { usePrefersReducedMotion } from "./motion";
 import { useReorder } from "./useReorder";
 import { DAY_WIDTH, ROW_HEIGHT, projectWindow } from "./scale";
+import type { Zoom } from "./scale";
 import { buildScale, daysBetween, toISO } from "./timescale";
 
 import "./gantt.css";
@@ -65,33 +64,10 @@ export function Gantt({
   const scroller = useRef<HTMLDivElement>(null);
   const reorder = useReorder({ projectId, state, canWrite });
   const reducedMotion = usePrefersReducedMotion();
-  const [zoom, setZoom] = useState<"day" | "week" | "month">("week");
-
-  // Состав нужен только фильтру «Исполнитель» в меню «Фильтр» — колонки с
-  // аватарами в таблице больше нет. Отказ — не ошибка ленты: гостю и роли
-  // `client` состав не отдаётся, и фильтр по исполнителю тогда просто не рисуется.
-  const membersQuery = useQuery({
-    queryKey: MEMBERS_QUERY_KEY,
-    queryFn: fetchMembers,
-    retry: false,
-    staleTime: Infinity,
-  });
-
-  // Фильтр — состояние экрана: сосед по проекту не должен получать чужой
-  // фильтр, поэтому он не уходит ни на сервер, ни в адрес.
-  const [statusFilter, setStatusFilter] = useState<ReadonlySet<TaskStatus>>(new Set());
-  const [ownerFilter, setOwnerFilter] = useState<string>("");
-  const filterActive = statusFilter.size > 0 || ownerFilter !== "";
-  const passesFilter = (task: Task) =>
-    (statusFilter.size === 0 || statusFilter.has(task.status)) &&
-    (ownerFilter === "" || task.assignee_ids.includes(ownerFilter));
-  const toggleStatusFilter = (status: TaskStatus) =>
-    setStatusFilter((current) => {
-      const next = new Set(current);
-      if (next.has(status)) next.delete(status);
-      else next.add(status);
-      return next;
-    });
+  // Лента открывается в дневном масштабе — самом крупном: на нём у деления
+  // хватает места на день недели над числом, и первое, что человек видит, —
+  // ближайшие дни, а не сжатый до неразличимости квартал.
+  const [zoom, setZoom] = useState<Zoom>("day");
 
   // Необязательные слои. Базовый план и сводка по дедлайну видны сразу:
   // первый — язык отклонений, вторая — единственная цифра, которая
@@ -124,9 +100,8 @@ export function Gantt({
   // прокрутки к сегодняшнему дню, и лента прыгала бы к сегодня после каждой
   // правки, унося с экрана ту задачу, которую только что двигали.
   const { from, to } = projectWindow(state);
-  const dayWidth = zoom === "day" ? 42 : zoom === "month" ? 14 : DAY_WIDTH;
+  const dayWidth = DAY_WIDTH[zoom];
   const scale = useMemo(() => buildScale({ from, to, dayWidth }), [dayWidth, from, to]);
-  const [visibleDate, setVisibleDate] = useState(today >= from && today <= to ? today : from);
 
   const formatDay = (iso: string) => formatDate(t, iso);
 
@@ -139,30 +114,9 @@ export function Gantt({
     element.scrollLeft = Math.max(0, scale.xOf(today) - scale.dayWidth * 3);
   }, [scale, today]);
 
-  const updateVisibleDate = () => {
-    const element = scroller.current;
-    if (!element) return;
-    setVisibleDate(scale.dateAt(element.scrollLeft + element.clientWidth / 2));
-  };
-
-  const moveTimeline = (direction: -1 | 1) => {
-    const element = scroller.current;
-    if (!element) return;
-    element.scrollBy({
-      left: direction * Math.max(scale.dayWidth * 7, element.clientWidth * 0.72),
-      behavior: reducedMotion ? "auto" : "smooth",
-    });
-  };
-
   const categories = byPosition(state.categories);
-  // Две раскладки по категориям: полная — для полосы охвата и процента
-  // категории (фильтр прячет строки, но не меняет, чем категория является),
-  // отфильтрованная — для строк, номеров строк и стрелок.
-  const allByCategory = new Map<string, Task[]>();
   const tasksByCategory = new Map<string, Task[]>();
   for (const task of byPosition(state.tasks)) {
-    allByCategory.set(task.category_id, [...(allByCategory.get(task.category_id) ?? []), task]);
-    if (!passesFilter(task)) continue;
     tasksByCategory.set(task.category_id, [...(tasksByCategory.get(task.category_id) ?? []), task]);
   }
 
@@ -212,95 +166,30 @@ export function Gantt({
       // этим.
       style={{ "--gantt-row": `${ROW_HEIGHT}px` } as CSSProperties}
     >
-      {/* Тулбар видит и читатель: масштаб, прокрутка месяца и фильтр — способы
-          смотреть, а не менять, и прятать их от гостя не за что. */}
+      {/* Тулбар видит и читатель: масштаб и состав слоёв — способы смотреть,
+          а не менять, и прятать их от гостя не за что. */}
       <div className="project-toolbar" aria-label={t("gantt.toolbar.label")}>
           {toolbarAction}
           {toolbarAction !== undefined && (
             <span className="project-toolbar__divider" aria-hidden="true" />
           )}
           <span className="project-toolbar__spacer" />
-          <button
-            type="button"
-            className="button--quiet project-toolbar__square"
-            aria-label={t("gantt.toolbar.previous")}
-            onClick={() => moveTimeline(-1)}
-          >
-            ‹
-          </button>
-          <strong className="project-toolbar__month" aria-live="polite">
-            {formatMonth(t, visibleDate)}
-          </strong>
-          <button
-            type="button"
-            className="button--quiet project-toolbar__square"
-            aria-label={t("gantt.toolbar.next")}
-            onClick={() => moveTimeline(1)}
-          >
-            ›
-          </button>
-          <span className="project-toolbar__segments" aria-label={t("gantt.toolbar.zoom")}>
-            {(["day", "week", "month"] as const).map((value) => (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={zoom === value}
-                onClick={() => setZoom(value)}
-              >
-                {t(`gantt.toolbar.${value}`)}
-              </button>
-            ))}
-          </span>
 
-          {/* Фильтр — с точкой на кнопке, пока он не пуст: спрятанные фильтром
-              задачи иначе читаются как пропавшие. */}
-          <Menu label={t("gantt.toolbar.filter")} active={filterActive}>
-            <p className="menu__title">{t("gantt.filter.status")}</p>
-            {TASK_STATUSES.map((status) => (
-              <label key={status} className="menu__item">
+          {/* Масштаб назван вместе со своим значением: свёрнутое меню, в
+              отличие от прежнего ряда сегментов, само по себе не показывает,
+              в каком масштабе лента сейчас. */}
+          <Menu label={t("gantt.toolbar.scale", { value: t(`gantt.toolbar.${zoom}`) })}>
+            {(["day", "week", "month"] as const).map((value) => (
+              <label key={value} className="menu__item">
                 <input
-                  type="checkbox"
-                  checked={statusFilter.has(status)}
-                  onChange={() => toggleStatusFilter(status)}
+                  type="radio"
+                  name="gantt-scale"
+                  checked={zoom === value}
+                  onChange={() => setZoom(value)}
                 />
-                {t(`task.status.${status}`)}
+                {t(`gantt.toolbar.${value}`)}
               </label>
             ))}
-            {membersQuery.data && membersQuery.data.length > 0 && (
-              <>
-                <div className="menu__sep" aria-hidden="true" />
-                <p className="menu__title">{t("gantt.filter.owner")}</p>
-                <label className="menu__item">
-                  <select
-                    value={ownerFilter}
-                    aria-label={t("gantt.filter.owner")}
-                    onChange={(event) => setOwnerFilter(event.target.value)}
-                  >
-                    <option value="">{t("gantt.filter.all")}</option>
-                    {membersQuery.data.map((member) => (
-                      <option key={member.id} value={member.id}>
-                        {member.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </>
-            )}
-            {filterActive && (
-              <>
-                <div className="menu__sep" aria-hidden="true" />
-                <button
-                  type="button"
-                  className="menu__item"
-                  onClick={() => {
-                    setStatusFilter(new Set());
-                    setOwnerFilter("");
-                  }}
-                >
-                  {t("gantt.filter.clear")}
-                </button>
-              </>
-            )}
           </Menu>
 
           {/* «Вид» включает слои, которых нет в макете, но которые уже есть в
@@ -330,7 +219,7 @@ export function Gantt({
         <p className="empty gantt__empty">{t("gantt.empty")}</p>
       ) : (
         <>
-        <div className="gantt__scroll" ref={scroller} onScroll={updateVisibleDate}>
+        <div className="gantt__scroll" ref={scroller}>
           <div className="gantt__canvas">
             <div className="gantt__head-row">
               <div className="gantt__label gantt__corner">
@@ -362,11 +251,7 @@ export function Gantt({
 
               <Arrows
                 scale={scale}
-                // Отфильтрованные задачи стрелок не получают: стрелка к
-                // спрятанной строке указывала бы в пустоту. rowOf этих задач и
-                // так не знает — список здесь сужен для честности, а не для
-                // геометрии.
-                tasks={state.tasks.filter(passesFilter)}
+                tasks={state.tasks}
                 dependencies={state.dependencies}
                 rowOf={rowOf}
                 rows={rowCount}
@@ -380,9 +265,7 @@ export function Gantt({
                     <div key={category.id} className="gantt__group">
                       <CategoryRow
                         category={category}
-                        // Полоса охвата — по всем задачам категории: фильтр
-                        // прячет строки, но не переписывает итоги.
-                        tasks={allByCategory.get(category.id) ?? []}
+                        tasks={tasks}
                         scale={scale}
                         addLabel={t("task.add_to", { category: category.name })}
                         onAddTask={onAddTask}
