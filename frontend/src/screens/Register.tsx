@@ -7,7 +7,6 @@ import type { User } from "../api/auth";
 import { errorKey } from "../api/errors";
 import { inviteQueryKey, previewInvitation } from "../api/invitations";
 import { Field } from "../components/Field";
-import { Logo } from "../components/Logo";
 import { useLocale } from "../i18n/LocaleProvider";
 
 /** Столько же требует сервер: `password: str = Field(min_length=8)`. */
@@ -79,7 +78,6 @@ export function Register() {
 
   return (
     <main className="screen screen--narrow">
-      <Logo className="screen__logo" />
       <h1>{t("auth.register.title")}</h1>
 
       {invitation.data && (

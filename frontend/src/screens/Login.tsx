@@ -4,7 +4,6 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { errorKey } from "../api/errors";
 import { useAuth } from "../auth/AuthProvider";
 import { Field } from "../components/Field";
-import { Logo } from "../components/Logo";
 import { useLocale } from "../i18n/LocaleProvider";
 
 export function Login() {
@@ -38,7 +37,6 @@ export function Login() {
 
   return (
     <main className="screen screen--narrow">
-      <Logo className="screen__logo" />
       <h1>{t("auth.login.title")}</h1>
 
       <form onSubmit={onSubmit} noValidate>

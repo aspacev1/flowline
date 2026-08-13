@@ -4,7 +4,6 @@ import { Link, useSearchParams } from "react-router-dom";
 import { ME_QUERY_KEY, resendVerification, verifyEmail } from "../api/auth";
 import { errorKey } from "../api/errors";
 import { useAuth } from "../auth/AuthProvider";
-import { Logo } from "../components/Logo";
 import { useLocale } from "../i18n/LocaleProvider";
 
 /**
@@ -47,7 +46,6 @@ export function VerifyEmail() {
 
   return (
     <main className="screen screen--narrow">
-      <Logo className="screen__logo" />
       <h1>{t("auth.verify.title")}</h1>
 
       {token === "" && (
