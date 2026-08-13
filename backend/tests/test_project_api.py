@@ -364,6 +364,34 @@ def test_an_unknown_criticality_is_refused(authed):
     assert response.status_code == 422
 
 
+def test_the_task_status_travels_with_the_project_state(authed):
+    project_id, _, task_id = _project_with_task(authed)
+
+    assert _state_task(authed, project_id)["status"] == "planned"
+
+    response = authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={"op": {"type": "set_status", "task_id": task_id, "status": "blocked"}},
+    )
+    assert response.status_code == 201
+
+    assert _state_task(authed, project_id)["status"] == "blocked"
+
+
+def _state_task(authed, project_id):
+    return authed.get(f"/api/projects/{project_id}").json()["tasks"][0]
+
+
+def test_an_unknown_status_is_refused_at_the_wire(authed):
+    project_id, _, task_id = _project_with_task(authed)
+
+    response = authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={"op": {"type": "set_status", "task_id": task_id, "status": "paused"}},
+    )
+    assert response.status_code == 422
+
+
 @pytest.mark.parametrize("progress", [-1, 101])
 def test_progress_outside_the_percentage_range_is_refused(authed, progress):
     project_id, category_id, _ = _project_with_task(authed)

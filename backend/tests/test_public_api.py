@@ -96,6 +96,13 @@ def test_a_guest_reads_the_shared_project(client, published):
     assert body["org"]["name"] == "Alex"
 
 
+def test_a_guest_sees_the_task_status(client, published):
+    # Статус — не секрет: публичная страница показывает те же полоски
+    # готовности, что и рабочий экран.
+    body = _guest(client, published).json()
+    assert body["tasks"][0]["status"] == "planned"
+
+
 def test_a_guest_never_sees_the_internal_note(client, published):
     body = _guest(client, published).json()
 

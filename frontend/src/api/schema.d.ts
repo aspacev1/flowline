@@ -1016,7 +1016,7 @@ export interface components {
         /** Body_apply_mutation_api_projects__project_id__mutations_post */
         Body_apply_mutation_api_projects__project_id__mutations_post: {
             /** Op */
-            op: components["schemas"]["PublicCreateCategory"] | components["schemas"]["PublicCreateTask"] | components["schemas"]["PublicMoveTask"] | components["schemas"]["PublicSetDuration"] | components["schemas"]["PublicDeleteTask"] | components["schemas"]["PublicDeleteCategory"] | components["schemas"]["PublicSetTaskFields"] | components["schemas"]["PublicSetCriticality"] | components["schemas"]["PublicSetProgress"] | components["schemas"]["PublicRenameCategory"] | components["schemas"]["PublicSetCategoryColor"] | components["schemas"]["PublicReorderTask"] | components["schemas"]["PublicAddDependency"] | components["schemas"]["PublicRemoveDependency"] | components["schemas"]["PublicAssignUser"] | components["schemas"]["PublicUnassignUser"];
+            op: components["schemas"]["PublicCreateCategory"] | components["schemas"]["PublicCreateTask"] | components["schemas"]["PublicMoveTask"] | components["schemas"]["PublicSetDuration"] | components["schemas"]["PublicDeleteTask"] | components["schemas"]["PublicDeleteCategory"] | components["schemas"]["PublicSetTaskFields"] | components["schemas"]["PublicSetCriticality"] | components["schemas"]["PublicSetProgress"] | components["schemas"]["PublicSetStatus"] | components["schemas"]["PublicRenameCategory"] | components["schemas"]["PublicSetCategoryColor"] | components["schemas"]["PublicReorderTask"] | components["schemas"]["PublicAddDependency"] | components["schemas"]["PublicRemoveDependency"] | components["schemas"]["PublicAssignUser"] | components["schemas"]["PublicUnassignUser"];
             /** Reason */
             reason?: string | null;
         };
@@ -1450,6 +1450,8 @@ export interface components {
              * Format: date
              */
             start_date: string;
+            /** @default planned */
+            status: components["schemas"]["TaskStatus"];
             /**
              * Type
              * @default create_task
@@ -1623,6 +1625,21 @@ export interface components {
              */
             type: "set_progress";
         };
+        /** PublicSetStatus */
+        PublicSetStatus: {
+            status: components["schemas"]["TaskStatus"];
+            /**
+             * Task Id
+             * Format: uuid
+             */
+            task_id: string;
+            /**
+             * Type
+             * @default set_status
+             * @constant
+             */
+            type: "set_status";
+        };
         /** PublicSetTaskFields */
         PublicSetTaskFields: {
             /**
@@ -1738,6 +1755,11 @@ export interface components {
              */
             org_id: string;
         };
+        /**
+         * TaskStatus
+         * @enum {string}
+         */
+        TaskStatus: "planned" | "in_progress" | "done" | "blocked";
         /** UserOut */
         UserOut: {
             /** Email */

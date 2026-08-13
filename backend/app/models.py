@@ -44,6 +44,18 @@ class Criticality(StrEnum):
 CRITICALITY_LEVELS: tuple[str, ...] = tuple(level.value for level in Criticality)
 
 
+class TaskStatus(StrEnum):
+    PLANNED = "planned"
+    IN_PROGRESS = "in_progress"
+    DONE = "done"
+    BLOCKED = "blocked"
+
+
+# Тем же приёмом, что CRITICALITY_LEVELS: список для CHECK и проверок слоя
+# мутаций выводится из enum, а не выписывается второй раз руками.
+TASK_STATUSES: tuple[str, ...] = tuple(status.value for status in TaskStatus)
+
+
 def _uuid_pk() -> Mapped[uuid.UUID]:
     return mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
@@ -434,6 +446,10 @@ class Task(Base):
             "criticality IN (" + ", ".join(f"'{level}'" for level in CRITICALITY_LEVELS) + ")",
             name="ck_tasks_criticality",
         ),
+        CheckConstraint(
+            "status IN (" + ", ".join(f"'{status}'" for status in TASK_STATUSES) + ")",
+            name="ck_tasks_status",
+        ),
     )
 
     id: Mapped[uuid.UUID] = _uuid_pk()
@@ -451,6 +467,9 @@ class Task(Base):
     duration_days: Mapped[int] = mapped_column(Integer)
     criticality: Mapped[str] = mapped_column(String(16), default="normal")
     progress_pct: Mapped[int] = mapped_column(Integer, default=0)
+    # server_default — не только для миграции по живой таблице: второй путь
+    # записи (ручной SQL) без него получил бы NOT NULL без значения.
+    status: Mapped[str] = mapped_column(Text, default="planned", server_default=text("'planned'"))
     position: Mapped[int] = mapped_column(Integer, default=0)
     baseline_start: Mapped[date | None] = mapped_column(Date)
     baseline_duration: Mapped[int | None] = mapped_column(Integer)

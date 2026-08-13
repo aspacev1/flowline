@@ -53,18 +53,31 @@ export function Header() {
 
       <OrgSwitch />
 
-      {/* Состав организации — второй экран приложения, и добраться до него
-          иначе неоткуда: приглашения живут там же. Роли `client` маршрут
-          отвечает отказом, но ссылка остаётся видимой — прятать её значило бы
-          решать про доступ на клиенте, а решает про него сервер. */}
+      {/* Пять разделов, как в макете. Роли `client` часть маршрутов отвечает
+          отказом, но ссылки остаются видимыми — прятать их значило бы решать
+          про доступ на клиенте, а решает про него сервер. */}
       <nav className="sidebar__nav">
+        {/* `end`, иначе «Главная» подсвечена на каждом адресе: все они
+            начинаются с «/». */}
+        <NavLink to="/" end className={navClass}>
+          <IconHome />
+          {t("nav.home")}
+        </NavLink>
+        <NavLink to="/my-tasks" className={navClass}>
+          <IconCheck />
+          {t("nav.my_tasks")}
+        </NavLink>
         <NavLink to="/projects" className={navClass}>
           <IconBoard />
           {t("nav.projects")}
         </NavLink>
         <NavLink to="/members" className={navClass}>
           <IconPeople />
-          {t("nav.members")}
+          {t("nav.team")}
+        </NavLink>
+        <NavLink to="/reports" className={navClass}>
+          <IconChart />
+          {t("nav.reports")}
         </NavLink>
       </nav>
 
@@ -132,6 +145,34 @@ function Icon({ children }: { children: ReactNode }) {
     >
       {children}
     </svg>
+  );
+}
+
+function IconHome() {
+  return (
+    <Icon>
+      <path d="M2.5 7.5 8 2.5l5.5 5" />
+      <path d="M4 6.8v6.7h8V6.8" />
+    </Icon>
+  );
+}
+
+/* Галочка в круге: «мои задачи» — это то, что с меня спросят. */
+function IconCheck() {
+  return (
+    <Icon>
+      <circle cx="8" cy="8" r="6" />
+      <path d="m5.5 8.2 1.8 1.8 3.2-3.6" />
+    </Icon>
+  );
+}
+
+function IconChart() {
+  return (
+    <Icon>
+      <path d="M2.5 13.5h11" />
+      <path d="M4.5 13V8.5M8 13V4.5M11.5 13V6.5" />
+    </Icon>
   );
 }
 

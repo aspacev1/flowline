@@ -283,3 +283,88 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* Полоса прогресса под числом: доля видна без чтения цифры. */
+.panel__progressbar {
+  display: block;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--active, var(--hover));
+  overflow: hidden;
+}
+
+.panel__progressbar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+/* Связи: «зависит от» и «блокирует». */
+.panel__links {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.panel__deps {
+  align-items: baseline;
+}
+
+.panel__dep-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.panel__dep {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 3px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--input-bg, var(--hover));
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel__dep-remove {
+  height: auto;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-faint);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.panel__dep-remove:hover {
+  background: transparent;
+  box-shadow: none;
+  color: var(--danger);
+}
+
+/* «Добавить связь…» — узкий список среди пилюль, а не поле во всю строку. */
+.panel__dep-add {
+  max-width: 100%;
+  padding: 3px 8px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* Аватар в плашке исполнителя не растягивает её по высоте. */
+.panel__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

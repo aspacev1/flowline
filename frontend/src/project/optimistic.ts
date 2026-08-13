@@ -1,4 +1,4 @@
-import type { ProjectState, Task } from "../api/projects";
+import type { ProjectState, Task, TaskStatus } from "../api/projects";
 
 /**
  * Преобразования состояния «как оно будет выглядеть», пока сервер не ответил.
@@ -13,6 +13,58 @@ export function patchTask(state: ProjectState, taskId: string, patch: Partial<Ta
   return {
     ...state,
     tasks: state.tasks.map((task) => (task.id === taskId ? { ...task, ...patch } : task)),
+  };
+}
+
+/**
+ * Сцепка статуса и прогресса — та же, что на сервере, и только она.
+ *
+ * Догадка обязана совпасть с будущим ответом: прогресс в сто процентов делает
+ * задачу готовой, откат ниже ста возвращает готовую в работу, а «готово»
+ * руками доводит прогресс до ста. Больше сервер ничего не выводит — и клиент
+ * не должен, иначе полоска мигнёт чужим значением между догадкой и ответом.
+ */
+export function patchProgress(state: ProjectState, taskId: string, pct: number): ProjectState {
+  return {
+    ...state,
+    tasks: state.tasks.map((task) => {
+      if (task.id !== taskId) return task;
+      const status: TaskStatus =
+        pct >= 100 ? "done" : task.status === "done" && pct < 100 ? "in_progress" : task.status;
+      return { ...task, progress_pct: pct, status };
+    }),
+  };
+}
+
+export function patchStatus(state: ProjectState, taskId: string, status: TaskStatus): ProjectState {
+  return {
+    ...state,
+    tasks: state.tasks.map((task) =>
+      task.id === taskId
+        ? { ...task, status, progress_pct: status === "done" ? 100 : task.progress_pct }
+        : task,
+    ),
+  };
+}
+
+/**
+ * Связи — без проверки циклов: их ловит сервер, и отказ откатит догадку.
+ * Повторную связь заглушить обязан вызывающий — он же прячет её из списка
+ * кандидатов.
+ */
+export function addDependency(state: ProjectState, from: string, to: string): ProjectState {
+  return {
+    ...state,
+    dependencies: [...state.dependencies, { from_task_id: from, to_task_id: to }],
+  };
+}
+
+export function removeDependency(state: ProjectState, from: string, to: string): ProjectState {
+  return {
+    ...state,
+    dependencies: state.dependencies.filter(
+      (link) => !(link.from_task_id === from && link.to_task_id === to),
+    ),
   };
 }
 

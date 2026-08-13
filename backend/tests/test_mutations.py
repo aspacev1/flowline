@@ -33,6 +33,7 @@ from app.mutations import (
     SetCriticality,
     SetDuration,
     SetProgress,
+    SetStatus,
     SetTaskFields,
     UnassignUser,
     apply_op,
@@ -739,6 +740,158 @@ def test_set_criticality_and_progress_and_colour_round_trip(db, project, categor
     assert db.get(Category, category.id).color == "#22c55e"
     undo(db, project, colour, actor_id=None)
     assert db.get(Category, category.id).color == "#3b82f6"
+
+
+# --- статус ------------------------------------------------------------------
+
+
+def test_create_task_defaults_to_planned_and_accepts_a_status(db, project, category):
+    default = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="A",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None)
+    assert default.op["status"] == "planned"
+    assert db.get(Task, default.op["task_id"]).status == "planned"
+
+    explicit = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="B",
+        start_date=date(2026, 3, 4), duration_days=1, status="blocked"), actor_id=None)
+    assert db.get(Task, explicit.op["task_id"]).status == "blocked"
+
+
+def test_create_task_rejects_an_unknown_status(db, project, category):
+    with pytest.raises(InvalidOperation) as error:
+        apply_op(db, project, CreateTask(
+            category_id=str(category.id), name="A",
+            start_date=date(2026, 3, 4), duration_days=1, status="paused"), actor_id=None)
+    assert error.value.code == "unknown_status"
+
+
+def test_set_status_rejects_an_unknown_status(db, project, category):
+    task_id = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="A",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+
+    with pytest.raises(InvalidOperation) as error:
+        apply_op(db, project, SetStatus(task_id=task_id, status="paused"), actor_id=None)
+    assert error.value.code == "unknown_status"
+
+
+def test_progress_at_100_marks_the_task_done(db, project, category):
+    task_id = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="A",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+
+    revision = apply_op(db, project, SetProgress(task_id=task_id, progress_pct=100),
+                        actor_id=None)
+
+    task = db.get(Task, task_id)
+    assert (task.progress_pct, task.status) == (100, "done")
+    # Обе границы статуса легли в журнал: отмена вернёт прежний статус
+    # дословно, а не выведет его связкой заново.
+    assert revision.op["status_from"] == "planned"
+    assert revision.op["status_to"] == "done"
+    assert revision.inverse["status_to"] == "planned"
+
+
+def test_progress_below_100_returns_a_done_task_to_in_progress(db, project, category):
+    task_id = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="A",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+    apply_op(db, project, SetProgress(task_id=task_id, progress_pct=100), actor_id=None)
+
+    apply_op(db, project, SetProgress(task_id=task_id, progress_pct=60), actor_id=None)
+
+    task = db.get(Task, task_id)
+    assert (task.progress_pct, task.status) == (60, "in_progress")
+
+
+def test_progress_movement_leaves_a_blocked_task_blocked(db, project, category):
+    """Связка знает ровно два перехода; прочие статусы движение прогресса не трогает."""
+    task_id = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="A",
+        start_date=date(2026, 3, 4), duration_days=1, status="blocked"),
+        actor_id=None).op["task_id"]
+
+    revision = apply_op(db, project, SetProgress(task_id=task_id, progress_pct=50),
+                        actor_id=None)
+
+    assert db.get(Task, task_id).status == "blocked"
+    # Статус не менялся — границ статуса в журнале нет.
+    assert "status_from" not in revision.op
+
+
+def test_set_status_done_pulls_the_progress_to_100(db, project, category):
+    task_id = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="A",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+
+    revision = apply_op(db, project, SetStatus(task_id=task_id, status="done"), actor_id=None)
+
+    task = db.get(Task, task_id)
+    assert (task.status, task.progress_pct) == ("done", 100)
+    assert revision.op == {
+        "type": "set_status", "task_id": task_id, "from": "planned", "to": "done",
+        "progress_from": 0, "progress_to": 100}
+
+
+def test_leaving_done_keeps_the_progress_untouched(db, project, category):
+    task_id = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="A",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+    apply_op(db, project, SetStatus(task_id=task_id, status="done"), actor_id=None)
+
+    revision = apply_op(db, project, SetStatus(task_id=task_id, status="in_progress"),
+                        actor_id=None)
+
+    task = db.get(Task, task_id)
+    # Обратного правила у связки нет: выдуманного «почти готово» не бывает.
+    assert (task.status, task.progress_pct) == ("in_progress", 100)
+    assert "progress_from" not in revision.op
+
+
+def test_undo_of_set_status_restores_both_status_and_progress(db, project, category):
+    task_id = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="A",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+    apply_op(db, project, SetProgress(task_id=task_id, progress_pct=40), actor_id=None)
+
+    done = apply_op(db, project, SetStatus(task_id=task_id, status="done"), actor_id=None)
+    undo(db, project, done, actor_id=None)
+
+    task = db.get(Task, task_id)
+    assert (task.status, task.progress_pct) == ("planned", 40)
+
+
+def test_undo_of_set_progress_restores_a_blocked_status(db, project, category):
+    """Отмена возвращает статус из журнала, а не выводит его связкой заново.
+
+    Связка знает только пару planned/in_progress — про 'blocked' до 100%
+    она не угадала бы никогда.
+    """
+    task_id = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="A",
+        start_date=date(2026, 3, 4), duration_days=1, status="blocked"),
+        actor_id=None).op["task_id"]
+
+    finished = apply_op(db, project, SetProgress(task_id=task_id, progress_pct=100),
+                        actor_id=None)
+    assert db.get(Task, task_id).status == "done"
+
+    undo(db, project, finished, actor_id=None)
+
+    task = db.get(Task, task_id)
+    assert (task.status, task.progress_pct) == ("blocked", 0)
+
+
+def test_set_status_is_not_accepted_over_the_wire_with_a_progress():
+    """progress_pct у set_status — поле восстановления, как task_id у create_task.
+
+    По проводу оно не принимается: прогрессом с провода управляет
+    set_progress, а здесь клиент подложил бы значение в обход связки.
+    """
+    from app.mutations import PublicSetStatus
+
+    assert set(PublicSetStatus.model_fields) | {"progress_pct"} == set(SetStatus.model_fields)
 
 
 def _positions(db, project) -> dict[str, int]:

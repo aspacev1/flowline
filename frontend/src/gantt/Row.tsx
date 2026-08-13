@@ -1,6 +1,8 @@
 import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 
 import type { Category, Task } from "../api/projects";
+import { Avatar } from "../components/Avatar";
+import { StatusChip } from "../components/StatusChip";
 import { baselineOf, endShiftDays } from "../project/baseline";
 import { useDragDates } from "./useDragDates";
 import { halfOf } from "./useReorder";
@@ -8,8 +10,50 @@ import type { Reorder } from "./useReorder";
 import type { Scale } from "./timescale";
 
 /**
- * Строка-заголовок категории: цветная точка, название и полоса, охватывающая
- * даты её задач.
+ * Левая колонка — три ячейки, как в макете Planora: задача, владелец, статус.
+ *
+ * Это ячейки одной закреплённой колонки, а не три sticky-колонки: закреплять
+ * их по отдельности значило бы считать три ширины в двух местах — здесь и в
+ * стилях — и однажды разъехаться.
+ */
+function LabelCells({
+  task,
+  owner,
+  status,
+}: {
+  task: ReactNode;
+  owner: ReactNode;
+  status: ReactNode;
+}) {
+  return (
+    <>
+      <span className="gantt__cell gantt__cell--task">{task}</span>
+      <span className="gantt__cell gantt__cell--owner">{owner}</span>
+      <span className="gantt__cell gantt__cell--status">{status}</span>
+    </>
+  );
+}
+
+/** Стопка владельцев: два аватара, остальные — числом. */
+export function OwnerStack({ names }: { names: string[] }) {
+  if (names.length === 0) {
+    // Прочерк, а не пустота: пустая ячейка читается как «забыли отрисовать»,
+    // прочерк — как «владелец не назначен».
+    return <span className="gantt__no-owner">—</span>;
+  }
+  return (
+    <span className="avatar-stack">
+      {names.slice(0, 2).map((name) => (
+        <Avatar key={name} name={name} size={28} />
+      ))}
+      {names.length > 2 && <span className="avatar-stack__more">+{names.length - 2}</span>}
+    </span>
+  );
+}
+
+/**
+ * Строка-заголовок категории: шеврон, название, прочерк владельца и процент
+ * готовности вместо статуса — свёртка по задачам, посчитанная в Gantt.
  *
  * Полоса рисуется по крайним датам содержимого, а не по отдельно хранимым
  * границам категории: вторых не существует, и заводить их значило бы держать
@@ -25,7 +69,7 @@ export function CategoryRow({
   open = true,
   onToggle,
   toggleLabel,
-  countLabel,
+  progressLabel,
 }: {
   category: Category;
   tasks: Task[];
@@ -37,8 +81,8 @@ export function CategoryRow({
   open?: boolean;
   onToggle?: () => void;
   toggleLabel?: string;
-  /** «3 задачи» — счётчик рядом с названием, как в макете. */
-  countLabel?: string;
+  /** «67%» — готовность категории, взвешенная по длительности задач. */
+  progressLabel?: string;
 }) {
   const span =
     tasks.length === 0
@@ -57,37 +101,45 @@ export function CategoryRow({
       onPointerUp={() => reorder?.drop()}
     >
       <div className="gantt__label">
-        {onToggle && (
-          // Шеврон — кнопка сворачивания, как в макете: свёрнутая категория
-          // остаётся строкой с полосой охвата, её задачи прячутся.
-          <button
-            type="button"
-            className="gantt__chevron"
-            aria-expanded={open}
-            aria-label={toggleLabel}
-            title={toggleLabel}
-            onClick={onToggle}
-          >
-            {open ? "▾" : "▸"}
-          </button>
-        )}
-        <span className="gantt__dot" style={{ background: category.color }} aria-hidden="true" />
-        <span className="gantt__label-name">{category.name}</span>
-        {countLabel && <span className="gantt__count">{countLabel}</span>}
-        {onAddTask && (
-          // Подпись включает название категории: на десятке категорий десять
-          // кнопок «Добавить задачу» при чтении с экрана неразличимы, и
-          // выбрать нужную нельзя иначе как считая их по порядку.
-          <button
-            type="button"
-            className="gantt__add"
-            aria-label={addLabel}
-            title={addLabel}
-            onClick={() => onAddTask(category.id)}
-          >
-            +
-          </button>
-        )}
+        <LabelCells
+          task={
+            <>
+              {onToggle && (
+                // Шеврон — кнопка сворачивания, как в макете: свёрнутая категория
+                // остаётся строкой с полосой охвата, её задачи прячутся.
+                <button
+                  type="button"
+                  className="gantt__chevron"
+                  aria-expanded={open}
+                  aria-label={toggleLabel}
+                  title={toggleLabel}
+                  onClick={onToggle}
+                >
+                  {open ? "▾" : "▸"}
+                </button>
+              )}
+              <span className="gantt__label-name">{category.name}</span>
+              {onAddTask && (
+                // Подпись включает название категории: на десятке категорий десять
+                // кнопок «Добавить задачу» при чтении с экрана неразличимы, и
+                // выбрать нужную нельзя иначе как считая их по порядку.
+                <button
+                  type="button"
+                  className="gantt__add"
+                  aria-label={addLabel}
+                  title={addLabel}
+                  onClick={() => onAddTask(category.id)}
+                >
+                  +
+                </button>
+              )}
+            </>
+          }
+          owner={<span className="gantt__no-owner">—</span>}
+          status={
+            progressLabel && <span className="gantt__percent">{progressLabel}</span>
+          }
+        />
       </div>
 
       <div className="gantt__lane" style={{ width: scale.width }}>
@@ -120,7 +172,6 @@ export function TaskRow({
   projectId,
   task,
   scale,
-  today,
   late,
   lateLabel,
   title,
@@ -133,15 +184,13 @@ export function TaskRow({
   beyondPlanLabel,
   baselineLabel,
   deviationLabel,
-  blockerPill,
-  blockerTitle,
-  waitsPill,
+  owners = [],
+  statusLabel,
+  showBaseline = true,
 }: {
   projectId: string;
   task: Task;
   scale: Scale;
-  /** Сегодняшний день по ISO — от него считается статус «запланировано». */
-  today: string;
   late: boolean;
   lateLabel: string;
   title: string;
@@ -158,23 +207,16 @@ export function TaskRow({
   baselineLabel?: string;
   /** Готовая подпись бейджа отклонения, например «+7 дней». */
   deviationLabel?: string;
-  /** Пилюля «блокер»: задача, которой ждут другие. */
-  blockerPill?: string;
-  /** Подсказка к пилюле: кого именно эта задача держит. */
-  blockerTitle?: string;
-  /** Пилюля «ждёт: имя» у задачи-приёмника связи. */
-  waitsPill?: string;
+  /** Имена владельцев для колонки: уже развёрнуты из идентификаторов. */
+  owners?: string[];
+  /** Подпись плашки статуса на языке читателя. */
+  statusLabel?: string;
+  /** Рисовать ли призрак и засечку базового плана — флажок меню «Вид». */
+  showBaseline?: boolean;
 }) {
   const { offset, handlers } = useDragDates({ projectId, task, scale, enabled: canWrite });
   const baseline = baselineOf(task);
   const shift = endShiftDays(task);
-
-  // Статус — вычисляется, а не хранится: «готово» — это стопроцентный
-  // прогресс, «запланировано» — старт в будущем, остальное — «в работе».
-  // Отдельное поле статуса рассинхронизировалось бы с этими двумя при первой
-  // же правке дат или прогресса.
-  const status =
-    task.progress_pct >= 100 ? "done" : task.start_date > today ? "planned" : "active";
 
   return (
     <div
@@ -185,72 +227,61 @@ export function TaskRow({
       onPointerUp={() => reorder?.drop()}
     >
       <div className="gantt__label">
-        {reorder?.enabled && (
-          // Ручка отдельно от полоски: за неё меняют порядок, за полоску —
-          // даты.
-          //
-          // Не кнопка и скрыта от чтения с экрана намеренно. Кнопка обещала бы
-          // работу с клавиатуры, а перестановка строк с клавиатуры в этот план
-          // не входит: объявить десять кнопок, ни одна из которых не
-          // срабатывает по Enter, хуже, чем не объявлять их вовсе. Полоска
-          // задачи при этом остаётся кнопкой и по-прежнему двигается стрелками.
-          <span
-            className="gantt__handle"
-            aria-hidden="true"
-            title={handleLabel}
-            onPointerDown={(event) => {
-              // Без этого нажатие уводит фокус и начинает выделение текста
-              // вместо перетаскивания.
-              event.preventDefault();
-              reorder.start(task.id);
-            }}
-          >
-            ⠿
-          </span>
-        )}
-        <span className="gantt__label-name">{task.name}</span>
-        {blockerPill && (
-          // Пилюля «блокер» — рядом с названием, как в макете Broadsheet: кого
-          // именно держит задача, видно из подсказки и из стрелок.
-          <span className="gantt__pill gantt__pill--blocker" title={blockerTitle}>
-            {blockerPill}
-          </span>
-        )}
-        {waitsPill && (
-          <span className="gantt__pill" title={waitsPill}>
-            {waitsPill}
-          </span>
-        )}
-        {shift !== null && shift > 0 && deviationLabel && (
-          // «+N дн.» и в левой колонке тоже, как в макете: сдвиг виден и там,
-          // где полоска уехала за горизонт прокрутки.
-          <span className="gantt__pill gantt__pill--late" title={baselineLabel}>
-            {deviationLabel}
-          </span>
-        )}
-        {late && (
-          <span className="gantt__flag" title={lateLabel} role="img" aria-label={lateLabel}>
-            !
-          </span>
-        )}
-        {beyondPlan && (
-          // «Сверх первоначального плана»: задача добавлена после утверждения
-          // и базового плана не имеет. Пометка нужна не как украшение — без
-          // неё отсутствие призрака под полоской читается как «задача никуда
-          // не уехала», а на деле сравнивать её просто не с чем.
-          <span
-            className="gantt__beyond"
-            title={beyondPlanLabel}
-            role="img"
-            aria-label={beyondPlanLabel}
-          >
-            +
-          </span>
-        )}
+        <LabelCells
+          task={
+            <>
+              {reorder?.enabled && (
+                // Ручка отдельно от полоски: за неё меняют порядок, за полоску —
+                // даты.
+                //
+                // Не кнопка и скрыта от чтения с экрана намеренно. Кнопка обещала бы
+                // работу с клавиатуры, а перестановка строк с клавиатуры в этот план
+                // не входит: объявить десять кнопок, ни одна из которых не
+                // срабатывает по Enter, хуже, чем не объявлять их вовсе. Полоска
+                // задачи при этом остаётся кнопкой и по-прежнему двигается стрелками.
+                <span
+                  className="gantt__handle"
+                  aria-hidden="true"
+                  title={handleLabel}
+                  onPointerDown={(event) => {
+                    // Без этого нажатие уводит фокус и начинает выделение текста
+                    // вместо перетаскивания.
+                    event.preventDefault();
+                    reorder.start(task.id);
+                  }}
+                >
+                  ⠿
+                </span>
+              )}
+              <span className="gantt__label-name">{task.name}</span>
+              {late && (
+                <span className="gantt__flag" title={lateLabel} role="img" aria-label={lateLabel}>
+                  !
+                </span>
+              )}
+              {beyondPlan && (
+                // «Сверх первоначального плана»: задача добавлена после утверждения
+                // и базового плана не имеет. Пометка нужна не как украшение — без
+                // неё отсутствие призрака под полоской читается как «задача никуда
+                // не уехала», а на деле сравнивать её просто не с чем.
+                <span
+                  className="gantt__beyond"
+                  title={beyondPlanLabel}
+                  role="img"
+                  aria-label={beyondPlanLabel}
+                >
+                  +
+                </span>
+              )}
+            </>
+          }
+          owner={<OwnerStack names={owners} />}
+          status={statusLabel && <StatusChip status={task.status} label={statusLabel} />}
+        />
       </div>
 
       <div className="gantt__lane" style={{ width: scale.width }}>
-{baseline && (
+        {showBaseline && baseline && (
           // Призрак базового плана — тонкая серая полоска под текущей.
           //
           // Именно под, а не продлением текущей: залить разрыв между плановым
@@ -269,9 +300,9 @@ export function TaskRow({
           />
         )}
 
-        {baseline && shift !== null && shift > 0 && (
+        {showBaseline && baseline && shift !== null && shift > 0 && (
           // Засечка первоначального дедлайна, как в макете: вертикальная
-          // магентовая черта там, где задача должна была кончиться по плану.
+          // красная черта там, где задача должна была кончиться по плану.
           <i
             className="gantt__mark"
             style={{ left: scale.xOf(baseline.end) + scale.dayWidth }}
@@ -305,7 +336,7 @@ export function TaskRow({
             offset === 0 ? "" : " is-dragging"
           }`}
           data-criticality={task.criticality}
-          data-status={status}
+          data-status={task.status}
           style={
             {
               // Пока полоску тащат, она стоит там, где палец, — а не там, где
@@ -334,10 +365,21 @@ export function TaskRow({
             style={{ width: `${task.progress_pct}%` }}
             aria-hidden="true"
           />
-          {/* Название — в отдельном узле: в макете полоска нема, имя живёт в
-              левой колонке, и тема прячет этот узел, не трогая доступное имя
-              кнопки (оно задано aria-label выше). */}
-          <span className="gantt__bar-name">{task.name}</span>
+          {/* Галочка готовой задачи — как в макете: знак «сделано» виден с
+              расстояния, на котором плашка статуса уже не читается. */}
+          {task.status === "done" && (
+            <span className="gantt__check" aria-hidden="true">
+              ✓
+            </span>
+          )}
+          {/* Заблокированная называет своё состояние прямо на полоске: это
+              редкое и требующее действия состояние, и цвета одного мало. */}
+          {task.status === "blocked" && statusLabel && (
+            <span className="gantt__bar-blocked" aria-hidden="true">
+              <span>⚠</span>
+              {statusLabel}
+            </span>
+          )}
         </Bar>
       </div>
     </div>

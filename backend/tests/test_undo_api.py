@@ -140,6 +140,30 @@ def test_the_project_state_names_what_undo_will_undo(authed, project_with_task):
     assert _state(authed, project_id)["undoable"]["op"]["type"] == "create_task"
 
 
+def test_undo_of_set_status_restores_status_and_progress_together(authed, project_with_task):
+    """Отмена снимает и статус, и прогресс, который утащила за собой связка.
+
+    set_status в 'done' дотягивает прогресс до 100; отмена обязана вернуть
+    оба значения, а не оставить задачу «запланированной, но готовой на 100%».
+    """
+    project_id, _, task_id = project_with_task
+    authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={"op": {"type": "set_progress", "task_id": task_id, "progress_pct": 40}},
+    )
+    authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={"op": {"type": "set_status", "task_id": task_id, "status": "done"}},
+    )
+    task = _state(authed, project_id)["tasks"][0]
+    assert (task["status"], task["progress_pct"]) == ("done", 100)
+
+    authed.post(f"/api/projects/{project_id}/undo")
+
+    task = _state(authed, project_id)["tasks"][0]
+    assert (task["status"], task["progress_pct"]) == ("planned", 40)
+
+
 def test_an_empty_project_has_nothing_to_undo(authed):
     project_id = authed.post("/api/projects", json={"name": "Пустой"}).json()["id"]
 

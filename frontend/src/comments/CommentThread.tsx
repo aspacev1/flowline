@@ -2,8 +2,9 @@ import { useState } from "react";
 
 import type { Comment } from "../api/comments";
 import { errorKey } from "../api/errors";
+import { Avatar } from "../components/Avatar";
 import { Field } from "../components/Field";
-import { formatShortDate } from "../i18n/dates";
+import { formatShortDate, formatTime } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
 import { rememberGuestName, storedGuestName } from "./guestName";
 
@@ -44,7 +45,7 @@ export function CommentThread({
   sending?: boolean;
   sendError?: unknown;
 }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const [body, setBody] = useState("");
   // Имя подтягивается из браузера сразу: гость, уже назвавшийся однажды,
   // не должен вводить его снова под каждой репликой.
@@ -71,16 +72,27 @@ export function CommentThread({
       <ol className="comments__list">
         {comments.map((comment) => (
           <li key={comment.id} className="comment">
-            <p className="comment__head">
-              {/* Имя автора — содержимое пользователя: не переводится ни при
-                  каком языке интерфейса. */}
-              <span className="comment__author">{comment.author.name}</span>
-              {comment.author.guest && (
-                <span className="comment__guest">{t("comments.guest")}</span>
-              )}
-              <span className="muted">{formatShortDate(t, comment.created_at)}</span>
-            </p>
-            <p className="comment__body">{comment.body}</p>
+            {/* Аватар — как в макете: в ленте из десятка реплик собеседники
+                различаются пятном цвета быстрее, чем чтением имён. */}
+            <Avatar name={comment.author.name} size={30} />
+            <div className="comment__content">
+              <p className="comment__head">
+                {/* Имя автора — содержимое пользователя: не переводится ни при
+                    каком языке интерфейса. */}
+                <span className="comment__author">{comment.author.name}</span>
+                {comment.author.guest && (
+                  <span className="comment__guest">{t("comments.guest")}</span>
+                )}
+                {/* Дата и время: в разговоре за один день дата без времени не
+                    различает реплики вовсе. */}
+                <span className="muted">
+                  {formatShortDate(t, comment.created_at)}
+                  {" · "}
+                  {formatTime(locale, new Date(comment.created_at))}
+                </span>
+              </p>
+              <p className="comment__body">{comment.body}</p>
+            </div>
           </li>
         ))}
       </ol>

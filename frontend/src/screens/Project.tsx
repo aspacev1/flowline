@@ -7,6 +7,7 @@ import { errorKey } from "../api/errors";
 import { getProject, projectQueryKey } from "../api/projects";
 import { useCanWrite, useOrgRole } from "../auth/permissions";
 import { CommentThread } from "../comments/CommentThread";
+import { Menu } from "../components/Menu";
 import { Gantt } from "../gantt/Gantt";
 import { usePrefersReducedMotion } from "../gantt/motion";
 import { useLocale } from "../i18n/LocaleProvider";
@@ -161,8 +162,19 @@ export function Project() {
                       только тому, кто может писать: гостю она обещала бы отказ
                       сервера. */}
                   {editable && <UndoButton projectId={projectId} state={query.data} />}
+                  {/* Кебаб «⋯», как в макете: редкие действия не стоят своей
+                      кнопки в первом ряду. */}
                   {canWrite && (
-                    <Link to={`/projects/${projectId}/settings`}>{t("settings.project.link")}</Link>
+                    <Menu
+                      label={<span aria-hidden="true">⋯</span>}
+                      buttonLabel={t("project.more")}
+                      showCaret={false}
+                      buttonClass="button--quiet project-head__more"
+                    >
+                      <Link className="menu__item" to={`/projects/${projectId}/settings`}>
+                        {t("settings.project.link")}
+                      </Link>
+                    </Menu>
                   )}
                 </>
               }

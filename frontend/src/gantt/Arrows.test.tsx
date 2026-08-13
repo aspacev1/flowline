@@ -8,7 +8,9 @@ beforeEach(projectFixtures);
 
 /** Левый край и ширина полоски — так, как их поставила шкала. */
 function barBox(name: string): { left: number; width: number } {
-  const bar = screen.getByRole("button", { name: new RegExp(name) });
+  // Имя полоски начинается с имени задачи и продолжается датами — этим она
+  // отличается от кнопок карточки вроде «Убрать связь с „Макет“».
+  const bar = screen.getByRole("button", { name: new RegExp(`^${name}, `) });
   return { left: Number.parseFloat(bar.style.left), width: Number.parseFloat(bar.style.width) };
 }
 

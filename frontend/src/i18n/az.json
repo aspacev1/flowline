@@ -69,9 +69,12 @@
     }
   },
   "nav": {
+    "home": "Əsas səhifə",
+    "my_tasks": "Tapşırıqlarım",
     "projects": "Layihələr",
+    "team": "Komanda",
+    "reports": "Hesabatlar",
     "logout": "Çıxış",
-    "members": "İştirakçılar",
     "org_settings": "Təşkilat",
     "profile": "Profil"
   },
@@ -137,6 +140,7 @@
     "calendar_too_few_working_days": "Layihə təqvimində bu müddət üçün kifayət qədər iş günü yoxdur",
     "progress_out_of_range": "Tamamlanma faizi 0-dan 100-ə qədərdir",
     "unknown_criticality": "Belə kritiklik səviyyəsi yoxdur",
+    "unknown_status": "Belə status yoxdur",
     "already_assigned": "Bu adam tapşırığa artıq təyin olunub",
     "assignment_not_found": "Bu adam onsuz da tapşırığa təyin olunmayıb",
     "negative_position": "Sətri qoymağa yer yoxdur: mövqe mənfidir",
@@ -217,7 +221,41 @@
     "category_count": {
       "one": "{count} kateqoriya",
       "other": "{count} kateqoriya"
+    },
+    "more": "Digər əməllər"
+  },
+  "home": {
+    "title": "Əsas səhifə",
+    "all_projects": "Bütün layihələr",
+    "greeting": "Salam, {name} — layihə portfeli bir baxışda",
+    "tasks": {
+      "one": "{count} tapşırıq",
+      "other": "{count} tapşırıq"
+    },
+    "progress": "{pct}% hazırdır",
+    "blocked": {
+      "one": "{count} bloklanıb",
+      "other": "{count} bloklanıb"
     }
+  },
+  "my_tasks": {
+    "title": "Tapşırıqlarım",
+    "empty": {
+      "title": "Sizə hələ heç nə təyin olunmayıb",
+      "hint": "Sahibi olduğunuz tapşırıqlar burada yığılacaq — bütün layihələr üzrə"
+    },
+    "overdue": "Son tarixi keçib"
+  },
+  "reports": {
+    "title": "Hesabatlar",
+    "col": {
+      "project": "Layihə",
+      "progress": "Hazırdır",
+      "overdue": "Gecikib",
+      "deadline": "Son tarix"
+    },
+    "deadline_late": "{days} gecikmə",
+    "deadline_fits": "{date} tarixinə çatırıq"
   },
   "category": {
     "create": "Yeni kateqoriya",
@@ -236,6 +274,12 @@
       "high": "Yüksək",
       "critical": "Kritik"
     },
+    "status": {
+      "planned": "Planlaşdırılıb",
+      "in_progress": "İşdədir",
+      "done": "Hazırdır",
+      "blocked": "Bloklanıb"
+    },
     "panel": {
       "aria": "«{name}» tapşırığı",
       "close": "Kartı bağla",
@@ -243,11 +287,18 @@
       "description": "Təsvir",
       "category": "Kateqoriya",
       "criticality": "Kritiklik",
+      "status": "Status",
       "start": "Başlanğıc",
       "duration": "Müddət, iş günü",
       "end": "Son",
       "progress": "Tamamlanıb, %",
-      "assignees": "İcraçılar",
+      "progress_aria": "{pct}% hazırdır",
+      "assignees": "Sahib",
+      "depends_on": "Asılıdır",
+      "blocks": "Bloklayır",
+      "add_link": "Əlaqə əlavə et…",
+      "add_link_to": "«{label}» siyahısına əlavə et",
+      "unlink": "«{name}» ilə əlaqəni sil",
       "internal_note": "Daxili qeyd",
       "history": "Tarixçə"
     },
@@ -271,6 +322,7 @@
     "set_duration": "müddəti {from} → {to} dəyişdi",
     "set_progress": "tamamlanmanı {from}% → {to}% dəyişdi",
     "set_criticality": "kritikliyi «{from}» → «{to}» dəyişdi",
+    "set_status": "statusu «{from}» → «{to}» dəyişdi",
     "set_task_fields": "{fields} dəyişdi",
     "field": {
       "name": "adı",
@@ -292,6 +344,7 @@
   "gantt": {
     "empty": "Layihədə hələ bir dənə də kateqoriya yoxdur. Kateqoriya yaradın, tapşırıqlar isə onun içində olacaq",
   "today": "Bu gün",
+  "moved": "Tapşırıq {date} tarixinə keçirildi",
   "toolbar": {
     "label": "Layihə vaxt xəttinin idarələri",
     "previous": "Əvvəlki dövrü göstər",
@@ -299,7 +352,26 @@
     "zoom": "Vaxt xəttinin miqyası",
     "day": "Gün",
     "week": "Həftə",
-    "month": "Ay"
+    "month": "Ay",
+    "filter": "Filtr",
+    "view": "Görünüş"
+  },
+  "filter": {
+    "status": "Status",
+    "owner": "Sahib",
+    "all": "Hər kəs",
+    "clear": "Filtri təmizlə"
+  },
+  "view": {
+    "baseline": "Baza planı",
+    "legend": "Leqenda",
+    "summary": "Son tarix xülasəsi",
+    "caption": "Qeyd"
+  },
+  "col": {
+    "task": "Tapşırıq",
+    "owner": "Sahib",
+    "status": "Status"
   },
     "reorder": "«{name}» sətrini daşı",
     "deadline": "Son tarix {date}",
@@ -315,18 +387,9 @@
     "nudge": "«{name}» tapşırığını {days} irəli çəkim?",
     "nudge_dismiss": "Təklifi bağla",
     "legend": {
-      "active": "İşdədir",
-      "done": "Hazırdır",
-      "planned": "Planlaşdırılıb",
       "blocker": "Bloker",
       "late": "Son tarix pozulub · +N gün"
     },
-    "pill": {
-      "blocker": "bloker",
-      "blocks": "Bloklayır: {names}",
-      "waits": "gözləyir: {name}"
-    },
-    "tasks_col": "Tapşırıqlar",
     "task_count": {
       "one": "{count} tapşırıq",
       "other": "{count} tapşırıq"
@@ -475,7 +538,8 @@
   },
   "undo": {
     "last": "Geri al: {what}",
-    "batch": "Bütün paketi geri al"
+    "batch": "Bütün paketi geri al",
+    "action": "Geri al"
   },
   "settings": {
     "timezone": "Saat qurşağı",

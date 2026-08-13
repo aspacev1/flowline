@@ -30,6 +30,16 @@ export type Calendar = {
 export const CRITICALITY_LEVELS = ["low", "normal", "high", "critical"] as const;
 export type Criticality = (typeof CRITICALITY_LEVELS)[number];
 
+/**
+ * Статус — хранимое поле, а не вывод из прогресса и дат, как в макете Planora:
+ * «заблокировано» из прогресса не выводится вовсе, его назначает человек.
+ * С прогрессом статус связан лёгкой сцепкой, и её правила живут на сервере
+ * (см. бэкенд `set_status`/`set_progress`); клиент повторяет их только в
+ * оптимистичных догадках.
+ */
+export const TASK_STATUSES = ["planned", "in_progress", "done", "blocked"] as const;
+export type TaskStatus = (typeof TASK_STATUSES)[number];
+
 export type Category = {
   id: string;
   name: string;
@@ -47,6 +57,7 @@ export type Task = {
   /** Считает сервер. Клиент календарную арифметику не повторяет. */
   end_date: string;
   criticality: Criticality;
+  status: TaskStatus;
   progress_pct: number;
   position: number;
   assignee_ids: string[];
@@ -127,6 +138,7 @@ export type Op =
       description?: string;
       internal_note?: string;
       criticality?: Criticality;
+      status?: TaskStatus;
       progress_pct?: number;
     }
   | { type: "move_task"; task_id: string; start_date: string }
@@ -139,10 +151,13 @@ export type Op =
       internal_note: string;
     }
   | { type: "set_criticality"; task_id: string; criticality: Criticality }
+  | { type: "set_status"; task_id: string; status: TaskStatus }
   | { type: "set_progress"; task_id: string; progress_pct: number }
   | { type: "reorder_task"; task_id: string; category_id: string; position: number }
   | { type: "assign_user"; task_id: string; user_id: string }
-  | { type: "unassign_user"; task_id: string; user_id: string };
+  | { type: "unassign_user"; task_id: string; user_id: string }
+  | { type: "add_dependency"; from_task_id: string; to_task_id: string }
+  | { type: "remove_dependency"; from_task_id: string; to_task_id: string };
 
 /** Ответ на применённую операцию. Номер ревизии — то, чем она отличается от соседних. */
 export type Revision = {

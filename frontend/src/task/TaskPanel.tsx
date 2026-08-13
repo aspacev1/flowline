@@ -3,10 +3,18 @@ import { useEffect, useState } from "react";
 
 import { errorKey } from "../api/errors";
 import { MEMBERS_QUERY_KEY, members as fetchMembers } from "../api/org";
-import { CRITICALITY_LEVELS } from "../api/projects";
-import type { Criticality, Op, ProjectState, Task } from "../api/projects";
+import { CRITICALITY_LEVELS, TASK_STATUSES } from "../api/projects";
+import type { Criticality, Op, ProjectState, Task, TaskStatus } from "../api/projects";
+import { Avatar } from "../components/Avatar";
 import { baselineOf, deviationDays, endShiftDays, isBeyondPlan } from "../project/baseline";
-import { patchTask, reorderTask } from "../project/optimistic";
+import {
+  addDependency,
+  patchProgress,
+  patchStatus,
+  patchTask,
+  removeDependency,
+  reorderTask,
+} from "../project/optimistic";
 import { isShiftCancelled } from "../project/ShiftReason";
 import { useProjectMutation } from "../project/useProjectMutation";
 import { formatShortDate } from "../i18n/dates";
@@ -175,6 +183,25 @@ export function TaskPanel({
         />
 
         <SelectField
+          id="panel-status"
+          label={t("task.panel.status")}
+          value={task.status}
+          disabled={!canWrite}
+          options={TASK_STATUSES.map((status) => ({
+            value: status,
+            label: t(`task.status.${status}`),
+          }))}
+          onCommit={(value) => {
+            const status = value as TaskStatus;
+            // Оптимистичная догадка повторяет серверную сцепку: «готово»
+            // доводит прогресс до ста (см. optimistic.ts).
+            send({ type: "set_status", task_id: task.id, status }, (state) =>
+              patchStatus(state, task.id, status),
+            );
+          }}
+        />
+
+        <SelectField
           id="panel-category"
           label={t("task.panel.category")}
           value={task.category_id}
@@ -247,9 +274,24 @@ export function TaskPanel({
           resetToken={refusals}
           onCommit={(value) => {
             const progress_pct = Number(value);
-            send({ type: "set_progress", task_id: task.id, progress_pct }, patch({ progress_pct }));
+            send({ type: "set_progress", task_id: task.id, progress_pct }, (state) =>
+              patchProgress(state, task.id, progress_pct),
+            );
           }}
         />
+
+        {/* Полоса под числом — как в макете: долю видно без чтения цифры.
+            Число при этом остаётся полем — полосу мышью не тянут. */}
+        <div className="panel__row">
+          <span className="panel__key" aria-hidden="true" />
+          <span
+            className="panel__progressbar"
+            role="img"
+            aria-label={t("task.panel.progress_aria", { pct: task.progress_pct })}
+          >
+            <i style={{ width: `${Math.max(0, Math.min(100, task.progress_pct))}%` }} />
+          </span>
+        </div>
 
         <div className="panel__row">
           <span className="panel__key">{t("task.panel.end")}</span>
@@ -273,6 +315,8 @@ export function TaskPanel({
         )}
       </div>
 
+      <Dependencies task={task} state={state} canWrite={canWrite} send={send} />
+
       {membersQuery.data && membersQuery.data.length > 0 && (
         <fieldset className="panel__field panel__fieldset">
           <legend>{t("task.panel.assignees")}</legend>
@@ -288,7 +332,10 @@ export function TaskPanel({
                 disabled={!canWrite}
                 onClick={() => toggleAssignee(member.id)}
               >
-                {/* Имя человека — содержимое, а не чрома. */}
+                {/* Аватар до имени: в списке и в карточке человек обязан
+                    узнаваться одним и тем же пятном цвета. */}
+                <Avatar name={member.name} size={20} />
+                {/* Имя человека — содержимое, а не хрома. */}
                 {member.name}
               </button>
             ))}
@@ -300,6 +347,122 @@ export function TaskPanel({
 
       <Comments projectId={projectId} taskId={task.id} />
     </aside>
+  );
+}
+
+/**
+ * Связи задачи: «зависит от» и «блокирует», с правкой из карточки.
+ *
+ * Обе стороны одной и той же связи `from → to`: «зависит от» — где задача
+ * приёмник, «блокирует» — где источник. Правятся они здесь, а не только
+ * рисуются стрелками, потому что стрелку нельзя ни добавить, ни снять мышью
+ * на ленте — жеста для этого там нет.
+ *
+ * Кандидаты не включают уже связанных и обратную сторону: A→B вместе с B→A —
+ * это цикл, и предлагать его значило бы предлагать отказ сервера. Остальные
+ * циклы — длинные — ловит сервер, и отказ откатывает догадку.
+ */
+function Dependencies({
+  task,
+  state,
+  canWrite,
+  send,
+}: {
+  task: Task;
+  state: ProjectState;
+  canWrite: boolean;
+  send: (op: Op, optimistic: (state: ProjectState) => ProjectState) => void;
+}) {
+  const { t } = useLocale();
+  const nameOf = new Map(state.tasks.map((row) => [row.id, row.name]));
+
+  const predecessors = state.dependencies
+    .filter((link) => link.to_task_id === task.id)
+    .map((link) => link.from_task_id);
+  const successors = state.dependencies
+    .filter((link) => link.from_task_id === task.id)
+    .map((link) => link.to_task_id);
+
+  const candidates = (taken: string[], opposite: string[]) =>
+    state.tasks.filter(
+      (row) => row.id !== task.id && !taken.includes(row.id) && !opposite.includes(row.id),
+    );
+
+  const add = (from: string, to: string) =>
+    send({ type: "add_dependency", from_task_id: from, to_task_id: to }, (current) =>
+      addDependency(current, from, to),
+    );
+  const remove = (from: string, to: string) =>
+    send({ type: "remove_dependency", from_task_id: from, to_task_id: to }, (current) =>
+      removeDependency(current, from, to),
+    );
+
+  const group = (
+    label: string,
+    ids: string[],
+    options: Task[],
+    link: (otherId: string) => { from: string; to: string },
+  ) => (
+    <div className="panel__row panel__deps">
+      <span className="panel__key">{label}</span>
+      <span className="panel__dep-list">
+        {ids.length === 0 && !canWrite && <span className="muted">—</span>}
+        {ids.map((id) => (
+          <span key={id} className="panel__dep">
+            {/* Название задачи — содержимое пользователя: не переводится. */}
+            {nameOf.get(id) ?? id}
+            {canWrite && (
+              <button
+                type="button"
+                className="panel__dep-remove"
+                aria-label={t("task.panel.unlink", { name: nameOf.get(id) ?? id })}
+                title={t("task.panel.unlink", { name: nameOf.get(id) ?? id })}
+                onClick={() => {
+                  const { from, to } = link(id);
+                  remove(from, to);
+                }}
+              >
+                ×
+              </button>
+            )}
+          </span>
+        ))}
+        {canWrite && options.length > 0 && (
+          // Значение всегда пустое: это не выбор состояния, а команда
+          // «добавить связь», и после неё список обязан вернуться к подсказке.
+          <select
+            className="panel__dep-add"
+            value=""
+            aria-label={t("task.panel.add_link_to", { label })}
+            onChange={(event) => {
+              if (event.target.value === "") return;
+              const { from, to } = link(event.target.value);
+              add(from, to);
+            }}
+          >
+            <option value="">{t("task.panel.add_link")}</option>
+            {options.map((row) => (
+              <option key={row.id} value={row.id}>
+                {row.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </span>
+    </div>
+  );
+
+  return (
+    <div className="panel__links">
+      {group(t("task.panel.depends_on"), predecessors, candidates(predecessors, successors), (id) => ({
+        from: id,
+        to: task.id,
+      }))}
+      {group(t("task.panel.blocks"), successors, candidates(successors, predecessors), (id) => ({
+        from: task.id,
+        to: id,
+      }))}
+    </div>
   );
 }
 

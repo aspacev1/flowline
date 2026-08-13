@@ -65,6 +65,9 @@
                 "$ref": "#/components/schemas/PublicSetProgress"
               },
               {
+                "$ref": "#/components/schemas/PublicSetStatus"
+              },
+              {
                 "$ref": "#/components/schemas/PublicRenameCategory"
               },
               {
@@ -1241,6 +1244,10 @@
             "title": "Start Date",
             "type": "string"
           },
+          "status": {
+            "$ref": "#/components/schemas/TaskStatus",
+            "default": "planned"
+          },
           "type": {
             "const": "create_task",
             "default": "create_task",
@@ -1522,6 +1529,31 @@
         "title": "PublicSetProgress",
         "type": "object"
       },
+      "PublicSetStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/TaskStatus"
+          },
+          "task_id": {
+            "format": "uuid",
+            "title": "Task Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "set_status",
+            "default": "set_status",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "status"
+        ],
+        "title": "PublicSetStatus",
+        "type": "object"
+      },
       "PublicSetTaskFields": {
         "additionalProperties": false,
         "properties": {
@@ -1759,6 +1791,16 @@
         ],
         "title": "SwitchIn",
         "type": "object"
+      },
+      "TaskStatus": {
+        "enum": [
+          "planned",
+          "in_progress",
+          "done",
+          "blocked"
+        ],
+        "title": "TaskStatus",
+        "type": "string"
       },
       "UserOut": {
         "properties": {

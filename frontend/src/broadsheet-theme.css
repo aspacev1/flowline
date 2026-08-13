@@ -21,8 +21,11 @@
   --accent-hover: #1746d8;
   --accent-text: #ffffff;
   --accent-soft: rgb(36 89 245 / 10%);
-  --danger: #ef3b7d;
-  --danger-soft: #fff2f6;
+  /* Красный, а не розовый: в макете Planora красный означает ровно одно —
+     нарушение срока. Оранжевый при этом остаётся состоянием (блокер,
+     черновик): два тревожных цвета разведены по смыслу. */
+  --danger: #e11d48;
+  --danger-soft: #fff1f2;
   --ok: #16a34a;
   --ok-soft: #ebfbf1;
   --input-bg: #f8fafc;
@@ -41,7 +44,9 @@
   --radius-lg: 12px;
   --sidebar: 232px;
   --control: 40px;
-  --font: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  /* Inter приезжает со сборкой (@fontsource-variable/inter, см. App.tsx), а не
+     с CDN: установка самостоятельная, и шрифт обязан работать без интернета. */
+  --font: "Inter Variable", Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
 }
 
 body { font-size: 15px; background: var(--bg); }
@@ -93,7 +98,12 @@ button { height: var(--control); padding: 0 18px; border-radius: 7px; font-size:
 .project__body { gap: 0; align-items: stretch; }
 .project__body > .gantt { min-width: 0; }
 .gantt { --gantt-label: 540px; --gantt-row: 72px; --gantt-head: 72px; }
-.gantt__summary, .gantt__legend, .gantt__caption { display: none; }
+/* Легенда, сводка по дедлайну и сноска больше не прячутся отсюда: их
+   показывает и прячет меню «Вид» — скрытая стилем разметка была бы враньём
+   для чтения с экрана. */
+.gantt__summary { margin: 14px 32px 0; }
+.gantt__legend { margin: 14px 32px 0; }
+.gantt__caption { margin: 10px 32px; }
 .gantt__scroll { border-radius: 0; box-shadow: none; border-bottom: 1px solid var(--border); background: #fff; }
 .gantt__head-row { background: #fff; border-bottom: 1px solid var(--border); }
 .gantt__corner { align-items: center; padding-bottom: 0; }
@@ -108,21 +118,46 @@ button { height: var(--control); padding: 0 18px; border-radius: 7px; font-size:
 .gantt__row:hover .gantt__lane, .gantt__row:hover .gantt__label { background: #f9fbff; }
 .gantt__row.is-selected .gantt__lane, .gantt__row.is-selected .gantt__label { background: #eef5ff; }
 .gantt__row--category .gantt__label-name { font-size: 18px; font-weight: 700; color: #1f2937; }
-.gantt__row:not(.gantt__row--category) .gantt__label { padding-left: 84px; }
+/* Отступ вложенности — внутри ячейки задачи, а не у всей колонки: ячейки
+   владельца и статуса обязаны стоять на одной вертикали у категории и задачи. */
+.gantt__row:not(.gantt__row--category) .gantt__cell--task { padding-left: 56px; }
 .gantt__row:not(.gantt__row--category) .gantt__label-name { font-size: 16px; color: #1f2937; }
-.gantt__dot { display: none; }
-.gantt__count, .gantt__pill { display: none; }
 .gantt__grid-day { border-left: 1px dashed #dfe5ee; }
 .gantt__today { border-left: 3px solid rgb(36 89 245 / 55%); }
 .gantt__today-chip { top: -4px; border-radius: 5px; background: #eef4ff; color: var(--accent); border: 1px solid #8dacff; font-size: 11px; }
 .gantt__span { height: 4px; background: #5b5ee6 !important; opacity: .95; }
 .gantt__bar { height: 36px; border-radius: 6px; background: transparent; border: 2px solid var(--accent); color: #fff; box-shadow: none; }
-.gantt__bar[data-status="active"] { background: linear-gradient(90deg, var(--bar) 0 var(--progress, 60%), #eef4ff var(--progress, 60%)); }
+.gantt__bar[data-status="in_progress"] { background: linear-gradient(90deg, var(--bar) 0 var(--progress, 0%), #eef4ff var(--progress, 0%)); }
 .gantt__bar[data-status="planned"] { background: #f7faff; box-shadow: none; border-color: #5d85ff; }
 .gantt__bar[data-status="done"] { background: #eafbf1; border-color: #22c55e; color: #16a34a; }
-.gantt__bar[data-criticality="critical"] { background: #fff7ed; border-color: #fb923c; color: #ea580c; }
-.gantt__bar-name { display: none; }
+/* Заблокированная — янтарная пилюля со словом на самой полоске, как в макете:
+   состояние достаточно редкое и важное, чтобы называться прямо на ленте. */
+.gantt__bar[data-status="blocked"] { background: #fff4e5; border-color: #f0a63a; color: #b45309; }
+.gantt__bar[data-criticality="critical"]:not([data-status="done"]):not([data-status="blocked"]) { background: #fff7ed; border-color: #fb923c; color: #ea580c; }
 .gantt__progress { display: none; }
+/* Галочка готовой задачи: белый знак в зелёном круге у левого края полоски. */
+.gantt__check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: #22c55e;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+.gantt__bar-blocked {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
 .gantt__ghost { height: 36px; top: 50%; transform: translateY(-50%); background: transparent; border: 2px dashed #bcd0ff; border-radius: 7px; }
 .gantt__mark { top: 13px; height: 42px; width: 4px; border-radius: 3px; background: var(--danger); }
 .gantt__deviation { color: var(--danger); font-size: 15px; font-weight: 800; }
@@ -414,7 +449,9 @@ body:has(.screen--narrow) {
   .project-toolbar__segments { margin-left: auto; }
   .project-toolbar__segments button { min-width: auto; padding: 0 11px; font-size: 13px; }
   .gantt { --gantt-label: 240px; }
-  .gantt__row:not(.gantt__row--category) .gantt__label { padding-left: 46px; }
+  .gantt__row:not(.gantt__row--category) .gantt__cell--task { padding-left: 18px; }
+  /* В узком экране колонкам владельца и статуса места нет: имя важнее. */
+  .gantt__cell--owner, .gantt__cell--status { display: none; }
   .panel { padding: 26px 20px; }
 }
 
@@ -431,3 +468,9 @@ body:has(.screen--narrow) {
   .modal__actions { align-items: stretch; flex-direction: column; }
   .modal__actions button { width: 100%; }
 }
+
+/* Кебаб в шапке — квадрат под остальную высоту кнопок. */
+.project-head__more { width: var(--control); padding: 0; font-size: 20px; letter-spacing: 1px; }
+
+/* Меню тулбара — той же высоты, что сегменты. */
+.project-toolbar .menu__button { height: 40px; }

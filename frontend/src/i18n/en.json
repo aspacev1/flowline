@@ -69,9 +69,12 @@
     }
   },
   "nav": {
+    "home": "Home",
+    "my_tasks": "My tasks",
     "projects": "Projects",
+    "team": "Team",
+    "reports": "Reports",
     "logout": "Log out",
-    "members": "Members",
     "org_settings": "Organization",
     "profile": "Profile"
   },
@@ -137,6 +140,7 @@
     "calendar_too_few_working_days": "The project calendar has too few working days for this duration",
     "progress_out_of_range": "Progress goes from 0 to 100",
     "unknown_criticality": "There is no such criticality level",
+    "unknown_status": "There is no such status",
     "already_assigned": "This person is already assigned to the task",
     "assignment_not_found": "This person is not assigned to the task anyway",
     "negative_position": "Nowhere to put the row: the position is negative",
@@ -217,7 +221,41 @@
     "category_count": {
       "one": "{count} category",
       "other": "{count} categories"
+    },
+    "more": "More actions"
+  },
+  "home": {
+    "title": "Home",
+    "all_projects": "All projects",
+    "greeting": "Hello, {name} — here is your portfolio at a glance",
+    "tasks": {
+      "one": "{count} task",
+      "other": "{count} tasks"
+    },
+    "progress": "{pct}% done",
+    "blocked": {
+      "one": "{count} blocked",
+      "other": "{count} blocked"
     }
+  },
+  "my_tasks": {
+    "title": "My tasks",
+    "empty": {
+      "title": "Nothing is assigned to you",
+      "hint": "Tasks where you are the owner will gather here, across every project"
+    },
+    "overdue": "Past its end date"
+  },
+  "reports": {
+    "title": "Reports",
+    "col": {
+      "project": "Project",
+      "progress": "Done",
+      "overdue": "Overdue",
+      "deadline": "Deadline"
+    },
+    "deadline_late": "{days} late",
+    "deadline_fits": "On track for {date}"
   },
   "category": {
     "create": "New category",
@@ -236,6 +274,12 @@
       "high": "High",
       "critical": "Critical"
     },
+    "status": {
+      "planned": "Planned",
+      "in_progress": "In progress",
+      "done": "Done",
+      "blocked": "Blocked"
+    },
     "panel": {
       "aria": "Task “{name}”",
       "close": "Close the card",
@@ -243,11 +287,18 @@
       "description": "Description",
       "category": "Category",
       "criticality": "Criticality",
+      "status": "Status",
       "start": "Start",
       "duration": "Duration, working days",
       "end": "End",
       "progress": "Done, %",
-      "assignees": "Assignees",
+      "progress_aria": "{pct}% done",
+      "assignees": "Owner",
+      "depends_on": "Depends on",
+      "blocks": "Blocks",
+      "add_link": "Add a link…",
+      "add_link_to": "Add to “{label}”",
+      "unlink": "Remove the link with “{name}”",
       "internal_note": "Internal note",
       "history": "History"
     },
@@ -271,6 +322,7 @@
     "set_duration": "changed the duration from {from} to {to}",
     "set_progress": "changed progress from {from}% to {to}%",
     "set_criticality": "changed criticality from “{from}” to “{to}”",
+    "set_status": "changed the status from “{from}” to “{to}”",
     "set_task_fields": "changed the {fields}",
     "field": {
       "name": "name",
@@ -292,6 +344,7 @@
   "gantt": {
     "empty": "This project has no categories yet. Create a category — tasks live inside it",
   "today": "Today",
+  "moved": "Task moved to {date}",
   "toolbar": {
     "label": "Project timeline controls",
     "previous": "Show the previous period",
@@ -299,7 +352,26 @@
     "zoom": "Timeline scale",
     "day": "Day",
     "week": "Week",
-    "month": "Month"
+    "month": "Month",
+    "filter": "Filter",
+    "view": "View"
+  },
+  "filter": {
+    "status": "Status",
+    "owner": "Owner",
+    "all": "Anyone",
+    "clear": "Clear the filter"
+  },
+  "view": {
+    "baseline": "Baseline plan",
+    "legend": "Legend",
+    "summary": "Deadline summary",
+    "caption": "Footnote"
+  },
+  "col": {
+    "task": "Task",
+    "owner": "Owner",
+    "status": "Status"
   },
     "reorder": "Reorder “{name}”",
     "deadline": "Deadline {date}",
@@ -315,18 +387,9 @@
     "nudge": "Move “{name}” by {days}?",
     "nudge_dismiss": "Dismiss the suggestion",
     "legend": {
-      "active": "In progress",
-      "done": "Done",
-      "planned": "Planned",
       "blocker": "Blocker",
       "late": "Deadline missed · +N days"
     },
-    "pill": {
-      "blocker": "blocker",
-      "blocks": "Blocks: {names}",
-      "waits": "waits for: {name}"
-    },
-    "tasks_col": "Tasks",
     "task_count": {
       "one": "{count} task",
       "other": "{count} tasks"
@@ -475,7 +538,8 @@
   },
   "undo": {
     "last": "Undo: {what}",
-    "batch": "Undo the whole batch"
+    "batch": "Undo the whole batch",
+    "action": "Undo"
   },
   "settings": {
     "timezone": "Time zone",

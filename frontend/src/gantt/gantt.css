@@ -83,6 +83,11 @@
   box-shadow: inset 0 0 0 1.5px var(--text-faint);
 }
 
+/* «Заблокировано» — янтарь, единый со стилем полоски и плашки статуса. */
+.gantt__swatch[data-status="blocked"] {
+  background: #f0a63a;
+}
+
 .gantt__swatch[data-criticality="critical"] {
   background: var(--bar-critical);
 }
@@ -361,6 +366,38 @@
   color: var(--text-muted);
 }
 
+/* Три ячейки закреплённой колонки: задача, владелец, статус — как в макете.
+   Ширины владельца и статуса фиксированы, имя забирает остаток: имя —
+   единственное, что умеет обрезаться многоточием без потери смысла. */
+.gantt__cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.gantt__cell--task {
+  flex: 1 1 auto;
+}
+
+.gantt__cell--owner {
+  flex: 0 0 76px;
+}
+
+.gantt__cell--status {
+  flex: 0 0 118px;
+}
+
+.gantt__no-owner {
+  color: var(--text-faint);
+}
+
+/* Процент готовности категории — свёртка, а не статус: числом, без плашки. */
+.gantt__percent {
+  font-weight: 700;
+  color: var(--accent);
+}
+
 .gantt__label-name {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -377,46 +414,9 @@
   color: var(--text-muted);
 }
 
-.gantt__dot {
-  flex: 0 0 auto;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
 .gantt__flag {
   color: var(--danger);
   font-weight: 700;
-}
-
-/* Пилюли связей в левой колонке: «блокер» у источника, «ждёт: имя» у
-   приёмника. Название уступает им место последним — пилюля без текста
-   бессмысленна, а имя задачи хотя бы обрезается узнаваемо. */
-.gantt__pill {
-  flex: 0 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding: 1px 7px;
-  border-radius: var(--radius-lg);
-  background: var(--hover);
-  color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 600;
-}
-
-.gantt__pill--blocker {
-  flex: 0 0 auto;
-  background: var(--danger-soft);
-  color: var(--danger);
-}
-
-/* «+N дн.» — той же тревожной парой цветов, что и блокер. */
-.gantt__pill--late {
-  flex: 0 0 auto;
-  background: var(--danger-soft);
-  color: var(--danger);
 }
 
 /* Шеврон сворачивания категории — молчаливая кнопка, как ручка и плюс. */
@@ -436,15 +436,6 @@
 .gantt__chevron:hover {
   color: var(--text);
   background: transparent;
-}
-
-/* Счётчик задач у категории: примечание, а не данные. */
-.gantt__count {
-  flex: 0 0 auto;
-  font-size: 11px;
-  font-style: italic;
-  color: var(--text-muted);
-  white-space: nowrap;
 }
 
 /* Ручка перетаскивания: появляется при наведении на строку. Постоянно видимая
@@ -615,6 +606,14 @@
 .gantt__bar[data-status="planned"]:hover {
   background: transparent;
   box-shadow: inset 0 0 0 1.5px var(--text-faint);
+}
+
+/* Заблокированная — янтарная: состояние назначил человек, и полоска называет
+   его цветом и словом (см. Row). */
+.gantt__bar[data-status="blocked"],
+.gantt__bar[data-status="blocked"]:hover {
+  background: #f7e2bd;
+  box-shadow: none;
 }
 
 /* Блокер — критическая задача: залита тревожным цветом поверх любого статуса,

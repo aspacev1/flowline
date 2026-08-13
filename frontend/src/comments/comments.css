@@ -31,9 +31,20 @@
 /* Реплика подсвечивается при наведении целиком: так видно её границы, когда
    в ленте подряд идут короткие ответы одного человека. */
 .comment {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
   padding: 8px;
   border-radius: var(--radius);
   transition: background 20ms ease-in;
+}
+
+.comment__content {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .comment:hover {

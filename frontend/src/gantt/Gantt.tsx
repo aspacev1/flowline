@@ -1,8 +1,13 @@
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 
-import type { Category, ProjectState, Task } from "../api/projects";
+import { MEMBERS_QUERY_KEY, members as fetchMembers } from "../api/org";
+import { TASK_STATUSES } from "../api/projects";
+import type { Category, ProjectState, Task, TaskStatus } from "../api/projects";
+import { Menu } from "../components/Menu";
 import { endShiftDays, isBeyondPlan } from "../project/baseline";
+import { progressOf } from "../project/progress";
 import { formatDate, formatMonth, formatShortDate, weekdayNarrow } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
 import { Grid } from "./Grid";
@@ -15,6 +20,14 @@ import { DAY_WIDTH, ROW_HEIGHT, projectWindow } from "./scale";
 import { buildScale, daysBetween, toISO } from "./timescale";
 
 import "./gantt.css";
+
+/** Что из необязательных слоёв показывать. Состояние экрана, не проекта. */
+type ViewFlags = {
+  baseline: boolean;
+  legend: boolean;
+  summary: boolean;
+  caption: boolean;
+};
 
 /**
  * Порядок строк — по позиции, а при равенстве по идентификатору.
@@ -54,6 +67,45 @@ export function Gantt({
   const reorder = useReorder({ projectId, state, canWrite });
   const reducedMotion = usePrefersReducedMotion();
   const [zoom, setZoom] = useState<"day" | "week" | "month">("week");
+
+  // Имена для колонки «Владелец». Отказ — не ошибка ленты: гостю и роли
+  // `client` состав не отдаётся, и колонка честно показывает прочерки.
+  const membersQuery = useQuery({
+    queryKey: MEMBERS_QUERY_KEY,
+    queryFn: fetchMembers,
+    retry: false,
+    staleTime: Infinity,
+  });
+  const memberName = new Map((membersQuery.data ?? []).map((member) => [member.id, member.name]));
+
+  // Фильтр — состояние экрана: сосед по проекту не должен получать чужой
+  // фильтр, поэтому он не уходит ни на сервер, ни в адрес.
+  const [statusFilter, setStatusFilter] = useState<ReadonlySet<TaskStatus>>(new Set());
+  const [ownerFilter, setOwnerFilter] = useState<string>("");
+  const filterActive = statusFilter.size > 0 || ownerFilter !== "";
+  const passesFilter = (task: Task) =>
+    (statusFilter.size === 0 || statusFilter.has(task.status)) &&
+    (ownerFilter === "" || task.assignee_ids.includes(ownerFilter));
+  const toggleStatusFilter = (status: TaskStatus) =>
+    setStatusFilter((current) => {
+      const next = new Set(current);
+      if (next.has(status)) next.delete(status);
+      else next.add(status);
+      return next;
+    });
+
+  // Необязательные слои. Базовый план и сводка по дедлайну видны сразу:
+  // первый — язык отклонений, вторая — единственная цифра, которая
+  // по-настоящему интересует заказчика. Легенда и сноска ждут, пока их
+  // попросят через «Вид», — как в макете, где их нет вовсе.
+  const [view, setView] = useState<ViewFlags>({
+    baseline: true,
+    legend: false,
+    summary: true,
+    caption: false,
+  });
+  const toggleView = (flag: keyof ViewFlags) =>
+    setView((current) => ({ ...current, [flag]: !current[flag] }));
 
   // Свёрнутые категории. Состояние экрана, а не проекта: сосед по проекту не
   // должен получать чужие свёртки, поэтому оно не уходит на сервер.
@@ -113,30 +165,18 @@ export function Gantt({
   };
 
   const categories = byPosition(state.categories);
+  // Две раскладки по категориям: полная — для полосы охвата и процента
+  // категории (фильтр прячет строки, но не меняет, чем категория является),
+  // отфильтрованная — для строк, номеров строк и стрелок.
+  const allByCategory = new Map<string, Task[]>();
   const tasksByCategory = new Map<string, Task[]>();
   for (const task of byPosition(state.tasks)) {
-    const bucket = tasksByCategory.get(task.category_id);
-    if (bucket) bucket.push(task);
-    else tasksByCategory.set(task.category_id, [task]);
+    allByCategory.set(task.category_id, [...(allByCategory.get(task.category_id) ?? []), task]);
+    if (!passesFilter(task)) continue;
+    tasksByCategory.set(task.category_id, [...(tasksByCategory.get(task.category_id) ?? []), task]);
   }
 
   const isLate = (task: Task) => state.deadline !== null && task.end_date > state.deadline;
-
-  // Пилюли связей в левой колонке: у источника — «блокер», у приёмника —
-  // «ждёт: имя». Считаются по списку зависимостей, а не хранятся у задачи:
-  // второго признака, который обязан совпадать со связями, быть не должно.
-  const nameOf = new Map(state.tasks.map((task) => [task.id, task.name]));
-  const blocksOf = new Map<string, string[]>();
-  const waitsOf = new Map<string, string[]>();
-  for (const link of state.dependencies) {
-    const from = nameOf.get(link.from_task_id);
-    const to = nameOf.get(link.to_task_id);
-    // Связь без задачи не рисуется и стрелкой (см. Arrows) — пилюля из неё
-    // тоже не делается.
-    if (from === undefined || to === undefined) continue;
-    blocksOf.set(link.from_task_id, [...(blocksOf.get(link.from_task_id) ?? []), to]);
-    waitsOf.set(link.to_task_id, [...(waitsOf.get(link.to_task_id) ?? []), from]);
-  }
 
   /** Подпись бейджа отклонения. Ноль дней бейджа не получает: он ни о чём.
       Единица — короткая («дн.»), как в макете: подпись стоит вплотную к
@@ -182,10 +222,13 @@ export function Gantt({
       // этим.
       style={{ "--gantt-row": `${ROW_HEIGHT}px` } as CSSProperties}
     >
-      {toolbarAction !== undefined && (
-        <div className="project-toolbar" aria-label={t("gantt.toolbar.label")}>
+      {/* Тулбар видит и читатель: масштаб, «Сегодня» и фильтр — способы
+          смотреть, а не менять, и прятать их от гостя не за что. */}
+      <div className="project-toolbar" aria-label={t("gantt.toolbar.label")}>
           {toolbarAction}
-          <span className="project-toolbar__divider" aria-hidden="true" />
+          {toolbarAction !== undefined && (
+            <span className="project-toolbar__divider" aria-hidden="true" />
+          )}
           <button
             type="button"
             className="button--quiet"
@@ -226,11 +269,80 @@ export function Gantt({
               </button>
             ))}
           </span>
-        </div>
-      )}
-      <Summary state={state} formatDay={formatDay} />
 
-      {categories.length > 0 && <Legend />}
+          {/* Фильтр — с точкой на кнопке, пока он не пуст: спрятанные фильтром
+              задачи иначе читаются как пропавшие. */}
+          <Menu label={t("gantt.toolbar.filter")} active={filterActive}>
+            <p className="menu__title">{t("gantt.filter.status")}</p>
+            {TASK_STATUSES.map((status) => (
+              <label key={status} className="menu__item">
+                <input
+                  type="checkbox"
+                  checked={statusFilter.has(status)}
+                  onChange={() => toggleStatusFilter(status)}
+                />
+                {t(`task.status.${status}`)}
+              </label>
+            ))}
+            {membersQuery.data && membersQuery.data.length > 0 && (
+              <>
+                <div className="menu__sep" aria-hidden="true" />
+                <p className="menu__title">{t("gantt.filter.owner")}</p>
+                <label className="menu__item">
+                  <select
+                    value={ownerFilter}
+                    aria-label={t("gantt.filter.owner")}
+                    onChange={(event) => setOwnerFilter(event.target.value)}
+                  >
+                    <option value="">{t("gantt.filter.all")}</option>
+                    {membersQuery.data.map((member) => (
+                      <option key={member.id} value={member.id}>
+                        {member.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+            )}
+            {filterActive && (
+              <>
+                <div className="menu__sep" aria-hidden="true" />
+                <button
+                  type="button"
+                  className="menu__item"
+                  onClick={() => {
+                    setStatusFilter(new Set());
+                    setOwnerFilter("");
+                  }}
+                >
+                  {t("gantt.filter.clear")}
+                </button>
+              </>
+            )}
+          </Menu>
+
+          {/* «Вид» включает слои, которых нет в макете, но которые уже есть в
+              продукте: легенду, сводку по дедлайну, сноску и призрак базового
+              плана. Так они перестают быть спрятанной стилем разметкой. */}
+          <Menu label={t("gantt.toolbar.view")}>
+            {(
+              [
+                ["baseline", t("gantt.view.baseline")],
+                ["legend", t("gantt.view.legend")],
+                ["summary", t("gantt.view.summary")],
+                ["caption", t("gantt.view.caption")],
+              ] as const
+            ).map(([flag, label]) => (
+              <label key={flag} className="menu__item">
+                <input type="checkbox" checked={view[flag]} onChange={() => toggleView(flag)} />
+                {label}
+              </label>
+            ))}
+          </Menu>
+      </div>
+      {view.summary && <Summary state={state} formatDay={formatDay} />}
+
+      {view.legend && categories.length > 0 && <Legend />}
 
       {categories.length === 0 ? (
         <p className="empty gantt__empty">{t("gantt.empty")}</p>
@@ -240,7 +352,15 @@ export function Gantt({
           <div className="gantt__canvas">
             <div className="gantt__head-row">
               <div className="gantt__label gantt__corner">
-                <span className="gantt__corner-label">{t("gantt.tasks_col")}</span>
+                <span className="gantt__cell gantt__cell--task">
+                  <span className="gantt__corner-label">{t("gantt.col.task")}</span>
+                </span>
+                <span className="gantt__cell gantt__cell--owner">
+                  <span className="gantt__corner-label">{t("gantt.col.owner")}</span>
+                </span>
+                <span className="gantt__cell gantt__cell--status">
+                  <span className="gantt__corner-label">{t("gantt.col.status")}</span>
+                </span>
               </div>
               <Header
                 scale={scale}
@@ -266,7 +386,11 @@ export function Gantt({
 
               <Arrows
                 scale={scale}
-                tasks={state.tasks}
+                // Отфильтрованные задачи стрелок не получают: стрелка к
+                // спрятанной строке указывала бы в пустоту. rowOf этих задач и
+                // так не знает — список здесь сужен для честности, а не для
+                // геометрии.
+                tasks={state.tasks.filter(passesFilter)}
                 dependencies={state.dependencies}
                 rowOf={rowOf}
                 rows={rowCount}
@@ -275,12 +399,15 @@ export function Gantt({
               <div className="gantt__rows">
                 {categories.map((category: Category) => {
                   const tasks = tasksByCategory.get(category.id) ?? [];
+                  const progress = progressOf(allByCategory.get(category.id) ?? []);
                   const open = !closed.has(category.id);
                   return (
                     <div key={category.id} className="gantt__group">
                       <CategoryRow
                         category={category}
-                        tasks={tasks}
+                        // Полоса охвата и процент — по всем задачам категории:
+                        // фильтр прячет строки, но не переписывает итоги.
+                        tasks={allByCategory.get(category.id) ?? []}
                         scale={scale}
                         addLabel={t("task.add_to", { category: category.name })}
                         onAddTask={onAddTask}
@@ -288,7 +415,7 @@ export function Gantt({
                         open={open}
                         onToggle={() => toggleCategory(category.id)}
                         toggleLabel={t("gantt.toggle_category", { name: category.name })}
-                        countLabel={t("gantt.task_count", { count: tasks.length })}
+                        progressLabel={progress === null ? undefined : `${progress}%`}
                       />
                       {open &&
                         tasks.map((task) => (
@@ -297,7 +424,6 @@ export function Gantt({
                           projectId={projectId}
                           task={task}
                           scale={scale}
-                          today={today}
                           canWrite={canWrite}
                           late={isLate(task)}
                           lateLabel={t("gantt.late")}
@@ -310,17 +436,11 @@ export function Gantt({
                           beyondPlanLabel={t("gantt.beyond_plan")}
                           baselineLabel={baselineLabel(task)}
                           deviationLabel={deviationLabel(task)}
-                          blockerPill={blocksOf.has(task.id) ? t("gantt.pill.blocker") : undefined}
-                          blockerTitle={
-                            blocksOf.has(task.id)
-                              ? t("gantt.pill.blocks", { names: blocksOf.get(task.id)!.join(", ") })
-                              : undefined
-                          }
-                          waitsPill={
-                            waitsOf.has(task.id)
-                              ? t("gantt.pill.waits", { name: waitsOf.get(task.id)!.join(", ") })
-                              : undefined
-                          }
+                          owners={task.assignee_ids
+                            .map((id) => memberName.get(id))
+                            .filter((name): name is string => name !== undefined)}
+                          statusLabel={t(`task.status.${task.status}`)}
+                          showBaseline={view.baseline}
                         />
                       ))}
                     </div>
@@ -330,9 +450,9 @@ export function Gantt({
             </div>
           </div>
         </div>
-        {/* Сноска под лентой, как в макете: расшифровка засечки и стрелки —
-            двух знаков, которые не объясняются легендой из плашек. */}
-        <p className="gantt__caption">{t("gantt.caption")}</p>
+        {/* Сноска под лентой: расшифровка засечки и стрелки — двух знаков,
+            которые не объясняются легендой из плашек. Включается в «Виде». */}
+        {view.caption && <p className="gantt__caption">{t("gantt.caption")}</p>}
         </>
       )}
     </div>
@@ -348,13 +468,12 @@ export function Gantt({
  */
 function Legend() {
   const { t } = useLocale();
-  const statuses = ["active", "done", "planned"] as const;
   return (
     <p className="gantt__legend">
-      {statuses.map((status) => (
+      {TASK_STATUSES.map((status) => (
         <span key={status} className="gantt__legend-item">
           <i className="gantt__swatch" data-status={status} aria-hidden="true" />
-          {t(`gantt.legend.${status}`)}
+          {t(`task.status.${status}`)}
         </span>
       ))}
       <span className="gantt__legend-item">
