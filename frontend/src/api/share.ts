@@ -23,9 +23,16 @@ export function getShare(projectId: string): Promise<Share> {
   return request<Share>(`/api/projects/${projectId}/share`);
 }
 
-/** Выпускает ссылку. Повторный вызов — «перевыпустить»: старый адрес умирает. */
+/** Первый выпуск ссылки. Если она уже есть, сервер ответит 409 — повтор
+ * запроса не убивает только что разосланный адрес. */
 export function issueShare(projectId: string): Promise<Share> {
   return request<Share>(`/api/projects/${projectId}/share`, { method: "POST" });
+}
+
+/** Перевыпуск: старый адрес умирает мгновенно. Отдельный вызов, чтобы
+ * «создать» и «убить прежний» нельзя было перепутать ретраем. */
+export function rotateShare(projectId: string): Promise<Share> {
+  return request<Share>(`/api/projects/${projectId}/share/rotate`, { method: "POST" });
 }
 
 export function setShareComments(projectId: string, enabled: boolean): Promise<Share> {

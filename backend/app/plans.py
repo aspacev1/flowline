@@ -103,6 +103,60 @@ def approve_plan(db: DbSession, project: Project, *, actor_id: uuid.UUID | None)
     return version
 
 
+class PlanVersionNotFound(Exception):
+    """Названной версии у проекта нет."""
+
+
+def restore_plan_version(
+    db: DbSession, project: Project, version: int, *, actor_id: uuid.UUID | None
+) -> PlanVersion:
+    """Возвращает базовый план к обещаниям версии `version`.
+
+    Утверждение перестаёт быть необратимым: нажатый по ошибке «Утвердить»
+    переписывал baseline у всех задач, и вернуть прежнее обещание было нечем —
+    снимок лежал в летописи мёртвым грузом. Восстановление трогает только
+    baseline_*: текущие даты задач — реальность, а не обещание, и откат
+    обещания не должен двигать реальность.
+
+    Результат — новая версия с тем же снимком, а не подмена текущей: летопись
+    осталась летописью, и в ней видно, что обещание вернули к версии N.
+
+    Задачи, созданные после версии N, в снимке отсутствуют — их baseline
+    очищается: относительно возвращённого обещания они «сверх плана».
+    """
+    db.execute(select(Project.id).where(Project.id == project.id).with_for_update())
+
+    source = db.scalar(
+        select(PlanVersion).where(
+            PlanVersion.project_id == project.id, PlanVersion.version == version
+        )
+    )
+    if source is None:
+        raise PlanVersionNotFound(str(version))
+
+    tasks = db.scalars(select(Task).where(Task.project_id == project.id)).all()
+    for task in tasks:
+        promised = source.snapshot.get(str(task.id))
+        if promised is None:
+            task.baseline_start = None
+            task.baseline_duration = None
+        else:
+            task.baseline_start = date.fromisoformat(promised["start_date"])
+            task.baseline_duration = promised["duration_days"]
+
+    project.plan_version += 1
+    project.plan_approved_at = datetime.now(timezone.utc)
+    restored = PlanVersion(
+        project_id=project.id,
+        version=project.plan_version,
+        approved_by=actor_id,
+        snapshot=source.snapshot,
+    )
+    db.add(restored)
+    db.flush()
+    return restored
+
+
 def plan_versions(db: DbSession, project: Project) -> list[PlanVersion]:
     """Все версии плана, новые сверху."""
     return list(

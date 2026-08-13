@@ -8,7 +8,7 @@
 import uuid
 from collections.abc import Sequence
 
-from sqlalchemy import select
+from sqlalchemy import select, tuple_
 from sqlalchemy.orm import Session as DbSession
 
 from app.config import get_settings
@@ -97,17 +97,32 @@ def add_comment(
     return comment
 
 
+#: Сколько реплик отдаётся, если вызывающий не сказал иначе, и больше чего
+#: не отдаётся никогда. Потолок — не украшение: лента с годами переписки
+#: иначе приезжает целиком на каждое открытие карточки.
+DEFAULT_COMMENTS_LIMIT = 100
+MAX_COMMENTS_LIMIT = 200
+
+
 def list_comments(
     db: DbSession,
     project: Project,
     *,
     task_id: uuid.UUID | None = None,
     include_internal: bool = True,
+    limit: int = DEFAULT_COMMENTS_LIMIT,
+    before: uuid.UUID | None = None,
 ) -> Sequence[Comment]:
     """Лента проекта, при желании — одной задачи.
 
     Старые сверху: разговор читается сверху вниз, в отличие от журнала
-    ревизий, где нужна последняя запись.
+    ревизий, где нужна последняя запись. Отдаётся хвост разговора — последние
+    `limit` реплик до курсора `before`; «показать раньше» листает назад,
+    передавая id старейшей показанной реплики.
+
+    Курсор — пара (created_at, id), а не одна метка времени: две реплики
+    одной транзакции по времени неразличимы, и страница по голому времени
+    то теряла бы, то дублировала одну из них.
 
     include_internal=False — лента глазами гостя публичной ссылки: реплики
     «в сторону» в неё не попадают. Фильтр здесь, а не в маршруте: маршрутов,
@@ -118,7 +133,20 @@ def list_comments(
         query = query.where(Comment.task_id == task_id)
     if not include_internal:
         query = query.where(Comment.internal.is_(False))
-    return db.scalars(query.order_by(Comment.created_at, Comment.id)).all()
+
+    if before is not None:
+        anchor = db.get(Comment, before)
+        if anchor is None or anchor.project_id != project.id:
+            raise CommentRejected("comment_not_found", "курсор не найден в этом проекте")
+        query = query.where(
+            tuple_(Comment.created_at, Comment.id) < tuple_(anchor.created_at, anchor.id)
+        )
+
+    limit = max(1, min(limit, MAX_COMMENTS_LIMIT))
+    rows = db.scalars(
+        query.order_by(Comment.created_at.desc(), Comment.id.desc()).limit(limit)
+    ).all()
+    return list(reversed(rows))
 
 
 def author_names(db: DbSession, comments: Sequence[Comment]) -> dict[uuid.UUID, str]:

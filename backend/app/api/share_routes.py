@@ -15,11 +15,14 @@ from app.api.deps import ProjectContext, project_context
 from app.db import get_db
 from app.models import ShareLink
 from app.sharing import (
+    AlreadyShared,
+    NotShared,
     SharingDisabled,
     active_link,
-    issue_link,
+    create_link,
     public_url,
     revoke_link,
+    rotate_link,
     set_comments_enabled,
     sharing_allowed,
 )
@@ -74,13 +77,31 @@ def get_share(context: ProjectContext = Depends(project_context), db: DbSession 
 def issue_share(
     context: ProjectContext = Depends(project_context), db: DbSession = Depends(get_db)
 ):
-    """Выпускает ссылку. Повторный вызов — это «перевыпустить»: прежний адрес
-    умирает в тот же момент."""
+    """Первый выпуск ссылки. Если она уже есть — 409, а не тихий перевыпуск:
+    повтор запроса (двойной клик, ретрай сети) не должен убивать только что
+    разосланный адрес. Перевыпуск — отдельный маршрут ниже."""
     context.require(Action.PROJECT_ADMIN)
     try:
-        link = issue_link(db, context.project, context.org)
+        link = create_link(db, context.project, context.org)
     except SharingDisabled:
         raise HTTPException(status_code=403, detail="sharing_disabled")
+    except AlreadyShared:
+        raise HTTPException(status_code=409, detail="share_link_exists")
+    return _out(context, link)
+
+
+@router.post("/{project_id}/share/rotate", response_model=ShareOut, status_code=201)
+def rotate_share(
+    context: ProjectContext = Depends(project_context), db: DbSession = Depends(get_db)
+):
+    """Перевыпуск: прежний адрес умирает в тот же момент."""
+    context.require(Action.PROJECT_ADMIN)
+    try:
+        link = rotate_link(db, context.project, context.org)
+    except SharingDisabled:
+        raise HTTPException(status_code=403, detail="sharing_disabled")
+    except NotShared:
+        raise HTTPException(status_code=404, detail="share_link_not_found")
     return _out(context, link)
 
 

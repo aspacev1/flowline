@@ -6,7 +6,7 @@
 """
 
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from functools import lru_cache
 from pathlib import Path
 
@@ -14,6 +14,8 @@ import yaml
 from sqlalchemy.orm import Session as DbSession
 
 from app.ai.provider import LlmError, LlmProvider
+from app.calendar import end_date, first_working_on_or_after
+from app.settings_resolution import project_calendar
 from app.ai.schemas import (
     DRAFT_SCHEMA,
     QUESTION_SCHEMA,
@@ -356,6 +358,12 @@ def apply_split(
     """
     split = parse(Split, {"parts": parts})
     batch_id = uuid.uuid4()
+    # Части раскладываются по календарю проекта, а не по календарным дням:
+    # длительность задана в рабочих днях, и часть на «5 дней», начатая в
+    # среду, кончается во вторник, а не в понедельник. Прежний счёт по
+    # ordinal смещал каждую следующую часть на выходные всех предыдущих.
+    org = db.get(Organization, project.org_id)
+    cal = project_calendar(project, org)
     start = task.start_date
     for part in split.parts:
         apply_op(
@@ -372,8 +380,8 @@ def apply_split(
             actor_id=actor.id,
             batch_id=batch_id,
         )
-        # Части идут подряд, а не одна поверх другой: календарь считает сервер,
-        # и точная дата поправится перетаскиванием — но накладывать их друг на
-        # друга по умолчанию значит предлагать заведомо неверный план.
-        start = date.fromordinal(start.toordinal() + part.duration_days)
+        # Части идут подряд, а не одна поверх другой: следующая начинается с
+        # первого рабочего дня после конца предыдущей.
+        finished = end_date(start, part.duration_days, cal)
+        start = first_working_on_or_after(finished + timedelta(days=1), cal)
     return batch_id

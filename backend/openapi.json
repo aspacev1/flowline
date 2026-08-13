@@ -1210,7 +1210,6 @@
           },
           "description": {
             "default": "",
-            "maxLength": 4000,
             "title": "Description",
             "type": "string"
           },
@@ -1221,7 +1220,6 @@
           },
           "internal_note": {
             "default": "",
-            "maxLength": 4000,
             "title": "Internal Note",
             "type": "string"
           },
@@ -1529,13 +1527,11 @@
         "properties": {
           "description": {
             "default": "",
-            "maxLength": 4000,
             "title": "Description",
             "type": "string"
           },
           "internal_note": {
             "default": "",
-            "maxLength": 4000,
             "title": "Internal Note",
             "type": "string"
           },
@@ -4066,7 +4062,7 @@
     },
     "/api/projects/{project_id}/comments": {
       "get": {
-        "description": "Лента проекта — та же самая, что видна на публичной странице.\n\nГостевые реплики приходят участнику вместе с остальными: смысл публичной\nссылки в том, чтобы разговор с клиентом жил в проекте, а не в почте.",
+        "description": "Лента проекта — та же самая, что видна на публичной странице.\n\nГостевые реплики приходят участнику вместе с остальными: смысл публичной\nссылки в том, чтобы разговор с клиентом жил в проекте, а не в почте.\n\nОтдаётся хвост разговора; «показать раньше» — курсором before.",
         "operationId": "list_project_comments_api_projects__project_id__comments_get",
         "parameters": [
           {
@@ -4094,6 +4090,35 @@
                 }
               ],
               "title": "Task Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
             }
           },
           {
@@ -4149,6 +4174,23 @@
               "format": "uuid",
               "title": "Project Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
             }
           },
           {
@@ -4216,6 +4258,23 @@
               "format": "uuid",
               "title": "Project Id",
               "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Idempotency-Key"
             }
           },
           {
@@ -4385,6 +4444,73 @@
         ]
       }
     },
+    "/api/projects/{project_id}/plan/approvals/{version}/restore": {
+      "post": {
+        "description": "Возврат обещания к версии из летописи — переутверждение её снимка.\n\nПраво — то же, что у переутверждения: восстановление меняет baseline\nвсех задач ровно так же.",
+        "operationId": "restore_plan_version_route_api_projects__project_id__plan_approvals__version__restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "title": "Version",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "flowline_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Flowline Session"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restore Plan Version Route",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
     "/api/projects/{project_id}/revisions": {
       "get": {
         "description": "Журнал изменений проекта, при желании — одной задачи.\n\nЗапись отдаётся параметрами, а не готовой фразой: язык читателя решается в\nбраузере, и один и тот же перенос обязан читаться на трёх языках. Сервер\nсловарей сообщений не держит сознательно (см. MutationError).\n\nОбратная операция наружу не выходит: она нужна отмене, а отмены пока нет.\nОтдавать её «на будущее» значило бы удваивать вес ленты и заодно удваивать\nповерхность, на которой заметка может утечь.",
@@ -4427,6 +4553,23 @@
               "minimum": 1,
               "title": "Limit",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "before_seq",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before Seq"
             }
           },
           {
@@ -4648,7 +4791,7 @@
         ]
       },
       "post": {
-        "description": "Выпускает ссылку. Повторный вызов — это «перевыпустить»: прежний адрес\nумирает в тот же момент.",
+        "description": "Первый выпуск ссылки. Если она уже есть — 409, а не тихий перевыпуск:\nповтор запроса (двойной клик, ретрай сети) не должен убивать только что\nразосланный адрес. Перевыпуск — отдельный маршрут ниже.",
         "operationId": "issue_share_api_projects__project_id__share_post",
         "parameters": [
           {
@@ -4701,6 +4844,66 @@
           }
         },
         "summary": "Issue Share",
+        "tags": [
+          "sharing"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/share/rotate": {
+      "post": {
+        "description": "Перевыпуск: прежний адрес умирает в тот же момент.",
+        "operationId": "rotate_share_api_projects__project_id__share_rotate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "flowline_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Flowline Session"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rotate Share",
         "tags": [
           "sharing"
         ]
@@ -4940,6 +5143,35 @@
                 }
               ],
               "title": "Task Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
             }
           },
           {

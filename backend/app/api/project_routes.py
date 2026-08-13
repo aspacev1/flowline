@@ -1,6 +1,8 @@
+import logging
 import uuid
+from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -14,7 +16,7 @@ from app.calendar import CalendarError
 from app.comments import CommentRejected, add_comment, list_comments
 from app.db import get_db
 from app.live import hub
-from app.models import Membership, Project, ProjectAccess, Revision, User
+from app.models import IdempotencyRecord, Membership, Project, ProjectAccess, Revision, User
 from app.mutations import (
     MutationError,
     NotFoundInProject,
@@ -31,10 +33,12 @@ from app.mutations import (
 # на который завязан снимок контракта.
 from app.mutations import undo_last as undo_last_revision
 from app.orgs import current_membership
-from app.plans import approve_plan, plan_versions
+from app.plans import PlanVersionNotFound, approve_plan, plan_versions, restore_plan_version
 from app.projects import create_project as create_project_entity
 from app.settings_input import NULLABLE_PROJECT_FIELDS, ProjectSettingsIn, changes
 from app.slugs import slug_check
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
@@ -163,6 +167,7 @@ def _revision_entry(revision: Revision, actor_name: str | None, op: dict) -> dic
 def list_revisions(
     task_id: uuid.UUID | None = None,
     limit: int = Query(default=200, ge=1, le=1000),
+    before_seq: int | None = Query(default=None, ge=1),
     context: ProjectContext = Depends(project_context),
     db: DbSession = Depends(get_db),
 ):
@@ -182,6 +187,11 @@ def list_revisions(
         # выбирать все ревизии проекта и отсеивать их в Python значило бы
         # тащить журнал целиком ради одной карточки.
         query = query.where(Revision.op["task_id"].astext == str(task_id))
+    # Курсор для «показать раньше»: следующая страница начинается со
+    # старейшей записи предыдущей. Номер, а не смещение: журнал растёт с
+    # головы, и OFFSET сдвигался бы с каждой новой ревизией.
+    if before_seq is not None:
+        query = query.where(Revision.seq < before_seq)
     # Новые сверху: ленту читают с последнего события. seq, а не created_at, —
     # две операции одной секунды по времени неразличимы, а по номеру всегда.
     revisions = db.scalars(query.order_by(Revision.seq.desc()).limit(limit)).all()
@@ -255,6 +265,40 @@ def check_project_slug(
     return slug_check(slug, is_taken=taken)
 
 
+def _replayed_response(db: DbSession, project_id: uuid.UUID, key: str) -> dict | None:
+    """Ответ, уже выданный на этот ключ, — или None, если ключ свежий."""
+    return db.scalar(
+        select(IdempotencyRecord.response).where(
+            IdempotencyRecord.project_id == project_id, IdempotencyRecord.key == key
+        )
+    )
+
+
+def _remember_response(
+    db: DbSession, project_id: uuid.UUID, key: str, response: dict
+) -> dict:
+    """Записывает ответ под ключом. При гонке двух одинаковых запросов
+    отдаёт ответ победителя, откатив свою — вторую — попытку целиком."""
+    # Попутная уборка: ключи старше суток — уже не ретраи.
+    db.execute(
+        IdempotencyRecord.__table__.delete().where(
+            IdempotencyRecord.project_id == project_id,
+            IdempotencyRecord.created_at
+            < datetime.now(timezone.utc) - timedelta(hours=24),
+        )
+    )
+    try:
+        with db.begin_nested():
+            db.add(IdempotencyRecord(project_id=project_id, key=key, response=response))
+            db.flush()
+        return response
+    except IntegrityError:
+        # Победитель уже применил операцию и записал ответ — наша попытка
+        # откатывается целиком, чтобы не примениться второй раз.
+        db.rollback()
+        return _replayed_response(db, project_id, key) or response
+
+
 def _publish(
     background: BackgroundTasks, db: DbSession, project_id: uuid.UUID, event: dict
 ) -> None:
@@ -291,6 +335,12 @@ def update_project(
     context.require(Action.PROJECT_ADMIN)
     project = context.project
 
+    # Замок строки проекта — тот же, что у мутаций (apply_op): настройки
+    # календаря и порога двигают раскладку и участвуют в проверке порога, и
+    # правка настроек, идущая вперемешку с применением операции, давала бы
+    # мутации порог до правки, а раскладку — после.
+    db.execute(select(Project.id).where(Project.id == project.id).with_for_update())
+
     updates = changes(payload, nullable=NULLABLE_PROJECT_FIELDS)
     if "slug" in updates and _project_slug_taken(
         db, project.org_id, updates["slug"], except_id=project.id
@@ -305,6 +355,16 @@ def update_project(
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail="slug_taken")
+
+    if updates:
+        # Запись о правке — в журнал приложения: журнал ревизий — история
+        # плана, а не настроек, но след «кто и что поменял» обязан остаться.
+        logger.info(
+            "настройки проекта %s изменил %s: %s",
+            project.id,
+            context.user.id,
+            ", ".join(sorted(updates)),
+        )
 
     response = get_project(context, db)
     if updates:
@@ -438,6 +498,40 @@ def approve_plan_route(
     return payload
 
 
+@router.post("/{project_id}/plan/approvals/{version}/restore", status_code=201)
+def restore_plan_version_route(
+    version: int,
+    background: BackgroundTasks,
+    context: ProjectContext = Depends(project_context),
+    db: DbSession = Depends(get_db),
+):
+    """Возврат обещания к версии из летописи — переутверждение её снимка.
+
+    Право — то же, что у переутверждения: восстановление меняет baseline
+    всех задач ровно так же.
+    """
+    context.require(Action.PLAN_REAPPROVE)
+    try:
+        restored = restore_plan_version(
+            db, context.project, version, actor_id=context.user.id
+        )
+    except PlanVersionNotFound:
+        raise HTTPException(status_code=404, detail="plan_version_not_found")
+    payload = {
+        "version": restored.version,
+        "restored_from": version,
+        "approved_at": restored.approved_at.isoformat(),
+        "tasks": len(restored.snapshot),
+    }
+    _publish(
+        background,
+        db,
+        context.project.id,
+        {"type": "revision", "op": {"type": "plan_approved"}},
+    )
+    return payload
+
+
 @router.get("/{project_id}/plan/approvals")
 def list_plan_versions(
     context: ProjectContext = Depends(project_context), db: DbSession = Depends(get_db)
@@ -475,10 +569,19 @@ def apply_mutation(
     background: BackgroundTasks,
     op: PublicOp = Body(..., embed=True),
     reason: str | None = Body(default=None),
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key", max_length=120),
     context: ProjectContext = Depends(project_context),
     db: DbSession = Depends(get_db),
 ):
     context.require(Action.PROJECT_WRITE)
+
+    # Ключ идемпотентности: повтор запроса (ретрай сети, двойной клик)
+    # получает первый ответ, а не второе применение — «сдвинуть на день»
+    # дважды — это сдвиг на два дня.
+    if idempotency_key:
+        replayed = _replayed_response(db, context.project.id, idempotency_key)
+        if replayed is not None:
+            return replayed
 
     try:
         revision = apply_op(
@@ -494,6 +597,20 @@ def apply_mutation(
     # сокет отдельно — в одной комнате сидят и редактор, и клиент.
     event = {"type": "revision", **_revision_entry(revision, context.user.name, revision.op)}
 
+    seen = {"role": context.role, "project_granted": context.granted}
+    payload = {
+        "seq": revision.seq,
+        "op": visible_op(revision.op, **seen),
+        "inverse": visible_op(revision.inverse, **seen),
+    }
+
+    if idempotency_key:
+        remembered = _remember_response(db, context.project.id, idempotency_key, payload)
+        if remembered is not payload:
+            # Гонка двух одинаковых запросов: наша попытка откатана, победил
+            # первый — его ответ и уходит, рассылать нечего.
+            return remembered
+
     # Коммит явный, до постановки рассылки в очередь, и это не перестраховка.
     # Разослать можно только то, что уже лежит в базе: получив сигнал, клиент
     # перезапрашивает проект целиком — и, придя раньше коммита, не увидел бы
@@ -504,17 +621,14 @@ def apply_mutation(
     db.commit()
     background.add_task(hub.publish, context.project.id, event)
 
-    seen = {"role": context.role, "project_granted": context.granted}
-    return {
-        "seq": revision.seq,
-        "op": visible_op(revision.op, **seen),
-        "inverse": visible_op(revision.inverse, **seen),
-    }
+    return payload
 
 
 @router.get("/{project_id}/comments")
 def list_project_comments(
     task_id: uuid.UUID | None = None,
+    limit: int = Query(default=100, ge=1, le=200),
+    before: uuid.UUID | None = None,
     context: ProjectContext = Depends(project_context),
     db: DbSession = Depends(get_db),
 ):
@@ -522,18 +636,34 @@ def list_project_comments(
 
     Гостевые реплики приходят участнику вместе с остальными: смысл публичной
     ссылки в том, чтобы разговор с клиентом жил в проекте, а не в почте.
+
+    Отдаётся хвост разговора; «показать раньше» — курсором before.
     """
-    return comments_out(db, list_comments(db, context.project, task_id=task_id))
+    try:
+        rows = list_comments(
+            db, context.project, task_id=task_id, limit=limit, before=before
+        )
+    except CommentRejected as error:
+        raise HTTPException(status_code=404, detail=error.code)
+    return comments_out(db, rows)
 
 
 @router.post("/{project_id}/comments", status_code=201)
 def create_project_comment(
     payload: CommentIn,
     background: BackgroundTasks,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key", max_length=120),
     context: ProjectContext = Depends(project_context),
     db: DbSession = Depends(get_db),
 ):
     context.require(Action.COMMENT)
+
+    # Тот же механизм, что у мутаций: ретрай сети не должен рождать дубль
+    # реплики.
+    if idempotency_key:
+        replayed = _replayed_response(db, context.project.id, idempotency_key)
+        if replayed is not None:
+            return replayed
     try:
         comment = add_comment(
             db,
@@ -549,6 +679,10 @@ def create_project_comment(
         status = 404 if error.code == "task_not_found" else 422
         raise HTTPException(status_code=status, detail=error.code)
     response = comments_out(db, [comment])[0]
+    if idempotency_key:
+        remembered = _remember_response(db, context.project.id, idempotency_key, response)
+        if remembered is not response:
+            return remembered
     # Событие несёт только факт «в ленте новое», не текст: внутреннюю реплику
     # нельзя раздавать в комнату, где сидит и клиент, а решать по подписчику,
     # как у ревизий, здесь не из чего — тело реплики клиент дочитает по HTTP,

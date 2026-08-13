@@ -47,14 +47,40 @@ def active_link(db: DbSession, project: Project) -> ShareLink | None:
     )
 
 
+class AlreadyShared(Exception):
+    """У проекта уже есть живая ссылка — «создать» здесь не к чему."""
+
+
+class NotShared(Exception):
+    """Живой ссылки нет — «перевыпускать» нечего."""
+
+
+def create_link(db: DbSession, project: Project, org: Organization) -> ShareLink:
+    """Первый выпуск ссылки. Если ссылка уже есть — отказ, а не тихий перевыпуск.
+
+    Разделение с rotate_link — про идемпотентность худшего случая: два клика
+    по «Опубликовать» (или повтор запроса сетью) не должны молча убивать
+    только что разосланный адрес. Убийство адреса — отдельное, явно названное
+    действие.
+    """
+    if active_link(db, project) is not None:
+        raise AlreadyShared
+    return issue_link(db, project, org)
+
+
+def rotate_link(db: DbSession, project: Project, org: Organization) -> ShareLink:
+    """Перевыпуск: старый адрес умирает мгновенно, настройки переезжают."""
+    if active_link(db, project) is None:
+        raise NotShared
+    return issue_link(db, project, org)
+
+
 def issue_link(db: DbSession, project: Project, org: Organization) -> ShareLink:
     """Выпускает ссылку, убивая прежнюю.
 
-    Повторный выпуск — это и есть «перевыпустить»: спецификация обещает, что
-    старый адрес умирает мгновенно, поэтому отдельной операции обновления
-    токена нет. Настройка комментариев переезжает на новую ссылку: человек
-    выключил их сознательно, и перевыпуск адреса — не повод молча включить их
-    обратно.
+    Общее тело create_link и rotate_link. Настройка комментариев переезжает
+    на новую ссылку: человек выключил их сознательно, и перевыпуск адреса —
+    не повод молча включить их обратно.
     """
     if not sharing_allowed(org):
         raise SharingDisabled

@@ -188,8 +188,9 @@ def test_the_whole_way_from_interview_to_the_public_link(client, guest, db, monk
         ("Мария", True),
     ]
 
-    # 9. Перевыпуск ссылки убивает прежнюю мгновенно.
-    fresh = client.post(f"/api/projects/{project_id}/share", json={}).json()
+    # 9. Перевыпуск ссылки убивает прежнюю мгновенно. Отдельный маршрут rotate
+    # (волна 4.6): повтор POST /share разосланный адрес больше не трогает.
+    fresh = client.post(f"/api/projects/{project_id}/share/rotate", json={}).json()
     assert guest.get(path).status_code == 404
     assert guest.get(_public_path(fresh["url"])).status_code == 200
 
