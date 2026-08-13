@@ -294,6 +294,6 @@ describe("диаграмма", () => {
 
     expect(month).toHaveAttribute("aria-pressed", "true");
     expect(container.querySelector(".gantt")).toHaveClass("gantt--month");
-    expect(screen.getByRole("button", { name: "Сегодня" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Показать следующий период" })).toBeInTheDocument();
   });
 });

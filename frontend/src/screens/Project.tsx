@@ -125,26 +125,6 @@ export function Project() {
               // которое сервер отклонит.
               actions={
                 <>
-                  {/* Порядок — по весу действия, и первым стоит главное:
-                      создание задачи. Заливку из всей шапки получает оно одно,
-                      остальные контурные. Пять сплошных плашек подряд не
-                      оставляют главному действию ни единого шанса быть
-                      замеченным, и человек читает их все по очереди каждый раз.
-
-                      Задачу при этом некуда класть, пока нет ни одной
-                      категории: кнопка, открывающая форму с пустым списком
-                      категорий, обещает действие, которое не может
-                      состояться. */}
-                  {canWrite && (
-                    <button
-                      type="button"
-                      className="button--quiet"
-                      disabled={offline}
-                      onClick={() => setAddingCategory(true)}
-                    >
-                      {t("category.create")}
-                    </button>
-                  )}
                   {/* Публикация — действие уровня проекта, поэтому кнопка стоит
                       в его шапке, а не в настройках. Гостю и читателю она не
                       показывается: сервер такую попытку отклонит. */}
@@ -195,15 +175,32 @@ export function Project() {
                 state={query.data}
                 canWrite={editable}
                 toolbarAction={
-                  canWrite && query.data.categories.length > 0 ? (
-                    <button
-                      type="button"
-                      className="project-toolbar__primary"
-                      disabled={offline}
-                      onClick={() => setAddingTaskIn(query.data.categories[0].id)}
-                    >
-                      {t("task.create")}
-                    </button>
+                  canWrite ? (
+                    <>
+                      {/* Сначала категория, потом задача — в порядке, в каком
+                          проект и заполняют: задачу некуда класть, пока нет ни
+                          одной категории, и кнопка задачи до первой категории
+                          не показывается — форма с пустым списком категорий
+                          обещала бы действие, которое не может состояться. */}
+                      <button
+                        type="button"
+                        className="button--quiet"
+                        disabled={offline}
+                        onClick={() => setAddingCategory(true)}
+                      >
+                        {t("category.create")}
+                      </button>
+                      {query.data.categories.length > 0 && (
+                        <button
+                          type="button"
+                          className="project-toolbar__primary"
+                          disabled={offline}
+                          onClick={() => setAddingTaskIn(query.data.categories[0].id)}
+                        >
+                          {t("task.create")}
+                        </button>
+                      )}
+                    </>
                   ) : undefined
                 }
                 onAddTask={editable ? setAddingTaskIn : undefined}
