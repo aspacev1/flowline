@@ -326,7 +326,9 @@
       "blocks": "Blocks: {names}",
       "waits": "waits for: {name}"
     },
-    "tasks_col": "Tasks",
+  "tasks_col": "Tasks",
+  "owner_col": "Owner",
+  "status_col": "Status",
     "task_count": {
       "one": "{count} task",
       "other": "{count} tasks"

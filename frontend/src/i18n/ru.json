@@ -330,7 +330,9 @@
       "blocks": "Блокирует: {names}",
       "waits": "ждёт: {name}"
     },
-    "tasks_col": "Задачи",
+  "tasks_col": "Задачи",
+  "owner_col": "Исполнитель",
+  "status_col": "Статус",
     "task_count": {
       "one": "{count} задача",
       "few": "{count} задачи",

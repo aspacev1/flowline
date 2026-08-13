@@ -76,7 +76,7 @@ export function PlanApproval({
           именно на неё. */}
       <button
         type="button"
-        className={`button--quiet${approved ? " button--alert" : ""}`}
+        className={`button--plan${approved ? " button--quiet button--alert" : ""}`}
         onClick={() => (approved ? setConfirming(true) : mutation.mutate())}
         disabled={mutation.isPending}
       >

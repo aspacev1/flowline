@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 
 import type { Category, ProjectState, Task } from "../api/projects";
+import type { Member } from "../api/org";
 import { endShiftDays, isBeyondPlan } from "../project/baseline";
 import { formatDate, formatMonth, formatShortDate, weekdayNarrow } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
@@ -36,6 +37,7 @@ export function Gantt({
   selectedTaskId = null,
   onSelectTask,
   toolbarAction,
+  members = [],
 }: {
   projectId: string;
   state: ProjectState;
@@ -48,6 +50,8 @@ export function Gantt({
   onSelectTask?: (taskId: string) => void;
   /** Primary project action shown beside the working timeline controls. */
   toolbarAction?: ReactNode;
+  /** Organization members used to render the fixed Owner column. */
+  members?: Member[];
 }) {
   const { t } = useLocale();
   const scroller = useRef<HTMLDivElement>(null);
@@ -126,6 +130,7 @@ export function Gantt({
   // «ждёт: имя». Считаются по списку зависимостей, а не хранятся у задачи:
   // второго признака, который обязан совпадать со связями, быть не должно.
   const nameOf = new Map(state.tasks.map((task) => [task.id, task.name]));
+  const memberNameOf = new Map(members.map((member) => [member.id, member.name]));
   const blocksOf = new Map<string, string[]>();
   const waitsOf = new Map<string, string[]>();
   for (const link of state.dependencies) {
@@ -240,7 +245,9 @@ export function Gantt({
           <div className="gantt__canvas">
             <div className="gantt__head-row">
               <div className="gantt__label gantt__corner">
-                <span className="gantt__corner-label">{t("gantt.tasks_col")}</span>
+                <span className="gantt__task-cell gantt__corner-label">{t("gantt.tasks_col")}</span>
+                <span className="gantt__owner-cell gantt__corner-label">{t("gantt.owner_col")}</span>
+                <span className="gantt__status-cell gantt__corner-label">{t("gantt.status_col")}</span>
               </div>
               <Header
                 scale={scale}
@@ -289,6 +296,11 @@ export function Gantt({
                         onToggle={() => toggleCategory(category.id)}
                         toggleLabel={t("gantt.toggle_category", { name: category.name })}
                         countLabel={t("gantt.task_count", { count: tasks.length })}
+                        progressLabel={`${Math.round(
+                          tasks.length === 0
+                            ? 0
+                            : tasks.reduce((sum, task) => sum + task.progress_pct, 0) / tasks.length,
+                        )}%`}
                       />
                       {open &&
                         tasks.map((task) => (
@@ -320,6 +332,22 @@ export function Gantt({
                             waitsOf.has(task.id)
                               ? t("gantt.pill.waits", { name: waitsOf.get(task.id)!.join(", ") })
                               : undefined
+                          }
+                          assigneeNames={task.assignee_ids.map(
+                            (id) => memberNameOf.get(id) ?? id.slice(0, 2).toUpperCase(),
+                          )}
+                          statusLabel={
+                            task.criticality === "critical" && task.progress_pct < 100
+                              ? t("task.criticality.critical")
+                              : t(
+                                  `gantt.legend.${
+                                    task.progress_pct >= 100
+                                      ? "done"
+                                      : task.start_date > today
+                                        ? "planned"
+                                        : "active"
+                                  }`,
+                                )
                           }
                         />
                       ))}

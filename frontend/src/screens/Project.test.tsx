@@ -34,7 +34,11 @@ const STATE = {
 
 describe("экран проекта", () => {
   it("показывает диаграмму, когда состояние пришло", async () => {
-    server.use(...sessionHandlers(), http.get("/api/projects/p1", () => HttpResponse.json(STATE)));
+    server.use(
+      ...sessionHandlers(),
+      http.get("/api/org/members", () => HttpResponse.json([])),
+      http.get("/api/projects/p1", () => HttpResponse.json(STATE)),
+    );
 
     renderApp({ route: "/projects/p1", locale: "ru" });
 
@@ -59,7 +63,11 @@ describe("экран проекта", () => {
   });
 
   it("пока состояние не пришло, диаграмма не рисуется", async () => {
-    server.use(...sessionHandlers(), http.get("/api/projects/p1", () => HttpResponse.json(STATE)));
+    server.use(
+      ...sessionHandlers(),
+      http.get("/api/org/members", () => HttpResponse.json([])),
+      http.get("/api/projects/p1", () => HttpResponse.json(STATE)),
+    );
 
     renderApp({ route: "/projects/p1", locale: "ru" });
 

@@ -17,7 +17,7 @@ export const DAY_WIDTH = 27;
  * расходятся при первой же правке оформления, и стрелки уезжают со строк.
  * Разметка ставит эту величину переменной `--gantt-row`, и CSS берёт её оттуда.
  */
-export const ROW_HEIGHT = 42;
+export const ROW_HEIGHT = 66;
 
 /** Первое число месяца, в который попала дата. */
 function firstOfMonth(iso: string): string {

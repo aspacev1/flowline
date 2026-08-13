@@ -46,7 +46,9 @@ describe("экран проекта при обрыве связи", () => {
     await goOffline();
 
     expect(screen.getByRole("button", { name: "Новая категория" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Новая задача" })).toBeDisabled();
+    for (const button of screen.getAllByRole("button", { name: "Новая задача" })) {
+      expect(button).toBeDisabled();
+    }
   });
 
   it("не отправляет изменений, пока связи нет", async () => {

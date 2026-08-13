@@ -81,10 +81,13 @@ export function ProjectHead({
           </p>
         </div>
 
-        {actions && <div className="project-head__actions">{actions}</div>}
+        {(planAction || actions) && (
+          <div className="project-head__actions">
+            {showPlan && planAction}
+            {actions}
+          </div>
+        )}
       </div>
-
-      {showPlan && planAction && <div className="project-head__approval">{planAction}</div>}
     </header>
   );
 }

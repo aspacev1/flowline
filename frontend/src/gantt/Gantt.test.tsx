@@ -173,9 +173,9 @@ describe("диаграмма", () => {
 
   it("показывает легенду: статусы, блокер и обе вертикали", () => {
     draw(STATE, "ru");
-    expect(screen.getByText("В работе")).toBeInTheDocument();
-    expect(screen.getByText("Готово")).toBeInTheDocument();
-    expect(screen.getByText("Запланировано")).toBeInTheDocument();
+    expect(screen.getAllByText("В работе").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Готово").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Запланировано").length).toBeGreaterThan(0);
     expect(screen.getByText("Блокер")).toBeInTheDocument();
     expect(screen.getByText("Сегодня")).toBeInTheDocument();
   });

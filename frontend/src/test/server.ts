@@ -11,4 +11,7 @@ import { setupServer } from "msw/node";
  * человек с одной организацией. Тест про переключатель перекрывает его через
  * `server.use`, как и любой другой ответ.
  */
-export const server = setupServer(http.get("/api/org/list", () => HttpResponse.json([])));
+export const server = setupServer(
+  http.get("/api/org/list", () => HttpResponse.json([])),
+  http.get("/api/org/members", () => HttpResponse.json([])),
+);

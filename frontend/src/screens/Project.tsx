@@ -4,6 +4,7 @@ import { Link, useParams } from "react-router-dom";
 
 import { addComment, commentsQueryKey, listComments } from "../api/comments";
 import { errorKey } from "../api/errors";
+import { MEMBERS_QUERY_KEY, members } from "../api/org";
 import { getProject, projectQueryKey } from "../api/projects";
 import { useCanWrite, useOrgRole } from "../auth/permissions";
 import { CommentThread } from "../comments/CommentThread";
@@ -62,6 +63,16 @@ export function Project() {
     // Тот же порядок, что и на публичной странице: пока проект не открылся,
     // спрашивать его ленту не о чем.
     enabled: query.isSuccess,
+  });
+
+  const membersQuery = useQuery({
+    // Separate cache entry from editable forms: the timeline can tolerate an
+    // empty/forbidden owner directory, while a newly opened form must still
+    // make its own current permissions request.
+    queryKey: [...MEMBERS_QUERY_KEY, "timeline"],
+    queryFn: members,
+    retry: false,
+    enabled: query.isSuccess && role !== "client",
   });
 
   const send = useMutation({
@@ -138,6 +149,16 @@ export function Project() {
                     <button
                       type="button"
                       className="button--quiet"
+                      disabled={offline || query.data.categories.length === 0}
+                      onClick={() => setAddingTaskIn(query.data.categories[0]?.id ?? null)}
+                    >
+                      {t("task.create")}
+                    </button>
+                  )}
+                  {canWrite && (
+                    <button
+                      type="button"
+                      className="button--quiet"
                       disabled={offline}
                       onClick={() => setAddingCategory(true)}
                     >
@@ -182,6 +203,7 @@ export function Project() {
                 projectId={projectId}
                 state={query.data}
                 canWrite={editable}
+                members={membersQuery.data ?? []}
                 toolbarAction={
                   canWrite && query.data.categories.length > 0 ? (
                     <button

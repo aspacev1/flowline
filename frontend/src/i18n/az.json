@@ -326,7 +326,9 @@
       "blocks": "Bloklayır: {names}",
       "waits": "gözləyir: {name}"
     },
-    "tasks_col": "Tapşırıqlar",
+  "tasks_col": "Tapşırıqlar",
+  "owner_col": "İcraçı",
+  "status_col": "Status",
     "task_count": {
       "one": "{count} tapşırıq",
       "other": "{count} tapşırıq"

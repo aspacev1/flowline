@@ -26,6 +26,7 @@ export function CategoryRow({
   onToggle,
   toggleLabel,
   countLabel,
+  progressLabel,
 }: {
   category: Category;
   tasks: Task[];
@@ -39,6 +40,8 @@ export function CategoryRow({
   toggleLabel?: string;
   /** «3 задачи» — счётчик рядом с названием, как в макете. */
   countLabel?: string;
+  /** Aggregate completion shown in the fixed Status column. */
+  progressLabel?: string;
 }) {
   const span =
     tasks.length === 0
@@ -57,7 +60,8 @@ export function CategoryRow({
       onPointerUp={() => reorder?.drop()}
     >
       <div className="gantt__label">
-        {onToggle && (
+        <div className="gantt__task-cell">
+          {onToggle && (
           // Шеврон — кнопка сворачивания, как в макете: свёрнутая категория
           // остаётся строкой с полосой охвата, её задачи прячутся.
           <button
@@ -70,11 +74,11 @@ export function CategoryRow({
           >
             {open ? "▾" : "▸"}
           </button>
-        )}
-        <span className="gantt__dot" style={{ background: category.color }} aria-hidden="true" />
-        <span className="gantt__label-name">{category.name}</span>
-        {countLabel && <span className="gantt__count">{countLabel}</span>}
-        {onAddTask && (
+          )}
+          <span className="gantt__dot" style={{ background: category.color }} aria-hidden="true" />
+          <span className="gantt__label-name">{category.name}</span>
+          {countLabel && <span className="gantt__count">{countLabel}</span>}
+          {onAddTask && (
           // Подпись включает название категории: на десятке категорий десять
           // кнопок «Добавить задачу» при чтении с экрана неразличимы, и
           // выбрать нужную нельзя иначе как считая их по порядку.
@@ -87,7 +91,10 @@ export function CategoryRow({
           >
             +
           </button>
-        )}
+          )}
+        </div>
+        <div className="gantt__owner-cell" aria-hidden="true">—</div>
+        <div className="gantt__status-cell gantt__status-cell--progress">{progressLabel}</div>
       </div>
 
       <div className="gantt__lane" style={{ width: scale.width }}>
@@ -136,6 +143,8 @@ export function TaskRow({
   blockerPill,
   blockerTitle,
   waitsPill,
+  assigneeNames = [],
+  statusLabel,
 }: {
   projectId: string;
   task: Task;
@@ -164,6 +173,10 @@ export function TaskRow({
   blockerTitle?: string;
   /** Пилюля «ждёт: имя» у задачи-приёмника связи. */
   waitsPill?: string;
+  /** Human-readable owners for the fixed Owner column. */
+  assigneeNames?: string[];
+  /** Localized computed status for the fixed Status column. */
+  statusLabel?: string;
 }) {
   const { offset, handlers } = useDragDates({ projectId, task, scale, enabled: canWrite });
   const baseline = baselineOf(task);
@@ -185,7 +198,8 @@ export function TaskRow({
       onPointerUp={() => reorder?.drop()}
     >
       <div className="gantt__label">
-        {reorder?.enabled && (
+        <div className="gantt__task-cell">
+          {reorder?.enabled && (
           // Ручка отдельно от полоски: за неё меняют порядок, за полоску —
           // даты.
           //
@@ -207,33 +221,33 @@ export function TaskRow({
           >
             ⠿
           </span>
-        )}
-        <span className="gantt__label-name">{task.name}</span>
-        {blockerPill && (
+          )}
+          <span className="gantt__label-name">{task.name}</span>
+          {blockerPill && (
           // Пилюля «блокер» — рядом с названием, как в макете Broadsheet: кого
           // именно держит задача, видно из подсказки и из стрелок.
           <span className="gantt__pill gantt__pill--blocker" title={blockerTitle}>
             {blockerPill}
           </span>
-        )}
-        {waitsPill && (
+          )}
+          {waitsPill && (
           <span className="gantt__pill" title={waitsPill}>
             {waitsPill}
           </span>
-        )}
-        {shift !== null && shift > 0 && deviationLabel && (
+          )}
+          {shift !== null && shift > 0 && deviationLabel && (
           // «+N дн.» и в левой колонке тоже, как в макете: сдвиг виден и там,
           // где полоска уехала за горизонт прокрутки.
           <span className="gantt__pill gantt__pill--late" title={baselineLabel}>
             {deviationLabel}
           </span>
-        )}
-        {late && (
+          )}
+          {late && (
           <span className="gantt__flag" title={lateLabel} role="img" aria-label={lateLabel}>
             !
           </span>
-        )}
-        {beyondPlan && (
+          )}
+          {beyondPlan && (
           // «Сверх первоначального плана»: задача добавлена после утверждения
           // и базового плана не имеет. Пометка нужна не как украшение — без
           // неё отсутствие призрака под полоской читается как «задача никуда
@@ -246,7 +260,30 @@ export function TaskRow({
           >
             +
           </span>
-        )}
+          )}
+        </div>
+        <div className="gantt__owner-cell">
+          {assigneeNames.length === 0 ? (
+            <span className="gantt__owner-empty">—</span>
+          ) : (
+            <span className="gantt__avatars" title={assigneeNames.join(", ")}>
+              {assigneeNames.slice(0, 3).map((name, index) => (
+                <span className="gantt__avatar" key={`${name}-${index}`} aria-label={name}>
+                  {initials(name)}
+                </span>
+              ))}
+            </span>
+          )}
+        </div>
+        <div className="gantt__status-cell">
+          <span
+            className="gantt__status"
+            data-status={status}
+            data-criticality={task.criticality}
+          >
+            {statusLabel}
+          </span>
+        </div>
       </div>
 
       <div className="gantt__lane" style={{ width: scale.width }}>
@@ -342,6 +379,11 @@ export function TaskRow({
       </div>
     </div>
   );
+}
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return parts.slice(0, 2).map((part) => [...part][0] ?? "").join("").toUpperCase();
 }
 
 /**
