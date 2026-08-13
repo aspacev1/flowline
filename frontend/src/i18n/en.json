@@ -221,6 +221,16 @@
     "category_count": {
       "one": "{count} category",
       "other": "{count} categories"
+    },
+    "metrics": {
+      "label": "Project summary",
+      "total": "Total tasks",
+      "in_progress": "In progress",
+      "blocked": "Blocked",
+      "overdue": "Past project deadline",
+      "not_started": "Not started",
+      "not_planned": "Beyond the plan",
+      "completed": "Completed"
     }
   },
   "home": {

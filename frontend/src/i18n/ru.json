@@ -225,6 +225,16 @@
       "few": "{count} категории",
       "many": "{count} категорий",
       "other": "{count} категории"
+    },
+    "metrics": {
+      "label": "Сводка по проекту",
+      "total": "Всего задач",
+      "in_progress": "В работе",
+      "blocked": "Заблокировано",
+      "overdue": "После дедлайна проекта",
+      "not_started": "Не начато",
+      "not_planned": "Вне плана",
+      "completed": "Завершено"
     }
   },
   "home": {
