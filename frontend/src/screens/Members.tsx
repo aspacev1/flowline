@@ -300,8 +300,10 @@ export function Members() {
     enabled: isOwner,
   });
 
+  // Своего `<main>` у экрана нет: он вкладка раздела настроек, и рама его уже
+  // дала.
   return (
-    <main className="screen">
+    <>
       <div className="screen__head">
         <h1>{t("members.title")}</h1>
         {isOwner && (
@@ -350,6 +352,6 @@ export function Members() {
           <InviteForm onClose={() => setOpen(false)} />
         </Modal>
       )}
-    </main>
+    </>
   );
 }

@@ -71,11 +71,10 @@
   "nav": {
     "my_tasks": "Tapşırıqlarım",
     "projects": "Layihələr",
-    "team": "Komanda",
     "reports": "Hesabatlar",
     "logout": "Çıxış",
     "org_settings": "Təşkilat",
-    "profile": "Profil",
+    "settings": "Parametrlər",
     "sidebar_collapse": "Menyunu gizlət",
     "sidebar_expand": "Menyunu göstər"
   },
@@ -557,6 +556,7 @@
     "inherit": "Təşkilatdan miras al ({value})",
     "slug_taken": "Bu ünvan tutulub. Boş variant:",
     "bad_dates": "Tarix formatı İİİİ-AA-GG olmalıdır: {dates}",
+    "tabs_label": "Parametr bölmələri",
     "org": {
       "title": "Təşkilatın parametrləri",
       "read_only": "Dəyişiklik etmək yalnız sahibin əlindədir",
@@ -570,7 +570,7 @@
     },
     "project": {
       "title": "«{name}» layihəsinin parametrləri",
-      "link": "Parametrlər",
+      "link": "Layihə parametrləri",
       "back": "Diaqrama qayıt",
       "name": "Ad",
       "slug": "Ünvan (slug)",

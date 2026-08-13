@@ -71,11 +71,10 @@
   "nav": {
     "my_tasks": "My tasks",
     "projects": "Projects",
-    "team": "Team",
     "reports": "Reports",
     "logout": "Log out",
     "org_settings": "Organization",
-    "profile": "Profile",
+    "settings": "Settings",
     "sidebar_collapse": "Hide menu",
     "sidebar_expand": "Show menu"
   },
@@ -557,6 +556,7 @@
     "inherit": "Inherit from the organization ({value})",
     "slug_taken": "That address is taken. A free one:",
     "bad_dates": "Dates must look like YYYY-MM-DD: {dates}",
+    "tabs_label": "Settings sections",
     "org": {
       "title": "Organization settings",
       "read_only": "Only the owner can change these",
@@ -570,7 +570,7 @@
     },
     "project": {
       "title": "Settings for “{name}”",
-      "link": "Settings",
+      "link": "Project settings",
       "back": "Back to the chart",
       "name": "Name",
       "slug": "Address (slug)",

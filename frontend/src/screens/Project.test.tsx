@@ -67,17 +67,19 @@ describe("экран проекта", () => {
     await screen.findByRole("button", { name: /Логотип/ });
   });
 
-  it("настройки проекта — пункт бокового меню, а не отдельный кебаб", async () => {
+  it("настройки проекта — в шапке проекта, а не в общем меню и не в кебабе", async () => {
     server.use(...sessionHandlers(), http.get("/api/projects/p1", () => HttpResponse.json(STATE)));
 
     renderApp({ route: "/projects/p1", locale: "ru" });
 
     await screen.findByRole("heading", { name: "Редизайн" });
-    expect(screen.getByRole("link", { name: "Настройки" })).toHaveAttribute(
-      "href",
-      "/projects/p1/settings",
-    );
-    // Кебаб «⋯» больше не рисуется — в нём был единственный пункт, и тот переехал.
+    // Рядом с названием проекта и с подлежащим в подписи: «Настройки» без него
+    // в колонке рядом ведут в настройки рабочего пространства.
+    const settings = screen.getByRole("link", { name: "Настройки проекта" });
+    expect(settings).toHaveAttribute("href", "/projects/p1/settings");
+    expect(settings.closest(".project-head")).not.toBeNull();
+    expect(screen.getByRole("link", { name: "Настройки" })).toHaveAttribute("href", "/settings");
+    // Кебаб «⋯» не рисуется — в нём был единственный пункт, и тот переехал.
     expect(screen.queryByRole("button", { name: /Ещё действия/i })).not.toBeInTheDocument();
   });
 });

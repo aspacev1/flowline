@@ -21,12 +21,20 @@ describe("шапка", () => {
     expect(await screen.findByText("Şəhər Studiyası")).toBeInTheDocument();
   });
 
-  it("показывает, какой язык включён сейчас", async () => {
+  it("ведёт в настройки одним пунктом, а не тремя шестерёнками подряд", async () => {
     renderApp({ route: "/projects", locale: "ru" });
 
-    expect(await screen.findByRole("button", { name: "RU", pressed: true })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "AZ", pressed: false })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "EN", pressed: false })).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Настройки" })).toHaveAttribute(
+      "href",
+      "/settings",
+    );
+    // Организация, участники и профиль стали вкладками внутри — своих пунктов
+    // в колонке у них больше нет.
+    expect(screen.queryByRole("link", { name: "Организация" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Профиль" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Команда" })).toBeNull();
+    // Язык — настройка, и переключатель уехал вместе с ней на экран профиля.
+    expect(screen.queryByRole("group", { name: "Язык интерфейса" })).toBeNull();
   });
 
   it("здоровается с вошедшим только по имени, без фамилии", async () => {

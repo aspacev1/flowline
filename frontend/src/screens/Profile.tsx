@@ -4,7 +4,7 @@ import { ME_QUERY_KEY, updateProfile } from "../api/auth";
 import type { User } from "../api/auth";
 import { errorKey } from "../api/errors";
 import { useAuth } from "../auth/AuthProvider";
-import { SUPPORTED_LOCALES, isSupportedLocale } from "../i18n";
+import { LocaleSwitch } from "../components/LocaleSwitch";
 import { useLocale } from "../i18n/LocaleProvider";
 
 /**
@@ -12,26 +12,31 @@ import { useLocale } from "../i18n/LocaleProvider";
  *
  * Имя рядом с ним — не настройка, а свойство человека; экран один, потому что
  * второй ради одного поля был бы экраном ни о чём.
+ *
+ * Язык переключается тем же `LocaleSwitch`, что стоит на публичной странице, а
+ * не своим собственным `select`: два разных куска кода писали одно и то же
+ * поле профиля и разъезжались бы на первой же правке — один научился бы
+ * применять язык сразу, другой нет. Здесь же он теперь и единственный: из
+ * боковой колонки переключатель убран, потому что язык — настройка, и место
+ * настройки в настройках.
+ *
+ * Своего `<main>` у экрана нет: он вкладка раздела настроек, и рама его уже
+ * дала.
  */
 export function Profile() {
-  const { t, locale, setLocale } = useLocale();
+  const { t } = useLocale();
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
   const save = useMutation({
-    mutationFn: (patch: { name?: string; locale?: string }) => updateProfile(patch),
-    onSuccess: (updated: User) => {
-      queryClient.setQueryData(ME_QUERY_KEY, updated);
-      // Язык применяется сразу, не дожидаясь перезагрузки: человек выбрал его
-      // именно для того, чтобы читать этот экран на нём.
-      if (isSupportedLocale(updated.locale)) setLocale(updated.locale);
-    },
+    mutationFn: (patch: { name?: string }) => updateProfile(patch),
+    onSuccess: (updated: User) => queryClient.setQueryData(ME_QUERY_KEY, updated),
   });
 
   if (!user) return null;
 
   return (
-    <main className="screen">
+    <>
       <div className="screen__head">
         <h1>{t("settings.profile.title")}</h1>
       </div>
@@ -56,25 +61,14 @@ export function Profile() {
           />
         </p>
 
-        <p className="field">
-          <label htmlFor="profile-locale">{t("settings.profile.locale")}</label>
+        {/* `div`, а не `p`, как у соседей: внутри стоит переключатель, а он
+            блочный, и абзац браузер закрыл бы перед ним сам — разметка
+            разъехалась бы ровно там, где её никто не правил. */}
+        <div className="field">
+          <span className="settings__key">{t("settings.profile.locale")}</span>
           <span className="muted">{t("settings.profile.locale_hint")}</span>
-          <select
-            id="profile-locale"
-            name="profile-locale"
-            value={locale}
-            onChange={(event) => save.mutate({ locale: event.target.value })}
-          >
-            {SUPPORTED_LOCALES.map((code) => (
-              // Подписи кодами, а не названиями: «Azərbaycan / English /
-              // Русский» пришлось бы читать на языке, которого человек,
-              // возможно, и не знает, — ровно когда он ищет свой.
-              <option key={code} value={code}>
-                {code.toUpperCase()}
-              </option>
-            ))}
-          </select>
-        </p>
+          <LocaleSwitch />
+        </div>
 
         <p className="field">
           <span className="settings__key">{t("auth.field.email")}</span>
@@ -83,6 +77,6 @@ export function Profile() {
           <span className="muted">{user.email}</span>
         </p>
       </section>
-    </main>
+    </>
   );
 }

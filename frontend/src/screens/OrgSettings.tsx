@@ -16,6 +16,10 @@ import { DateListField, SlugField, WorkingDaysField } from "../settings/fields";
  * сервер само, когда с ним закончили. Форма с кнопкой обещала бы, что до
  * нажатия ничего не произошло, и тогда пришлось бы объяснять, почему уход со
  * страницы теряет правки.
+ *
+ * Своего `<main>` у экрана нет: он вкладка раздела настроек, и рама его уже
+ * дала. Второй `<main>` внутри первого сломал бы переход «к основному
+ * содержимому» — читалка не знает, какой из двух основной.
  */
 export function OrgSettings() {
   const { t } = useLocale();
@@ -34,21 +38,13 @@ export function OrgSettings() {
     onSuccess: (org: Organization) => queryClient.setQueryData(ORG_QUERY_KEY, org),
   });
 
-  if (query.isPending) {
-    return (
-      <main className="screen">
-        <p role="status">{t("common.loading")}</p>
-      </main>
-    );
-  }
+  if (query.isPending) return <p role="status">{t("common.loading")}</p>;
 
   if (query.error) {
     return (
-      <main className="screen">
-        <p className="error" role="alert">
-          {t(errorKey(query.error))}
-        </p>
-      </main>
+      <p className="error" role="alert">
+        {t(errorKey(query.error))}
+      </p>
     );
   }
 
@@ -59,7 +55,7 @@ export function OrgSettings() {
   const readOnly = org.role !== "owner";
 
   return (
-    <main className="screen">
+    <>
       <div className="screen__head">
         <h1>{t("settings.org.title")}</h1>
       </div>
@@ -189,7 +185,7 @@ export function OrgSettings() {
           <label htmlFor="org-comments">{t("settings.org.comments")}</label>
         </p>
       </section>
-    </main>
+    </>
   );
 }
 

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 
 import { addComment, commentsQueryKey, listComments } from "../api/comments";
 import { errorKey } from "../api/errors";
@@ -144,10 +144,20 @@ export function Project() {
                       только тому, кто может писать: гостю она обещала бы отказ
                       сервера. */}
                   {editable && <UndoButton projectId={projectId} state={query.data} />}
-                  {/* Кебаб «⋯» здесь раньше держал единственный пункт —
-                      «Настройки», а больше в нём ничего не было. Пункт переехал
-                      в боковое меню, и меню с одной строкой внутри осталось не
-                      о чем открывать. */}
+                  {/* Настройки — здесь, а не в боковом меню, куда они на время
+                      уезжали: колонка одна на всё приложение, а настройки —
+                      этого проекта, и слово «Настройки» в общем ряду не
+                      называло, чего именно. Подпись всё равно с подлежащим:
+                      в колонке рядом стоит вход в настройки рабочего
+                      пространства, и два одинаковых слова на одном экране
+                      вернули бы ровно ту двусмысленность, ради которой всё и
+                      разводилось. Право то же, что и у остальных действий:
+                      читателю ссылка обещала бы отказ сервера. */}
+                  {canWrite && (
+                    <Link to={`/projects/${projectId}/settings`} className="button-link">
+                      {t("settings.project.link")}
+                    </Link>
+                  )}
                 </>
               }
             />
