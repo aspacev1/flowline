@@ -1,47 +1,76 @@
-/* Диаграмма Ганта — представление «таймлайн» базы Notion. Переменные те же,
-   что и у остального интерфейса: тёмная тема переопределяет палитру в одном
-   месте и сюда не заглядывает.
+/* Диаграмма Ганта — лента макета Northstar.
 
-   Общий приём тот же, что и на странице: линии тонкие и редкие, заливок нет,
-   а сама лента — не таблица в рамке, а поле, по которому разложены полоски.
-   Чем меньше линий, тем заметнее единственное, что здесь действительно важно:
-   где полоска начинается и где кончается. */
+   Здесь лежит всё оформление ленты и только оно. Не потому, что этот файл
+   эмитится последним — порядок сборки не закон, а следствие текущего графа
+   импортов, и ленивая загрузка маршрута сменила бы его молча. Причина проще:
+   один селектор не должен жить в двух файлах. Токены приходят из темы
+   (`northstar-theme.css`) и разрешаются на вычислении значения, поэтому
+   `var(--border)` здесь работает независимо от того, кто эмитится раньше.
+
+   Приём макета: лента — не таблица в рамке, а поле, по которому разложены
+   полоски. Линии тонкие и одинаковые, заливок ровно столько, сколько
+   состояний, и цвет полоски означает ровно одно — статус задачи. */
 
 .gantt {
-  --gantt-label: 220px;
+  --gantt-label: 300px;
   /* --gantt-row приходит из разметки: по этой же величине считаются стрелки
      связей, и второе число здесь разошлось бы с ними при первой правке. */
-  --gantt-row: 42px;
-  /* Шапка выше на строку чипа «сегодня»: он стоит под числом, и без запаса
-     по высоте его пришлось бы прятать под обрез колонки. */
-  --gantt-head: 80px;
-  /* Полоса под чип «сегодня». Она вычитается из каждой колонки дня, а не
-     только из сегодняшней: иначе числа встали бы на разной высоте. */
-  --gantt-today-chip: 20px;
+  --gantt-row: 48px;
+  /* Шапка = полоса месяцев + полоса дней. Обе меры выведены из этих двух
+     переменных, а не записаны литералами в трёх местах: прежде высота полосы
+     месяцев стояла числом и в её собственном правиле, и в вычитании для
+     полосы дней, и правка одного молча ломала другое. */
+  --gantt-head: 68px;
+  --gantt-month-row: 27px;
+  /* Отступ задачи внутри категории — от левого края колонки, а не поверх
+     собственных полей ячейки (см. .gantt__cell--task). */
+  --gantt-indent: 28px;
+  --gantt-bar: 28px;
+  /* Разделитель строк светлее рамок ленты: на полусотне строк линия в полную
+     силу рисует решётку, в которой не видно самих строк. */
+  --gantt-row-line: #edf0f4;
   --motion: 180ms;
+
+  /* Заливки полосок. Живут здесь, а не в теме: это четыре значения одного
+     свойства ленты, и в общей палитре продукта им соответствия нет — синий
+     полоски темнее акцента ровно настолько, чтобы белая подпись на нём
+     читалась. Накладки, наоборот, берут токены темы: «внимание» и «тревога»
+     означают на ленте ровно то же, что и на всех остальных экранах. */
+  --gantt-fill-progress: #6274e7;
+  --gantt-fill-progress-done: #4358d6;
+  --gantt-fill-planned: #e9eef5;
+  --gantt-line-planned: #8ea0be;
+  --gantt-fill-blocked: repeating-linear-gradient(
+    135deg,
+    #d94c71 0,
+    #d94c71 7px,
+    #c83e62 7px,
+    #c83e62 14px
+  );
 }
 
 /* Само правило «меньше движения» живёт в styles.css: оно общее для всего
    интерфейса, а не для одной диаграммы. Здесь только признак на корне ленты —
    его же ставит разметка, узнав настройку системы. */
 
-/* Итог по срокам — выноска над лентой, как callout в Notion: одна строка,
-   тонкая заливка, никакой рамки. */
+/* Итог по срокам — выноска над лентой: одна строка, тонкая заливка, никакой
+   рамки. Поля по бокам те же, что у шапки проекта: лента идёт во всю ширину
+   экрана, и выноска обязана встать по одной вертикали с названием проекта. */
 .gantt__summary {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  margin: 0 0 var(--gap);
+  margin: 14px 32px 0;
   padding: 10px 14px;
-  border-radius: var(--radius);
+  border-radius: var(--radius-md);
   background: var(--hover);
   font-weight: 500;
 }
 
 .gantt__summary.is-late {
   background: var(--danger-soft);
-  color: var(--danger);
+  color: var(--danger-strong);
 }
 
 .gantt__summary.is-fine {
@@ -53,15 +82,20 @@
   margin: 0;
 }
 
-/* Легенда над лентой. Плашки — те же цвета и скругление, что у полосок:
-   легенда, нарисованная другими фигурами, расшифровывала бы саму себя. */
+/* Легенда над лентой. Плашки — те же цвета и та же форма, что у полосок:
+   легенда, нарисованная другими фигурами, расшифровывала бы саму себя.
+
+   Расшифровывает она два разных набора, а не один: четыре заливки — это
+   статус, две накладки — флаги поверх него. Поэтому плашки накладок показаны
+   рамкой и гранью на нейтральной заливке, а не сплошным цветом: сплошной
+   обещал бы пятый и шестой статус, которых не существует. */
 .gantt__legend {
   display: flex;
   align-items: center;
   gap: 6px 14px;
   flex-wrap: wrap;
-  margin: 0 0 var(--gap);
-  font-size: 12px;
+  margin: 14px 32px 0;
+  font-size: 11px;
   color: var(--text-muted);
 }
 
@@ -74,27 +108,36 @@
 
 .gantt__swatch {
   width: 22px;
-  height: 10px;
-  border-radius: var(--radius-sm);
-  background: var(--bar);
-}
-
-.gantt__swatch[data-status="done"] {
-  background: var(--text);
+  height: 11px;
+  border-radius: 4px;
+  background: var(--gantt-fill-progress);
 }
 
 .gantt__swatch[data-status="planned"] {
-  background: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--text-faint);
+  background: var(--gantt-fill-planned);
+  border: 1px dashed var(--gantt-line-planned);
 }
 
-/* «Заблокировано» — янтарь, единый со стилем полоски и плашки статуса. */
+.gantt__swatch[data-status="done"] {
+  background: var(--ok);
+}
+
 .gantt__swatch[data-status="blocked"] {
-  background: #f0a63a;
+  background: var(--gantt-fill-blocked);
 }
 
-.gantt__swatch[data-criticality="critical"] {
-  background: var(--bar-critical);
+/* Накладки — на нейтральной заливке: показывается ровно то, что накладка и
+   рисует поверх любого статуса, — контур и левая грань. */
+.gantt__swatch[data-overlay] {
+  background: var(--gantt-fill-planned);
+}
+
+.gantt__swatch[data-overlay="late"] {
+  box-shadow: inset 0 0 0 1.5px var(--warn);
+}
+
+.gantt__swatch[data-overlay="critical"] {
+  box-shadow: inset 3px 0 0 var(--danger-strong);
 }
 
 /* Вертикали дедлайна и «сегодня» — образец линии, а не плашка. */
@@ -115,7 +158,7 @@
 
 /* Сноска под лентой: расшифровка засечки и стрелки. */
 .gantt__caption {
-  margin: 10px 0 0;
+  margin: 10px 32px;
   max-width: 720px;
   font-size: 12px;
   font-style: italic;
@@ -123,13 +166,12 @@
 }
 
 /* Прокручивается лента, а не страница: левая колонка обязана остаться на
-   месте, и sticky работает только внутри своего прокручиваемого предка. */
+   месте, и sticky работает только внутри своего прокручиваемого предка.
+   Рамки у ленты нет — она идёт во всю ширину экрана и отделяется от того,
+   что под ней, одной линией. */
 .gantt__scroll {
   overflow-x: auto;
-  border-radius: var(--radius-lg);
-  /* Рамка тенью внутрь, а не border: рамка вошла бы в ширину и сдвинула бы
-     на пиксель всю сетку относительно закреплённой колонки. */
-  box-shadow: inset 0 0 0 1px var(--border);
+  border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
 
@@ -145,24 +187,26 @@
   top: 0;
   z-index: 3;
   background: var(--surface);
-  border-bottom: 1px solid var(--border);
+  /* Усиленная линия, а не обычная: шапка отделяется от строк заметнее, чем
+     строки друг от друга, иначе первая строка читается как часть шапки. */
+  border-bottom: 1px solid var(--border-strong);
 }
 
 .gantt__head {
   position: relative;
   height: var(--gantt-head);
+  background: #fafbfc;
 }
 
-/* Шапка делится не пополам: строка месяцев — 26px, строка дней — 34px, как в
-   макете; вместе они дают --gantt-head. */
 .gantt__months {
   position: relative;
-  height: 26px;
+  height: var(--gantt-month-row);
+  border-bottom: 1px solid var(--border);
 }
 
 .gantt__days {
   position: relative;
-  height: calc(var(--gantt-head) - 26px);
+  height: calc(var(--gantt-head) - var(--gantt-month-row));
 }
 
 .gantt__month,
@@ -172,68 +216,82 @@
   bottom: 0;
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  color: var(--text-faint);
+  font-size: 10px;
+  color: var(--text-muted);
   border-left: 1px solid var(--border);
   overflow: hidden;
 }
 
-/* Месяц — заголовок колонок, и набран он как заголовок свойства в Notion:
-   мелко, вразрядку, приглушённо. */
-.gantt__month-label {
-  padding: 0 6px;
-  white-space: nowrap;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+/* Месяц — заголовок колонок: мелко, вразрядку, капителью и по левому краю
+   своей полосы, как заголовок столбца, а не подпись под ним. */
+.gantt__month {
+  justify-content: flex-start;
+  padding: 0 12px;
 }
 
+.gantt__month-label {
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #475467;
+}
+
+/* Полоса дней ровно вмещает три меры: верхнее поле, строку дня недели и круг
+   вокруг числа (3 + 15 + 22 = 40 при высоте полосы 41). Просвета между
+   строкой и кругом нет намеренно — он есть внутри самого круга. */
 .gantt__day {
   flex-direction: column;
-  justify-content: center;
-  line-height: 1.1;
-  gap: 1px;
-  padding-bottom: var(--gantt-today-chip);
+  justify-content: flex-start;
+  align-items: center;
+  gap: 0;
+  padding-top: 3px;
+  line-height: 15px;
 }
 
 .gantt__day-number {
-  color: var(--text-muted);
+  /* Не сжимается: это фигура заданного размера, а не строка текста. Без
+     запрета колонка дней ужимала бы круг в овал на пару пикселей. */
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: #344054;
+  font-size: 12px;
   font-weight: 500;
 }
 
-/* Сегодняшняя колонка выделена в шапке: и день недели, и число. */
-.gantt__day.is-today,
-.gantt__day.is-today .gantt__day-number {
+/* Сегодняшняя колонка выделена в шапке: подложка на всю колонку, а число —
+   белым в круге цвета акцента, как в макете. Круг — та же фигура, что и
+   точка над линией «сегодня» в теле ленты, и они читаются как одно. */
+.gantt__day.is-today {
+  background: #f2f3ff;
   color: var(--accent);
   font-weight: 700;
 }
 
-/* Чип «сегодня» под числом. Колонка узкая, надпись шире неё — поэтому чип
-   вынесен из потока и центрирован по колонке: иначе он либо растянул бы
-   колонку, либо обрезался бы её `overflow`. */
-.gantt__day.is-today {
-  overflow: visible;
-  z-index: 1;
+.gantt__day.is-today .gantt__day-number {
+  background: var(--accent);
+  color: var(--accent-text);
+  font-weight: 700;
 }
 
+/* Слово «Сегодня» остаётся в разметке, но не показывается: его роль взял на
+   себя круг вокруг числа. Выбрасывать доступное имя ради этого не стоит —
+   круг читалке ничего не говорит. */
 .gantt__day-today {
   position: absolute;
-  bottom: 3px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 0 5px;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--accent);
-  background: var(--bg);
-  color: var(--accent);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  line-height: 14px;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
   white-space: nowrap;
+  border: 0;
 }
 
 .gantt__body {
@@ -256,7 +314,8 @@
 }
 
 /* Один и тот же признак нерабочего дня и в шапке, и в теле: заливка,
-   обрывающаяся под шапкой, читается как дефект отрисовки. */
+   обрывающаяся под шапкой, читается как дефект отрисовки. Затемнение, а не
+   свой цвет: под ним и белое тело ленты, и серая шапка. */
 .is-nonworking {
   background: var(--nonworking);
 }
@@ -271,7 +330,7 @@
 
 /* Линия «сегодня» стоит серединой колонки, поэтому она сдвинута на половину
    своей толщины влево: иначе центр дня и центр линии разошлись бы на пиксель
-   и линия не совпала бы с чипом в шапке. */
+   и линия не совпала бы с кругом в шапке. */
 .gantt__today {
   --today-line: 2px;
   position: absolute;
@@ -279,6 +338,19 @@
   bottom: 0;
   width: var(--today-line);
   margin-left: calc(var(--today-line) / -2);
+  background: rgb(83 103 232 / 68%);
+}
+
+/* Точка на верхушке линии: без неё линия теряется среди вертикалей сетки,
+   а с ней читается как метка, поставленная на шкалу. */
+.gantt__today::before {
+  content: "";
+  position: absolute;
+  top: -4px;
+  left: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
   background: var(--accent);
 }
 
@@ -295,7 +367,7 @@
 
 .arrows polyline {
   fill: none;
-  stroke: var(--text-faint);
+  stroke: #7d879c;
   stroke-width: 1.5;
   /* Скруглённые углы: на изломе в один пиксель острый угол читается как
      артефакт отрисовки. */
@@ -304,19 +376,36 @@
 }
 
 /* Нарушенная связь — задача начата до готовности той, которой она ждёт:
-   цвет тревоги, а не оформления, чтобы нахлёст было видно с расстояния. */
+   цвет тревоги и пунктир, чтобы нахлёст было видно с расстояния и чтобы
+   связь отличалась от обычной не только цветом. */
 .arrows polyline.is-violated {
   stroke: var(--danger);
+  stroke-width: 2;
+  stroke-dasharray: 4 3;
 }
 
 /* Наконечник — заливка в цвет линии. */
 .arrows path {
-  fill: var(--text-faint);
+  fill: #7d879c;
   stroke: none;
 }
 
 .arrows g.is-violated path {
   fill: var(--danger);
+}
+
+/* Знак на нарушенной связи. Кружок с белой обводкой: линия проходит под ним,
+   и без обводки знак сливался бы с собственной стрелкой. */
+.arrows__warn {
+  fill: var(--danger);
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+
+.arrows__warn-text {
+  fill: var(--surface);
+  font-size: 10px;
+  font-weight: 800;
 }
 
 .gantt__rows {
@@ -328,31 +417,36 @@
   display: flex;
   align-items: center;
   height: var(--gantt-row);
+  border-bottom: 1px solid var(--gantt-row-line);
   transition: background var(--motion) ease;
 }
 
-/* Строка подсвечивается целиком при наведении — как строка базы Notion: так
-   видно, какой задаче принадлежит полоска, отъехавшая на месяц вправо от
-   своего названия. */
-.gantt__row:hover .gantt__lane {
+/* Строка подсвечивается целиком при наведении: так видно, какой задаче
+   принадлежит полоска, отъехавшая на месяц вправо от своего названия.
+   Заливки одинаковы на глаз, но заданы по-разному, и это не небрежность.
+   Закреплённой колонке нужен непрозрачный цвет — сквозь полупрозрачную
+   просвечивали бы уезжающие под неё полоски. Стороне шкалы, наоборот, нужна
+   прозрачность: под ней лежит слой стрелок, и сплошная заливка съедала бы
+   связь ровно на той строке, через которую та проходит. */
+.gantt__row:hover .gantt__label {
   background: var(--hover);
 }
 
-.gantt__row:hover .gantt__label {
-  /* Закреплённой колонке нужна непрозрачная заливка — сквозь полупрозрачную
-     просвечивали бы уезжающие под неё полоски. Поэтому подсветка здесь
-     подмешана в цвет поверхности, а не положена поверх. */
-  background: color-mix(in srgb, var(--text) 6%, var(--surface));
+.gantt__row:hover .gantt__lane {
+  background: rgb(83 103 232 / 4.5%);
 }
 
 /* Открытая карточка — это состояние строки, а не наведение: она держится,
-   пока карточка открыта, и должна отличаться от подсветки под курсором. */
-.gantt__row.is-selected .gantt__lane {
-  background: var(--accent-soft);
+   пока карточка открыта, и должна отличаться от подсветки под курсором.
+   Полоса у левого края — метка выбранной строки: заливкой одной силы две
+   эти вещи не развести. */
+.gantt__row.is-selected .gantt__label {
+  background: var(--active);
+  box-shadow: inset 3px 0 0 var(--accent);
 }
 
-.gantt__row.is-selected .gantt__label {
-  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+.gantt__row.is-selected .gantt__lane {
+  background: rgb(83 103 232 / 7%);
 }
 
 .gantt__label {
@@ -365,23 +459,26 @@
   flex: 0 0 var(--gantt-label);
   width: var(--gantt-label);
   height: 100%;
-  padding: 0 8px 0 12px;
+  padding: 0 12px;
   background: var(--surface);
-  border-right: 1px solid var(--border);
+  border-right: 1px solid var(--border-strong);
   transition: background var(--motion) ease;
 }
 
+/* Шапка колонки задач — того же тона, что и шапка шкалы, но чуть светлее:
+   это заголовок столбца, а не первая его строка. */
 .gantt__corner {
   height: var(--gantt-head);
   align-items: flex-end;
-  padding-bottom: 10px;
+  padding-bottom: 12px;
+  background: #f9fafc;
 }
 
-/* Заголовок левой колонки — как заголовок свойства: мелкий капс вразрядку. */
+/* Заголовок левой колонки — мелкий капс вразрядку, как заголовок свойства. */
 .gantt__corner-label {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.12em;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-muted);
 }
@@ -405,14 +502,33 @@
   white-space: nowrap;
 }
 
-/* Категория — заголовок группы, как в сгруппированной базе: полужирно и в
-   полную плотность чернил, задачи под ней — обычным начертанием. */
+/* Категория — заголовок группы, как в сгруппированной базе: полужирно, на
+   собственной подложке, задачи под ней — обычным начертанием. Высота у неё
+   та же, что у задачи: по одной константе строки считаются стрелки связей,
+   и второй высоты здесь заводить нельзя. */
+.gantt__row--category .gantt__label {
+  background: #f8f9fc;
+}
+
+/* Тот же тон, но прозрачностью, а не своим цветом — по причине, названной
+   выше: сквозь строку категории проходят стрелки связей. */
+.gantt__row--category .gantt__lane {
+  background: rgb(36 48 68 / 3%);
+}
+
 .gantt__row--category .gantt__label-name {
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .gantt__row:not(.gantt__row--category) .gantt__label-name {
-  color: var(--text-muted);
+  color: #344054;
+}
+
+/* Отступ вложенности — внутри ячейки задачи, а не у всей колонки: иначе
+   подсветка строки при наведении и выделении обрезалась бы слева. Считается
+   от края колонки, поэтому из отступа вычитается собственное поле ячейки. */
+.gantt__row:not(.gantt__row--category) .gantt__cell--task {
+  padding-left: calc(var(--gantt-indent) - 12px);
 }
 
 .gantt__flag {
@@ -499,8 +615,7 @@
 }
 
 /* Плюс на строке категории — тот же приём, что и у ручки: молчит, пока на
-   строку не навели. В Notion так же ведёт себя «+» под последней строкой
-   группы. */
+   строку не навели. */
 .gantt__add {
   margin-left: auto;
   flex: 0 0 auto;
@@ -534,34 +649,66 @@
   transition: background var(--motion) ease;
 }
 
+/* Сводная полоса категории: тонкая линия с засечками-стрелками по краям, как
+   в макете. Цвет — свой у каждой категории и приходит разметкой; макет красит
+   все категории одним серым, но цвет категории в продукте уже существует и
+   выбирается в форме создания. Засечки берут его же через currentColor. */
 .gantt__span {
   position: absolute;
   top: 50%;
-  height: 4px;
+  height: 7px;
   transform: translateY(-50%);
-  border-radius: 2px;
-  opacity: 0.5;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 8%);
 }
 
-/* Полоска — метка Notion, лёгшая на шкалу времени: заливка цветом свойства,
-   скругление в три пикселя, подпись в 12 пикселей и никакой рамки. Рамка
-   вокруг каждой полоски на ленте из полусотни строк даёт рябь. */
+.gantt__span::before,
+.gantt__span::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid currentcolor;
+}
+
+.gantt__span::before {
+  left: 0;
+  transform: translateX(-2px);
+}
+
+.gantt__span::after {
+  right: 0;
+  transform: translateX(2px);
+}
+
+/* Полоска — прямоугольник со скруглением 7 на шкале времени.
+   Заливка означает статус и только его; критичность и просрочка ложатся
+   поверх накладками (ниже). Раньше все три состояния писали в один и тот же
+   фон, и цвет полоски определялся не смыслом, а порядком правил в файле. */
 .gantt__bar {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  height: 22px;
-  padding: 0 8px;
+  height: var(--gantt-bar);
+  padding: 0 11px;
   display: flex;
   align-items: center;
+  /* Содержимое прижато к началу полоски. Правило не лишнее: полоска — это
+     `button`, а базовая кнопка центрирует своё содержимое, и галочка готовой
+     задачи вставала бы в середину полоски длиной в две недели. */
+  justify-content: flex-start;
+  gap: 6px;
   overflow: hidden;
   white-space: nowrap;
   border: 0;
-  border-radius: var(--radius-sm);
-  background: var(--bar);
-  color: var(--text);
-  font-size: 12px;
-  font-weight: 500;
+  border-radius: var(--radius);
+  background: var(--gantt-fill-progress);
+  color: var(--accent-text);
+  font-size: 11px;
+  font-weight: 700;
   text-align: left;
   box-shadow: none;
   /* Сдвиг после подтверждения сервером — переездом, а не прыжком: иначе
@@ -572,11 +719,13 @@
     opacity var(--motion) ease;
 }
 
+/* Под курсором полоска светлеет и приподнимается — но не меняет ни цвет, ни
+   тень: тень здесь занята накладками, а цвет означает статус и врать не может.
+   Приподнимается сдвигом внутри собственного центрирования, иначе transform
+   стёр бы его и полоска прыгнула бы на полстроки вниз. */
 .gantt__bar:hover {
-  background: var(--bar);
-  /* Обводка цветом текста в четверть силы: полоска приподнимается, но не
-     меняет цвет — цвет здесь означает критичность и врать не может. */
-  box-shadow: inset 0 0 0 1px rgb(var(--ink) / 25%);
+  filter: brightness(1.05);
+  transform: translateY(calc(-50% - 1px));
 }
 
 /* Полоска под пальцем — единственное, что не анимируется никогда: она обязана
@@ -588,7 +737,7 @@
   /* Над соседями, пока её тащат: иначе она уезжает под соседнюю полоску и
      теряется ровно в тот момент, когда за ней следят. */
   z-index: 2;
-  box-shadow: var(--shadow-sm);
+  filter: brightness(1.05);
 }
 
 /* Полоску тащат пальцем, и браузер не должен принимать это за прокрутку ленты.
@@ -599,52 +748,110 @@
   cursor: grab;
 }
 
-/* Цвет полоски означает статус, как в макете Broadsheet: заливка — в работе,
-   контур без заливки — запланировано, тёмная — готово. Критичность цветом
-   не кодируется — кроме блокера ниже: полутонов здесь достаточно, а два
-   одновременных цветовых кода на одной полоске не прочитал бы никто. */
-.gantt__bar[data-status="planned"],
-.gantt__bar[data-status="planned"]:hover {
-  background: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--text-faint);
+/* --- заливка: четыре взаимоисключающих статуса --- */
+
+.gantt__bar[data-status="in_progress"] {
+  background: var(--gantt-fill-progress);
 }
 
-/* Заблокированная — янтарная: состояние назначил человек, и полоска называет
-   его цветом и словом (см. Row). */
-.gantt__bar[data-status="blocked"],
-.gantt__bar[data-status="blocked"]:hover {
-  background: #f7e2bd;
-  box-shadow: none;
+/* Запланировано — единственная незалитая: пунктирный контур говорит «этого
+   ещё нет», а сплошная заливка сказала бы «идёт». */
+.gantt__bar[data-status="planned"] {
+  background: var(--gantt-fill-planned);
+  border: 1px dashed var(--gantt-line-planned);
+  color: #40506b;
 }
 
-/* Блокер — критическая задача: залита тревожным цветом поверх любого статуса,
-   кроме «готово». */
-.gantt__bar[data-criticality="critical"],
-.gantt__bar[data-criticality="critical"]:hover {
-  background: var(--bar-critical);
-  box-shadow: none;
+.gantt__bar[data-status="done"] {
+  background: var(--ok);
 }
 
-/* Готовый блокер никого не держит: тёмная заливка сильнее тревожной. */
-.gantt__bar[data-status="done"],
-.gantt__bar[data-status="done"]:hover {
-  background: var(--text);
-  color: var(--surface);
-  box-shadow: none;
+/* Заблокированная — диагональная штриховка: состояние назначил человек, и
+   полоска называет его и рисунком, и словом (см. Row). */
+.gantt__bar[data-status="blocked"] {
+  background: var(--gantt-fill-blocked);
 }
 
-.gantt__bar.is-late {
-  box-shadow: inset 0 0 0 1px var(--danger);
-  color: var(--danger);
+/* --- накладки: флаги поверх любой заливки --- */
+
+/* Накладки лежат на отдельном слое поверх содержимого полоски, а не тенью на
+   ней самой. Причина не в чистоте: `inset`-тень рисуется под содержимым, а
+   заливка прогресса — позиционированный потомок, и она закрашивала бы и
+   контур просрочки, и грань критичности на своей трети полоски. */
+.gantt__bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
 }
 
+/* Просрочка — контур цветом внимания. Не заливка: «не в срок» и «в какой
+   стадии» — разные вопросы, и отвечать на них одним пятном нельзя. */
+.gantt__bar.is-late::after {
+  box-shadow: inset 0 0 0 1.5px var(--warn);
+}
+
+/* Критичность — левая грань цветом тревоги. Остальные три уровня
+   (`low`, `normal`, `high`) полоску не красят. */
+.gantt__bar[data-criticality="critical"]::after {
+  box-shadow: inset 3px 0 0 var(--danger-strong);
+}
+
+/* Обе сразу — одним объявлением: сочетание пишется явно, а не оставляется
+   каскаду, иначе последняя накладка стирала бы первую. Порядок слоёв тоже
+   назван: контур идёт первым и потому лежит поверх грани. Разорванный на
+   одной стороне контур читался бы как дефект отрисовки, а грань, срезанная
+   до полутора пикселей, — по-прежнему как грань. Следствие принято
+   сознательно: готовая критическая задача получит зелёную заливку и красную
+   грань — то есть скажет и «сделано», и «это было узкое место». */
+.gantt__bar.is-late[data-criticality="critical"]::after {
+  box-shadow:
+    inset 0 0 0 1.5px var(--warn),
+    inset 3px 0 0 var(--danger-strong);
+}
+
+/* Заливка прогресса — часть полоски «в работе», а не вторая полоска под ней.
+   У остальных статусов её нет: у готовой она была бы тавтологией, у
+   запланированной и заблокированной — обещанием движения, которого нет. */
 .gantt__progress {
+  display: none;
   position: absolute;
   left: 0;
   top: 0;
   bottom: 0;
-  background: rgb(var(--ink) / 14%);
   pointer-events: none;
+}
+
+.gantt__bar[data-status="in_progress"] .gantt__progress {
+  display: block;
+  background: var(--gantt-fill-progress-done);
+}
+
+/* Галочка готовой задачи: знак «сделано» виден с расстояния, на котором
+   подпись статуса уже не читается. Круг — из белого в четверть силы: зелёный
+   круг на зелёной полоске не виден вовсе. */
+.gantt__check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 22%);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.gantt__bar-blocked {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Призрак базового плана: тонкая серая полоска под текущей.
@@ -654,23 +861,35 @@
    целиком. */
 .gantt__ghost {
   position: absolute;
-  top: calc(50% + 12px);
+  top: calc(50% + 16px);
   height: 3px;
   border-radius: 2px;
   background: var(--text-faint);
   pointer-events: none;
 }
 
-/* Засечка первоначального дедлайна: вертикальная черта цвета тревоги в том
-   дне, где задача должна была кончиться по утверждённому плану. Выше полоски
-   и ниже её — чтобы читалась как метка на шкале, а не как обрез полоски. */
+/* Засечка первоначального дедлайна: вертикаль цвета тревоги с ромбом сверху в
+   том дне, где задача должна была кончиться по утверждённому плану. Выше
+   полоски и ниже её — чтобы читалась как метка на шкале, а не как обрез
+   полоски. */
 .gantt__mark {
   position: absolute;
-  top: 5px;
-  height: 32px;
+  top: 6px;
+  height: 36px;
   width: 2px;
   background: var(--danger);
   z-index: 2;
+}
+
+.gantt__mark::after {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: -2.5px;
+  width: 7px;
+  height: 7px;
+  background: var(--danger);
+  transform: rotate(45deg);
 }
 
 /* Бейдж отклонения — справа от полоски, а не поверх неё: поверх он закрывал бы
@@ -679,18 +898,25 @@
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 11px;
-  font-weight: 600;
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 800;
   white-space: nowrap;
   pointer-events: none;
 }
 
 .gantt__deviation.is-late {
-  color: var(--danger);
+  border-color: #f4b7c8;
+  background: var(--danger-soft);
+  color: #b9365a;
 }
 
 .gantt__deviation.is-early {
-  color: var(--ok);
+  border-color: #bde5ce;
+  background: var(--ok-soft);
+  color: #176842;
 }
 
 /* «Сверх первоначального плана». Приглушённая, а не тревожная: добавление
@@ -698,4 +924,42 @@
 .gantt__beyond {
   color: var(--text-faint);
   font-weight: 700;
+}
+
+/* На мелких масштабах от подписи дня остаётся число: день недели в колонку
+   шириной 18 пикселей не помещается, а обрезанный читается как мусор. */
+.gantt--month .gantt__day-weekday {
+  display: none;
+}
+
+.gantt--month .gantt__day-number {
+  width: auto;
+  height: auto;
+  font-size: 10px;
+}
+
+/* Круг сужается до ширины колонки: на «месяце» день — восемнадцать пикселей,
+   и двадцатидвухпиксельный круг вылез бы за свою колонку в соседнюю. */
+.gantt--month .gantt__day.is-today .gantt__day-number {
+  width: 18px;
+  height: 18px;
+}
+
+/* Адаптивность ленты. Точки те же, что у остального приложения. Без них
+   правка ухудшила бы то, что чинит: колонка задач выросла с 220 до 300
+   пикселей, и на экране в 520 имени доставалось бы больше места, чем самой
+   ленте. Меры лежат здесь, а не в теме: в теме их медиазапросы не действовали
+   вовсе — медиазапрос не добавляет специфичности, и базовое правило из этого
+   файла перебивало их молча. */
+@media (max-width: 900px) {
+  .gantt {
+    --gantt-label: 240px;
+  }
+}
+
+@media (max-width: 520px) {
+  .gantt {
+    --gantt-label: 180px;
+    --gantt-indent: 18px;
+  }
 }

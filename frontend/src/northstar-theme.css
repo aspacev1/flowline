@@ -1,55 +1,69 @@
-/* Planora redesign theme.
-   This file intentionally sits after styles.css and turns the existing
-   Planora screens into the crisp planning workspace from the provided mockup:
-   pale rail navigation, a two-tier project header, a spreadsheet-like Gantt
-   canvas, saturated blue primary actions, and a right inspector panel. */
+/* Тема Northstar.
+   Идёт после styles.css и переопределяет её токены: палитра, меры и
+   типографика взяты из `:root` макета `docs/design/northstar-gantt-mockup.html`
+   целиком.
+
+   Оформления ленты здесь нет ни строки — оно живёт в `gantt/gantt.css`.
+   Правило не про порядок эмиссии, а про то, что один селектор не должен
+   жить в двух файлах: прежняя тема дублировала `.gantt__bar`, `.gantt__row`
+   и меры колонки, и побеждал тот файл, который сборка положила ниже. */
 
 :root {
   color-scheme: light;
-  --ink: 17 24 39;
-  --text: #111827;
-  --text-muted: #5f6675;
-  --text-faint: #8a92a3;
-  --bg: #ffffff;
-  --bg-subtle: #f8fbff;
+  /* Чернила макета: холодный тёмно-синий, а не серый. Тройка — для
+     полупрозрачных производных, которые считает styles.css. */
+  --ink: 23 32 51;
+  --text: #172033;
+  --text-muted: #667085;
+  --text-faint: #98a2b3;
+  /* Страница не белая: белые — поверхности на ней, и именно этим они от
+     страницы и отличаются. */
+  --bg: #f5f7fb;
+  --bg-subtle: #fbfcfe;
   --surface: #ffffff;
-  --hover: #f4f7fb;
-  --active: #eef4ff;
+  --hover: #f5f7ff;
+  --active: #eef0ff;
   --border: #e5e9f0;
-  --border-strong: #d7dde8;
-  --accent: #2459f5;
-  --accent-hover: #1746d8;
+  --border-strong: #d8dee9;
+  --accent: #5367e8;
+  --accent-hover: #3f51cf;
   --accent-text: #ffffff;
-  --accent-soft: rgb(36 89 245 / 10%);
-  /* Красный, а не розовый: в макете Planora красный означает ровно одно —
-     нарушение срока. Оранжевый при этом остаётся состоянием (блокер,
-     черновик): два тревожных цвета разведены по смыслу. */
-  --danger: #e11d48;
-  --danger-soft: #fff1f2;
-  --ok: #16a34a;
-  --ok-soft: #ebfbf1;
-  --input-bg: #f8fafc;
-  --tag-gray: #f3f4f6;
-  --tag-blue: #eaf1ff;
-  --tag-yellow: #fff4d9;
-  --tag-red: #fff0e8;
-  --tag-green: #eafaf0;
-  --bar: #2f63f6;
-  --bar-critical: #ff7a32;
-  --nonworking: #fafbfe;
-  --shadow-sm: 0 1px 2px rgb(15 23 42 / 10%);
-  --shadow-md: 0 20px 45px rgb(15 23 42 / 16%);
+  --accent-soft: #eef0ff;
+  --ok: #29a36a;
+  --ok-soft: #e9f8f0;
+  /* «Внимание» — черновик плана и просрочка. Отдельный цвет от тревоги:
+     просроченная задача требует решения, а не сообщает об ошибке. */
+  --warn: #e69a2d;
+  --warn-soft: #fff6e7;
+  /* Тревога — розово-красная, как в макете: блокировка и срыв срока. Тёмный
+     оттенок — для цифр и тонких граней, где светлый не набирает контраста. */
+  --danger: #d94c71;
+  --danger-soft: #fff0f4;
+  --danger-strong: #bd4263;
+  --input-bg: #ffffff;
+  --tag-gray: #f1f3f6;
+  --tag-blue: #eef0ff;
+  --tag-yellow: #fff6e7;
+  --tag-red: #fff0f4;
+  --tag-green: #e9f8f0;
+  /* Выходной — не заливка, а затемнение: колонка ложится и на белое тело
+     ленты, и на серую шапку, и в обоих местах обязана читаться одинаково. */
+  --nonworking: rgb(36 48 68 / 3.5%);
+  --shadow-sm: 0 1px 1px rgb(16 24 40 / 3%);
+  --shadow-md: 0 12px 36px rgb(16 24 40 / 13%);
   --radius-sm: 5px;
-  --radius: 8px;
-  --radius-lg: 12px;
+  --radius: 7px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-pill: 20px;
   --sidebar: 232px;
-  --control: 40px;
+  --control: 36px;
   /* Inter приезжает со сборкой (@fontsource-variable/inter, см. App.tsx), а не
      с CDN: установка самостоятельная, и шрифт обязан работать без интернета. */
   --font: "Inter Variable", Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
 }
 
-body { font-size: 15px; background: var(--bg); }
+body { font-size: 14px; line-height: 1.45; background: var(--bg); }
 .app__main { min-height: 100vh; }
 /* Меры колонки крупнее базовых: квадрат логотипа здесь 34 пикселя, и колонка
    значков равняется по нему — иначе подписи разделов не встают под названием
@@ -97,79 +111,15 @@ button { height: var(--control); padding: 0 18px; border-radius: 7px; font-size:
 .button-link { height: var(--control); padding: 0 18px; border-radius: 7px; font-size: 16px; font-weight: 600; background: #fff; text-decoration: none; }
 .button-link:hover { background: #f8fafc; }
 
-.project-toolbar { display: flex; align-items: center; gap: 14px; height: 78px; padding: 0 32px; border-bottom: 1px solid var(--border); background: #fff; }
-.project-toolbar__primary { padding: 0 20px; }
-.project-toolbar__divider { width: 1px; height: 28px; margin: 0 2px; background: var(--border); }
+/* Тулбар ленты. Высота — от органа управления, а не от собственного числа:
+   с переходом на 36-пиксельные кнопки прежние 78 пикселей оставляли над
+   лентой полосу пустоты выше самой шапки ленты. */
+.project-toolbar { display: flex; align-items: center; gap: 8px; height: 54px; padding: 0 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.project-toolbar__primary { padding: 0 14px; }
+.project-toolbar__divider { width: 1px; height: 24px; margin: 0 4px; background: var(--border); }
 .project-toolbar__spacer { flex: 1; }
 
 .project__body { gap: 0; align-items: stretch; }
-.project__body > .gantt { min-width: 0; }
-.gantt { --gantt-label: 320px; --gantt-row: 72px; --gantt-head: 96px; --gantt-today-chip: 26px; }
-/* Легенда, сводка по дедлайну и сноска больше не прячутся отсюда: их
-   показывает и прячет меню «Вид» — скрытая стилем разметка была бы враньём
-   для чтения с экрана. */
-.gantt__summary { margin: 14px 32px 0; }
-.gantt__legend { margin: 14px 32px 0; }
-.gantt__caption { margin: 10px 32px; }
-.gantt__scroll { border-radius: 0; box-shadow: none; border-bottom: 1px solid var(--border); background: #fff; }
-.gantt__head-row { background: #fff; border-bottom: 1px solid var(--border); }
-.gantt__corner { align-items: center; padding-bottom: 0; }
-.gantt__corner-label { font-size: 15px; letter-spacing: 0; text-transform: none; color: #374151; }
-.gantt__month { border-left: 1px solid var(--border); }
-.gantt__month-label { font-size: 15px; color: #4b5563; letter-spacing: .04em; }
-.gantt__day { border-left: 1px solid var(--border); font-size: 14px; color: #6b7280; gap: 6px; }
-.gantt__day-number { font-size: 16px; color: inherit; }
-.gantt__day.is-today, .gantt__day.is-today .gantt__day-number { color: var(--accent); font-weight: 800; }
-.gantt__label { padding: 0 22px 0 28px; border-right: 1px solid var(--border); background: #fff; }
-.gantt__row { border-bottom: 1px solid var(--border); }
-.gantt__row:hover .gantt__lane, .gantt__row:hover .gantt__label { background: #f9fbff; }
-.gantt__row.is-selected .gantt__lane, .gantt__row.is-selected .gantt__label { background: #eef5ff; }
-.gantt__row--category .gantt__label-name { font-size: 18px; font-weight: 700; color: #1f2937; }
-/* Отступ вложенности — внутри ячейки задачи, а не у всей колонки: иначе
-   подсветка строки при наведении и выделении обрезалась бы слева. */
-.gantt__row:not(.gantt__row--category) .gantt__cell--task { padding-left: 56px; }
-.gantt__row:not(.gantt__row--category) .gantt__label-name { font-size: 16px; color: #1f2937; }
-.gantt__grid-day { border-left: 1px dashed #dfe5ee; }
-.gantt__today { --today-line: 3px; background: rgb(36 89 245 / 55%); }
-.gantt__day-today { border-radius: 5px; background: #eef4ff; color: var(--accent); border: 1px solid #8dacff; font-size: 11px; line-height: 18px; padding: 0 7px; letter-spacing: 0; }
-.gantt__span { height: 4px; background: #5b5ee6 !important; opacity: .95; }
-.gantt__bar { height: 36px; border-radius: 6px; background: transparent; border: 2px solid var(--accent); color: #fff; box-shadow: none; }
-.gantt__bar[data-status="in_progress"] { background: linear-gradient(90deg, var(--bar) 0 var(--progress, 0%), #eef4ff var(--progress, 0%)); }
-.gantt__bar[data-status="planned"] { background: #f7faff; box-shadow: none; border-color: #5d85ff; }
-.gantt__bar[data-status="done"] { background: #eafbf1; border-color: #22c55e; color: #16a34a; }
-/* Заблокированная — янтарная пилюля со словом на самой полоске, как в макете:
-   состояние достаточно редкое и важное, чтобы называться прямо на ленте. */
-.gantt__bar[data-status="blocked"] { background: #fff4e5; border-color: #f0a63a; color: #b45309; }
-.gantt__bar[data-criticality="critical"]:not([data-status="done"]):not([data-status="blocked"]) { background: #fff7ed; border-color: #fb923c; color: #ea580c; }
-.gantt__progress { display: none; }
-/* Галочка готовой задачи: белый знак в зелёном круге у левого края полоски. */
-.gantt__check {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  width: 20px;
-  height: 20px;
-  margin-right: 6px;
-  border-radius: 50%;
-  background: #22c55e;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-}
-.gantt__bar-blocked {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-.gantt__ghost { height: 36px; top: 50%; transform: translateY(-50%); background: transparent; border: 2px dashed #bcd0ff; border-radius: 7px; }
-.gantt__mark { top: 13px; height: 42px; width: 4px; border-radius: 3px; background: var(--danger); }
-.gantt__deviation { color: var(--danger); font-size: 15px; font-weight: 800; }
-.arrows polyline { stroke: #2f63f6; stroke-width: 2; }
-.arrows path { fill: #2f63f6; }
 
 .panel { flex: 0 0 388px; border-radius: 0; box-shadow: -1px 0 0 var(--border); min-height: calc(100vh - 0px); padding: 34px 32px; }
 .panel__title { font-size: 24px; }
@@ -417,17 +367,11 @@ body:has(.screen--narrow) {
 .sidebar .locale-switch { align-self: stretch; margin: 4px 8px; }
 .sidebar .locale-switch button { flex: 1; }
 
-.gantt--month .gantt__day-weekday { display: none; }
-.gantt--month .gantt__day { gap: 0; font-size: 11px; }
-.gantt--month .gantt__day-number { font-size: 11px; }
-.gantt--day .gantt__day { gap: 3px; }
-
 @media (max-width: 900px) {
   .project-head, .project-toolbar { padding-left: 20px; padding-right: 20px; }
   .project-head__main, .project__body, .project-toolbar { flex-wrap: wrap; }
   .project-toolbar { height: auto; padding-top: 14px; padding-bottom: 14px; }
   .panel { flex-basis: 100%; min-height: auto; }
-  .gantt { --gantt-label: 320px; }
 }
 
 @media (max-width: 760px) {
@@ -464,8 +408,6 @@ body:has(.screen--narrow) {
   .project-head__actions { justify-content: flex-start; gap: 8px; }
   .project-toolbar { gap: 8px; }
   .project-toolbar__divider { display: none; }
-  .gantt { --gantt-label: 180px; }
-  .gantt__row:not(.gantt__row--category) .gantt__cell--task { padding-left: 18px; }
   .panel { padding: 26px 20px; }
 }
 
@@ -485,4 +427,4 @@ body:has(.screen--narrow) {
 }
 
 /* Меню тулбара — «Масштаб» и «Вид» — одной высоты между собой. */
-.project-toolbar .menu__button { height: 40px; }
+.project-toolbar .menu__button { height: var(--control); }

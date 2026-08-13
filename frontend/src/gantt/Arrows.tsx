@@ -53,12 +53,18 @@ export function Arrows({
       const endX = scale.xOf(to.start_date);
       const endY = toRow * ROW_HEIGHT + ROW_HEIGHT / 2;
 
+      // Линия не доходит до полоски на размер наконечника: остриё, лежащее
+      // поверх линии, рисовало бы утолщение вместо стрелки.
+      const shape = elbow(startX, startY, endX - 4, endY);
+
       return {
         key: `${link.from_task_id}-${link.to_task_id}`,
-        // Линия не доходит до полоски на размер наконечника: остриё, лежащее
-        // поверх линии, рисовало бы утолщение вместо стрелки.
-        points: elbow(startX, startY, endX - 4, endY),
+        points: shape.map(([x, y]) => `${x},${y}`).join(" "),
         head: `M${endX - 6} ${endY - 4} L${endX} ${endY} L${endX - 6} ${endY + 4} Z`,
+        // Место для знака нарушения — середина среднего звена ломаной, а не
+        // повторно вычисленная по тем же условиям точка: второе такое же
+        // вычисление разошлось бы с самой ломаной при первой её правке.
+        warn: middleOf(shape),
         // Нарушенная связь: приёмник начат, пока источник ещё не кончился.
         // Конец отрезка включительный, поэтому совпадение дат — тоже нахлёст.
         violated: to.start_date <= from.end_date,
@@ -84,6 +90,23 @@ export function Arrows({
               линия без него не говорит, кто кого ждёт. Входит всегда
               горизонтально слева — ломаная кончается этим же направлением. */}
           <path className="arrows__head" d={line.head} />
+          {/* Знак на нарушенной связи. Красного пунктира мало: на ленте из
+              полусотни строк цвет линии толщиной в два пикселя замечают не
+              сразу, а кружок виден и на беглом взгляде. */}
+          {line.violated && (
+            <>
+              <circle className="arrows__warn" cx={line.warn[0]} cy={line.warn[1]} r={7} />
+              <text
+                className="arrows__warn-text"
+                x={line.warn[0]}
+                y={line.warn[1]}
+                textAnchor="middle"
+                dominantBaseline="central"
+              >
+                !
+              </text>
+            </>
+          )}
         </g>
       ))}
     </svg>
@@ -96,7 +119,7 @@ export function Arrows({
  * Прямая линия наискось пересекала бы чужие полоски и читалась бы хуже угла:
  * на диаграмме, где всё стоит по сетке, диагональ выглядит случайной.
  */
-function elbow(startX: number, startY: number, endX: number, endY: number): string {
+function elbow(startX: number, startY: number, endX: number, endY: number): number[][] {
   const points: number[][] = [[startX, startY]];
 
   if (endX >= startX + ELBOW * 2) {
@@ -115,5 +138,18 @@ function elbow(startX: number, startY: number, endX: number, endY: number): stri
   }
 
   points.push([endX, endY]);
-  return points.map(([x, y]) => `${x},${y}`).join(" ");
+  return points;
+}
+
+/**
+ * Середина среднего звена ломаной.
+ *
+ * У короткой ломаной звеньев три, у обходной — пять; среднее в обоих случаях
+ * то самое, которое идёт между строками и ни одну полоску не задевает. Знак,
+ * поставленный на него, не ложится ни на источник, ни на приёмник.
+ */
+function middleOf(points: number[][]): [number, number] {
+  const from = points[Math.floor((points.length - 2) / 2)];
+  const to = points[Math.floor((points.length - 2) / 2) + 1];
+  return [(from[0] + to[0]) / 2, (from[1] + to[1]) / 2];
 }
