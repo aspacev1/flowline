@@ -643,6 +643,70 @@ h2 {
   font-style: italic;
 }
 
+/* Полоса метрик — единственная рамка в шапке, и она заслужена: семь цифр,
+   стоящих подряд без разделителей, читаются как одно число. Ячейки делит
+   тонкая линия, а всю группу — рамка, чтобы полоса не спорила с лентой ниже,
+   у которой своя сетка.
+
+   Ширина — по содержимому, а не во всю шапку: растянутые на весь экран семь
+   ячеек уводят последнюю цифру от первой на расстояние, которое глазом уже не
+   охватить. На узком экране полоса прокручивается вбок, а не переносится:
+   перенесённый ряд читается как два разных ряда. */
+.project-head__metrics {
+  display: flex;
+  align-items: stretch;
+  width: fit-content;
+  max-width: 100%;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fbfcfe;
+}
+
+.project-head__metric {
+  flex: 0 0 auto;
+  min-width: 120px;
+  padding: 10px 15px;
+  border-right: 1px solid var(--border);
+}
+
+.project-head__metric:last-child {
+  border-right: 0;
+}
+
+.project-head__metric-value {
+  display: block;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+/* Подпись мельче цифры вдвое с лишним: в ячейке первой читается цифра, а
+   подпись объясняет её тому, кто уже остановился на ней взглядом. */
+.project-head__metric-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Красное — только «Заблокировано» и «После дедлайна проекта»: два состояния,
+   которые требуют решения. Цвет литералом до того, как приедет палитра
+   редизайна (§3 плана: «тревога тёмная»), — свой он и там. */
+.project-head__metric.is-warn .project-head__metric-value {
+  color: #bd4263;
+}
+
+/* На узком экране ячейка ужимается до подписи, а не до цифры: полоса всё
+   равно прокручивается, но за один экран её видно больше. */
+@media (max-width: 900px) {
+  .project-head__metric {
+    min-width: 104px;
+    padding: 9px 12px;
+  }
+}
+
 .screen__actions {
   display: flex;
   align-items: center;
