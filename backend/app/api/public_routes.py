@@ -118,6 +118,8 @@ def public_project(
 @router.get("/{org_slug}/{project_slug}/comments")
 def public_comments(
     task_id: uuid.UUID | None = None,
+    limit: int = Query(default=100, ge=1, le=200),
+    before: uuid.UUID | None = None,
     shared: SharedProject = Depends(shared_project),
     db: DbSession = Depends(get_db),
 ):
@@ -130,9 +132,18 @@ def public_comments(
     Внутренние реплики гость не видит: это разговор команды «в сторону»,
     а не часть публичной страницы.
     """
-    return comments_out(
-        db, list_comments(db, shared.project, task_id=task_id, include_internal=False)
-    )
+    try:
+        rows = list_comments(
+            db,
+            shared.project,
+            task_id=task_id,
+            include_internal=False,
+            limit=limit,
+            before=before,
+        )
+    except CommentRejected as error:
+        raise HTTPException(status_code=404, detail=error.code)
+    return comments_out(db, rows)
 
 
 @router.post("/{org_slug}/{project_slug}/comments", status_code=201)

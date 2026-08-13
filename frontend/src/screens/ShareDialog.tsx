@@ -5,6 +5,7 @@ import { errorKey } from "../api/errors";
 import {
   getShare,
   issueShare,
+  rotateShare,
   revokeShare,
   setShareComments,
   shareQueryKey,
@@ -43,6 +44,16 @@ export function ShareDialog({ projectId, onClose }: { projectId: string; onClose
     },
   });
 
+  // Перевыпуск — отдельный вызов: «создать» и «убить прежний адрес» нельзя
+  // перепутать двойным кликом или ретраем сети.
+  const rotate = useMutation({
+    mutationFn: () => rotateShare(projectId),
+    onSuccess: () => {
+      setCopied(false);
+      return refresh();
+    },
+  });
+
   const comments = useMutation({
     mutationFn: (enabled: boolean) => setShareComments(projectId, enabled),
     onSuccess: refresh,
@@ -56,8 +67,8 @@ export function ShareDialog({ projectId, onClose }: { projectId: string; onClose
     },
   });
 
-  const failure = share.error ?? issue.error ?? comments.error ?? revoke.error;
-  const busy = issue.isPending || comments.isPending || revoke.isPending;
+  const failure = share.error ?? issue.error ?? rotate.error ?? comments.error ?? revoke.error;
+  const busy = issue.isPending || rotate.isPending || comments.isPending || revoke.isPending;
   const url = share.data?.url ?? null;
 
   async function copy() {
@@ -130,7 +141,7 @@ export function ShareDialog({ projectId, onClose }: { projectId: string; onClose
             <button
               type="button"
               className="button--quiet"
-              onClick={() => issue.mutate()}
+              onClick={() => rotate.mutate()}
               disabled={busy}
             >
               {t("share.reissue")}

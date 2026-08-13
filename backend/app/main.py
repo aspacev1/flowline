@@ -116,7 +116,16 @@ async def _lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="Flowline", lifespan=_lifespan)
+# Документация живёт под /api: на боевой раскладке (Caddy, Vercel) всё вне
+# /api/* перехватывает фолбэк на index.html, и штатные /docs с /openapi.json
+# были недоступны ровно там, где нужнее всего.
+app = FastAPI(
+    title="Flowline",
+    lifespan=_lifespan,
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
+)
 
 
 @app.middleware("http")
@@ -142,6 +151,22 @@ async def stamp_request_id(request: Request, call_next):
         request_id_var.reset(token)
     response.headers["X-Request-ID"] = request_id
     return response
+
+
+@app.middleware("http")
+async def reject_oversized_bodies(request: Request, call_next):
+    """Потолок размера тела — до разбора JSON.
+
+    Pydantic ограничивает длины полей, но сначала весь JSON должен доехать и
+    разобраться — гигабайтное тело съедало бы память и время до первой
+    проверки. Смотрится Content-Length: клиент без него (chunked) редок, и
+    его тело всё равно упрётся в потолки полей — заголовок закрывает
+    дешёвый путь, не претендуя на герметичность.
+    """
+    length = request.headers.get("content-length")
+    if length and length.isdigit() and int(length) > get_settings().max_body_bytes:
+        return JSONResponse(status_code=413, content={"detail": "body_too_large"})
+    return await call_next(request)
 
 
 _WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
@@ -217,3 +242,20 @@ def readiness():
         logger.exception("readiness: база недоступна")
         return JSONResponse(status_code=503, content={"status": "unavailable"})
     return {"status": "ready"}
+
+
+# Определён последним — значит, обёрнут вокруг остальных middleware и
+# срабатывает первым: CSRF и лимит тела видят уже переписанный путь.
+@app.middleware("http")
+async def accept_the_v1_prefix(request: Request, call_next):
+    """Версионный алиас: /api/v1/* обслуживается как /api/*.
+
+    Версия появляется в адресе до того, как появится вторая версия: клиенты,
+    закладывающиеся на /api/v1, переживут появление /api/v2 без правок, а
+    нынешний /api/* остаётся псевдонимом первой версии. Переписывается только
+    путь HTTP-запроса; WebSocket живёт на /api/projects/{id}/live без алиаса.
+    """
+    path = request.scope["path"]
+    if path.startswith("/api/v1/"):
+        request.scope["path"] = "/api/" + path[len("/api/v1/") :]
+    return await call_next(request)
