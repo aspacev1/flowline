@@ -111,6 +111,22 @@ export function Project() {
             <ProjectHead
               state={query.data}
               showPlan
+              // Публикация — действие уровня проекта, поэтому кнопка стоит
+              // вплотную к его названию, а не в настройках и не в общем ряду
+              // справа: она следует за именем любой длины. Гостю и читателю не
+              // показывается: сервер такую попытку отклонит.
+              titleAction={
+                canWrite ? (
+                  <button
+                    type="button"
+                    className="button--quiet"
+                    disabled={offline}
+                    onClick={() => setSharing(true)}
+                  >
+                    {t("share.open")}
+                  </button>
+                ) : undefined
+              }
               planAction={
                 <PlanApproval
                   projectId={projectId}
@@ -143,19 +159,6 @@ export function Project() {
                       onClick={() => setAddingCategory(true)}
                     >
                       {t("category.create")}
-                    </button>
-                  )}
-                  {/* Публикация — действие уровня проекта, поэтому кнопка стоит
-                      в его шапке, а не в настройках. Гостю и читателю она не
-                      показывается: сервер такую попытку отклонит. */}
-                  {canWrite && (
-                    <button
-                      type="button"
-                      className="button--quiet"
-                      disabled={offline}
-                      onClick={() => setSharing(true)}
-                    >
-                      {t("share.open")}
                     </button>
                   )}
                   {/* Отмена — там же, где остальные действия над проектом, и
