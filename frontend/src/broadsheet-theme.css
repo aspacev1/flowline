@@ -52,7 +52,9 @@
 body { font-size: 15px; background: var(--bg); }
 .app__main { min-height: 100vh; }
 .sidebar { padding: 28px 16px 18px; gap: 18px; background: #fbfcff; border-right: 1px solid var(--border); }
-.sidebar__workspace { gap: 12px; padding: 0 8px 46px; }
+/* Нижний отступ, отделявший логотип от разделов, переехал на приветствие:
+   теперь оно замыкает верхний блок колонки. */
+.sidebar__workspace { gap: 12px; padding: 0 8px; }
 .sidebar__avatar { width: 34px; height: 34px; border-radius: 9px; font-size: 0; position: relative; background: linear-gradient(135deg,#1c6dff 0 45%,#2459f5 45% 70%,#68a4ff 70%); }
 .sidebar__avatar::after { content: "P"; color: #fff; font-size: 22px; line-height: 1; font-weight: 800; }
 .sidebar__brand { font-size: 21px; font-weight: 650; color: #121826; }
@@ -62,7 +64,7 @@ body { font-size: 15px; background: var(--bg); }
 .sidebar__link.is-current { background: #eef4ff; color: var(--accent); }
 .sidebar__icon { width: 22px; height: 22px; color: currentColor; }
 .sidebar__foot { border-top: 0; gap: 10px; }
-.sidebar__user { font-size: 15px; color: #1f2937; }
+.sidebar__user { padding: 0 8px 46px; font-size: 15px; color: #1f2937; }
 .org-switch { display: inline-flex; }
 .locale-switch { display: flex; }
 

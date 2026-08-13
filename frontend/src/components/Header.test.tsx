@@ -29,10 +29,15 @@ describe("шапка", () => {
     expect(screen.getByRole("button", { name: "EN", pressed: false })).toBeInTheDocument();
   });
 
-  it("здоровается с вошедшим по имени", async () => {
+  it("здоровается с вошедшим только по имени, без фамилии", async () => {
+    server.use(
+      http.get("/api/auth/me", () => HttpResponse.json({ ...USER, name: "Алексей Смирнов" })),
+    );
+
     renderApp({ route: "/projects", locale: "ru" });
 
     expect(await screen.findByText("Привет, Алексей")).toBeInTheDocument();
+    expect(screen.queryByText("Привет, Алексей Смирнов")).not.toBeInTheDocument();
   });
 
   it("сворачивается по кнопке и запоминает выбор", async () => {

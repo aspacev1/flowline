@@ -292,6 +292,7 @@ button.sidebar__toggle:hover {
 }
 
 .sidebar--collapsed .sidebar__brand,
+.sidebar--collapsed .sidebar__user,
 .sidebar--collapsed .org-switch,
 .sidebar--collapsed .sidebar__nav,
 .sidebar--collapsed .sidebar__section,
@@ -351,7 +352,7 @@ button.sidebar__toggle:hover {
   color: var(--text-muted);
 }
 
-/* Низ колонки прижат к низу: там живёт человек — его имя, профиль, язык и
+/* Низ колонки прижат к низу: там живёт человек — его профиль, язык и
    выход. Всё, что относится к нему, а не к работе. */
 .sidebar__foot {
   margin-top: auto;
@@ -362,8 +363,10 @@ button.sidebar__toggle:hover {
   gap: 2px;
 }
 
+/* Приветствие стоит сразу под логотипом: колонка здоровается прежде, чем
+   предлагает разделы. */
 .sidebar__user {
-  padding: 6px 8px;
+  padding: 0 8px 6px;
   color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
