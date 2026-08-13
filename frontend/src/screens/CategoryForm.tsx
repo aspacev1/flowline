@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
+import type { CSSProperties } from "react";
 
 import { errorKey } from "../api/errors";
 import { applyOp, projectQueryKey } from "../api/projects";
@@ -14,22 +15,34 @@ import { useLocale } from "../i18n/LocaleProvider";
  * Предлагается по числу уже существующих категорий — так две подряд созданные
  * категории не оказываются одного цвета, и человеку не приходится подбирать
  * цвет вручную каждый раз. Выбор всё равно остаётся за ним: подобранное
- * автоматически совпадение цветов на восьмой категории должно чиниться, а не
- * терпеться.
+ * автоматически совпадение цветов на одиннадцатой категории должно чиниться,
+ * а не терпеться.
+ *
+ * Готовый набор — это и есть весь выбор: произвольный цвет из системной
+ * пипетки умеет быть неотличимым от соседнего, нечитаемым на светлой доске
+ * и разным у двух людей, договорившихся «покрасить в синий». Десять
+ * различимых между собой цветов закрывают задачу «отличить категории друг от
+ * друга» и делают выбор делом одного щелчка.
+ *
+ * Ключ подписи (`name`) — машинный: сам текст живёт в словарях, потому что
+ * читалка обязана назвать кружок словом на языке человека, а не кодом
+ * `#3b82f6`.
  */
 export const CATEGORY_COLORS = [
-  "#3b82f6",
-  "#a855f7",
-  "#f97316",
-  "#10b981",
-  "#ef4444",
-  "#eab308",
-  "#06b6d4",
-  "#ec4899",
-];
+  { value: "#3b82f6", name: "blue" },
+  { value: "#a855f7", name: "purple" },
+  { value: "#f97316", name: "orange" },
+  { value: "#10b981", name: "green" },
+  { value: "#ef4444", name: "red" },
+  { value: "#eab308", name: "yellow" },
+  { value: "#06b6d4", name: "cyan" },
+  { value: "#ec4899", name: "pink" },
+  { value: "#64748b", name: "slate" },
+  { value: "#b45309", name: "brown" },
+] as const;
 
 export function suggestColor(existing: number): string {
-  return CATEGORY_COLORS[existing % CATEGORY_COLORS.length];
+  return CATEGORY_COLORS[existing % CATEGORY_COLORS.length].value;
 }
 
 export function CategoryForm({
@@ -71,16 +84,29 @@ export function CategoryForm({
       >
         <Field id="category-name" label={t("category.new.name")} value={name} onChange={setName} />
 
-        <p className="field">
-          <label htmlFor="category-color">{t("category.new.color")}</label>
-          <input
-            id="category-color"
-            name="category-color"
-            type="color"
-            value={color}
-            onChange={(event) => setColor(event.target.value)}
-          />
-        </p>
+        {/* Набор переключателей, а не список: выбран ровно один цвет, и
+            стрелки клавиатуры обязаны ходить по нему сами — это поведение
+            даёт браузер группе радиокнопок с общим `name`. Сам кружок — это и
+            есть радиокнопка, перекрашенная в CSS: подменять её собственной
+            разметкой значило бы отбирать у браузера и клавиатуру, и читалку. */}
+        <fieldset className="fieldset swatches">
+          <legend>{t("category.new.color")}</legend>
+          <div className="swatches__row">
+            {CATEGORY_COLORS.map((option) => (
+              <input
+                key={option.value}
+                type="radio"
+                className="swatch"
+                name="category-color"
+                value={option.value}
+                checked={color === option.value}
+                onChange={() => setColor(option.value)}
+                aria-label={t(`category.new.colors.${option.name}`)}
+                style={{ "--swatch": option.value } as CSSProperties}
+              />
+            ))}
+          </div>
+        </fieldset>
 
         {create.error && (
           <p className="error" role="alert">

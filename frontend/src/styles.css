@@ -937,6 +937,55 @@ input[type="checkbox"] {
   font-weight: 500;
 }
 
+/* Палитра: готовые цвета кружками в один ряд. Ряд переносится, а не жмёт
+   кружки, — на узком экране лучше две строки, чем десять неразличимых точек. */
+.swatches {
+  margin: 0 0 var(--gap);
+}
+
+.swatches__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* Кружок — это сама радиокнопка: `appearance: none` снимает вид платформы,
+   оставляя поведение. Цвет приходит из разметки через `--swatch`: он берётся
+   из палитры категорий и в стилях повторяться не должен. */
+.swatch {
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  background: var(--swatch);
+  border: 0;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 12%) inset;
+  cursor: pointer;
+}
+
+.swatch:hover {
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 12%) inset,
+    0 0 0 2px var(--surface),
+    0 0 0 3px var(--border-strong);
+}
+
+/* Выбранное — кольцо цветом самого кружка, отбитое от него полем фона:
+   галочка внутри читалась бы не на всяком цвете, а кольцо видно на любом. */
+.swatch:checked {
+  box-shadow:
+    0 0 0 1px rgb(0 0 0 / 12%) inset,
+    0 0 0 2px var(--surface),
+    0 0 0 4px var(--swatch);
+}
+
+.swatch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
 /* Рубильник Notion: дорожка со скользящей точкой. `role="switch"` уже сказал
    читалке, что это переключатель, — здесь остаётся показать то же глазу. */
 .switch {
