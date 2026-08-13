@@ -37,7 +37,7 @@
 - [ ] **Step 1: Создать проект**
 
 ```bash
-cd /Users/me/Desktop/flowline && npm create vite@latest frontend -- --template react-ts && cd frontend && npm install && npm install react-router-dom @tanstack/react-query && npm install -D vitest @testing-library/react @testing-library/user-event @testing-library/jest-dom jsdom msw
+cd /Users/me/Desktop/planora && npm create vite@latest frontend -- --template react-ts && cd frontend && npm install && npm install react-router-dom @tanstack/react-query && npm install -D vitest @testing-library/react @testing-library/user-event @testing-library/jest-dom jsdom msw
 ```
 
 - [ ] **Step 2: Написать падающий тест**

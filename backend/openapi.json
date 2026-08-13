@@ -1851,7 +1851,7 @@
     }
   },
   "info": {
-    "title": "Flowline",
+    "title": "Planora",
     "version": "0.1.0"
   },
   "openapi": "3.1.0",
@@ -1862,7 +1862,7 @@
         "parameters": [
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -1873,7 +1873,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -1909,7 +1909,7 @@
         "parameters": [
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -1920,7 +1920,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -1968,7 +1968,7 @@
         "parameters": [
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -1979,7 +1979,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -2035,7 +2035,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -2046,7 +2046,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -2092,7 +2092,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -2103,7 +2103,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -2160,7 +2160,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -2171,7 +2171,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -2228,7 +2228,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -2239,7 +2239,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -2283,7 +2283,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -2294,7 +2294,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -2351,7 +2351,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -2362,7 +2362,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -2406,7 +2406,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -2417,7 +2417,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -2474,7 +2474,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -2485,7 +2485,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -2531,7 +2531,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -2542,7 +2542,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -2630,7 +2630,7 @@
         "parameters": [
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -2641,7 +2641,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -2672,7 +2672,7 @@
         "parameters": [
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -2683,7 +2683,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -2720,7 +2720,7 @@
         "parameters": [
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -2731,7 +2731,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -2780,7 +2780,7 @@
         "parameters": [
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -2791,7 +2791,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -2892,7 +2892,7 @@
         "parameters": [
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -2903,7 +2903,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -2976,7 +2976,7 @@
         "parameters": [
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -2987,7 +2987,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -3139,7 +3139,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -3150,7 +3150,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -3189,7 +3189,7 @@
         "parameters": [
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -3200,7 +3200,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -3237,7 +3237,7 @@
         "parameters": [
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -3248,7 +3248,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -3297,7 +3297,7 @@
         "parameters": [
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -3308,7 +3308,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -3344,7 +3344,7 @@
         "parameters": [
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -3355,7 +3355,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -3417,7 +3417,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -3428,7 +3428,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -3470,7 +3470,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -3481,7 +3481,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -3530,7 +3530,7 @@
         "parameters": [
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -3541,7 +3541,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -3584,7 +3584,7 @@
         "parameters": [
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -3595,7 +3595,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -3649,7 +3649,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -3660,7 +3660,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -3697,7 +3697,7 @@
         "parameters": [
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -3708,7 +3708,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -3756,7 +3756,7 @@
         "parameters": [
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -3767,7 +3767,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -3807,7 +3807,7 @@
         "parameters": [
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -3818,7 +3818,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -3876,7 +3876,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -3887,7 +3887,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -3932,7 +3932,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -3943,7 +3943,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -4010,7 +4010,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -4021,7 +4021,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -4123,7 +4123,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -4134,7 +4134,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -4195,7 +4195,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -4206,7 +4206,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -4279,7 +4279,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -4290,7 +4290,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -4347,7 +4347,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -4358,7 +4358,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -4403,7 +4403,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -4414,7 +4414,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -4470,7 +4470,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -4481,7 +4481,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -4574,7 +4574,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -4585,7 +4585,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -4631,7 +4631,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -4642,7 +4642,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -4681,7 +4681,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -4692,7 +4692,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -4738,7 +4738,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -4749,7 +4749,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -4806,7 +4806,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -4817,7 +4817,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -4866,7 +4866,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -4877,7 +4877,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -4937,7 +4937,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -4948,7 +4948,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],
@@ -4995,7 +4995,7 @@
           },
           {
             "in": "cookie",
-            "name": "flowline_session",
+            "name": "planora_session",
             "required": false,
             "schema": {
               "anyOf": [
@@ -5006,7 +5006,7 @@
                   "type": "null"
                 }
               ],
-              "title": "Flowline Session"
+              "title": "Planora Session"
             }
           }
         ],

@@ -127,7 +127,7 @@ def test_the_installation_switch_overrides_the_organization(db, org, project, mo
 
 
 def test_the_public_address_is_built_from_the_configured_domain(db, org, project, monkeypatch):
-    monkeypatch.setenv("PUBLIC_BASE_URL", "https://flowline.example.com/")
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://planora.example.com/")
     get_settings.cache_clear()
 
     link = issue_link(db, project, org)
@@ -135,7 +135,7 @@ def test_the_public_address_is_built_from_the_configured_domain(db, org, project
 
     # Слаги обоих — то, что человек читает в адресе; токен идёт запросом,
     # потому что без него отзыв ссылки не менял бы адрес вовсе.
-    assert url == f"https://flowline.example.com/p/acme/redesign-2026?s={link.token}"
+    assert url == f"https://planora.example.com/p/acme/redesign-2026?s={link.token}"
 
 
 def test_revoking_an_unpublished_project_is_not_an_error(db, project):

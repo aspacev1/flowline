@@ -397,7 +397,7 @@ wheels = [
 ]
 
 [[package]]
-name = "flowline"
+name = "planora"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

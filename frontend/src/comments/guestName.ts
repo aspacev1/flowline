@@ -1,4 +1,4 @@
-const STORAGE_KEY = "flowline.guest_name";
+const STORAGE_KEY = "planora.guest_name";
 
 /**
  * Имя гостя запоминается в браузере, а не на сервере: аккаунта у гостя нет,

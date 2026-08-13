@@ -1,8 +1,8 @@
-# Flowline: фундамент бэкенда — план реализации
+# Planora: фундамент бэкенда — план реализации
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Поднять бэкенд Flowline до состояния, в котором он разворачивается одной командой, регистрирует пользователей с их организациями, хранит проекты, категории и задачи, изменяет их только через журналируемые мутации и правильно считает рабочие дни.
+**Goal:** Поднять бэкенд Planora до состояния, в котором он разворачивается одной командой, регистрирует пользователей с их организациями, хранит проекты, категории и задачи, изменяет их только через журналируемые мутации и правильно считает рабочие дни.
 
 **Architecture:** FastAPI поверх SQLAlchemy 2.0 и Postgres. Бизнес-логика разложена по модулям, которые не знают про HTTP: `calendar` — чистые функции дат, `access` — матрица прав, `mutations` — реестр операций с обратными, `settings_resolution` — наследование настроек организация → проект. Слой `api` только принимает запросы и сериализует ответы. Изменения данных проекта идут исключительно через мутации, каждая пишет запись в журнал ревизий и умеет строить обратную себе операцию — из этого позже бесплатно получаются история задачи, undo и откат пачки от AI.
 
@@ -47,7 +47,7 @@
 
 ```toml
 [project]
-name = "flowline"
+name = "planora"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
@@ -149,7 +149,7 @@ def get_settings() -> Settings:
 ```python
 from fastapi import FastAPI
 
-app = FastAPI(title="Flowline")
+app = FastAPI(title="Planora")
 
 
 @app.get("/api/health")
@@ -165,7 +165,7 @@ def health() -> dict[str, str]:
 import os
 
 os.environ.setdefault(
-    "DATABASE_URL", "postgresql+psycopg://flowline:flowline@localhost:5432/flowline_test"
+    "DATABASE_URL", "postgresql+psycopg://planora:planora@localhost:5432/planora_test"
 )
 os.environ.setdefault("APP_SECRET", "test-secret-not-for-production")
 ```
@@ -205,13 +205,13 @@ services:
   db:
     image: postgres:16
     environment:
-      POSTGRES_USER: flowline
-      POSTGRES_PASSWORD: flowline
-      POSTGRES_DB: flowline
+      POSTGRES_USER: planora
+      POSTGRES_PASSWORD: planora
+      POSTGRES_DB: planora
     ports: ["5432:5432"]
     volumes: ["pgdata:/var/lib/postgresql/data"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U flowline"]
+      test: ["CMD-SHELL", "pg_isready -U planora"]
       interval: 5s
       retries: 10
 
@@ -230,9 +230,9 @@ volumes:
 Создать `.env.example`:
 
 ```
-DATABASE_URL=postgresql+psycopg://flowline:flowline@db:5432/flowline
+DATABASE_URL=postgresql+psycopg://planora:planora@db:5432/planora
 APP_SECRET=change-me-to-a-long-random-string
-PUBLIC_BASE_URL=https://flowline.example.com
+PUBLIC_BASE_URL=https://planora.example.com
 DEFAULT_LOCALE=az
 SUPPORTED_LOCALES=az,en,ru
 SIGNUP_MODE=open
@@ -250,7 +250,7 @@ docker compose up -d db && docker compose ps
 - [ ] **Step 10: Создать тестовую базу**
 
 ```bash
-docker compose exec db psql -U flowline -c "CREATE DATABASE flowline_test"
+docker compose exec db psql -U planora -c "CREATE DATABASE planora_test"
 ```
 
 Ожидается: `CREATE DATABASE`.
@@ -675,7 +675,7 @@ def test_task_belongs_to_a_category_and_keeps_its_position(db):
 import os
 
 os.environ.setdefault(
-    "DATABASE_URL", "postgresql+psycopg://flowline:flowline@localhost:5432/flowline_test"
+    "DATABASE_URL", "postgresql+psycopg://planora:planora@localhost:5432/planora_test"
 )
 os.environ.setdefault("APP_SECRET", "test-secret-not-for-production")
 
@@ -1050,7 +1050,7 @@ def test_expired_session_does_not_authenticate(db):
     db.flush()
 
     with pytest.raises(HTTPException) as error:
-        current_user(flowline_session=token, db=db)
+        current_user(planora_session=token, db=db)
     assert error.value.status_code == 401
 
 
@@ -1058,13 +1058,13 @@ def test_logout_kills_the_server_side_session_not_only_the_cookie(db):
     user = register(db, name="Alex", email="alex@example.com", password="s3cret-pass")
     db.flush()
     token = open_session(db, user)
-    assert current_user(flowline_session=token, db=db).id == user.id
+    assert current_user(planora_session=token, db=db).id == user.id
 
     close_session(db, token)
     db.flush()
 
     with pytest.raises(HTTPException):
-        current_user(flowline_session=token, db=db)
+        current_user(planora_session=token, db=db)
 
 
 def test_authenticate_accepts_the_right_password_and_rejects_the_wrong_one(db):
@@ -1137,7 +1137,7 @@ from app.models import Membership, Organization, Role, Session, User
 from app.security import hash_password, hash_token, new_token, verify_password
 from app.text import normalize_email, slugify
 
-SESSION_COOKIE = "flowline_session"
+SESSION_COOKIE = "planora_session"
 SESSION_TTL = timedelta(days=30)
 
 
@@ -1206,13 +1206,13 @@ def close_session(db: DbSession, raw_token: str) -> None:
 
 
 def current_user(
-    flowline_session: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+    planora_session: str | None = Cookie(default=None, alias=SESSION_COOKIE),
     db: DbSession = Depends(get_db),
 ) -> User:
-    if not flowline_session:
+    if not planora_session:
         raise HTTPException(status_code=401, detail="not_authenticated")
 
-    record = db.scalar(select(Session).where(Session.token_hash == hash_token(flowline_session)))
+    record = db.scalar(select(Session).where(Session.token_hash == hash_token(planora_session)))
     if record is None or record.expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=401, detail="session_expired")
 
@@ -1310,10 +1310,10 @@ def login_route(payload: LoginIn, response: Response, db: DbSession = Depends(ge
 def logout_route(
     response: Response,
     db: DbSession = Depends(get_db),
-    flowline_session: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+    planora_session: str | None = Cookie(default=None, alias=SESSION_COOKIE),
 ):
-    if flowline_session:
-        close_session(db, flowline_session)
+    if planora_session:
+        close_session(db, planora_session)
     response.delete_cookie(SESSION_COOKIE)
 
 
@@ -1329,7 +1329,7 @@ from fastapi import FastAPI
 
 from app.api import auth_routes
 
-app = FastAPI(title="Flowline")
+app = FastAPI(title="Planora")
 app.include_router(auth_routes.router)
 
 
@@ -2417,7 +2417,7 @@ from fastapi import FastAPI
 
 from app.api import auth_routes, project_routes
 
-app = FastAPI(title="Flowline")
+app = FastAPI(title="Planora")
 app.include_router(auth_routes.router)
 app.include_router(project_routes.router)
 

@@ -118,13 +118,13 @@ def test_expired_session_does_not_authenticate(db):
     db.flush()
 
     with pytest.raises(HTTPException) as exc_info:
-        current_user(flowline_session=raw, db=db)
+        current_user(planora_session=raw, db=db)
     assert exc_info.value.status_code == 401
 
 
 def test_missing_cookie_is_rejected(db):
     with pytest.raises(HTTPException) as exc_info:
-        current_user(flowline_session=None, db=db)
+        current_user(planora_session=None, db=db)
     assert exc_info.value.status_code == 401
 
 
@@ -134,13 +134,13 @@ def test_logout_invalidates_the_server_side_session_not_just_the_cookie(db):
     raw = open_session(db, user)
     db.flush()
 
-    assert current_user(flowline_session=raw, db=db).id == user.id
+    assert current_user(planora_session=raw, db=db).id == user.id
 
     close_session(db, raw)
     db.flush()
 
     with pytest.raises(HTTPException) as exc_info:
-        current_user(flowline_session=raw, db=db)
+        current_user(planora_session=raw, db=db)
     assert exc_info.value.status_code == 401
 
 
@@ -267,7 +267,7 @@ class _FakeRequest:
 
 
 def test_cookie_is_secure_when_public_base_url_is_https(monkeypatch):
-    monkeypatch.setenv("PUBLIC_BASE_URL", "https://flowline.example.com")
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://planora.example.com")
     get_settings.cache_clear()
     try:
         assert _cookie_is_secure(_FakeRequest()) is True
@@ -301,7 +301,7 @@ def test_cookie_is_secure_behind_a_tls_terminating_proxy(monkeypatch):
 
 
 def test_cookie_secure_setting_overrides_the_guesswork(monkeypatch):
-    monkeypatch.setenv("PUBLIC_BASE_URL", "https://flowline.example.com")
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://planora.example.com")
     monkeypatch.setenv("COOKIE_SECURE", "false")
     get_settings.cache_clear()
     try:

@@ -1,4 +1,4 @@
-# Flowline
+# Planora
 
 Самостоятельно размещаемый планировщик проектов с диаграммой Ганта: категории,
 задачи, сроки, критичность и история изменений с отменой. Организация — единица
@@ -11,8 +11,8 @@
 на машине ставить не нужно, всё собирается внутри образов.
 
 ```sh
-git clone https://github.com/aspacev1/flowline.git
-cd flowline
+git clone https://github.com/aspacev1/planora.git
+cd planora
 cp .env.example .env      # отредактируй APP_SECRET и учётные данные Postgres
 docker compose up --build
 ```
@@ -33,7 +33,7 @@ docker compose up --build
 нет — между собой они общаются по внутренней сети compose, а снаружи всё
 доступно через тот же 8080. Занятый локальным Postgres 5432 или чужой uvicorn
 на 8000 запуску больше не мешают. Заглянуть внутрь можно через контейнеры:
-`docker compose exec db psql -U flowline`, `docker compose logs -f api`.
+`docker compose exec db psql -U planora`, `docker compose logs -f api`.
 
 Фронтенд и API живут за одним доменом: Caddy отдаёт статику с корня, а всё,
 что начинается с `/api/`, проксирует в бэкенд. Это не украшательство —
@@ -65,7 +65,7 @@ docker compose up --build
 Дампы снимает сервис `backup` из `docker-compose.yml` — тем же образом
 `postgres:16`, что и сама база, поэтому версии `pg_dump` и сервера не
 расходятся. Раз в сутки он кладёт в `./backups` на хосте файл вида
-`flowline-20260811-031500.dump` (сжатый формат `pg_restore -Fc`) и удаляет
+`planora-20260811-031500.dump` (сжатый формат `pg_restore -Fc`) и удаляет
 дампы старше двух недель. Расписание и глубина хранения меняются переменными
 `BACKUP_INTERVAL_SECONDS` и `BACKUP_KEEP_DAYS` в `.env`. Каталог `./backups`
 лежит вне томов Docker намеренно: бэкап обязан переживать
@@ -76,8 +76,8 @@ docker compose up --build
 
 ```sh
 docker compose stop api            # чтобы никто не писал в базу под ногами
-docker compose exec -T db pg_restore -U flowline -d flowline \
-  --clean --if-exists < backups/flowline-20260811-031500.dump
+docker compose exec -T db pg_restore -U planora -d planora \
+  --clean --if-exists < backups/planora-20260811-031500.dump
 docker compose start api
 ```
 
@@ -86,13 +86,13 @@ docker compose start api
 восстановлением во временную базу — процедура не трогает рабочие данные:
 
 ```sh
-docker compose exec db createdb -U flowline restore_check
-docker compose exec -T db pg_restore -U flowline -d restore_check \
-  < backups/flowline-20260811-031500.dump
+docker compose exec db createdb -U planora restore_check
+docker compose exec -T db pg_restore -U planora -d restore_check \
+  < backups/planora-20260811-031500.dump
 # счётчики должны быть похожи на правду, а не нули
-docker compose exec db psql -U flowline -d restore_check \
+docker compose exec db psql -U planora -d restore_check \
   -c 'select count(*) from users' -c 'select count(*) from tasks'
-docker compose exec db dropdb -U flowline restore_check
+docker compose exec db dropdb -U planora restore_check
 ```
 
 ## Показать проект наружу
@@ -405,5 +405,5 @@ api pytest` (см. «Разработка в контейнерах»).
 такую базу нужно создать один раз руками:
 
 ```sh
-docker compose exec db createdb -U flowline flowline_test
+docker compose exec db createdb -U planora planora_test
 ```
