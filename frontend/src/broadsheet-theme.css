@@ -87,6 +87,10 @@ body { font-size: 15px; background: var(--bg); }
 button { height: var(--control); padding: 0 18px; border-radius: 7px; font-size: 16px; font-weight: 600; box-shadow: 0 8px 18px rgb(36 89 245 / 22%); }
 .button--quiet { background: #fff; color: #374151; box-shadow: inset 0 0 0 1px var(--border-strong); }
 .button--quiet:hover { background: #f8fafc; }
+/* Ссылка-кнопка повторяет размеры кнопки темы: стоит с ней в одной строке и
+   обязана совпадать по высоте, иначе пара действий читается лесенкой. */
+.button-link { height: var(--control); padding: 0 18px; border-radius: 7px; font-size: 16px; font-weight: 600; background: #fff; text-decoration: none; }
+.button-link:hover { background: #f8fafc; }
 
 .project-toolbar { display: flex; align-items: center; gap: 14px; height: 78px; padding: 0 32px; border-bottom: 1px solid var(--border); background: #fff; }
 .project-toolbar__primary { padding: 0 20px; }

@@ -226,8 +226,6 @@
     "more": "More actions"
   },
   "home": {
-    "title": "Home",
-    "all_projects": "All projects",
     "greeting": "Hello, {name} — here is your portfolio at a glance",
     "tasks": {
       "one": "{count} task",
