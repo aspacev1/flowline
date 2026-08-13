@@ -1,12 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
-import { Link, NavLink, useMatch } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 
 import { ORG_QUERY_KEY, organization } from "../api/org";
 import { useAuth } from "../auth/AuthProvider";
-import { useCanWrite } from "../auth/permissions";
 import { useLocale } from "../i18n/LocaleProvider";
-import { LocaleSwitch } from "./LocaleSwitch";
 import { OrgSwitch } from "./OrgSwitch";
 
 /**
@@ -37,16 +35,7 @@ function storedCollapsed(): boolean {
 export function Header() {
   const { t } = useLocale();
   const { user, logout } = useAuth();
-  const canWrite = useCanWrite();
   const [collapsed, setCollapsed] = useState(storedCollapsed);
-
-  // Настройки проекта показываются, только пока он открыт: ссылка ведёт по
-  // его адресу, а вне проекта такого адреса попросту нет. Совпадает и с
-  // самой диаграммой, и с уже открытыми настройками — второй визит на тот же
-  // экран не должен прятать вход в него.
-  const projectMatch = useMatch("/projects/:projectId");
-  const projectSettingsMatch = useMatch("/projects/:projectId/settings");
-  const projectId = projectMatch?.params.projectId ?? projectSettingsMatch?.params.projectId;
 
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
@@ -113,9 +102,12 @@ export function Header() {
 
       <OrgSwitch />
 
-      {/* Четыре раздела. Роли `client` часть маршрутов отвечает
-          отказом, но ссылки остаются видимыми — прятать их значило бы решать
-          про доступ на клиенте, а решает про него сервер. */}
+      {/* Разделы работы — и только они. Состав организации отсюда уехал в
+          настройки: приглашения и роли настраивают рабочее пространство, а не
+          работу в нём, и стоять рядом с «Проектами» им незачем. Роли `client`
+          часть маршрутов отвечает отказом, но ссылки остаются видимыми —
+          прятать их значило бы решать про доступ на клиенте, а решает про него
+          сервер. */}
       <nav className="sidebar__nav">
         {/* `end`, иначе «Проекты» подсвечены на каждом адресе: все они
             начинаются с «/». */}
@@ -127,10 +119,6 @@ export function Header() {
           <IconCheck />
           {t("nav.my_tasks")}
         </NavLink>
-        <NavLink to="/members" className={navClass}>
-          <IconPeople />
-          {t("nav.team")}
-        </NavLink>
         <NavLink to="/reports" className={navClass}>
           <IconChart />
           {t("nav.reports")}
@@ -138,31 +126,21 @@ export function Header() {
       </nav>
 
       <div className="sidebar__foot">
-        {/* Настройки организации показываются только владельцу: остальным
-            маршрут открылся бы на выключенных полях, то есть обещал бы
-            действие, которого нет. */}
-        {org.data?.role === "owner" && (
-          <Link to="/settings/organization" className={navClass({ isActive: false })}>
-            <IconGear />
-            {t("nav.org_settings")}
-          </Link>
-        )}
-        {/* Настройки проекта — тем же правом, что и кебаб на диаграмме, откуда
-            эта ссылка сюда и переехала: гостю и читателю она обещала бы
-            действие, которое сервер отклонит. */}
-        {projectId && canWrite && (
-          <Link to={`/projects/${projectId}/settings`} className={navClass({ isActive: false })}>
-            <IconGear />
-            {t("settings.project.link")}
-          </Link>
-        )}
-        {user && (
-          <Link to="/settings/profile" className={navClass({ isActive: false })}>
-            <IconPerson />
-            {t("nav.profile")}
-          </Link>
-        )}
-        <LocaleSwitch />
+        {/* Одна шестерёнка вместо трёх пунктов подряд. Раньше здесь стояли
+            «Организация», «Настройки» (проекта) и «Профиль» — два первых с
+            одинаковым значком и подписями, по которым нельзя было угадать,
+            какая из них про что. Настройки проекта уехали в шапку самого
+            проекта, где у слова «настройки» есть подлежащее, остальные —
+            вкладками внутрь этого раздела. */}
+        <NavLink to="/settings" className={navClass}>
+          <IconGear />
+          {t("nav.settings")}
+        </NavLink>
+        {/* Переключатель языка отсюда уехал в профиль — туда, где спецификация
+            и держит язык интерфейса: это настройка уровня 4, а не действие
+            навигации. Здесь он писал то же поле профиля, что и селект на
+            экране профиля, вторым куском кода — и на экране профиля два
+            одинаковых переключателя стояли бы рядом. */}
         <button
           type="button"
           className="button--quiet sidebar__button"
@@ -238,16 +216,6 @@ function IconBoard() {
   );
 }
 
-function IconPeople() {
-  return (
-    <Icon>
-      <circle cx="6" cy="5.5" r="2.5" />
-      <path d="M1.5 13.5c0-2.2 2-3.5 4.5-3.5s4.5 1.3 4.5 3.5" />
-      <path d="M11 3.4a2.5 2.5 0 0 1 0 4.7M12.2 10.3c1.4.5 2.3 1.6 2.3 3.2" />
-    </Icon>
-  );
-}
-
 /* Ползунки, а не шестерня: шестерня в шестнадцати пикселях вырождается в
    звёздочку и читается как «избранное». */
 function IconGear() {
@@ -256,15 +224,6 @@ function IconGear() {
       <path d="M2.5 4.5h11M2.5 11.5h11" />
       <circle cx="6" cy="4.5" r="1.8" />
       <circle cx="10.5" cy="11.5" r="1.8" />
-    </Icon>
-  );
-}
-
-function IconPerson() {
-  return (
-    <Icon>
-      <circle cx="8" cy="5.5" r="2.8" />
-      <path d="M2.5 14c0-2.6 2.4-4.2 5.5-4.2s5.5 1.6 5.5 4.2" />
     </Icon>
   );
 }

@@ -797,6 +797,12 @@ button:disabled:hover {
   margin: 4px 0 4px 8px;
 }
 
+/* В поле профиля — по той же причине: поле тянет содержимое на всю свою
+   ширину, а выбор из трёх букв шириной в форму читается как панель. */
+.field > .locale-switch {
+  align-self: flex-start;
+}
+
 .locale-switch button {
   height: 24px;
   padding: 0 8px;
@@ -1288,6 +1294,38 @@ input[type="checkbox"] {
 }
 
 /* --- настройки --- */
+
+/* Вкладки раздела настроек. Стоят над заголовком, а не под ним: они говорят,
+   где человек находится в разделе, и прочитать это он должен прежде, чем
+   прочтёт название страницы, — иначе заголовок «Участники» отвечает на вопрос
+   «куда я попал» раньше, чем стало понятно, что попал он в настройки. */
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Подчёркивание, а не заливка: вкладки стоят в ряд у линии, и заливка ушла бы
+   от неё, оставив выбранную вкладку висеть над собственной границей. */
+.tabs__link {
+  padding: 8px 10px;
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.tabs__link:hover {
+  color: var(--text);
+}
+
+.tabs__link.is-current {
+  border-bottom-color: var(--text);
+  color: var(--text);
+}
 
 /* Одна колонка ограниченной ширины: настройки читают, а не сканируют, и
    строка длиной в экран для этого не годится. */

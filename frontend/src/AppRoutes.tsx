@@ -15,6 +15,7 @@ import { ProjectSettings } from "./screens/ProjectSettings";
 import { Projects } from "./screens/Projects";
 import { PublicProject } from "./screens/PublicProject";
 import { Register } from "./screens/Register";
+import { Settings, SettingsHome } from "./screens/Settings";
 import { VerifyEmail } from "./screens/VerifyEmail";
 
 /**
@@ -54,12 +55,20 @@ export function AppRoutes() {
             диаграммы: их открывают редко, надолго и обсуждая, а окно поверх
             того, что настраиваешь, показывает результат наполовину. */}
         <Route path="/projects/:projectId/settings" element={<ProjectSettings />} />
-        <Route path="/settings/organization" element={<OrgSettings />} />
-        <Route path="/settings/profile" element={<Profile />} />
-        {/* Состав организации под двумя адресами: короткий — из шапки,
-            длинный — из настроек. Экран один и тот же. */}
-        <Route path="/settings/members" element={<Members />} />
-        <Route path="/members" element={<Members />} />
+        {/* Настройки рабочего пространства — один раздел с вкладками, а не три
+            соседних пункта в колонке: организация, участники и профиль
+            настраивают одно и то же место работы, и разница между ними —
+            вопрос уровня, а не разных разделов. */}
+        <Route path="/settings" element={<Settings />}>
+          <Route index element={<SettingsHome />} />
+          <Route path="organization" element={<OrgSettings />} />
+          <Route path="members" element={<Members />} />
+          <Route path="profile" element={<Profile />} />
+        </Route>
+        {/* Прежний короткий адрес состава: на него уже разосланы ссылки, и
+            отвечать на них «страница не найдена» из-за переезда — расплата за
+            наведение порядка, которую платит читатель, а не мы. */}
+        <Route path="/members" element={<Navigate to="/settings/members" replace />} />
       </Route>
       {/* Неизвестный адрес ведёт внутрь, а оттуда — на вход, если человек не
           вошёл. Отдельный экран «не найдено» появится, когда появятся адреса,

@@ -14,7 +14,7 @@ async function createProjectNamed(name: string) {
 }
 
 describe("экран проектов", () => {
-  it("переключение языка меняет интерфейс, но не данные", async () => {
+  it("переводит интерфейс, но не данные", async () => {
     server.use(
       ...sessionHandlers(),
       http.get("/api/projects", () =>
@@ -23,15 +23,13 @@ describe("экран проектов", () => {
     );
 
     renderApp({ route: "/projects", locale: "ru" });
-    // Заголовок, а не любой текст: слово «Проекты» есть и в шапке, где на
-    // экран участников уводит ссылка с тем же названием.
+
+    // Заголовок, а не любой текст: слово «Проекты» есть и в колонке.
     expect(await screen.findByRole("heading", { name: "Проекты" })).toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("button", { name: "AZ" }));
-
-    expect(await screen.findByRole("heading", { name: "Layihələr" })).toBeInTheDocument();
-    // название проекта — содержимое пользователя, оно не переводится
-    expect(screen.getByText("Şəhər Layihəsi")).toBeInTheDocument();
+    // А название проекта осталось азербайджанским на русском интерфейсе: это
+    // содержимое пользователя, и переводится интерфейс, а не данные. Сам
+    // переключатель языка живёт теперь на экране профиля — там он и проверен.
+    expect(await screen.findByText("Şəhər Layihəsi")).toBeInTheDocument();
   });
 
   it("пустой список объясняет, что делать дальше", async () => {

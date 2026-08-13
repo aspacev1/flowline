@@ -224,12 +224,10 @@ describe("профиль", () => {
     );
     renderApp({ route: "/settings/profile" });
 
-    // По роли, а не по подписи: переключатель языка в шапке подписан так же,
-    // и это правильно — оба про одно и то же.
-    await userEvent.selectOptions(
-      await screen.findByRole("combobox", { name: "Язык интерфейса" }),
-      "az",
-    );
+    // Переключатель ровно один: свой `select` экран профиля больше не рисует,
+    // а из колонки переключатель убран — язык живёт там, где настройки.
+    const chooser = await screen.findByRole("group", { name: "Язык интерфейса" });
+    await userEvent.click(within(chooser).getByRole("button", { name: "AZ" }));
 
     await waitFor(() => expect(patches).toEqual([{ locale: "az" }]));
     // И интерфейс переключился сразу, не дожидаясь перезагрузки: заголовок

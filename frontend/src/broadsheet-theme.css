@@ -202,6 +202,14 @@ button { height: var(--control); padding: 0 18px; border-radius: 7px; font-size:
 
 .screen__head h1 { margin-bottom: 0; }
 
+/* Под вкладками заголовок своей линии не рисует: две горизонтали подряд —
+   черта вкладок и черта заголовка — читаются как два разных разделителя там,
+   где раздел один. */
+.tabs + .screen__head {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
 .screen__head > a {
   display: inline-flex;
   align-items: center;
