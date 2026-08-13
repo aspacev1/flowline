@@ -370,8 +370,35 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Health */
+        /**
+         * Health
+         * @description Liveness: процесс жив и отвечает. В базу не ходит намеренно — упавшая
+         *     база не повод перезапускать процесс, а ровно это оркестратор и делает с
+         *     провалившим liveness.
+         */
         get: operations["health_api_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/health/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Readiness
+         * @description Readiness: готов ли процесс обслуживать запросы по-настоящему, то есть
+         *     достаёт ли до базы. Отдельно от liveness: на этот отвечает «нет» — и
+         *     балансировщик уводит трафик, не убивая процесс.
+         */
+        get: operations["readiness_api_health_ready_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1038,6 +1065,8 @@ export interface components {
         InstallConfig: {
             /** Default Locale */
             default_locale: string;
+            /** Live Enabled */
+            live_enabled: boolean;
             /** Mail Enabled */
             mail_enabled: boolean;
             /** Public Sharing Enabled */
@@ -2448,6 +2477,26 @@ export interface operations {
                     "application/json": {
                         [key: string]: string;
                     };
+                };
+            };
+        };
+    };
+    readiness_api_health_ready_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
         };
