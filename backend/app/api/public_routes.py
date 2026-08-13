@@ -26,7 +26,7 @@ from app.comments import CommentRejected, add_comment, list_comments
 from app.config import get_settings
 from app.db import get_db
 from app.models import Organization, Project, ShareLink
-from app.rate_limit import SlidingWindow
+from app.rate_limit import SlidingWindow, client_key
 from app.sharing import TOKEN_PARAM, resolve
 
 router = APIRouter(prefix="/api/public", tags=["public"])
@@ -50,24 +50,8 @@ def guest_comment_limiter() -> SlidingWindow:
     return _guest_comments
 
 
-def client_key(request: Request) -> str:
-    """Кого считать одним гостем.
-
-    Прямой адрес соединения здесь бесполезен: и Caddy, и Vercel стоят перед
-    приложением, и все гости приходят с одного и того же адреса — потолок в
-    десять комментариев в час стал бы общим на всю установку. Поэтому
-    предпочитается `X-Forwarded-For`.
-
-    Подделать заголовок может кто угодно, и это принято сознательно: цена
-    подделки — обойденный предохранитель от заливки ленты, то есть ровно то
-    состояние, в котором мы оказались бы, не считая вовсе. Правами заголовок
-    не распоряжается ничем.
-    """
-    forwarded = request.headers.get("x-forwarded-for", "")
-    first = forwarded.split(",")[0].strip()
-    if first:
-        return first
-    return request.client.host if request.client else "unknown"
+# client_key переехал в app.rate_limit: тем же способом считаются и вход с
+# регистрацией (app.api.auth_routes), а не только гостевые комментарии.
 
 
 class GuestCommentIn(BaseModel):
@@ -142,8 +126,13 @@ def public_comments(
     Выключенные комментарии — это запрет писать, а не приказ спрятать уже
     сказанное: разговор, который клиент видел вчера, не должен исчезнуть от
     щелчка переключателем.
+
+    Внутренние реплики гость не видит: это разговор команды «в сторону»,
+    а не часть публичной страницы.
     """
-    return comments_out(db, list_comments(db, shared.project, task_id=task_id))
+    return comments_out(
+        db, list_comments(db, shared.project, task_id=task_id, include_internal=False)
+    )
 
 
 @router.post("/{org_slug}/{project_slug}/comments", status_code=201)

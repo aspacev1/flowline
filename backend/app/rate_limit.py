@@ -18,6 +18,29 @@ import threading
 import time
 from collections import deque
 
+from fastapi import Request
+
+
+def client_key(request: Request) -> str:
+    """Кого считать одним клиентом при счёте по адресу.
+
+    Прямой адрес соединения здесь бесполезен: и Caddy, и Vercel стоят перед
+    приложением, и все запросы приходят с одного и того же адреса — потолок
+    стал бы общим на всю установку. Поэтому предпочитается `X-Forwarded-For`.
+
+    Подделать заголовок может кто угодно, и это принято сознательно: цена
+    подделки — обойденный предохранитель, то есть ровно то состояние, в
+    котором мы оказались бы, не считая вовсе. Правами заголовок не
+    распоряжается ничем. Боевая установка за Caddy при этом защищена
+    по-настоящему: Caddy переписывает X-Forwarded-For настоящим адресом
+    клиента (см. Caddyfile), и подделка снаружи не доходит.
+    """
+    forwarded = request.headers.get("x-forwarded-for", "")
+    first = forwarded.split(",")[0].strip()
+    if first:
+        return first
+    return request.client.host if request.client else "unknown"
+
 
 class SlidingWindow:
     """Не больше `limit` событий на ключ за `window` секунд."""

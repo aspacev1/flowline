@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Response
+from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Request, Response
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
@@ -10,6 +10,8 @@ from app.auth import (
     SESSION_COOKIE,
     SESSION_TTL,
     authenticate,
+    change_password,
+    close_other_sessions,
     close_session,
     current_user,
     open_session,
@@ -26,7 +28,10 @@ from app.email_verification import (
 from app.invitations import InvitationError, Status, by_token, check_recipient, status_of
 from app.locales import locale_from_request
 from app.models import Invitation, User
+from app.rate_limit import client_key
 from app.settings_input import check_locale
+from app.text import normalize_email
+from app import throttle
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -67,25 +72,49 @@ class MailResultOut(BaseModel):
     sent: bool
 
 
-def _cookie_is_secure() -> bool:
-    """Secure выводится из уже существующего PUBLIC_BASE_URL, а не из
-    отдельного рубильника: боевая установка на https защищена автоматически,
-    локальная разработка на http продолжает работать, и деплойщику не нужно
-    помнить про ещё одну переменную окружения."""
-    return get_settings().public_base_url.startswith("https://")
+def _cookie_is_secure(request: Request) -> bool:
+    """Ставить ли на куку флаг Secure.
+
+    Порядок источников — от явного к выведенному. COOKIE_SECURE, если задан,
+    решает всё: это рубильник для установок, где автоматика ошибается. Дальше
+    — сам запрос: схема https или X-Forwarded-Proto от прокси значят, что
+    кука поедет по защищённому каналу, каким бы ни был PUBLIC_BASE_URL (тот
+    бывает не задан вовсе — и тогда прежний вывод «только из него» отправлял
+    куку боевой установки без Secure). PUBLIC_BASE_URL остаётся последним
+    источником — для запросов, пришедших в обход прокси.
+    """
+    settings = get_settings()
+    if settings.cookie_secure is not None:
+        return settings.cookie_secure
+    if request.url.scheme == "https":
+        return True
+    if request.headers.get("x-forwarded-proto", "").split(",")[0].strip() == "https":
+        return True
+    return settings.public_base_url.startswith("https://")
 
 
-def _set_cookie(response: Response, token: str) -> None:
+def _cookie_attributes(request: Request) -> dict:
+    """Атрибуты куки, общие для установки и удаления.
+
+    Одним словарём, потому что браузер удаляет куку только при совпадении
+    атрибутов: delete_cookie с другим набором оставляет старую куку жить.
+    """
+    return {
+        "httponly": True,
+        "samesite": "lax",
+        "secure": _cookie_is_secure(request),
+    }
+
+
+def _set_cookie(response: Response, request: Request, token: str) -> None:
     response.set_cookie(
         SESSION_COOKIE,
         token,
-        httponly=True,
-        samesite="lax",
-        secure=_cookie_is_secure(),
         # Ровно столько же, сколько живёт сама сессия в базе: два числа,
         # заданных порознь, однажды разъедутся, и кука переживёт сессию
         # (или наоборот) без единого признака в коде.
         max_age=int(SESSION_TTL.total_seconds()),
+        **_cookie_attributes(request),
     )
 
 
@@ -132,14 +161,27 @@ def _invitation_for_signup(db: DbSession, payload: RegisterIn) -> Invitation | N
 def register_route(
     payload: RegisterIn,
     response: Response,
+    request: Request,
     db: DbSession = Depends(get_db),
     accept_language: str | None = Header(default=None),
 ):
-    mode = get_settings().signup_mode
+    settings = get_settings()
+    mode = settings.signup_mode
     # `closed` проверяется до приглашения: в такой установке регистрации нет
     # вовсе, и отвечать на неё разбором чужой ссылки не за чем.
     if mode == "closed":
         raise HTTPException(status_code=403, detail="signup_disabled")
+
+    # Предел до любых проверок и до создания чего бы то ни было: массовое
+    # заведение аккаунтов — это спам в базе и поток писем с подтверждениями
+    # с нашего же отправителя.
+    if not throttle.hit(
+        db,
+        f"signup:ip:{client_key(request)}",
+        limit=settings.signup_rate_limit_per_ip,
+        window_seconds=settings.auth_rate_window_seconds,
+    ):
+        raise HTTPException(status_code=429, detail="too_many_requests")
 
     invitation = _invitation_for_signup(db, payload)
     if mode == "invite_only" and invitation is None:
@@ -169,6 +211,7 @@ def register_route(
         raise HTTPException(status_code=409, detail="email_taken")
     _set_cookie(
         response,
+        request,
         open_session(db, user, active_org_id=invitation.org_id if invitation else None),
     )
     # Письмо уходит синхронно, но регистрацию не решает: недоступный
@@ -180,28 +223,107 @@ def register_route(
 
 
 @router.post("/login", response_model=UserOut)
-def login_route(payload: LoginIn, response: Response, db: DbSession = Depends(get_db)):
+def login_route(
+    payload: LoginIn, response: Response, request: Request, db: DbSession = Depends(get_db)
+):
+    """Вход. Два предела частоты — на два разных способа перебора.
+
+    По IP считаются все попытки: один адрес, молотящий вход, — это перебор
+    паролей по словарю, чьи бы адреса он ни пробовал. По аккаунту — только
+    неудачи: это перебор паролей к конкретному человеку с многих адресов, и
+    считать успехи здесь нельзя — успешный вход с двух устройств заперал бы
+    владельца. Счётчики в базе, а не в памяти процесса: перезапуск или
+    вторая реплика не должны обнулять предел (см. app.throttle).
+    """
+    settings = get_settings()
+    if not throttle.hit(
+        db,
+        f"login:ip:{client_key(request)}",
+        limit=settings.login_rate_limit_per_ip,
+        window_seconds=settings.auth_rate_window_seconds,
+    ):
+        raise HTTPException(status_code=429, detail="too_many_requests")
+
+    account_bucket = f"login:account:{normalize_email(str(payload.email))}"
+    if not throttle.check(
+        db,
+        account_bucket,
+        limit=settings.login_rate_limit_per_account,
+        window_seconds=settings.auth_rate_window_seconds,
+    ):
+        raise HTTPException(status_code=429, detail="too_many_requests")
+
     user = authenticate(db, email=payload.email, password=payload.password)
     if user is None:
+        throttle.note(db, account_bucket)
         raise HTTPException(status_code=401, detail="bad_credentials")
-    _set_cookie(response, open_session(db, user))
+    _set_cookie(response, request, open_session(db, user))
     return _to_out(user)
 
 
 @router.post("/logout", status_code=204)
 def logout_route(
     response: Response,
+    request: Request,
     db: DbSession = Depends(get_db),
     flowline_session: str | None = Cookie(default=None, alias=SESSION_COOKIE),
 ):
     if flowline_session:
         close_session(db, flowline_session)
-    response.delete_cookie(SESSION_COOKIE)
+    # Те же атрибуты, что и при установке: браузер сверяет их и с другим
+    # набором оставил бы куку на месте.
+    response.delete_cookie(SESSION_COOKIE, **_cookie_attributes(request))
 
 
 @router.get("/me", response_model=UserOut)
 def me_route(user: User = Depends(current_user)):
     return _to_out(user)
+
+
+class PasswordIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    current_password: str
+    new_password: str = Field(min_length=8, max_length=200)
+
+
+@router.post("/password", status_code=204)
+def change_password_route(
+    payload: PasswordIn,
+    user: User = Depends(current_user),
+    db: DbSession = Depends(get_db),
+    flowline_session: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+):
+    """Смена пароля. Требует прежний: одной сессии для этого мало —
+    иначе украденная кука меняла бы пароль владельцу.
+
+    Остальные сессии закрываются тут же: смена пароля — это обычно ответ на
+    подозрение, что он утёк, и оставлять чужие входы жить дальше значило бы
+    делать вид, что смена что-то решила. Текущая сессия остаётся.
+    """
+    try:
+        change_password(
+            db, user, current=payload.current_password, new=payload.new_password
+        )
+    except ValueError:
+        raise HTTPException(status_code=403, detail="bad_credentials")
+    close_other_sessions(db, user, keep_raw_token=flowline_session)
+
+
+class SessionsClosedOut(BaseModel):
+    closed: int
+
+
+@router.post("/sessions/close-others", response_model=SessionsClosedOut)
+def close_other_sessions_route(
+    user: User = Depends(current_user),
+    db: DbSession = Depends(get_db),
+    flowline_session: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+):
+    """«Выйти на всех устройствах», кроме этого."""
+    return SessionsClosedOut(
+        closed=close_other_sessions(db, user, keep_raw_token=flowline_session)
+    )
 
 
 @router.post("/verify-email", status_code=204)

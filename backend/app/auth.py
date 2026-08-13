@@ -17,6 +17,16 @@ from app.text import normalize_email
 SESSION_COOKIE = "flowline_session"
 SESSION_TTL = timedelta(days=30)
 
+# Сессия, которой не пользуются, умирает раньше своего срока годности:
+# украденная кука с брошенного устройства не должна жить месяц только
+# потому, что её однажды выдали. Простой — с последнего обращения.
+SESSION_IDLE_TTL = timedelta(days=7)
+
+# Отметка «пользовались» пишется не чаще этого шага: иначе каждое чтение
+# проекта — это ещё и UPDATE по таблице сессий. Для таймаута в дни точность
+# в четверть часа — более чем.
+_LAST_USED_WRITE_STEP = timedelta(minutes=15)
+
 # Посчитан один раз при импорте модуля, а не на каждый запрос: используется в
 # ветке authenticate(), где пользователь не найден, чтобы эта ветка стоила
 # столько же по времени, сколько ветка с неверным паролем существующего
@@ -100,6 +110,15 @@ def authenticate(db: DbSession, *, email: str, password: str) -> User | None:
 
 
 def open_session(db: DbSession, user: User, *, active_org_id: uuid.UUID | None = None) -> str:
+    # Попутная уборка: просроченные сессии этого человека никому больше не
+    # нужны, а другого регулярного места, где их подметать, у архитектуры без
+    # планировщика нет. Вход — естественный момент: он и так пишет в таблицу.
+    db.execute(
+        Session.__table__.delete().where(
+            Session.user_id == user.id,
+            Session.expires_at < datetime.now(timezone.utc),
+        )
+    )
     raw, hashed = new_token()
     db.add(
         Session(
@@ -114,6 +133,32 @@ def open_session(db: DbSession, user: User, *, active_org_id: uuid.UUID | None =
     )
     db.flush()
     return raw
+
+
+def close_other_sessions(db: DbSession, user: User, *, keep_raw_token: str | None) -> int:
+    """«Выйти на всех устройствах»: закрывает все сессии, кроме текущей.
+
+    Текущая остаётся: человек, нажавший кнопку после смены пароля, не должен
+    вылететь сам — иначе кнопка выглядит как поломка.
+    """
+    query = Session.__table__.delete().where(Session.user_id == user.id)
+    if keep_raw_token:
+        query = query.where(Session.token_hash != hash_token(keep_raw_token))
+    result = db.execute(query)
+    return result.rowcount or 0
+
+
+def change_password(db: DbSession, user: User, *, current: str, new: str) -> None:
+    """Смена пароля с проверкой прежнего.
+
+    Прежний пароль обязателен: смена пароля — это ровно то действие, которое
+    делает украденную сессию бесполезной, и выполняться по одной лишь сессии
+    оно не должно. ValueError — неверный прежний пароль.
+    """
+    if not verify_password(current, user.password_hash):
+        raise ValueError("прежний пароль не подошёл")
+    user.password_hash = hash_password(new)
+    db.flush()
 
 
 def close_session(db: DbSession, raw_token: str) -> None:
@@ -139,8 +184,21 @@ def session_for_token(db: DbSession, raw_token: str | None) -> Session | None:
         return None
 
     record = db.scalar(select(Session).where(Session.token_hash == hash_token(raw_token)))
-    if record is None or record.expires_at < datetime.now(timezone.utc):
+    now = datetime.now(timezone.utc)
+    if record is None or record.expires_at < now:
         return None
+
+    # Idle-таймаут: сессией не пользовались дольше SESSION_IDLE_TTL — она
+    # мертва, каким бы ни был её формальный срок годности.
+    if record.last_used_at is not None and now - record.last_used_at > SESSION_IDLE_TTL:
+        db.delete(record)
+        db.flush()
+        return None
+
+    # Отметка «пользовались» — с шагом, а не на каждый запрос (см. константу).
+    if record.last_used_at is None or now - record.last_used_at > _LAST_USED_WRITE_STEP:
+        record.last_used_at = now
+        db.flush()
 
     return record
 

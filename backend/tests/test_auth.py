@@ -256,11 +256,21 @@ def test_logout_route_kills_the_session_so_the_same_cookie_stops_working(client)
 # ---- Атрибут Secure куки следует за схемой PUBLIC_BASE_URL -----------------
 
 
+class _FakeRequest:
+    """Ровно то, что читает _cookie_is_secure: схема и заголовки."""
+
+    def __init__(self, scheme: str = "http", headers: dict[str, str] | None = None):
+        from types import SimpleNamespace
+
+        self.url = SimpleNamespace(scheme=scheme)
+        self.headers = headers or {}
+
+
 def test_cookie_is_secure_when_public_base_url_is_https(monkeypatch):
     monkeypatch.setenv("PUBLIC_BASE_URL", "https://flowline.example.com")
     get_settings.cache_clear()
     try:
-        assert _cookie_is_secure() is True
+        assert _cookie_is_secure(_FakeRequest()) is True
     finally:
         get_settings.cache_clear()
 
@@ -269,7 +279,33 @@ def test_cookie_is_not_secure_when_public_base_url_is_http(monkeypatch):
     monkeypatch.setenv("PUBLIC_BASE_URL", "http://localhost:8000")
     get_settings.cache_clear()
     try:
-        assert _cookie_is_secure() is False
+        assert _cookie_is_secure(_FakeRequest()) is False
+    finally:
+        get_settings.cache_clear()
+
+
+def test_cookie_is_secure_behind_a_tls_terminating_proxy(monkeypatch):
+    """Волна 2.7: боевой признак — сам запрос, а не только PUBLIC_BASE_URL.
+
+    За прокси с TLS запрос приходит с X-Forwarded-Proto: https, и кука
+    обязана быть Secure, даже если PUBLIC_BASE_URL никто не задал (частый
+    случай: домен появился раньше, чем переменная).
+    """
+    monkeypatch.setenv("PUBLIC_BASE_URL", "http://localhost:8000")
+    get_settings.cache_clear()
+    try:
+        assert _cookie_is_secure(_FakeRequest(headers={"x-forwarded-proto": "https"})) is True
+        assert _cookie_is_secure(_FakeRequest(scheme="https")) is True
+    finally:
+        get_settings.cache_clear()
+
+
+def test_cookie_secure_setting_overrides_the_guesswork(monkeypatch):
+    monkeypatch.setenv("PUBLIC_BASE_URL", "https://flowline.example.com")
+    monkeypatch.setenv("COOKIE_SECURE", "false")
+    get_settings.cache_clear()
+    try:
+        assert _cookie_is_secure(_FakeRequest(scheme="https")) is False
     finally:
         get_settings.cache_clear()
 
