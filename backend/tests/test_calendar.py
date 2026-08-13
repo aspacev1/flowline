@@ -110,3 +110,22 @@ def test_calendar_error_is_still_a_value_error():
     from app.calendar import CalendarError
 
     assert issubclass(CalendarError, ValueError)
+
+
+def test_the_far_edge_of_dates_is_a_calendar_error_not_a_crash():
+    """Волна 1.2: задача у края 9999 года — отказ с кодом, а не OverflowError.
+
+    Шаг за date.max при поиске рабочих дней — это авария арифметики дат, и до
+    исправления она выходила наружу пятисоткой на любом GET проекта с такой
+    задачей.
+    """
+    from app.calendar import CalendarError
+
+    with pytest.raises(CalendarError) as error:
+        end_date(date(9999, 12, 27), 30, Calendar())
+    assert error.value.code == "calendar_date_out_of_range"
+
+
+def test_counting_working_days_up_to_date_max_does_not_overflow():
+    # Отрезок, кончающийся на последний представимый день, законен.
+    assert count_working_days(date(9999, 12, 27), date.max, Calendar()) >= 1

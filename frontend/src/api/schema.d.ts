@@ -635,6 +635,10 @@ export interface paths {
         /**
          * Undo Whole Batch
          * @description Откат пачки целиком — одной кнопкой, как обещано про применение AI.
+         *
+         *     Причина принимается по той же логике, что у одиночной отмены: откат
+         *     проходит проверку порога, и пачка, двигавшая сроки дальше порога, без
+         *     причины была бы неоткатываемой.
          */
         post: operations["undo_whole_batch_api_projects__project_id__batches__batch_id__undo_post"];
         delete?: never;
@@ -887,6 +891,11 @@ export interface components {
         };
         /** Body_undo_last_api_projects__project_id__undo_post */
         Body_undo_last_api_projects__project_id__undo_post: {
+            /** Reason */
+            reason?: string | null;
+        };
+        /** Body_undo_whole_batch_api_projects__project_id__batches__batch_id__undo_post */
+        Body_undo_whole_batch_api_projects__project_id__batches__batch_id__undo_post: {
             /** Reason */
             reason?: string | null;
         };
@@ -2846,7 +2855,11 @@ export interface operations {
                 flowline_session?: string | null;
             };
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["Body_undo_whole_batch_api_projects__project_id__batches__batch_id__undo_post"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             201: {

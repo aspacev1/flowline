@@ -26,16 +26,30 @@ def deviation_days(
     на неделю» человек говорит про календарь, а «стало на два дня дольше» —
     про работу, и ни один из двух вопросов не становится понятнее, если
     ответить на него в чужих единицах.
+
+    Измерения не смешиваются: названное измерение и меряется. Передан
+    ``start_date`` — считается только сдвиг старта, передан ``duration_days``
+    — только длительность. Иначе задача, чей срок уже объяснённо уехал за
+    порог, требовала бы причину на каждую правку длительности в один день —
+    и наоборот; заголовок X-Shift-Deviation-Days при этом называл бы число из
+    чужого измерения. Без аргументов возвращается наибольшее из двух текущих
+    отклонений — ответ на вопрос «насколько задача ушла от обещанного».
     """
     if task.baseline_start is None or task.baseline_duration is None:
         return None
 
-    start = task.start_date if start_date is None else start_date
-    duration = task.duration_days if duration_days is None else duration_days
-    return max(
-        abs((start - task.baseline_start).days),
-        abs(duration - task.baseline_duration),
+    start_shift = abs(
+        ((task.start_date if start_date is None else start_date) - task.baseline_start).days
     )
+    duration_shift = abs(
+        (task.duration_days if duration_days is None else duration_days)
+        - task.baseline_duration
+    )
+    if start_date is not None and duration_days is None:
+        return start_shift
+    if duration_days is not None and start_date is None:
+        return duration_shift
+    return max(start_shift, duration_shift)
 
 
 def approve_plan(db: DbSession, project: Project, *, actor_id: uuid.UUID | None) -> PlanVersion:

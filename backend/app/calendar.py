@@ -44,12 +44,29 @@ class Calendar:
         return bool(self.working_days & (1 << d.weekday()))
 
 
+def _next_day(d: date) -> date:
+    """Следующий день или CalendarError у края поддерживаемых дат.
+
+    date.max + день — это OverflowError, то есть авария сервера на задаче,
+    поставленной на конец 9999 года. Край календаря — то же вырождение, что и
+    «рабочих дней нет»: даты дальше просто не существует, и об этом надо
+    сказать отказом, а не пятисоткой.
+    """
+    try:
+        return d + timedelta(days=1)
+    except OverflowError:
+        raise CalendarError(
+            "calendar_date_out_of_range",
+            "дата вышла за край поддерживаемого календаря",
+        ) from None
+
+
 def _first_working_on_or_after(start: date, cal: Calendar) -> date:
     d = start
     for _ in range(_MAX_SEARCH_DAYS):
         if cal.is_working(d):
             return d
-        d += timedelta(days=1)
+        d = _next_day(d)
     raise CalendarError(
         "calendar_has_no_working_days", "календарь не содержит ни одного рабочего дня"
     )
@@ -64,7 +81,7 @@ def end_date(start: date, duration_days: int, cal: Calendar) -> date:
     counted = 1
     iterations = 0
     while counted < duration_days:
-        d += timedelta(days=1)
+        d = _next_day(d)
         iterations += 1
         if iterations > _MAX_SEARCH_DAYS:
             raise CalendarError(
@@ -83,8 +100,11 @@ def count_working_days(start: date, end: date, cal: Calendar) -> int:
 
     total = 0
     d = start
-    while d <= end:
+    while True:
         if cal.is_working(d):
             total += 1
+        # Выход до инкремента: отрезок, кончающийся на date.max, законен, а
+        # шаг за него — OverflowError ещё до проверки условия цикла.
+        if d == end:
+            return total
         d += timedelta(days=1)
-    return total

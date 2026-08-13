@@ -36,3 +36,20 @@ def test_slug_collapses_separators_and_trims_dashes():
 
 def test_slug_falls_back_when_nothing_survives():
     assert slugify("!!! ???", fallback="project") == "project"
+
+
+def test_slugify_fits_the_slug_column():
+    """Волна 1.3: транслитерация удлиняет текст, slugify обрезает до колонки.
+
+    «щ» разворачивается в «sch» — сто «щ» дали бы триста символов, которые
+    база встречала DataError-пятисоткой на усечении varchar(100).
+    """
+    from app.text import SLUG_MAX_LEN
+
+    slug = slugify("щ" * 100)
+    assert len(slug) <= SLUG_MAX_LEN
+    assert not slug.endswith("-")
+
+
+def test_slugify_respects_a_custom_max_length():
+    assert slugify("redizayn sayta", max_length=8) == "redizayn"

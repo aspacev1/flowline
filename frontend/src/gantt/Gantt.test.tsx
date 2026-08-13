@@ -1,6 +1,6 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ProjectState } from "../api/projects";
 import type { Locale } from "../i18n";
@@ -53,6 +53,10 @@ function draw(state: ProjectState, locale: Locale = "ru") {
 }
 
 describe("диаграмма", () => {
+  // Единственный тест с приколоченным «сегодня» возвращает часы на место,
+  // чтобы соседям досталось настоящее время.
+  afterEach(() => vi.restoreAllMocks());
+
   it("рисует задачу полоской нужной ширины", () => {
     draw(STATE);
     const bar = screen.getByRole("img", { name: /Логотип/ });
@@ -177,6 +181,13 @@ describe("диаграмма", () => {
   it("статус полоски считается из прогресса и дат", () => {
     // Начатая в прошлом и не готовая — «в работе»; стопроцентная — «готово»;
     // со стартом в будущем — «запланировано».
+    //
+    // «Сегодня» приколочено, а не берётся из часов: статус сравнивает даты с
+    // текущим днём, и «будущая» задача с настоящих часов требовала бы даты,
+    // которая в будущем всегда. Такой и была — 2100 год, — но окно ленты
+    // накрывает все даты задач, и тест молча рисовал 74 года сетки:
+    // ~8 секунд на быстрой машине и таймаут на нагруженном раннере CI.
+    vi.spyOn(Date, "now").mockReturnValue(new Date("2026-03-06T12:00:00Z").getTime());
     draw({
       ...STATE,
       tasks: [
@@ -187,8 +198,8 @@ describe("диаграмма", () => {
           id: "t3",
           name: "Будет",
           position: 2,
-          start_date: "2100-01-04",
-          end_date: "2100-01-10",
+          start_date: "2026-03-23",
+          end_date: "2026-03-27",
         },
       ],
     });
