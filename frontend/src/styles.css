@@ -1250,3 +1250,402 @@ input[type="checkbox"] {
 .org-switch:hover {
   background: var(--hover);
 }
+
+/* --- аватар с инициалами --- */
+
+/* Размер и оттенок задаёт разметка (см. Avatar.tsx): цвет выводится из имени,
+   и класть его сюда значило бы завести палитру во втором месте. */
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  font-weight: 700;
+  line-height: 1;
+  user-select: none;
+}
+
+/* Стопка аватаров: перекрытие говорит «их несколько», не занимая строку. */
+.avatar-stack {
+  display: inline-flex;
+  align-items: center;
+}
+
+.avatar-stack .avatar + .avatar,
+.avatar-stack .avatar + .avatar-stack__more {
+  margin-left: -8px;
+}
+
+.avatar-stack .avatar {
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.avatar-stack__more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--hover);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+/* --- плашка статуса --- */
+
+/* Один словарь цветов на весь продукт: список, карточка и легенда обязаны
+   называть «в работе» одним и тем же синим. Зелёный — готово, серый контур —
+   запланировано, янтарный — заблокировано; красный статусом не бывает, он
+   означает нарушение срока. */
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.status-chip[data-status="done"] {
+  background: var(--ok-soft);
+  border-color: color-mix(in srgb, var(--ok) 35%, transparent);
+  color: var(--ok);
+}
+
+.status-chip[data-status="in_progress"] {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  color: var(--accent);
+}
+
+.status-chip[data-status="planned"] {
+  background: var(--surface);
+  border-color: var(--border-strong);
+  color: var(--text-muted);
+}
+
+.status-chip[data-status="blocked"] {
+  background: #fff4e5;
+  border-color: #f0c27a;
+  color: #b45309;
+}
+
+/* --- кнопка с выпадающей панелью --- */
+
+.menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.menu__button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.menu__caret {
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.menu__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.menu__pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  min-width: 220px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+.menu__title {
+  margin: 4px 4px 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.menu__item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  box-shadow: none;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.menu__item:hover {
+  background: var(--hover);
+  box-shadow: none;
+}
+
+.menu__item input {
+  margin: 0;
+}
+
+.menu__sep {
+  height: 1px;
+  margin: 8px 0;
+  background: var(--border);
+}
+
+/* --- тост --- */
+
+/* Тёмная пилюля внизу по центру, как в макете: подтверждение с лёгким путём
+   отмены. Fixed, а не absolute: лента прокручивается, а тост обязан стоять. */
+.toast {
+  position: fixed;
+  bottom: 26px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  max-width: min(92vw, 480px);
+  padding: 12px 18px;
+  border-radius: 12px;
+  background: #1f2937;
+  color: #f9fafb;
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: 0 18px 40px rgb(15 23 42 / 35%);
+}
+
+.toast__check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid #9ca3af;
+  font-size: 11px;
+}
+
+.toast__message {
+  min-width: 0;
+}
+
+.toast__action {
+  height: auto;
+  padding: 2px 4px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: #93b4ff;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.toast__action:hover {
+  background: transparent;
+  box-shadow: none;
+  text-decoration: underline;
+}
+
+/* --- главная: карточки портфеля --- */
+
+.home-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.home-card__name {
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.home-card__meta {
+  margin: 0;
+  font-size: 13px;
+}
+
+.home-card__progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+
+.home-card__bar {
+  flex: 1 1 auto;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--active);
+  overflow: hidden;
+}
+
+.home-card__bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.home-card__pct {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.home-card__blocked {
+  margin: 0;
+}
+
+/* --- мои задачи --- */
+
+.task-list {
+  margin: 20px 0 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.task-list__row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 56px;
+  padding: 10px 16px;
+}
+
+.task-list__row + .task-list__row {
+  border-top: 1px solid var(--border);
+}
+
+.task-list__main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.task-list__name {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-list__project {
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.task-list__dates {
+  flex: 0 0 auto;
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.task-list__dates.is-late {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+/* --- отчёты --- */
+
+.report {
+  width: 100%;
+  margin-top: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  border-spacing: 0;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.report th,
+.report td {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 14px;
+}
+
+.report thead th {
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.report tbody tr + tr th,
+.report tbody tr + tr td {
+  border-top: 1px solid var(--border);
+}
+
+.report tbody th a {
+  color: var(--text);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.report__late {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+.report__warn {
+  color: #b45309;
+  font-weight: 600;
+}
+
+.report__fine {
+  color: var(--ok);
+}

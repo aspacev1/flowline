@@ -67,6 +67,7 @@ def test_task_belongs_to_a_category_and_keeps_its_position(db):
 
     assert task.criticality == "normal"
     assert task.progress_pct == 0
+    assert task.status == "planned"
     assert task.baseline_start is None
 
 

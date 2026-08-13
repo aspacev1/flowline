@@ -69,4 +69,28 @@ describe("перетаскивание дат", () => {
       expect(sent[0].op).toMatchObject({ type: "move_task", start_date: "2026-03-05" }),
     );
   });
+
+  it("подтверждённый перенос показывает тост с отменой", async () => {
+    // Отмена из тоста бьёт в тот же /undo, что и кнопка в шапке: тост — это
+    // короткий путь к ней, а не второй механизм отмены.
+    let undone = 0;
+    server.use(http.post("/api/projects/p1/undo", () => {
+      undone += 1;
+      return HttpResponse.json({ seq: 1 });
+    }));
+
+    renderProject();
+    const bar = await screen.findByRole("button", { name: /Логотип/ });
+
+    bar.focus();
+    await userEvent.keyboard("{Shift>}{ArrowRight}{/Shift}");
+
+    const toast = await screen.findByRole("status");
+    expect(toast).toHaveTextContent("Задача перенесена");
+
+    await userEvent.click(screen.getByRole("button", { name: "Отменить" }));
+    await waitFor(() => expect(undone).toBe(1));
+    // Нажатая отмена прячет тост: предлагать отменить отменённое нечестно.
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
 });

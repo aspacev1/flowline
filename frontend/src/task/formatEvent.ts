@@ -48,6 +48,12 @@ export function formatEvent(op: Record<string, unknown>, locale: Locale): string
         to: t(`task.criticality.${String(op.to)}`),
       });
 
+    case "set_status":
+      return say("set_status", {
+        from: t(`task.status.${String(op.from)}`),
+        to: t(`task.status.${String(op.to)}`),
+      });
+
     case "set_task_fields": {
       const before = asRecord(op.from);
       const after = asRecord(op.to);

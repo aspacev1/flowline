@@ -1,9 +1,11 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { HttpResponse, http } from "msw";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ProjectState } from "../api/projects";
 import type { Locale } from "../i18n";
+import { server } from "../test/server";
 import { renderWithProviders } from "../test/utils";
 import { Gantt } from "./Gantt";
 import { DAY_WIDTH } from "./scale";
@@ -28,6 +30,7 @@ const STATE: ProjectState = {
       end_date: "2026-03-10",
       duration_days: 5,
       criticality: "high",
+      status: "in_progress",
       progress_pct: 40,
       position: 0,
       assignee_ids: [],
@@ -60,8 +63,12 @@ function drawWithToolbar(locale: Locale = "ru") {
 }
 
 describe("диаграмма", () => {
-  // Единственный тест с приколоченным «сегодня» возвращает часы на место,
-  // чтобы соседям досталось настоящее время.
+  // Диаграмма сама спрашивает состав — для колонки «Владелец». Здесь она
+  // рисуется без остального приложения, и запрос надо описать самим.
+  beforeEach(() =>
+    server.use(http.get("/api/org/members", () => HttpResponse.json([]))),
+  );
+
   afterEach(() => vi.restoreAllMocks());
 
   it("рисует задачу полоской нужной ширины", () => {
@@ -128,10 +135,15 @@ describe("диаграмма", () => {
         { ...STATE.tasks[0], id: "t1", name: "Первая", position: 1 },
       ],
     });
+    // По доступному имени, а не по содержимому: имя задачи живёт в левой
+    // колонке и в aria-label полоски, самой полоске текст не принадлежит.
     const names = screen
       .getAllByRole("img", { name: /Первая|Вторая/ })
-      .map((node) => node.textContent);
-    expect(names).toEqual(["Первая", "Вторая"]);
+      .map((node) => node.getAttribute("aria-label"));
+    expect(names).toEqual([
+      expect.stringContaining("Первая"),
+      expect.stringContaining("Вторая"),
+    ]);
   });
 
   it("пустой проект объясняет, что делать", () => {
@@ -171,68 +183,87 @@ describe("диаграмма", () => {
     });
   });
 
-  it("показывает легенду: статусы, блокер и обе вертикали", () => {
-    draw(STATE, "ru");
-    expect(screen.getByText("В работе")).toBeInTheDocument();
-    expect(screen.getByText("Готово")).toBeInTheDocument();
-    expect(screen.getByText("Запланировано")).toBeInTheDocument();
-    expect(screen.getByText("Блокер")).toBeInTheDocument();
-    expect(screen.getByText("Сегодня")).toBeInTheDocument();
+  it("легенда включается через меню «Вид» и расшифровывает статусы", async () => {
+    const { container } = draw(STATE, "ru");
+    // По умолчанию легенды нет — как в макете.
+    expect(container.querySelector(".gantt__legend")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Вид" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "Легенда" }));
+
+    const legend = container.querySelector(".gantt__legend");
+    expect(legend).toBeInTheDocument();
+    expect(legend).toHaveTextContent("В работе");
+    expect(legend).toHaveTextContent("Готово");
+    expect(legend).toHaveTextContent("Запланировано");
+    expect(legend).toHaveTextContent("Заблокировано");
+    expect(legend).toHaveTextContent("Блокер");
   });
 
-  it("в пустом проекте легенды нет: расшифровывать нечего", () => {
-    draw({ ...STATE, categories: [], tasks: [] }, "ru");
-    expect(screen.queryByText("В работе")).not.toBeInTheDocument();
-  });
-
-  it("статус полоски считается из прогресса и дат", () => {
-    // Начатая в прошлом и не готовая — «в работе»; стопроцентная — «готово»;
-    // со стартом в будущем — «запланировано».
-    //
-    // «Сегодня» приколочено, а не берётся из часов: статус сравнивает даты с
-    // текущим днём, и «будущая» задача с настоящих часов требовала бы даты,
-    // которая в будущем всегда. Такой и была — 2100 год, — но окно ленты
-    // накрывает все даты задач, и тест молча рисовал 74 года сетки:
-    // ~8 секунд на быстрой машине и таймаут на нагруженном раннере CI.
-    vi.spyOn(Date, "now").mockReturnValue(new Date("2026-03-06T12:00:00Z").getTime());
+  it("статус полоски — хранимое поле, а не вывод из дат", () => {
+    // Смысл переезда на хранимый статус: «заблокировано» из дат не выводится,
+    // а «запланировано» может стоять и на уже начатой по датам задаче.
     draw({
       ...STATE,
       tasks: [
-        { ...STATE.tasks[0], id: "t1", name: "Идёт", position: 0 },
-        { ...STATE.tasks[0], id: "t2", name: "Сделана", position: 1, progress_pct: 100 },
-        {
-          ...STATE.tasks[0],
-          id: "t3",
-          name: "Будет",
-          position: 2,
-          start_date: "2026-03-23",
-          end_date: "2026-03-27",
-        },
-      ],
-    });
-    expect(screen.getByRole("img", { name: /Идёт/ })).toHaveAttribute("data-status", "active");
-    expect(screen.getByRole("img", { name: /Сделана/ })).toHaveAttribute("data-status", "done");
-    expect(screen.getByRole("img", { name: /Будет/ })).toHaveAttribute("data-status", "planned");
-  });
-
-  it("помечает пилюлями блокера и того, кто его ждёт", () => {
-    draw({
-      ...STATE,
-      tasks: [
-        STATE.tasks[0],
+        { ...STATE.tasks[0], id: "t1", name: "Идёт", position: 0, status: "in_progress" },
         {
           ...STATE.tasks[0],
           id: "t2",
-          name: "Макет",
+          name: "Сделана",
           position: 1,
-          start_date: "2026-03-11",
-          end_date: "2026-03-17",
+          status: "done",
+          progress_pct: 100,
         },
+        { ...STATE.tasks[0], id: "t3", name: "Будет", position: 2, status: "planned" },
+        { ...STATE.tasks[0], id: "t4", name: "Встала", position: 3, status: "blocked" },
       ],
-      dependencies: [{ from_task_id: "t1", to_task_id: "t2" }],
     });
-    expect(screen.getByText("блокер")).toBeInTheDocument();
-    expect(screen.getByText("ждёт: Логотип")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /Идёт/ })).toHaveAttribute(
+      "data-status",
+      "in_progress",
+    );
+    expect(screen.getByRole("img", { name: /Сделана/ })).toHaveAttribute("data-status", "done");
+    expect(screen.getByRole("img", { name: /Будет/ })).toHaveAttribute("data-status", "planned");
+    expect(screen.getByRole("img", { name: /Встала/ })).toHaveAttribute("data-status", "blocked");
+  });
+
+  it("колонка статуса несёт плашку, категория — процент готовности", () => {
+    const { container } = draw(
+      {
+        ...STATE,
+        tasks: [
+          // 5 дней готово + 5 дней на 40% → взвешенная готовность 70%.
+          { ...STATE.tasks[0], id: "t1", name: "Готовая", status: "done", progress_pct: 100 },
+          { ...STATE.tasks[0], id: "t2", name: "Идущая", position: 1 },
+        ],
+      },
+      "ru",
+    );
+    const chips = container.querySelectorAll(".status-chip");
+    expect(chips.length).toBe(2);
+    expect(screen.getByText("Готово")).toBeInTheDocument();
+    expect(screen.getByText("70%")).toBeInTheDocument();
+  });
+
+  it("фильтр по статусу прячет строки, но не переписывает итог категории", async () => {
+    draw(
+      {
+        ...STATE,
+        tasks: [
+          { ...STATE.tasks[0], id: "t1", name: "Готовая", status: "done", progress_pct: 100 },
+          { ...STATE.tasks[0], id: "t2", name: "Идущая", position: 1 },
+        ],
+      },
+      "ru",
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Фильтр" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "Готово" }));
+
+    expect(screen.queryByRole("img", { name: /Идущая/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /Готовая/ })).toBeInTheDocument();
+    // Процент категории — по всем задачам, а не по видимым.
+    expect(screen.getByText("70%")).toBeInTheDocument();
   });
 
   it("свёрнутая категория прячет свои задачи, развёрнутая возвращает", async () => {

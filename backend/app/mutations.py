@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session as DbSession
 from app.config import get_settings
 from app.models import (
     CRITICALITY_LEVELS,
+    TASK_STATUSES,
     Category,
     Comment,
     Criticality,
@@ -19,6 +20,7 @@ from app.models import (
     Revision,
     Task,
     TaskAssignee,
+    TaskStatus,
     User,
 )
 from app.plans import deviation_days
@@ -100,6 +102,7 @@ class CreateTask(BaseModel):
     internal_note: str = ""
     criticality: str = "normal"
     progress_pct: int = 0
+    status: str = "planned"
     baseline_start: date | None = None
     baseline_duration: int | None = None
     task_id: uuid.UUID | None = None
@@ -157,10 +160,36 @@ class SetCriticality(BaseModel):
     criticality: str
 
 
+# --- связка прогресса и статуса ----------------------------------------------
+#
+# Правило ровно из трёх пунктов, и только из них:
+#   set_progress до 100        → статус становится 'done';
+#   set_progress ниже 100 из
+#   статуса 'done'             → статус становится 'in_progress';
+#   set_status в 'done'        → прогресс становится 100.
+# Уход из 'done' в другой статус прогресс не трогает, даже когда тот стоит на
+# 100: выдуманное «почти готово» (99?) было бы значением, которого человек не
+# вводил, а честного кандидата у системы нет.
+
+
 class SetProgress(BaseModel):
     type: Literal["set_progress"] = "set_progress"
     task_id: uuid.UUID
     progress_pct: int
+    # Поле восстановления: отмена обязана вернуть статус, который стоял до
+    # операции, а не тот, который выведет связка (из 'blocked' связка не
+    # угадала бы никогда). По проводу не принимается — статусом с провода
+    # управляет set_status.
+    status: str | None = None
+
+
+class SetStatus(BaseModel):
+    type: Literal["set_status"] = "set_status"
+    task_id: uuid.UUID
+    status: str
+    # Поле восстановления — зеркально set_progress.status: отмена ухода в
+    # 'done' обязана вернуть прежний прогресс, а не оставить 100.
+    progress_pct: int | None = None
 
 
 class RenameCategory(BaseModel):
@@ -229,6 +258,7 @@ Op = Annotated[
     | SetTaskFields
     | SetCriticality
     | SetProgress
+    | SetStatus
     | RenameCategory
     | SetCategoryColor
     | ReorderTask
@@ -250,6 +280,7 @@ _MODELS = {
     "set_task_fields": SetTaskFields,
     "set_criticality": SetCriticality,
     "set_progress": SetProgress,
+    "set_status": SetStatus,
     "rename_category": RenameCategory,
     "set_category_color": SetCategoryColor,
     "reorder_task": ReorderTask,
@@ -309,6 +340,7 @@ class PublicCreateTask(_Wire):
     internal_note: str = ""
     criticality: Criticality = Criticality.NORMAL
     progress_pct: int = Field(default=0, ge=0, le=100)
+    status: TaskStatus = TaskStatus.PLANNED
     baseline_start: date | None = Field(default=None, le=MAX_WIRE_DATE)
     baseline_duration: int | None = Field(default=None, ge=1)
 
@@ -353,6 +385,12 @@ class PublicSetProgress(_Wire):
     type: Literal["set_progress"] = "set_progress"
     task_id: uuid.UUID
     progress_pct: int = Field(ge=0, le=100)
+
+
+class PublicSetStatus(_Wire):
+    type: Literal["set_status"] = "set_status"
+    task_id: uuid.UUID
+    status: TaskStatus
 
 
 class PublicRenameCategory(_Wire):
@@ -411,6 +449,7 @@ PublicOp = Annotated[
     | PublicSetTaskFields
     | PublicSetCriticality
     | PublicSetProgress
+    | PublicSetStatus
     | PublicRenameCategory
     | PublicSetCategoryColor
     | PublicReorderTask
@@ -628,6 +667,8 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
             raise InvalidOperation(
                 "progress_out_of_range", f"процент вне 0..100: {op.progress_pct}"
             )
+        if op.status not in TASK_STATUSES:
+            raise InvalidOperation("unknown_status", f"неизвестный статус: {op.status}")
         # Внешний ключ гарантирует лишь, что категория где-то существует —
         # не то, что она принадлежит этому проекту. Без явной проверки задача
         # может незаметно оказаться под категорией чужого проекта.
@@ -669,6 +710,7 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
             duration_days=op.duration_days,
             criticality=op.criticality,
             progress_pct=op.progress_pct,
+            status=op.status,
             position=position,
             baseline_start=op.baseline_start,
             baseline_duration=op.baseline_duration,
@@ -688,6 +730,7 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
                 "internal_note": task.internal_note,
                 "criticality": task.criticality,
                 "progress_pct": task.progress_pct,
+                "status": task.status,
                 "position": task.position,
                 "baseline_start": task.baseline_start.isoformat() if task.baseline_start else None,
                 "baseline_duration": task.baseline_duration,
@@ -761,16 +804,70 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
             raise InvalidOperation(
                 "progress_out_of_range", f"процент вне 0..100: {op.progress_pct}"
             )
+        if op.status is not None and op.status not in TASK_STATUSES:
+            raise InvalidOperation("unknown_status", f"неизвестный статус: {op.status}")
         task = _require_task(db, project, op.task_id)
+        previous_status = task.status
         forward = {
             "type": "set_progress",
             "task_id": str(task.id),
             "from": task.progress_pct,
             "to": op.progress_pct,
         }
+        inverse = _swap(forward)
+        if op.status is not None:
+            # Поле восстановления: статус ложится как продиктовано журналом,
+            # связка не пересчитывается — она уже отработала в прямой операции.
+            task.status = op.status
+        elif op.progress_pct >= 100:
+            # Связка (см. комментарий у модели): дотянутый до конца прогресс —
+            # это и есть «сделано».
+            task.status = TaskStatus.DONE.value
+        elif task.status == TaskStatus.DONE:
+            # Прогресс отступил от 100 у сделанной задачи — она снова в работе.
+            # Прочие статусы ('planned', 'blocked') не трогаются: движение
+            # прогресса о них ничего не говорит.
+            task.status = TaskStatus.IN_PROGRESS.value
         task.progress_pct = op.progress_pct
         db.flush()
-        return forward, _swap(forward)
+        if task.status != previous_status:
+            # Обе границы статуса — в журнал: отмена обязана вернуть прежний
+            # статус дословно, а не выводить его связкой заново (из 'blocked'
+            # связка не угадала бы никогда).
+            forward |= {"status_from": previous_status, "status_to": task.status}
+            inverse |= {"status_from": task.status, "status_to": previous_status}
+        return forward, inverse
+
+    if isinstance(op, SetStatus):
+        if op.status not in TASK_STATUSES:
+            raise InvalidOperation("unknown_status", f"неизвестный статус: {op.status}")
+        if op.progress_pct is not None and not 0 <= op.progress_pct <= 100:
+            raise InvalidOperation(
+                "progress_out_of_range", f"процент вне 0..100: {op.progress_pct}"
+            )
+        task = _require_task(db, project, op.task_id)
+        previous_progress = task.progress_pct
+        forward = {
+            "type": "set_status",
+            "task_id": str(task.id),
+            "from": task.status,
+            "to": op.status,
+        }
+        inverse = _swap(forward)
+        task.status = op.status
+        if op.progress_pct is not None:
+            # Поле восстановления — как status у set_progress: журнал диктует
+            # точное значение, связка не пересчитывается.
+            task.progress_pct = op.progress_pct
+        elif op.status == TaskStatus.DONE:
+            # Связка (см. комментарий у модели): «сделано» — это весь объём.
+            # Обратного правила нет: уход из 'done' прогресс не трогает.
+            task.progress_pct = 100
+        db.flush()
+        if task.progress_pct != previous_progress:
+            forward |= {"progress_from": previous_progress, "progress_to": task.progress_pct}
+            inverse |= {"progress_from": task.progress_pct, "progress_to": previous_progress}
+        return forward, inverse
 
     if isinstance(op, RenameCategory):
         category = _require_category(db, project, op.category_id)
@@ -1005,6 +1102,7 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
             "internal_note": task.internal_note,
             "criticality": task.criticality,
             "progress_pct": task.progress_pct,
+            "status": task.status,
             "position": task.position,
             "baseline_start": task.baseline_start.isoformat() if task.baseline_start else None,
             "baseline_duration": task.baseline_duration,
@@ -1108,6 +1206,7 @@ _SCALAR_BOUNDS_FIELD = {
     "set_duration": "duration_days",
     "set_criticality": "criticality",
     "set_progress": "progress_pct",
+    "set_status": "status",
     "rename_category": "name",
     "set_category_color": "color",
 }
@@ -1115,6 +1214,15 @@ _SCALAR_BOUNDS_FIELD = {
 # Операции, у которых `to` — не скаляр, а словарь полей: они разворачиваются
 # в модель целиком.
 _MAPPED_BOUNDS = frozenset({"set_task_fields"})
+
+# Связанное поле, границы которого операция несёт сверх собственных: имя
+# поля модели и пара ключей журнала. Присутствуют в записи только когда
+# связка сработала — иначе восстановление читало бы значения, которых
+# операция не меняла.
+_COUPLED_BOUNDS_FIELD = {
+    "set_progress": ("status", "status_from", "status_to"),
+    "set_status": ("progress_pct", "progress_from", "progress_to"),
+}
 
 
 def _op_from_dict(payload: dict):
@@ -1133,6 +1241,15 @@ def _op_from_dict(payload: dict):
     elif kind in _MAPPED_BOUNDS:
         data.update(data.pop("to"))
         data.pop("from", None)
+    if kind in _COUPLED_BOUNDS_FIELD:
+        # Связанное поле — тем же правилом, что и основное: значение из
+        # *_to, так что запись читается и как прямая операция, и как
+        # обратная. Без него отмена доверила бы восстановление связке, а
+        # связка прежнего значения не знает (см. SetProgress.status).
+        field, bound_from, bound_to = _COUPLED_BOUNDS_FIELD[kind]
+        if bound_to in data:
+            data[field] = data.pop(bound_to)
+        data.pop(bound_from, None)
     return model.model_validate(data)
 
 

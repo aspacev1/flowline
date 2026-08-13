@@ -1,8 +1,16 @@
+import { useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent, PointerEvent } from "react";
 
+import { ApiError } from "../api/client";
+import { errorKey } from "../api/errors";
+import { projectQueryKey, undoLast } from "../api/projects";
 import type { Task } from "../api/projects";
+import { useToast } from "../components/toast";
+import { formatShortDate } from "../i18n/dates";
+import { useLocale } from "../i18n/LocaleProvider";
 import { patchTask } from "../project/optimistic";
+import { useAskShiftReason } from "../project/ShiftReason";
 import { useProjectMutation } from "../project/useProjectMutation";
 import { addDays } from "./timescale";
 import type { Scale } from "./timescale";
@@ -32,6 +40,10 @@ export function useDragDates({
   enabled: boolean;
 }) {
   const { apply } = useProjectMutation(projectId);
+  const { t } = useLocale();
+  const showToast = useToast();
+  const askReason = useAskShiftReason();
+  const queryClient = useQueryClient();
 
   const from = useRef<{ pointerId: number; x: number } | null>(null);
   // Было ли движение. Живёт в ref, а не в состоянии: значение читается в
@@ -49,19 +61,61 @@ export function useDragDates({
   const dateAfter = (dx: number) =>
     scale.dateAt(scale.xOf(task.start_date) + dx + scale.dayWidth / 2);
 
+  /**
+   * Отмена из тоста. Отменяется последняя операция проекта — на момент показа
+   * тоста это и есть перенос; сам путь тот же, что у кнопки «Отменить»:
+   * отмена подчиняется тому же порогу объяснений, что и любой сдвиг.
+   */
+  const undoMove = async () => {
+    try {
+      try {
+        await undoLast(projectId);
+      } catch (refusal) {
+        if (!(refusal instanceof ApiError) || refusal.code !== "reason_required" || !askReason) {
+          throw refusal;
+        }
+        // Числа — из подсказок сервера: вкладка не знает, к каким датам
+        // приведёт обратная операция.
+        const reason = await askReason({
+          taskName: task.name,
+          deviationDays: refusal.hints.deviationDays ?? 0,
+          thresholdDays: refusal.hints.thresholdDays ?? 0,
+        });
+        if (reason === null) return;
+        await undoLast(projectId, reason);
+      }
+      await queryClient.invalidateQueries({ queryKey: projectQueryKey(projectId) });
+    } catch (error) {
+      // Отказ отмены показывается там же, где было предложение отменить:
+      // человек смотрит на тост, а не на шапку проекта.
+      showToast({ message: t(errorKey(error)) });
+    }
+  };
+
   const move = (startDate: string) => {
     // Ноль дней — ничего не отправляем: жест, вернувший полоску на место, не
     // изменение и не должен оставлять запись в истории.
     if (startDate === task.start_date) return;
-    void apply(
+    apply(
       { type: "move_task", task_id: task.id, start_date: startDate },
       (state) => patchTask(state, task.id, { start_date: startDate }),
-    ).catch(() => {
-      // Откат уже сделан внутри `apply`, и полоска на глазах вернулась туда,
-      // откуда её тащили. Это и есть сообщение об отказе: другого места для
-      // него на ленте нет, а модальное окно поверх диаграммы прерывало бы
-      // работу там, где человек и так всё увидел.
-    });
+    ).then(
+      () => {
+        // Тост с отменой — после подтверждения сервером, как в макете:
+        // перенос применяется сразу, а лёгкий путь назад лежит под рукой.
+        showToast({
+          message: t("gantt.moved", { date: formatShortDate(t, startDate) }),
+          actionLabel: t("undo.action"),
+          onAction: () => void undoMove(),
+        });
+      },
+      () => {
+        // Откат уже сделан внутри `apply`, и полоска на глазах вернулась туда,
+        // откуда её тащили. Это и есть сообщение об отказе: другого места для
+        // него на ленте нет, а модальное окно поверх диаграммы прерывало бы
+        // работу там, где человек и так всё увидел.
+      },
+    );
   };
 
   return {

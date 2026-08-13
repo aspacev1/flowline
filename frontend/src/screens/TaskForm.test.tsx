@@ -67,9 +67,11 @@ async function fillTaskForm({
 describe("создание задачи", () => {
   it("подставляет категорию, из строки которой открыли форму", async () => {
     server.use(
+      // Свой состав — раньше общего из sessionHandlers: msw берёт первый
+      // подходящий обработчик в списке.
+      http.get("/api/org/members", () => HttpResponse.json(MEMBERS)),
       ...sessionHandlers(),
       http.get("/api/projects/p1", () => HttpResponse.json(STATE)),
-      http.get("/api/org/members", () => HttpResponse.json(MEMBERS)),
     );
 
     renderApp({ route: "/projects/p1", locale: "ru" });
@@ -82,9 +84,11 @@ describe("создание задачи", () => {
 
   it("подпись плюса называет категорию, а не повторяет «добавить»", async () => {
     server.use(
+      // Свой состав — раньше общего из sessionHandlers: msw берёт первый
+      // подходящий обработчик в списке.
+      http.get("/api/org/members", () => HttpResponse.json(MEMBERS)),
       ...sessionHandlers(),
       http.get("/api/projects/p1", () => HttpResponse.json(STATE)),
-      http.get("/api/org/members", () => HttpResponse.json(MEMBERS)),
     );
 
     renderApp({ route: "/projects/p1", locale: "ru" });
@@ -97,9 +101,11 @@ describe("создание задачи", () => {
   it("отправляет операцию с длительностью в рабочих днях", async () => {
     const sent: { op: Record<string, unknown> }[] = [];
     server.use(
+      // Свой состав — раньше общего из sessionHandlers: msw берёт первый
+      // подходящий обработчик в списке.
+      http.get("/api/org/members", () => HttpResponse.json(MEMBERS)),
       ...sessionHandlers(),
       http.get("/api/projects/p1", () => HttpResponse.json(STATE)),
-      http.get("/api/org/members", () => HttpResponse.json(MEMBERS)),
       http.post("/api/projects/p1/mutations", async ({ request }) => {
         sent.push((await request.json()) as { op: Record<string, unknown> });
         return HttpResponse.json({ seq: 3, op: {}, inverse: {} }, { status: 201 });
@@ -124,9 +130,11 @@ describe("создание задачи", () => {
 
   it("переводит отказ сервера по коду, а не показывает detail", async () => {
     server.use(
+      // Свой состав — раньше общего из sessionHandlers: msw берёт первый
+      // подходящий обработчик в списке.
+      http.get("/api/org/members", () => HttpResponse.json(MEMBERS)),
       ...sessionHandlers(),
       http.get("/api/projects/p1", () => HttpResponse.json(STATE)),
-      http.get("/api/org/members", () => HttpResponse.json(MEMBERS)),
       http.post("/api/projects/p1/mutations", () =>
         HttpResponse.json({ detail: "task_limit_reached" }, { status: 422 }),
       ),
@@ -141,9 +149,11 @@ describe("создание задачи", () => {
 
   it("не даёт длительность меньше одного дня", async () => {
     server.use(
+      // Свой состав — раньше общего из sessionHandlers: msw берёт первый
+      // подходящий обработчик в списке.
+      http.get("/api/org/members", () => HttpResponse.json(MEMBERS)),
       ...sessionHandlers(),
       http.get("/api/projects/p1", () => HttpResponse.json(STATE)),
-      http.get("/api/org/members", () => HttpResponse.json(MEMBERS)),
     );
 
     renderApp({ route: "/projects/p1", locale: "ru" });
@@ -157,9 +167,11 @@ describe("создание задачи", () => {
   it("показывает исполнителей и отправляет их отдельными операциями", async () => {
     const sent: { op: Record<string, unknown> }[] = [];
     server.use(
+      // Свой состав — раньше общего из sessionHandlers: msw берёт первый
+      // подходящий обработчик в списке.
+      http.get("/api/org/members", () => HttpResponse.json(MEMBERS)),
       ...sessionHandlers(),
       http.get("/api/projects/p1", () => HttpResponse.json(STATE)),
-      http.get("/api/org/members", () => HttpResponse.json(MEMBERS)),
       http.post("/api/projects/p1/mutations", async ({ request }) => {
         const body = (await request.json()) as { op: Record<string, unknown> };
         sent.push(body);
@@ -206,9 +218,11 @@ describe("создание задачи", () => {
   it("критичность отправляется выбранная, а не всегда обычная", async () => {
     const sent: { op: Record<string, unknown> }[] = [];
     server.use(
+      // Свой состав — раньше общего из sessionHandlers: msw берёт первый
+      // подходящий обработчик в списке.
+      http.get("/api/org/members", () => HttpResponse.json(MEMBERS)),
       ...sessionHandlers(),
       http.get("/api/projects/p1", () => HttpResponse.json(STATE)),
-      http.get("/api/org/members", () => HttpResponse.json(MEMBERS)),
       http.post("/api/projects/p1/mutations", async ({ request }) => {
         sent.push((await request.json()) as { op: Record<string, unknown> });
         return HttpResponse.json({ seq: 3, op: {}, inverse: {} }, { status: 201 });

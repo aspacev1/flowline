@@ -33,6 +33,7 @@ const STATE: ProjectState = {
       end_date: "2026-03-10",
       duration_days: 5,
       criticality: "high",
+      status: "in_progress",
       progress_pct: 40,
       position: 0,
       assignee_ids: [],

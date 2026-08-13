@@ -1,6 +1,7 @@
 import { Navigate, Outlet } from "react-router-dom";
 
 import { Header } from "../components/Header";
+import { ToastProvider } from "../components/toast";
 import { useLocale } from "../i18n/LocaleProvider";
 import { useAuth } from "./AuthProvider";
 
@@ -29,12 +30,16 @@ export function RequireAuth() {
   // остальное»: боковая навигация обязана держать высоту экрана целиком,
   // иначе её подложка обрывается там, где кончается содержимое, и колонка
   // читается как первый блок страницы, а не как её рама.
+  // Тосты живут на раме, а не на отдельном экране: подтверждение с «Отменить»
+  // одинаково по устройству везде, где что-то меняют.
   return (
-    <div className="app">
-      <Header />
-      <div className="app__main">
-        <Outlet />
+    <ToastProvider>
+      <div className="app">
+        <Header />
+        <div className="app__main">
+          <Outlet />
+        </div>
       </div>
-    </div>
+    </ToastProvider>
   );
 }

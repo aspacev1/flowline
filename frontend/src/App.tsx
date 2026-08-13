@@ -1,6 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 
+// Inter лежит в сборке, а не грузится с CDN: установка самостоятельная и
+// обязана выглядеть одинаково с интернетом и без него.
+import "@fontsource-variable/inter";
 import "./styles.css";
 // Тема Broadsheet: обязана идти после styles.css — перебивает токены,
 // включая тёмный медиазапрос (Broadsheet — только светлая).

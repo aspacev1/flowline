@@ -144,6 +144,9 @@ def project_state(
                 "end_date": task_end.isoformat(),
                 "criticality": t.criticality,
                 "progress_pct": t.progress_pct,
+                # Статус не секретнее прогресса: публичная страница показывает
+                # те же полоски, и обе выдачи собираются этой одной функцией.
+                "status": t.status,
                 "position": t.position,
                 "assignee_ids": assignees[str(t.id)],
                 # Базовый план едет с задачей всегда, а не по отдельному

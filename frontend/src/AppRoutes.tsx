@@ -2,9 +2,12 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import { RequireAuth } from "./auth/RequireAuth";
 import { AiIntake } from "./screens/AiIntake";
+import { Home } from "./screens/Home";
 import { Invite } from "./screens/Invite";
 import { Login } from "./screens/Login";
 import { Members } from "./screens/Members";
+import { MyTasks } from "./screens/MyTasks";
+import { Reports } from "./screens/Reports";
 import { OrgSettings } from "./screens/OrgSettings";
 import { Profile } from "./screens/Profile";
 import { Project } from "./screens/Project";
@@ -22,7 +25,6 @@ import { VerifyEmail } from "./screens/VerifyEmail";
 export function AppRoutes() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/projects" replace />} />
       <Route path="/register" element={<Register />} />
       <Route path="/login" element={<Login />} />
       {/* Публичная страница живёт вне RequireAuth: у гостя нет и не будет
@@ -38,6 +40,11 @@ export function AppRoutes() {
           подписать не глядя. */}
       <Route path="/invite/:token" element={<Invite />} />
       <Route element={<RequireAuth />}>
+        {/* Корень — «Главная», а не редирект на проекты: раздел свой, с
+            портфелем и приветствием, как в макете. */}
+        <Route path="/" element={<Home />} />
+        <Route path="/my-tasks" element={<MyTasks />} />
+        <Route path="/reports" element={<Reports />} />
         <Route path="/projects" element={<Projects />} />
         {/* Интервью доступно только при создании нового проекта: запуск
             внутри существующего — следующий этап, не первая версия. */}

@@ -46,6 +46,7 @@ export const STATE: ProjectState = {
       end_date: "2026-03-10",
       duration_days: 5,
       criticality: "high",
+      status: "in_progress",
       progress_pct: 40,
       position: 0,
       assignee_ids: [],
@@ -167,8 +168,41 @@ function applied(state: ProjectState, op: Record<string, unknown>): ProjectState
       return patch({ start_date: op.start_date as string });
     case "set_duration":
       return patch({ duration_days: op.duration_days as number });
-    case "set_progress":
-      return patch({ progress_pct: op.progress_pct as number });
+    case "set_progress": {
+      // Та же сцепка, что на сервере: сто процентов — «готово», спуск ниже
+      // ста из «готово» — «в работе».
+      const pct = op.progress_pct as number;
+      const was = state.tasks.find((task) => task.id === id);
+      return patch({
+        progress_pct: pct,
+        status:
+          pct >= 100 ? "done" : was?.status === "done" && pct < 100 ? "in_progress" : was?.status,
+      });
+    }
+    case "set_status": {
+      const status = op.status as ProjectState["tasks"][number]["status"];
+      const was = state.tasks.find((task) => task.id === id);
+      return patch({
+        status,
+        progress_pct: status === "done" ? 100 : was?.progress_pct,
+      });
+    }
+    case "add_dependency":
+      return {
+        ...state,
+        dependencies: [
+          ...state.dependencies,
+          { from_task_id: op.from_task_id as string, to_task_id: op.to_task_id as string },
+        ],
+      };
+    case "remove_dependency":
+      return {
+        ...state,
+        dependencies: state.dependencies.filter(
+          (link) =>
+            !(link.from_task_id === op.from_task_id && link.to_task_id === op.to_task_id),
+        ),
+      };
     case "set_criticality":
       return patch({ criticality: op.criticality as ProjectState["tasks"][number]["criticality"] });
     case "set_task_fields":
