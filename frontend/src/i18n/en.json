@@ -432,6 +432,9 @@
       "blocker": "Blocker",
       "late": "Deadline missed · +N days"
     },
+    "tip": {
+      "more": "{name} +{count}"
+    },
     "task_count": {
       "one": "{count} task",
       "other": "{count} tasks"

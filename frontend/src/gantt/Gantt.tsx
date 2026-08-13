@@ -7,6 +7,7 @@ import { Menu } from "../components/Menu";
 import { endShiftDays, isBeyondPlan } from "../project/baseline";
 import { formatDate, formatMonth, weekdayNarrow } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
+import { BarTipProvider } from "./BarTip";
 import { Grid } from "./Grid";
 import { Header } from "./Header";
 import { Arrows } from "./Arrows";
@@ -47,6 +48,7 @@ export function Gantt({
   selectedTaskId = null,
   onSelectTask,
   toolbarAction,
+  assigneeNames,
 }: {
   projectId: string;
   state: ProjectState;
@@ -59,6 +61,15 @@ export function Gantt({
   onSelectTask?: (taskId: string) => void;
   /** Primary project action shown beside the working timeline controls. */
   toolbarAction?: ReactNode;
+  /**
+   * Имена исполнителей по идентификаторам — для карточки наведения.
+   *
+   * Пропсом, а не запросом изнутри: спрашивает экран, лента получает готовое.
+   * Признака «это публичная страница» у ленты нет и заводить его не за чем, а
+   * гейт по `canWrite` ошибся бы дважды — на читателе внутри организации,
+   * который состав видит, и в офлайне, где право есть, а связи нет.
+   */
+  assigneeNames?: ReadonlyMap<string, string>;
 }) {
   const { t } = useLocale();
   const scroller = useRef<HTMLDivElement>(null);
@@ -157,6 +168,9 @@ export function Gantt({
   }
 
   return (
+    // Карточка наведения живёт рядом с лентой, а не внутри неё: она стоит по
+    // координатам окна, и полоса прокрутки ленты не должна её обрезать.
+    <BarTipProvider names={assigneeNames}>
     <div
       className={`gantt gantt--${zoom}${reorder.active ? " is-reordering" : ""}${
         reducedMotion ? " motion-off" : ""
@@ -310,6 +324,7 @@ export function Gantt({
         </>
       )}
     </div>
+    </BarTipProvider>
   );
 }
 

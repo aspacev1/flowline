@@ -47,12 +47,6 @@ function guestSession() {
   return http.get("/api/auth/me", () => new HttpResponse(null, { status: 401 }));
 }
 
-/* Состав организации гостю не отдаётся — диаграмма спрашивает его и молча
-   переживает отказ: колонка владельцев остаётся прочерками. */
-function noMembers() {
-  return http.get("/api/org/members", () => new HttpResponse(null, { status: 401 }));
-}
-
 function publicProject(state: object = STATE) {
   return http.get("/api/public/acme/redizayn", ({ request }) => {
     // Токен обязан доехать до сервера: без него ссылка ничем не отличается
@@ -70,7 +64,7 @@ function noComments() {
 
 describe("публичная страница", () => {
   it("открывает проект гостю без входа", async () => {
-    server.use(guestSession(), noMembers(), publicProject(), noComments());
+    server.use(guestSession(), publicProject(), noComments());
 
     renderApp({ route: ROUTE, locale: "ru" });
 
@@ -84,7 +78,7 @@ describe("публичная страница", () => {
   });
 
   it("не предлагает гостю ничего менять", async () => {
-    server.use(guestSession(), noMembers(), publicProject(), noComments());
+    server.use(guestSession(), publicProject(), noComments());
 
     renderApp({ route: ROUTE, locale: "ru" });
     await screen.findAllByText("Логотип");
@@ -113,7 +107,6 @@ describe("публичная страница", () => {
     const sent: Array<Record<string, unknown>> = [];
     server.use(
       guestSession(),
-      noMembers(),
       publicProject(),
       noComments(),
       http.post("/api/public/acme/redizayn/comments", async ({ request }) => {
@@ -148,7 +141,6 @@ describe("публичная страница", () => {
   it("гостевая реплика видна с пометкой «гость»", async () => {
     server.use(
       guestSession(),
-      noMembers(),
       publicProject(),
       http.get("/api/public/acme/redizayn/comments", () =>
         HttpResponse.json([
@@ -182,7 +174,6 @@ describe("публичная страница", () => {
   it("выключенные комментарии закрывают форму, но не ленту", async () => {
     server.use(
       guestSession(),
-      noMembers(),
       publicProject({ ...STATE, comments_enabled: false }),
       http.get("/api/public/acme/redizayn/comments", () =>
         HttpResponse.json([
@@ -204,8 +195,29 @@ describe("публичная страница", () => {
     expect(screen.getByText("Владелец проекта закрыл комментарии")).toBeInTheDocument();
   });
 
+  it("не спрашивает состав организации: гостю его и не отдадут", async () => {
+    const asked: string[] = [];
+    server.use(
+      guestSession(),
+      publicProject(),
+      noComments(),
+      http.get("/api/org/members", () => {
+        asked.push("members");
+        return HttpResponse.json([]);
+      }),
+    );
+
+    renderApp({ route: ROUTE, locale: "ru" });
+    await screen.findAllByText("Логотип");
+
+    // Имена исполнителей для карточки наведения спрашивает рабочий экран и
+    // передаёт их ленте пропсом. Спроси их лента сама — публичная страница
+    // ходила бы за ними тоже и получала отказ на каждом открытии ссылки.
+    expect(asked).toEqual([]);
+  });
+
   it("язык переключается прямо на странице", async () => {
-    server.use(guestSession(), noMembers(), publicProject(), noComments());
+    server.use(guestSession(), publicProject(), noComments());
 
     renderApp({ route: ROUTE, locale: "ru" });
     await screen.findAllByText("Логотип");

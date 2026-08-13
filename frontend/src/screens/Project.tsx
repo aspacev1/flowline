@@ -1,8 +1,9 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, NavLink, useParams } from "react-router-dom";
 
 import { errorKey } from "../api/errors";
+import { MEMBERS_QUERY_KEY, members } from "../api/org";
 import { getProject, projectQueryKey } from "../api/projects";
 import { useCanWrite, useOrgRole } from "../auth/permissions";
 import { Gantt } from "../gantt/Gantt";
@@ -55,6 +56,22 @@ export function Project({ tab = "gantt" }: { tab?: "gantt" | "history" } = {}) {
   // Живая связь открывается вместе с экраном и живёт, пока он открыт: ревизии
   // соседей приезжают сами, а обрыв — единственное, что запирает редактирование.
   const live = useProjectLive(projectId);
+
+  // Состав организации — только ради имён исполнителей в карточке наведения на
+  // полоску. Спрашивает экран, а не лента: у ленты нет признака «это публичная
+  // страница», и решать, ходить ли за составом, она не должна. Отказ — не
+  // ошибка экрана: роль `client` этот маршрут не получает вовсе, и карточка
+  // тогда обходится без строки исполнителей.
+  const membersQuery = useQuery({
+    queryKey: MEMBERS_QUERY_KEY,
+    queryFn: members,
+    retry: false,
+    staleTime: Infinity,
+  });
+  const assigneeNames = useMemo(
+    () => new Map((membersQuery.data ?? []).map((member) => [member.id, member.name])),
+    [membersQuery.data],
+  );
 
   if (query.isPending) {
     return (
@@ -172,6 +189,7 @@ export function Project({ tab = "gantt" }: { tab?: "gantt" | "history" } = {}) {
                 projectId={projectId}
                 state={query.data}
                 canWrite={editable}
+                assigneeNames={assigneeNames}
                 toolbarAction={
                   canWrite ? (
                     <>
