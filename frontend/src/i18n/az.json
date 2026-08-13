@@ -222,8 +222,7 @@
     "category_count": {
       "one": "{count} kateqoriya",
       "other": "{count} kateqoriya"
-    },
-    "more": "Digər əməllər"
+    }
   },
   "home": {
     "greeting": "Salam, {name} — layihə portfeli bir baxışda",
