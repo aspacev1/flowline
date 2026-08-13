@@ -40,10 +40,14 @@ describe("шапка", () => {
     expect(screen.queryByText("Привет, Алексей Смирнов")).not.toBeInTheDocument();
   });
 
-  it("сворачивается по кнопке и запоминает выбор", async () => {
+  it("сворачивается щелчком по логотипу и запоминает выбор", async () => {
     renderApp({ route: "/projects", locale: "ru" });
 
-    await userEvent.click(await screen.findByRole("button", { name: "Скрыть меню" }));
+    // Сворачивает сам логотип: отдельной кнопки со стрелкой в колонке нет.
+    const logo = await screen.findByRole("button", { name: "Скрыть меню" });
+    expect(await screen.findByText("Şəhər Studiyası")).toBe(logo.lastElementChild);
+
+    await userEvent.click(logo);
 
     // Кнопка сменила имя — колонка свёрнута, и выбор пережил бы перезагрузку.
     expect(screen.getByRole("button", { name: "Показать меню" })).toBeInTheDocument();
