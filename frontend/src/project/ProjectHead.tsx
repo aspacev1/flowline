@@ -76,6 +76,7 @@ export function ProjectHead({
                 {changedSinceApproval(state) && (
                   <span className="project-head__plan-note">{t("plan.changed")}</span>
                 )}
+                {planAction && <span className="project-head__approval">{planAction}</span>}
               </span>
             )}
           </p>
@@ -83,8 +84,6 @@ export function ProjectHead({
 
         {actions && <div className="project-head__actions">{actions}</div>}
       </div>
-
-      {showPlan && planAction && <div className="project-head__approval">{planAction}</div>}
     </header>
   );
 }
