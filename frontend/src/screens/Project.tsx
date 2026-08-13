@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, NavLink, useParams } from "react-router-dom";
 
 import { errorKey } from "../api/errors";
 import { getProject, projectQueryKey } from "../api/projects";
@@ -14,6 +14,7 @@ import { useProjectLive } from "../live/useProjectLive";
 import { DependencyNudge, DependencyNudgeProvider } from "../project/DependencyNudge";
 import { PlanApproval } from "../project/PlanApproval";
 import { ProjectHead } from "../project/ProjectHead";
+import { ProjectHistory } from "../project/ProjectHistory";
 import { ShiftReasonProvider } from "../project/ShiftReason";
 import { TaskPanel } from "../task/TaskPanel";
 import { CategoryForm, suggestColor } from "./CategoryForm";
@@ -28,7 +29,7 @@ import { TaskForm } from "./TaskForm";
  * означает и несуществующий проект, и чужой: интерфейс не знает разницы и не
  * притворяется, что знает.
  */
-export function Project() {
+export function Project({ tab = "gantt" }: { tab?: "gantt" | "history" } = {}) {
   const { t } = useLocale();
   const { projectId = "" } = useParams();
   const canWrite = useCanWrite();
@@ -141,13 +142,31 @@ export function Project() {
 
             {offline && <OfflineBar syncedAt={query.dataUpdatedAt || null} />}
 
+            {/* Вкладки — в адресе, а не в состоянии экрана: на историю
+                ссылаются в переписке, и ссылка обязана открывать её сразу. */}
+            <nav className="tabs" aria-label={t("history.tabs_label")}>
+              <NavLink to={`/projects/${projectId}`} end className={tabClass}>
+                {t("history.tab_gantt")}
+              </NavLink>
+              <NavLink to={`/projects/${projectId}/history`} className={tabClass}>
+                {t("history.tab_history")}
+              </NavLink>
+            </nav>
+
+            {tab === "history" && (
+              <ProjectHistory projectId={projectId} state={query.data} canUndo={editable} />
+            )}
+
             {/* Предложение подвинуть связанную задачу — над лентой, а не поверх
                 неё: оно ненавязчивое и не должно закрывать то, что человек только
                 что подвинул. */}
-            {editable && <DependencyNudge projectId={projectId} state={query.data} />}
+            {tab === "gantt" && editable && (
+              <DependencyNudge projectId={projectId} state={query.data} />
+            )}
 
             {/* Диаграмма занимает всю ширину, пока карточка закрыта: пустая колонка
                 справа отнимает у ленты треть экрана ради ничего. */}
+            {tab === "gantt" && (
             <div className={`project__body${reducedMotion ? " motion-off" : ""}`}>
               <Gantt
                 projectId={projectId}
@@ -202,6 +221,7 @@ export function Project() {
                 />
               )}
             </div>
+            )}
 
             {sharing && <ShareDialog projectId={projectId} onClose={() => setSharing(false)} />}
 
@@ -227,4 +247,12 @@ export function Project() {
       </DependencyNudgeProvider>
     </ShiftReasonProvider>
   );
+}
+
+/**
+ * Текущая вкладка помечается классом, а не цветом: подчёркивание снизу
+ * показывает границы вкладки целиком, и по нему видно, куда попадёт щелчок.
+ */
+function tabClass({ isActive }: { isActive: boolean }) {
+  return `tabs__link${isActive ? " is-current" : ""}`;
 }

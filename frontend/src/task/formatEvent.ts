@@ -20,7 +20,16 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === "object" ? (value as Record<string, unknown>) : {};
 }
 
-export function formatEvent(op: Record<string, unknown>, locale: Locale): string {
+export function formatEvent(
+  op: Record<string, unknown>,
+  locale: Locale,
+  /**
+   * Имена сущностей по идентификатору — как их отдаёт журнал. Позволяют
+   * назвать исполнителя и концы связи; без словаря фраза остаётся безымянной,
+   * как и была, — запись старого формата не ломает ленту.
+   */
+  names: Record<string, string> = {},
+): string {
   const t = (key: string, params?: Params) => translate(locale, key, params);
   const say = (key: string, params?: Params) => t(`history.${key}`, params);
 
@@ -77,13 +86,20 @@ export function formatEvent(op: Record<string, unknown>, locale: Locale): string
     case "reorder_task":
       return say("reorder_task");
     case "assign_user":
-      return say("assign_user");
-    case "unassign_user":
-      return say("unassign_user");
+    case "unassign_user": {
+      // Имя — содержимое, а не хрома: подставляется как есть. Безымянная
+      // форма остаётся для записей, чей исполнитель стёр аккаунт.
+      const name = names[String(op.user_id)];
+      return name ? say(`${String(op.type)}_named`, { name }) : say(String(op.type));
+    }
     case "add_dependency":
-      return say("add_dependency");
-    case "remove_dependency":
-      return say("remove_dependency");
+    case "remove_dependency": {
+      const from = names[String(op.from_task_id)];
+      const to = names[String(op.to_task_id)];
+      return from && to
+        ? say(`${String(op.type)}_named`, { from, to })
+        : say(String(op.type));
+    }
     case "create_category":
       return say("create_category");
     case "delete_category":

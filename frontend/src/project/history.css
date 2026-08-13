@@ -1,0 +1,125 @@
+/* Лента истории проекта — вкладка «История».
+
+   Одна колонка ограниченной ширины: ленту читают, а не сканируют, и строка
+   на всю ширину диаграммного экрана заставляла бы глаз прыгать от фразы к
+   времени через пол-экрана пустоты. */
+
+.feed {
+  max-width: 720px;
+}
+
+.feed__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin-bottom: 16px;
+}
+
+.feed__filter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.feed__day {
+  margin-bottom: 20px;
+}
+
+/* Заголовок дня — как линия табов: подпись у линии, а не плашка. */
+.feed__day-title {
+  margin: 0 0 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.feed__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Вложенный список раскрытой пачки: сдвиг вместо рамки — записи те же,
+   просто их скобка видна по отступу. */
+.feed__list--nested {
+  margin-top: 8px;
+  padding-left: 16px;
+  border-left: 2px solid var(--border);
+  gap: 8px;
+}
+
+.feed__line {
+  margin: 0;
+}
+
+.feed__actor {
+  font-weight: 600;
+}
+
+.feed__subject {
+  color: var(--text-muted);
+}
+
+.feed__meta {
+  margin: 2px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* Причина — текст человека: выделяется курсивом, а не кавычками интерфейса. */
+.feed__reason {
+  font-style: italic;
+}
+
+/* Отменённая запись гаснет, но остаётся читаемой: история не переписывается,
+   и «что пытались сделать» — тоже её часть. */
+.feed__item--undone .feed__line {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.feed__undone-mark {
+  font-style: italic;
+}
+
+.feed__badge {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.feed__undo {
+  margin-left: 8px;
+}
+
+.feed__toggle {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Веха — флажок поперёк ленты, не запись: у неё нет автора-строки и кнопок. */
+.feed__milestone .feed__line {
+  font-weight: 600;
+}
+
+.feed__more {
+  margin-top: 4px;
+}

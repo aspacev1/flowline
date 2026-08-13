@@ -701,6 +701,84 @@ def test_revision_log_filtered_by_task_leaves_out_everything_else(authed):
     assert entries[0]["op"]["task_id"] == task_id
 
 
+def test_revision_log_names_the_entities_it_mentions(authed):
+    project_id, category_id, task_id = _project_with_task(authed)
+    authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={"op": {"type": "move_task", "task_id": task_id, "start_date": "2026-03-11"}},
+    )
+
+    entries = authed.get(f"/api/projects/{project_id}/revisions").json()
+
+    # Лента всего проекта обязана называть, чей это старт: имя — по
+    # идентификатору из операции, а не отдельным запросом с клиента.
+    move = next(e for e in entries if e["op"]["type"] == "move_task")
+    assert move["names"] == {task_id: "Logo"}
+    creation = next(e for e in entries if e["op"]["type"] == "create_task")
+    assert creation["names"][task_id] == "Logo"
+    assert creation["names"][category_id] == "Design"
+
+
+def test_revision_log_keeps_naming_a_deleted_task(authed):
+    project_id, _, task_id = _project_with_task(authed)
+    authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={"op": {"type": "delete_task", "task_id": task_id}},
+    )
+
+    entries = authed.get(f"/api/projects/{project_id}/revisions").json()
+
+    # Строки задачи больше нет, но журнал — единственное место, где имя
+    # пережило удаление: оно достаётся из снимка восстановления.
+    deletion = next(e for e in entries if e["op"]["type"] == "delete_task")
+    assert deletion["names"][task_id] == "Logo"
+
+
+def test_revision_log_filters_by_actor_and_type(authed):
+    project_id, _, task_id = _project_with_task(authed)
+    authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={"op": {"type": "move_task", "task_id": task_id, "start_date": "2026-03-11"}},
+    )
+
+    by_type = authed.get(
+        f"/api/projects/{project_id}/revisions", params={"types": ["move_task"]}
+    ).json()
+    assert [entry["op"]["type"] for entry in by_type] == ["move_task"]
+
+    me = authed.get("/api/auth/me").json()["id"]
+    by_actor = authed.get(
+        f"/api/projects/{project_id}/revisions", params={"actor_id": me}
+    ).json()
+    assert len(by_actor) == 3
+
+    nobody = authed.get(
+        f"/api/projects/{project_id}/revisions",
+        params={"actor_id": "00000000-0000-0000-0000-000000000000"},
+    ).json()
+    assert nobody == []
+
+
+def test_revision_log_marks_undo_records(authed):
+    project_id, _, task_id = _project_with_task(authed)
+    authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={"op": {"type": "move_task", "task_id": task_id, "start_date": "2026-03-11"}},
+    )
+    undone_seq = authed.post(f"/api/projects/{project_id}/undo").json()["undone_seq"]
+
+    entries = authed.get(f"/api/projects/{project_id}/revisions").json()
+
+    # Запись об отмене несёт номер отменённой: по этой паре лента помечает
+    # «отменено», не спрашивая сервер второй раз.
+    undo_entry = entries[0]
+    assert undo_entry["undoes_seq"] == undone_seq
+    ordinary = entries[1]
+    assert ordinary["seq"] == undone_seq
+    assert ordinary["undoes_seq"] is None
+    assert all(entry["batch_id"] is None for entry in entries)
+
+
 def test_revision_log_does_not_leak_the_note_to_a_role_that_cannot_read_it(
     authed, monkeypatch
 ):

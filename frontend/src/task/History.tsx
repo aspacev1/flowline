@@ -38,7 +38,7 @@ export function History({ projectId, taskId }: { projectId: string; taskId: stri
             <p className="panel__event-line">
               {/* Имя человека — содержимое, а не чрома: не переводится. */}
               {entry.actor && <span className="panel__event-actor">{entry.actor.name} </span>}
-              {formatEvent(entry.op, locale)}
+              {formatEvent(entry.op, locale, entry.names)}
             </p>
             <p className="panel__event-meta">
               <span>{formatShortDate(t, entry.created_at.slice(0, 10))}</span>

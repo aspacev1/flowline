@@ -1,0 +1,440 @@
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+
+import { MEMBERS_QUERY_KEY, members as fetchMembers } from "../api/org";
+import { errorKey } from "../api/errors";
+import { listPlanApprovals } from "../api/projects";
+import type { PlanApproval, ProjectState } from "../api/projects";
+import { FEED_PAGE, feedQueryKey, listProjectRevisions } from "../api/revisions";
+import type { FeedFilters, RevisionEntry } from "../api/revisions";
+import { formatDate, formatTime } from "../i18n/dates";
+import { useLocale } from "../i18n/LocaleProvider";
+import { formatEvent } from "../task/formatEvent";
+import { useUndo } from "./useUndo";
+
+import "./history.css";
+
+/**
+ * Группы фильтра по типу изменения.
+ *
+ * Человек ищет не операцию журнала, а род события: «кто двигал сроки», «кто
+ * трогал состав». Отдельный пункт на каждый из тринадцати типов превратил бы
+ * фильтр в оглавление кода. Сервер при этом фильтрует по настоящим типам —
+ * группа разворачивается в список ещё на клиенте.
+ */
+const TYPE_GROUPS = {
+  dates: ["move_task", "set_duration"],
+  status: ["set_status", "set_progress"],
+  fields: ["set_task_fields", "set_criticality", "rename_category", "set_category_color"],
+  structure: ["create_task", "delete_task", "reorder_task", "create_category", "delete_category"],
+  people: ["assign_user", "unassign_user"],
+  links: ["add_dependency", "remove_dependency"],
+} as const;
+
+type TypeGroup = keyof typeof TYPE_GROUPS;
+
+/** День записи по часам читателя: лента группируется по местным суткам. */
+function localDay(iso: string): string {
+  const at = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`;
+}
+
+/** Строка ленты: запись журнала или веха согласования плана. */
+type FeedRow =
+  | { kind: "revision"; at: string; entry: RevisionEntry }
+  | { kind: "batch"; at: string; batchId: string; entries: RevisionEntry[] }
+  | { kind: "milestone"; at: string; approval: PlanApproval };
+
+/**
+ * Лента изменений всего проекта — вкладка «История».
+ *
+ * Новые сверху, дни — заголовками: историю читают с последнего события.
+ * Пачка AI сворачивается в одну строку — тридцать записей «создал задачу»
+ * подряд не история, а шум. Отменённые записи остаются и помечаются: журнал
+ * не переписывается, в этом его смысл.
+ *
+ * Кнопка «Отменить» стоит только у записи, которую сервер назвал в
+ * `state.undoable`: бэкенд сознательно отменяет только последнее действие, и
+ * кнопка у каждой записи обещала бы то, чего нет. Шаг за шагом назад —
+ * повторными нажатиями.
+ */
+export function ProjectHistory({
+  projectId,
+  state,
+  canUndo,
+}: {
+  projectId: string;
+  state: ProjectState;
+  /** Право и возможность отменять: право писать плюс живая связь. */
+  canUndo: boolean;
+}) {
+  const { t, locale } = useLocale();
+  const [taskFilter, setTaskFilter] = useState("");
+  const [actorFilter, setActorFilter] = useState("");
+  const [groupFilter, setGroupFilter] = useState<TypeGroup | "">("");
+  const [openBatches, setOpenBatches] = useState<ReadonlySet<string>>(new Set());
+
+  const filters: FeedFilters = {
+    taskId: taskFilter || undefined,
+    actorId: actorFilter || undefined,
+    types: groupFilter ? [...TYPE_GROUPS[groupFilter]] : undefined,
+  };
+  const filtered = Boolean(taskFilter || actorFilter || groupFilter);
+
+  const feed = useInfiniteQuery({
+    queryKey: feedQueryKey(projectId, filters),
+    queryFn: ({ pageParam }) => listProjectRevisions(projectId, filters, pageParam),
+    initialPageParam: undefined as number | undefined,
+    // Страница короче предела — конец журнала: курсор дальше не поведёт.
+    getNextPageParam: (last) =>
+      last.length < FEED_PAGE ? undefined : last[last.length - 1].seq,
+    retry: false,
+  });
+
+  // Состав — только для фильтра по автору. Отказ — не ошибка ленты: роли
+  // `client` состав не отдаётся, и фильтр тогда просто не рисуется.
+  const membersQuery = useQuery({
+    queryKey: MEMBERS_QUERY_KEY,
+    queryFn: fetchMembers,
+    retry: false,
+    staleTime: Infinity,
+  });
+
+  // Вехи согласования. Ключ — под ключом проекта: событие о переутверждении
+  // сбрасывает всё поддерево, и летопись перечитывается вместе с состоянием.
+  // Отказ ленту не ломает — она остаётся без флажков.
+  const approvalsQuery = useQuery({
+    queryKey: ["project", projectId, "plan-approvals"] as const,
+    queryFn: () => listPlanApprovals(projectId),
+    retry: false,
+  });
+
+  const undo = useUndo(projectId, state);
+
+  if (feed.isPending) {
+    return <p role="status">{t("common.loading")}</p>;
+  }
+  if (feed.error) {
+    return (
+      <p className="error" role="alert">
+        {t(errorKey(feed.error))}
+      </p>
+    );
+  }
+
+  const entries = feed.data.pages.flat();
+
+  // Кто что отменил: запись об отмене всегда новее отменённой, поэтому при
+  // чтении с головы журнала пара сходится без второго запроса к серверу.
+  const undoneBy = new Map<number, RevisionEntry>();
+  for (const entry of entries) {
+    if (entry.undoes_seq !== null) undoneBy.set(entry.undoes_seq, entry);
+  }
+
+  const rows = buildRows(entries, approvalsQuery.data ?? [], {
+    // Вехи под фильтром прячутся: отфильтрованная по задаче лента с чужими
+    // флажками читалась бы как история этой задачи с лишними событиями.
+    milestones: !filtered,
+    exhausted: !feed.hasNextPage,
+  });
+
+  const days = new Map<string, FeedRow[]>();
+  for (const row of rows) {
+    const day = localDay(row.at);
+    days.set(day, [...(days.get(day) ?? []), row]);
+  }
+
+  const today = localDay(new Date().toISOString());
+  const yesterday = localDay(new Date(Date.now() - 86_400_000).toISOString());
+  const dayLabel = (day: string) =>
+    day === today
+      ? t("history.today")
+      : day === yesterday
+        ? t("history.yesterday")
+        : formatDate(t, day);
+
+  const toggleBatch = (batchId: string) =>
+    setOpenBatches((current) => {
+      const next = new Set(current);
+      if (next.has(batchId)) next.delete(batchId);
+      else next.add(batchId);
+      return next;
+    });
+
+  // Кнопка отмены — строго у того, что назвал сервер: одиночная запись или
+  // пачка целиком. canUndo уже включает и право, и живую связь.
+  const undoableSeq =
+    canUndo && state.undoable && !state.undoable.batch_id ? state.undoable.seq : null;
+  const undoableBatch = (canUndo && state.undoable?.batch_id) || null;
+
+  const undoButton = (label: string) => (
+    <button
+      type="button"
+      className="button--quiet feed__undo"
+      onClick={() => undo.mutation.mutate()}
+      disabled={undo.mutation.isPending}
+    >
+      {label}
+    </button>
+  );
+
+  const line = (entry: RevisionEntry) => (
+    <>
+      {entry.actor && <span className="feed__actor">{entry.actor.name} </span>}
+      {!entry.actor && <span className="feed__actor">{t("history.no_actor")} </span>}
+      {entry.undoes_seq !== null && (
+        <span className="feed__badge">{t("history.undo_badge")} </span>
+      )}
+      {formatEvent(entry.op, locale, entry.names)}
+      {subjectOf(entry) && <span className="feed__subject"> · {subjectOf(entry)}</span>}
+    </>
+  );
+
+  const meta = (entry: RevisionEntry) => {
+    const undoneEntry = undoneBy.get(entry.seq);
+    return (
+      <p className="feed__meta">
+        <span>{formatTime(locale, new Date(entry.created_at))}</span>
+        {/* Причина — текст пользователя: как есть, без перевода. */}
+        {entry.reason && <span className="feed__reason">{entry.reason}</span>}
+        {undoneEntry && (
+          <span className="feed__undone-mark">
+            {undoneEntry.actor
+              ? t("history.undone_by", { name: undoneEntry.actor.name })
+              : t("history.undone")}
+          </span>
+        )}
+      </p>
+    );
+  };
+
+  return (
+    <section className="feed" aria-label={t("history.title")}>
+      <div className="feed__filters">
+        {membersQuery.data && (
+          <label className="feed__filter">
+            {t("history.filter.person")}
+            <select value={actorFilter} onChange={(e) => setActorFilter(e.target.value)}>
+              <option value="">{t("history.filter.all")}</option>
+              {membersQuery.data.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        <label className="feed__filter">
+          {t("history.filter.task")}
+          <select value={taskFilter} onChange={(e) => setTaskFilter(e.target.value)}>
+            <option value="">{t("history.filter.all")}</option>
+            {state.tasks.map((task) => (
+              <option key={task.id} value={task.id}>
+                {task.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="feed__filter">
+          {t("history.filter.type")}
+          <select
+            value={groupFilter}
+            onChange={(e) => setGroupFilter(e.target.value as TypeGroup | "")}
+          >
+            <option value="">{t("history.filter.all")}</option>
+            {(Object.keys(TYPE_GROUPS) as TypeGroup[]).map((group) => (
+              <option key={group} value={group}>
+                {t(`history.filter.group.${group}`)}
+              </option>
+            ))}
+          </select>
+        </label>
+        {filtered && (
+          <button
+            type="button"
+            className="button--quiet"
+            onClick={() => {
+              setTaskFilter("");
+              setActorFilter("");
+              setGroupFilter("");
+            }}
+          >
+            {t("history.filter.reset")}
+          </button>
+        )}
+      </div>
+
+      {undo.error !== null && (
+        <p className="error" role="alert">
+          {t(errorKey(undo.error))}
+        </p>
+      )}
+
+      {rows.length === 0 && <p className="muted">{t("history.feed_empty")}</p>}
+
+      {[...days.entries()].map(([day, dayRows]) => (
+        <section key={day} className="feed__day">
+          <h3 className="feed__day-title">{dayLabel(day)}</h3>
+          <ol className="feed__list">
+            {dayRows.map((row) => {
+              if (row.kind === "milestone") {
+                return (
+                  <li key={`plan-${row.approval.version}`} className="feed__milestone">
+                    <p className="feed__line">
+                      {t("history.milestone", { version: row.approval.version })}
+                      {row.approval.approved_by && (
+                        <span className="feed__subject"> · {row.approval.approved_by.name}</span>
+                      )}
+                    </p>
+                    <p className="feed__meta">
+                      <span>{formatTime(locale, new Date(row.at))}</span>
+                    </p>
+                  </li>
+                );
+              }
+
+              if (row.kind === "batch") {
+                const open = openBatches.has(row.batchId);
+                const isUndo = row.entries.every((entry) => entry.undoes_seq !== null);
+                const head = row.entries[0];
+                return (
+                  <li key={`batch-${row.batchId}`} className="feed__batch">
+                    <p className="feed__line">
+                      {head.actor && <span className="feed__actor">{head.actor.name} </span>}
+                      {!head.actor && (
+                        <span className="feed__actor">{t("history.no_actor")} </span>
+                      )}
+                      {t(isUndo ? "history.batch_undo" : "history.batch", {
+                        count: row.entries.length,
+                      })}
+                    </p>
+                    <p className="feed__meta">
+                      <span>{formatTime(locale, new Date(head.created_at))}</span>
+                      <button
+                        type="button"
+                        className="feed__toggle"
+                        aria-expanded={open}
+                        onClick={() => toggleBatch(row.batchId)}
+                      >
+                        {t(open ? "history.collapse" : "history.expand")}
+                      </button>
+                      {undoableBatch === row.batchId && undoButton(t("history.undo_batch"))}
+                    </p>
+                    {open && (
+                      <ol className="feed__list feed__list--nested">
+                        {row.entries.map((entry) => (
+                          <li key={entry.seq} className="feed__item">
+                            <p className="feed__line">{line(entry)}</p>
+                            {meta(entry)}
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </li>
+                );
+              }
+
+              const entry = row.entry;
+              const undone = undoneBy.has(entry.seq);
+              return (
+                <li
+                  key={entry.seq}
+                  className={`feed__item${undone ? " feed__item--undone" : ""}`}
+                >
+                  <p className="feed__line">
+                    {line(entry)}
+                    {undoableSeq === entry.seq && undoButton(t("undo.action"))}
+                  </p>
+                  {meta(entry)}
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      ))}
+
+      {feed.hasNextPage && (
+        <button
+          type="button"
+          className="button--quiet feed__more"
+          onClick={() => void feed.fetchNextPage()}
+          disabled={feed.isFetchingNextPage}
+        >
+          {t("history.show_more")}
+        </button>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Чьё имя ставить рядом с фразой. Фраза говорит «перенёс старт с 12 на 19
+ * марта», подлежащее — задача — берётся из словаря имён записи.
+ *
+ * Переименование категории имя не дублирует: обе границы уже в самой фразе.
+ * У связи подлежащих два, и они тоже в фразе (см. formatEvent).
+ */
+function subjectOf(entry: RevisionEntry): string | null {
+  const op = entry.op;
+  const type = String(op.type);
+  if (type === "rename_category" || type.endsWith("_dependency")) return null;
+  for (const key of ["task_id", "category_id"]) {
+    const id = op[key];
+    if (id && entry.names[String(id)]) return entry.names[String(id)];
+  }
+  return null;
+}
+
+/**
+ * Записи и вехи — в строки ленты, новые сверху.
+ *
+ * Соседние записи одной пачки сворачиваются в одну строку. Вехи вклеиваются по
+ * времени, но только внутри загруженного отрезка журнала: веха старше самой
+ * старой загруженной записи появится вместе со своей страницей — иначе она
+ * прыгала бы по ленте при каждом «Показать ещё».
+ */
+function buildRows(
+  entries: RevisionEntry[],
+  approvals: PlanApproval[],
+  { milestones, exhausted }: { milestones: boolean; exhausted: boolean },
+): FeedRow[] {
+  const rows: FeedRow[] = [];
+  for (const entry of entries) {
+    const last = rows[rows.length - 1];
+    if (entry.batch_id && last?.kind === "batch" && last.batchId === entry.batch_id) {
+      last.entries.push(entry);
+      continue;
+    }
+    if (entry.batch_id) {
+      rows.push({
+        kind: "batch",
+        at: entry.created_at,
+        batchId: entry.batch_id,
+        entries: [entry],
+      });
+      continue;
+    }
+    rows.push({ kind: "revision", at: entry.created_at, entry });
+  }
+
+  if (!milestones) return rows;
+
+  const oldest = entries.length > 0 ? entries[entries.length - 1].created_at : null;
+  const visible = approvals.filter(
+    (approval) => exhausted || (oldest !== null && approval.approved_at >= oldest),
+  );
+  const merged = [
+    ...rows,
+    ...visible.map(
+      (approval): FeedRow => ({ kind: "milestone", at: approval.approved_at, approval }),
+    ),
+  ];
+  // Сортировка по времени, новые сверху; веха одного мгновения с записью
+  // встаёт над ней — согласование закрывает то, что было до него.
+  return merged.sort(
+    (a, b) =>
+      (a.at < b.at ? 1 : a.at > b.at ? -1 : 0) ||
+      (a.kind === "milestone" ? -1 : b.kind === "milestone" ? 1 : 0),
+  );
+}

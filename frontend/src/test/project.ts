@@ -274,12 +274,12 @@ export function captureMutations(): Sent[] {
 
 export function renderProject(
   next: ProjectState = STATE,
-  options: { canWrite?: boolean; locale?: Locale } = {},
+  options: { canWrite?: boolean; locale?: Locale; route?: string } = {},
 ) {
-  const { canWrite = true, locale = "ru" } = options;
+  const { canWrite = true, locale = "ru", route = "/projects/p1" } = options;
   state = next;
   // Гость по спеку — это роль без права писать, а не человек без сессии:
   // диаграмму он видит, трогать её не может.
   role = canWrite ? "owner" : "viewer";
-  return renderApp({ route: "/projects/p1", locale });
+  return renderApp({ route, locale });
 }
