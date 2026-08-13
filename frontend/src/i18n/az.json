@@ -544,8 +544,6 @@
     "save": "Yadda saxla"
   },
   "undo": {
-    "last": "Geri al: {what}",
-    "batch": "Bütün paketi geri al",
     "action": "Geri al"
   },
   "settings": {

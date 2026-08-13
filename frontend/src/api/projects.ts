@@ -241,11 +241,6 @@ export function undoLast(projectId: string, reason?: string): Promise<{ seq: num
   });
 }
 
-/** Откатить пачку целиком — ту, что применил AI одной кнопкой. */
-export function undoBatch(projectId: string, batchId: string): Promise<{ undone: number }> {
-  return request(`/api/projects/${projectId}/batches/${batchId}/undo`, { method: "POST" });
-}
-
 /** Одна утверждённая версия плана. Снимок — даты и длительности по задачам. */
 export type PlanApproval = {
   version: number;

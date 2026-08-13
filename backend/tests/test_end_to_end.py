@@ -166,7 +166,7 @@ def test_the_whole_way_from_interview_to_the_public_link(client, guest, db, monk
     # А внутренней заметки нет ни в одном поле ответа.
     assert "internal_note" not in page["tasks"][0]
     assert "подрядчик просит предоплату" not in public.text
-    # И отменять гостю нечего: кнопка отмены ему не показывается.
+    # И отменять гостю нечего: последнее действие ему не предлагается.
     assert page["undoable"] is None
 
     # 8. Гость комментирует, назвавшись именем; его реплика отличается от
