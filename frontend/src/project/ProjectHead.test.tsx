@@ -42,6 +42,20 @@ describe("шапка проекта", () => {
     expect(screen.queryByText("изменён после согласования")).toBeNull();
   });
 
+  it("бейдж плана называет своё состояние, а не только текст", async () => {
+    // Черновик и согласованный план различаются цветом бейджа, и цвет тема
+    // берёт из `data-state`: без него оба остались бы янтарными — то есть
+    // согласованный план всё время требовал бы внимания.
+    renderProject();
+    expect(await screen.findByText("План проекта · черновик")).toHaveAttribute(
+      "data-state",
+      "draft",
+    );
+
+    renderProject(APPROVED);
+    expect(await screen.findByText("План проекта · v1")).toHaveAttribute("data-state", "approved");
+  });
+
   it("состояние плана стоит в строке названия, а не хвостом за сводкой", async () => {
     renderProject(APPROVED);
 

@@ -59,7 +59,13 @@ export function ProjectHead({
                 плашки всегда одно и то же. */}
             {showPlan && (
               <span className="project-head__plan-inline">
-                <span className="project-head__plan-label">
+                {/* Черновик и согласованный план — один бейдж двух цветов, а не
+                    два разных знака: `data-state` называет состояние, цвет ему
+                    даёт тема. */}
+                <span
+                  className="project-head__plan-label"
+                  data-state={state.plan_approved_at ? "approved" : "draft"}
+                >
                   {state.plan_approved_at
                     ? t("plan.line", { version: state.plan_version })
                     : t("plan.line_draft")}
