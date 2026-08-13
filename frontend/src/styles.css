@@ -216,6 +216,14 @@ body {
   top: 0;
   height: 100vh;
   overflow-y: auto;
+  /* Три меры на всю колонку — левое поле строки, ширина колонки значков и
+     просвет между значком и подписью. Одни и те же для логотипа, разделов и
+     кнопки выхода: только так подписи встают в один столбец под названием
+     организации, а значки — под квадратом логотипа. Тема правит значения, а
+     не каждое правило по отдельности. */
+  --sidebar-gutter: 8px;
+  --sidebar-mark: 20px;
+  --sidebar-gap: 8px;
 }
 
 /* Строка организации — верхний пункт колонки: квадрат с первой буквой и
@@ -226,9 +234,9 @@ body {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 8px;
+  gap: var(--sidebar-gap);
   min-width: 0;
-  padding: 6px 8px;
+  padding: 6px var(--sidebar-gutter);
   border-radius: var(--radius);
 }
 
@@ -236,8 +244,8 @@ body {
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
+  width: var(--sidebar-mark);
+  height: var(--sidebar-mark);
   border-radius: var(--radius-sm);
   background: var(--accent);
   color: var(--accent-text);
@@ -257,8 +265,7 @@ body {
 
 /* Логотип-кнопка гасит всё, чем кнопка выдаёт себя: заливку, тень, высоту
    органа управления. Она орган самой колонки, а не действие страницы, и
-   выглядеть обязана строкой с логотипом — подсветка появляется только под
-   курсором, чтобы щелчок был обещан заранее. */
+   выглядеть обязана строкой с логотипом — в том числе под курсором. */
 button.sidebar__workspace {
   height: auto;
   color: inherit;
@@ -267,8 +274,12 @@ button.sidebar__workspace {
   text-align: left;
 }
 
+/* Наведение логотип не подсвечивает: это подпись приложения, а мигающая под
+   курсором подпись обещает переход, которого нет. Правило не лишнее — без
+   него общее `button:hover` заливает строку цветом главного действия. */
 button.sidebar__workspace:hover {
-  background: var(--hover);
+  background: transparent;
+  box-shadow: none;
 }
 
 /* Свёрнутая колонка. Не исчезает целиком, а сжимается до узкой рейки с
@@ -293,7 +304,6 @@ button.sidebar__workspace:hover {
   }
 
   .sidebar--collapsed .sidebar__brand,
-  .sidebar--collapsed .sidebar__user,
   .sidebar--collapsed .org-switch,
   .sidebar--collapsed .sidebar__nav,
   .sidebar--collapsed .sidebar__section,
@@ -324,9 +334,9 @@ button.sidebar__workspace:hover {
 .sidebar__link {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--sidebar-gap);
   min-height: 28px;
-  padding: 4px 8px;
+  padding: 4px var(--sidebar-gutter);
   border-radius: var(--radius);
   color: var(--text-muted);
   font-weight: 500;
@@ -345,8 +355,12 @@ button.sidebar__workspace:hover {
   color: var(--text);
 }
 
+/* Значок занимает столько же места, сколько квадрат логотипа, — рисунок при
+   этом остаётся мелким и просто стоит в середине отведённой колонки. Так
+   «Проекты», «Мои задачи» и «Отчёты» начинаются ровно там же, где название
+   организации, а не на четыре пикселя левее. */
 .sidebar__icon {
-  flex: 0 0 auto;
+  flex: 0 0 var(--sidebar-mark);
   color: var(--text-faint);
 }
 
@@ -365,24 +379,16 @@ button.sidebar__workspace:hover {
   gap: 2px;
 }
 
-/* Приветствие стоит сразу под логотипом: колонка здоровается прежде, чем
-   предлагает разделы. */
-.sidebar__user {
-  padding: 0 8px 6px;
-  color: var(--text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* Кнопка выхода выглядит как пункт колонки, а не как кнопка: она стоит в
    ряду ссылок, и синяя заливка среди них означала бы «главное действие
-   экрана» — а это ровно наоборот. */
+   экрана» — а это ровно наоборот. Отступы и просвет — общие с пунктами:
+   значок и подпись обязаны попасть в те же два столбца. */
 button.sidebar__button {
   justify-content: flex-start;
+  gap: var(--sidebar-gap);
   width: 100%;
   height: 28px;
-  padding: 0 8px;
+  padding: 0 var(--sidebar-gutter);
   background: transparent;
   color: var(--text-muted);
   box-shadow: none;
@@ -418,12 +424,6 @@ button.sidebar__button:hover {
   }
 
   .sidebar__section {
-    display: none;
-  }
-
-  /* Приветствие уходит первым: на телефоне место в строке дороже вежливости,
-     а имя вошедшего человек и так знает. */
-  .sidebar__user {
     display: none;
   }
 

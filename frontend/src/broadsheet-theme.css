@@ -51,20 +51,26 @@
 
 body { font-size: 15px; background: var(--bg); }
 .app__main { min-height: 100vh; }
-.sidebar { padding: 28px 16px 18px; gap: 18px; background: #fbfcff; border-right: 1px solid var(--border); }
-/* Нижний отступ, отделявший логотип от разделов, переехал на приветствие:
-   теперь оно замыкает верхний блок колонки. */
-.sidebar__workspace { gap: 12px; padding: 0 8px; }
+/* Меры колонки крупнее базовых: квадрат логотипа здесь 34 пикселя, и колонка
+   значков равняется по нему — иначе подписи разделов не встают под названием
+   организации. Просвет между логотипом и разделами — тот же, что между самими
+   разделами: приветствия, которое раньше держало верхний блок, больше нет, и
+   лишний воздух над «Проектами» ничего не разделяет. */
+.sidebar { padding: 28px 16px 18px; gap: 14px; background: #fbfcff; border-right: 1px solid var(--border); --sidebar-gutter: 8px; --sidebar-mark: 34px; --sidebar-gap: 12px; }
+.sidebar__workspace { padding: 0 var(--sidebar-gutter); }
 .sidebar__avatar { width: 34px; height: 34px; border-radius: 9px; font-size: 0; position: relative; background: linear-gradient(135deg,#1c6dff 0 45%,#2459f5 45% 70%,#68a4ff 70%); }
 .sidebar__avatar::after { content: "P"; color: #fff; font-size: 22px; line-height: 1; font-weight: 800; }
 .sidebar__brand { font-size: 21px; font-weight: 650; color: #121826; }
 .sidebar__section { display: none; }
 .sidebar__nav { gap: 14px; }
-.sidebar__link { min-height: 40px; gap: 14px; padding: 0 14px; border-radius: 7px; color: #626b7a; font-size: 16px; }
+.sidebar__link { min-height: 40px; padding: 0 var(--sidebar-gutter); border-radius: 7px; color: #626b7a; font-size: 16px; }
 .sidebar__link.is-current { background: #eef4ff; color: var(--accent); }
-.sidebar__icon { width: 22px; height: 22px; color: currentColor; }
+/* Ширину значку задаёт колонка (`flex-basis` от `--sidebar-mark`), здесь —
+   только рост рисунка: он остаётся 22-пиксельным и стоит в середине колонки
+   шириной с логотип. */
+.sidebar__icon { height: 22px; color: currentColor; }
 .sidebar__foot { border-top: 0; gap: 10px; }
-.sidebar__user { padding: 0 8px 46px; font-size: 15px; color: #1f2937; }
+button.sidebar__button { height: 40px; font-size: 16px; }
 .org-switch { display: inline-flex; }
 .locale-switch { display: flex; }
 
@@ -230,7 +236,9 @@ button {
   transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
 }
 
-button:not(.button--quiet):not(.sidebar__button):hover {
+/* Логотип колонки исключён вместе с тихими кнопками: синяя тень под подписью
+   приложения означала бы, что она — главное действие экрана. */
+button:not(.button--quiet):not(.sidebar__button):not(.sidebar__workspace):hover {
   box-shadow: 0 10px 22px rgb(36 89 245 / 28%);
 }
 
@@ -446,12 +454,15 @@ body:has(.screen--narrow) {
     border-right: 0;
     border-bottom: 1px solid var(--border);
   }
+  /* В строке сверху равнять подписи не под чем — логотип стоит слева от них,
+     а не над ними, — и колонка значков сжимается до самого рисунка. */
+  .sidebar { --sidebar-mark: 18px; --sidebar-gap: 8px; }
   .sidebar__workspace { flex: 0 0 auto; padding: 0; }
   .sidebar__avatar { width: 36px; height: 36px; }
   .sidebar__brand, .sidebar .org-switch, .sidebar__foot { display: none; }
   .sidebar__nav { flex-direction: row; gap: 6px; }
   .sidebar__link { min-height: 38px; padding: 0 11px; font-size: 14px; }
-  .sidebar__icon { width: 18px; height: 18px; }
+  .sidebar__icon { height: 18px; }
   .screen:not(.screen--wide):not(.screen--narrow) { padding: 30px 20px 64px; }
   .screen__head { align-items: stretch; }
   .screen__head h1 { flex-basis: 100%; margin-bottom: 8px; }
