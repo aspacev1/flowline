@@ -1,9 +1,71 @@
+import contextvars
+import logging
+import logging.config
+import os
+import uuid
+from contextlib import asynccontextmanager
 from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
+
+# --- наблюдаемость -----------------------------------------------------------
+
+#: Идентификатор текущего запроса — в каждой строке журнала, написанной во
+#: время его обработки. Contextvar, а не глобальная переменная: запросы
+#: обрабатываются вперемешку, и без контекста строки соседних запросов
+#: подписывались бы друг другом.
+request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("request_id", default="-")
+
+
+class _RequestIdFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.request_id = request_id_var.get()
+        return True
+
+
+def configure_logging() -> None:
+    """Журнал приложения: уровень из LOG_LEVEL, идентификатор запроса в каждой
+    строке.
+
+    dictConfig, а не basicConfig: uvicorn настраивает логирование сам, и
+    basicConfig после него молча не делает ничего. disable_existing_loggers=
+    False — логгеры uvicorn продолжают жить, мы лишь добавляем свои.
+    """
+    logging.config.dictConfig(
+        {
+            "version": 1,
+            "disable_existing_loggers": False,
+            "filters": {"request_id": {"()": _RequestIdFilter}},
+            "formatters": {
+                "app": {
+                    "format": "%(levelname)s %(name)s [%(request_id)s] %(message)s",
+                }
+            },
+            "handlers": {
+                "console": {
+                    "class": "logging.StreamHandler",
+                    "formatter": "app",
+                    "filters": ["request_id"],
+                }
+            },
+            "loggers": {
+                "app": {
+                    "level": get_settings().log_level.upper(),
+                    "handlers": ["console"],
+                    # Не отдавать записи дальше: у uvicorn свой handler, и
+                    # без этого каждая строка печаталась бы дважды.
+                    "propagate": False,
+                }
+            },
+        }
+    )
+
+
+configure_logging()
+logger = logging.getLogger("app.main")
 from app.api import (
     ai_routes,
     auth_routes,
@@ -16,7 +78,70 @@ from app.api import (
     share_routes,
 )
 
-app = FastAPI(title="Flowline")
+def refuse_a_multi_worker_start() -> None:
+    """Живая лента живёт в памяти процесса — воркер обязан быть один.
+
+    Ревизия, применённая в воркере А, не доехала бы до сокетов, открытых в
+    воркере Б: комнаты хаба у каждого процесса свои. Это ограничение описано
+    в README, но описание не мешает задать --workers 4 — а этот отказ мешает.
+    Проверяются переменные, которыми число воркеров задают uvicorn и gunicorn;
+    появится вторая реплика по-настоящему — здесь же появится и общая шина
+    (LISTEN/NOTIFY), см. план исправлений.
+    """
+    for name in ("WEB_CONCURRENCY", "UVICORN_WORKERS", "GUNICORN_WORKERS"):
+        value = os.getenv(name, "")
+        if value.isdigit() and int(value) > 1:
+            raise RuntimeError(
+                f"{name}={value}: рассылка живой ленты живёт в памяти одного "
+                "процесса, несколько воркеров молча потеряют события. "
+                "Убери переменную или оставь одного воркера."
+            )
+
+
+def warn_about_a_default_public_base_url() -> None:
+    """PUBLIC_BASE_URL, оставшийся умолчанием, — это ссылки на localhost в
+    письмах и публичных адресах. Не отказ (локальная разработка законна),
+    но и не молчание: боевая установка должна увидеть это в журнале."""
+    if get_settings().public_base_url == "http://localhost:8000":
+        logger.warning(
+            "PUBLIC_BASE_URL не задан: ссылки в письмах и публичные адреса "
+            "будут указывать на localhost. Для боевой установки задай его в .env."
+        )
+
+
+@asynccontextmanager
+async def _lifespan(_: FastAPI):
+    refuse_a_multi_worker_start()
+    warn_about_a_default_public_base_url()
+    yield
+
+
+app = FastAPI(title="Flowline", lifespan=_lifespan)
+
+
+@app.middleware("http")
+async def stamp_request_id(request: Request, call_next):
+    """Идентификатор запроса: принимается от прокси или выдаётся здесь.
+
+    Ответ несёт его в X-Request-ID, журнал — в каждой строке: «пришлите
+    идентификатор из ответа» — это единственный способ найти в журнале ровно
+    тот запрос, о котором говорит человек.
+    """
+    incoming = request.headers.get("x-request-id", "")
+    # Чужое значение обрезается и чистится: заголовок — это ввод пользователя,
+    # и он не должен уметь ни писать в журнал переводы строк, ни ронять ответ
+    # символом вне latin-1. Только ASCII-буквоцифры, дефис и подчёркивание.
+    request_id = (
+        "".join(ch for ch in incoming if ch.isascii() and (ch.isalnum() or ch in "-_"))[:64]
+        or uuid.uuid4().hex
+    )
+    token = request_id_var.set(request_id)
+    try:
+        response = await call_next(request)
+    finally:
+        request_id_var.reset(token)
+    response.headers["X-Request-ID"] = request_id
+    return response
 
 
 _WRITE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
@@ -70,4 +195,25 @@ app.include_router(ai_routes.router)
 
 @app.get("/api/health")
 def health() -> dict[str, str]:
+    """Liveness: процесс жив и отвечает. В базу не ходит намеренно — упавшая
+    база не повод перезапускать процесс, а ровно это оркестратор и делает с
+    провалившим liveness."""
     return {"status": "ok"}
+
+
+@app.get("/api/health/ready")
+def readiness():
+    """Readiness: готов ли процесс обслуживать запросы по-настоящему, то есть
+    достаёт ли до базы. Отдельно от liveness: на этот отвечает «нет» — и
+    балансировщик уводит трафик, не убивая процесс."""
+    from sqlalchemy import text
+
+    from app.db import engine
+
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except Exception:
+        logger.exception("readiness: база недоступна")
+        return JSONResponse(status_code=503, content={"status": "unavailable"})
+    return {"status": "ready"}
