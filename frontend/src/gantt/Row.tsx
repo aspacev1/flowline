@@ -1,4 +1,4 @@
-import type { HTMLAttributes, ReactNode } from "react";
+import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 
 import type { Category, Task } from "../api/projects";
 import { baselineOf, endShiftDays } from "../project/baseline";
@@ -306,13 +306,16 @@ export function TaskRow({
           }`}
           data-criticality={task.criticality}
           data-status={status}
-          style={{
-            // Пока полоску тащат, она стоит там, где палец, — а не там, где
-            // ей полагается по датам. Сами даты меняются только по ответу
-            // сервера.
-            left: scale.xOf(task.start_date) + offset,
-            width: scale.widthOf(task.start_date, task.end_date),
-          }}
+          style={
+            {
+              // Пока полоску тащат, она стоит там, где палец, — а не там, где
+              // ей полагается по датам. Сами даты меняются только по ответу
+              // сервера.
+              left: scale.xOf(task.start_date) + offset,
+              width: scale.widthOf(task.start_date, task.end_date),
+              "--progress": `${task.progress_pct}%`,
+            } as CSSProperties
+          }
           {...handlers}
           // Имя названо явно вместе с датами, а не оставлено содержимому
           // кнопки: у полоски есть и `title`, и обрезаемый по ширине текст, и

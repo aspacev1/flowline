@@ -1,436 +1,143 @@
-/* Broadsheet поверх Flowline.
-   Подключение: в frontend/src/main.tsx (или App.tsx) импортировать ПОСЛЕ styles.css:
-     import "./styles.css";
-     import "./broadsheet-theme.css";
-   Файл только переопределяет токены и несколько правил ленты — компоненты не трогаем. */
-
-@import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap');
+/* Planora redesign theme.
+   This file intentionally sits after styles.css and turns the existing
+   Flowline screens into the crisp planning workspace from the provided mockup:
+   pale rail navigation, a two-tier project header, a spreadsheet-like Gantt
+   canvas, saturated blue primary actions, and a right inspector panel. */
 
 :root {
-  /* Broadsheet — только светлая тема (система не показывает тёмных поверхностей).
-     Файл идёт после styles.css, поэтому эти значения перебивают и dark-медиазапрос. */
   color-scheme: light;
-
-  /* Чернила #201e1d */
-  --ink: 32 30 29;
-
-  /* Бумага, а не белый: страница и поверхность — один тон */
-  --bg: #f3f2f2;
-  --bg-subtle: #eae9e9;
-  --surface: #f3f2f2;
-
-  /* Циан — действие и «сегодня» */
-  --accent: #0088b0;
-  --accent-hover: #1186ac;
-  --accent-soft: rgb(0 136 176 / 12%);
-
-  /* Магента — просрочка, сорванный дедлайн, блокер (вместо красного) */
-  --danger: #d6006c;
-  --danger-soft: rgb(214 0 108 / 10%);
-
-  /* «В срок» — тёмный шаг цианового ряда (зелёного в системе нет) */
-  --ok: #006786;
-  --ok-soft: rgb(0 136 176 / 10%);
-
-  --input-bg: rgb(32 30 29 / 5%);
-
-  /* Метки — светлые ступени рамп Broadsheet (neutral / accent / yellow / accent-2) */
-  --tag-gray: #eae7e7;
-  --tag-blue: #cbeeff;
-  --tag-yellow: #f6e6b3;
-  --tag-red: #ffdee6;
-  --tag-green: #e9f8ff;
-
-  /* Статусы макета: полоска «в работе» — насыщенный шаг цианового ряда
-     (accent-500), блокер — магента (accent-2-600). Светлые ступени рамп для
-     полосок больше не используются — они остаются меткам. */
-  --bar: #38a6cf;
-  --bar-critical: #d82071;
-  --nonworking: rgb(32 30 29 / 4%);
-
-  --shadow-sm: 0 1px 2px rgb(45 43 43 / 14%);
-  --shadow-md: 0 3px 10px rgb(45 43 43 / 16%);
-
-  /* Печатные радиусы */
-  --radius-sm: 1px;
-  --radius: 2px;
-  --radius-lg: 4px;
-
-  /* Серифный набор — и заголовки, и хром */
-  --font: "Source Serif 4", Georgia, "Times New Roman", serif;
-}
-
-/* ── Шапка проекта: газетная лесенка над лентой ──
-   Кегли и цвета из макета: капитель вразрядку neutral-600 над названием,
-   название крупным серифом, сводка курсивом neutral-600, расхождение с
-   согласованным планом — магента accent-2. */
-
-.project-head {
-  gap: 22px;
-}
-
-.project-head__title {
-  font-size: 40px;
-  letter-spacing: -0.01em;
-}
-
-.project-head__plan-label {
-  font-size: 12px;
-  letter-spacing: 0.18em;
-  color: #7d7979;
-}
-
-.project-head__plan-note {
-  color: #d6006c;
-  font-size: 15px;
-}
-
-.project-head__meta {
-  font-size: 17px;
-  color: #7d7979;
-}
-
-/* Подписи кнопок шапки — полужирные: в серифном наборе обычное начертание на
-   кнопке читается как обычный текст в рамке. */
-.project-head button {
-  font-weight: 600;
-}
-
-
-/* ── Лента: не коробка, а полоса набора под газетной линейкой ── */
-
-/* Рама ленты, как в макете: тонкая чернильная линейка, воздух в 2px и
-   толстая линейка на самом полотне — двойная газетная отбивка. */
-.gantt__scroll {
-  box-shadow: none;
-  border-radius: 0;
-  border-top: 1px solid rgb(var(--ink));
-  border-bottom: 1px solid rgb(var(--ink) / 16%);
-  padding-top: 2px;
-  background: transparent;
-}
-
-.gantt__canvas {
-  border-top: 3px solid rgb(var(--ink));
-}
-
-.gantt__head-row,
-.gantt__label {
-  background: var(--bg);
-}
-
-/* Месяц — серифный заголовок, не капс вразрядку */
-.gantt__month-label {
-  text-transform: none;
-  letter-spacing: 0;
-  font-weight: 600;
-  font-size: 12px;
-  color: var(--text);
-}
-
-.gantt__day-weekday {
-  font-style: italic;
-}
-
-/* Дедлайн — сплошная магентовая засечка (в макете), не пунктир */
-.gantt__deadline {
-  border-left-style: solid;
-}
-
-/* Насыщенные заливки макета требуют белого текста; контурная «запланировано»
-   остаётся на чернилах. */
-.gantt__bar[data-status="active"],
-.gantt__bar[data-status="active"].is-late {
-  color: #fff;
-}
-
-/* «Готово» — тёмный шаг нейтральной рампы (neutral-800), не чистые чернила:
-   готовое — факт, а не акцент. */
-.gantt__bar[data-status="done"],
-.gantt__bar[data-status="done"]:hover,
-.gantt__swatch[data-status="done"] {
-  background: #444141;
-  color: #f3f2f2;
-}
-
-/* Контур «запланировано» — средний шаг нейтральной рампы (neutral-500). */
-.gantt__bar[data-status="planned"],
-.gantt__bar[data-status="planned"]:hover,
-.gantt__swatch[data-status="planned"] {
-  box-shadow: inset 0 0 0 1.5px #9b9797;
-}
-
-/* Блокер — залит магентой целиком, как в макете: светлой ступени рампы мало,
-   задача, которая держит остальных, обязана быть видна с расстояния. */
-.gantt__bar[data-criticality="critical"],
-.gantt__bar[data-criticality="critical"]:hover {
-  background: #d82071;
-  color: #fff;
-}
-
-/* Готовый блокер — как всякое «готово»: тёмный, не тревожный. */
-.gantt__bar[data-criticality="critical"][data-status="done"],
-.gantt__bar[data-criticality="critical"][data-status="done"]:hover {
-  background: #444141;
-}
-
-/* Призрак плана и полоса категории — газетно-бледные и нейтральные, как в
-   макете: вспомогательные линии не спорят с полосками за внимание.
-   Полоса категории красится инлайном в цвет категории — потому !important. */
-.gantt__ghost {
-  height: 2px;
-  background: rgb(var(--ink) / 25%);
-}
-
-.gantt__span {
-  background: rgb(var(--ink) / 30%) !important;
-  opacity: 1;
-  height: 4px;
-}
-
-/* Просроченный блокер: магентовые текст и обводка из базовой темы на магентовой
-   заливке невидимы — текст остаётся белым, обводка чернильная. */
-.gantt__bar[data-criticality="critical"].is-late {
-  color: #fff;
-  box-shadow: inset 0 0 0 1px rgb(var(--ink) / 40%);
-}
-
-/* Плашка блокера в легенде — той же магентой, что и сама полоска. */
-.gantt__swatch[data-criticality="critical"] {
-  background: #d82071;
-}
-
-/* ── Лента один в один с макетом Gantt Chart.dc.html ──
-   Точные ступени рамп Broadsheet: neutral 400/500/600/700/800 —
-   #bab6b6 / #9b9797 / #7d7979 / #605d5d / #444141; accent 500/600/700 —
-   #38a6cf / #1186ac / #006786; accent-2 600/700 и её светлая 100 —
-   #d82071 / #aa0b56 / #fff1f4. */
-
-/* Шапка: месяц — по левому краю своей колонки, с межколоночной линейкой */
-.gantt__month {
-  justify-content: flex-start;
-  border-left: 1px solid rgb(var(--ink) / 16%);
-  align-items: flex-start;
-}
-
-.gantt__month-label {
-  padding: 7px 0 0 8px;
-}
-
-.gantt__head-row {
-  border-bottom-color: rgb(var(--ink) / 16%);
-}
-
-/* Дни: курсивный день недели 9px над числом 10px; будни темнее выходных,
-   сегодняшняя колонка — тёмный циан и полужирно */
-.gantt__day {
-  border-left: 0;
-  color: #605d5d;
-  justify-content: flex-start;
-  padding-top: 4px;
-  line-height: 1.25;
-}
-
-.gantt__day.is-nonworking {
-  color: #9b9797;
-}
-
-.gantt__day-weekday {
-  font-size: 9px;
-}
-
-.gantt__day-number {
-  font-size: 10px;
-  font-weight: inherit;
-  color: inherit;
-}
-
-.gantt__day.is-today,
-.gantt__day.is-today .gantt__day-number {
-  color: #006786;
-  font-weight: 700;
-}
-
-/* Сетка тела: дневная линейка — 6% чернил */
-.gantt__grid-day {
-  border-left-color: rgb(var(--ink) / 6%);
-}
-
-/* Строки: печатные линейки — 8% чернил между задачами, 16% над категорией.
-   Тенью внутрь, а не border: рамка меняла бы высоту строки, по которой
-   считаются стрелки. */
-.gantt__row .gantt__label,
-.gantt__row .gantt__lane {
-  box-shadow: inset 0 1px 0 rgb(var(--ink) / 8%);
-}
-
-.gantt__row--category .gantt__label,
-.gantt__row--category .gantt__lane {
-  box-shadow: inset 0 1px 0 rgb(var(--ink) / 16%);
-}
-
-.gantt__label {
-  border-right-color: rgb(var(--ink) / 16%);
-}
-
-/* Левая колонка: категория — серифный заголовок 15px, задача — 13.5px с
-   отступом под шеврон, точки категорий макет не показывает */
-.gantt__dot {
-  display: none;
-}
-
-.gantt__row--category .gantt__label {
-  padding-left: 15px;
-}
-
-.gantt__row--category .gantt__label-name {
-  font-size: 15px;
-}
-
-.gantt__row:not(.gantt__row--category) .gantt__label {
-  padding-left: 38px;
-}
-
-.gantt__row:not(.gantt__row--category) .gantt__label-name {
-  font-size: 13.5px;
-  color: var(--text);
-}
-
-/* Полоска: 22px, печатный радиус 2px, без текста и без заливки прогресса —
-   имя живёт в левой колонке, как в макете (доступное имя кнопки остаётся). */
-.gantt__bar {
-  height: 22px;
-  border-radius: 2px;
-}
-
-.gantt__bar-name {
-  display: none;
-}
-
-.gantt__progress {
-  display: none;
-}
-
-/* Просрочку показывает не сама полоска, а засечка и «+N дн.»: рамку и
-   перекраску текста базовой темы макет не использует. */
-.gantt__bar.is-late {
-  box-shadow: none;
-  color: inherit;
-}
-
-.gantt__bar[data-status="planned"].is-late {
-  box-shadow: inset 0 0 0 1.5px #9b9797;
-}
-
-/* Восклицательный знак и «+» сверх плана — знаки базовой темы; в макете их
-   роль играют засечка, подпись и пилюли. */
-.gantt__flag,
-.gantt__beyond {
-  display: none;
-}
-
-/* Полоса охвата категории: нейтральный серый 5px, как в макете */
-.gantt__span {
-  height: 5px;
-  border-radius: 2px;
-  background: #bab6b6 !important; /* инлайновый цвет категории перебивается только так */
-  opacity: 1;
-}
-
-/* Засечка дедлайна и подпись «+N дн.» — магента рампы и её тёмный шаг */
-.gantt__mark {
-  background: #d82071;
-}
-
-.gantt__deviation.is-late {
-  color: #aa0b56;
-  font-size: 11px;
-}
-
-/* Пилюли: блокер и «+N дн.» — светлая магента с тёмной, «ждёт» — нейтраль */
-.gantt__pill {
-  background: #eae7e7;
-  color: #605d5d;
-  border-radius: 4px;
-}
-
-.gantt__pill--blocker,
-.gantt__pill--late {
-  background: #fff1f4;
-  color: #aa0b56;
-}
-
-/* Шеврон и счётчик категории */
-.gantt__chevron {
-  color: #7d7979;
-}
-
-.gantt__count {
-  color: #7d7979;
-}
-
-.gantt__corner-label {
-  color: #7d7979;
-}
-
-/* Линия «сегодня» и её чип — средний циан. Полупрозрачность зашита в цвет
-   линии, а не в opacity: чип — её потомок и обязан остаться плотным. */
-.gantt__today {
-  border-left-color: rgb(17 134 172 / 65%);
-}
-
-.gantt__today-chip {
-  background: #1186ac;
-  padding: 2px 8px;
-}
-
-/* Стрелки: нейтральный средний серый с наконечником, нарушенные — магента */
-.arrows polyline {
-  stroke: #9b9797;
-  opacity: 0.9;
-}
-
-.arrows path {
-  fill: #9b9797;
-  opacity: 0.9;
-}
-
-.arrows polyline.is-violated {
-  stroke: #d82071;
-}
-
-.arrows g.is-violated path {
-  fill: #d82071;
-}
-
-/* Легенда и сноска — тем же тоном, что подписи макета. Легенда при этом
-   набрана заметно, а не мелочью: в макете это подпись под шапкой проекта, и по
-   ней сверяются с лентой, не приглядываясь. */
-.gantt__legend {
-  font-size: 13px;
-  color: #605d5d;
-}
-
-.gantt__swatch {
-  border-radius: 2px;
-}
-
-.gantt__swatch--deadline {
-  background: #d82071;
-}
-
-.gantt__swatch--today {
-  background: #1186ac;
-}
-
-.gantt__caption {
-  color: #605d5d;
-}
-
-/* Итог-выноска — без заливки: иерархию несёт набор, не плашка */
-.gantt__summary {
-  background: transparent;
-  padding-left: 0;
+  --ink: 17 24 39;
+  --text: #111827;
+  --text-muted: #5f6675;
+  --text-faint: #8a92a3;
+  --bg: #ffffff;
+  --bg-subtle: #f8fbff;
+  --surface: #ffffff;
+  --hover: #f4f7fb;
+  --active: #eef4ff;
+  --border: #e5e9f0;
+  --border-strong: #d7dde8;
+  --accent: #2459f5;
+  --accent-hover: #1746d8;
+  --accent-text: #ffffff;
+  --accent-soft: rgb(36 89 245 / 10%);
+  --danger: #ef3b7d;
+  --danger-soft: #fff2f6;
+  --ok: #16a34a;
+  --ok-soft: #ebfbf1;
+  --input-bg: #f8fafc;
+  --tag-gray: #f3f4f6;
+  --tag-blue: #eaf1ff;
+  --tag-yellow: #fff4d9;
+  --tag-red: #fff0e8;
+  --tag-green: #eafaf0;
+  --bar: #2f63f6;
+  --bar-critical: #ff7a32;
+  --nonworking: #fafbfe;
+  --shadow-sm: 0 1px 2px rgb(15 23 42 / 10%);
+  --shadow-md: 0 20px 45px rgb(15 23 42 / 16%);
+  --radius-sm: 5px;
+  --radius: 8px;
+  --radius-lg: 12px;
+  --sidebar: 232px;
+  --control: 40px;
+  --font: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+}
+
+body { font-size: 15px; background: var(--bg); }
+.app__main { min-height: 100vh; }
+.sidebar { padding: 28px 16px 18px; gap: 18px; background: #fbfcff; border-right: 1px solid var(--border); }
+.sidebar__workspace { gap: 12px; padding: 0 8px 46px; }
+.sidebar__avatar { width: 34px; height: 34px; border-radius: 9px; font-size: 0; position: relative; background: linear-gradient(135deg,#1c6dff 0 45%,#2459f5 45% 70%,#68a4ff 70%); }
+.sidebar__avatar::after { content: "P"; color: #fff; font-size: 22px; line-height: 1; font-weight: 800; }
+.sidebar__brand { font-size: 21px; font-weight: 650; color: #121826; }
+.sidebar__section { display: none; }
+.sidebar__nav { gap: 14px; }
+.sidebar__link { min-height: 40px; gap: 14px; padding: 0 14px; border-radius: 7px; color: #626b7a; font-size: 16px; }
+.sidebar__link.is-current { background: #eef4ff; color: var(--accent); }
+.sidebar__icon { width: 22px; height: 22px; color: currentColor; }
+.sidebar__foot { border-top: 0; gap: 10px; }
+.sidebar__user { font-size: 15px; color: #1f2937; }
+.org-switch, .locale-switch { display: none; }
+
+.screen--wide { padding: 0; }
+.project-head { margin: 0; padding: 32px 32px 28px; border-bottom: 1px solid var(--border); gap: 0; }
+.project-head__main { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; width: 100%; }
+.project-head__title { font-size: 34px; font-weight: 720; letter-spacing: -0.03em; line-height: 1.1; }
+.project-head__meta { margin-top: 12px; font-size: 16px; color: #6b7280; font-style: normal; }
+.project-head__plan-inline { display: inline-flex; align-items: center; gap: 9px; margin-left: 9px; }
+.project-head__plan-label { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border: 1px solid #f3c77d; border-radius: 6px; background: #fff8ec; color: #c47a16; font-size: 15px; font-weight: 600; letter-spacing: 0; text-transform: none; }
+.project-head__plan-note { color: var(--danger); font-style: normal; }
+.project-head__dot { color: #9ca3af; }
+.project-head__actions { gap: 16px; justify-content: flex-end; }
+.project-head__actions a { display: inline-flex; align-items: center; height: var(--control); padding: 0 14px; border: 1px solid var(--border-strong); border-radius: 7px; text-decoration: none; color: #374151; }
+.project-head__approval { position: absolute; right: 360px; top: 40px; }
+.project-head__approval .plan__confirm { box-shadow: var(--shadow-md); }
+
+button { height: var(--control); padding: 0 18px; border-radius: 7px; font-size: 16px; font-weight: 600; box-shadow: 0 8px 18px rgb(36 89 245 / 22%); }
+.button--quiet { background: #fff; color: #374151; box-shadow: inset 0 0 0 1px var(--border-strong); }
+.button--quiet:hover { background: #f8fafc; }
+
+.project-toolbar { display: flex; align-items: center; gap: 14px; height: 78px; padding: 0 32px; border-bottom: 1px solid var(--border); background: #fff; }
+.project-toolbar__primary { padding: 0 20px; }
+.project-toolbar__square { width: 42px; padding: 0; font-size: 30px; font-weight: 300; }
+.project-toolbar__month { margin-left: 26px; font-size: 17px; font-weight: 650; }
+.project-toolbar__spacer { flex: 1; }
+.project-toolbar__segments { display: inline-flex; overflow: hidden; border: 1px solid var(--border-strong); border-radius: 7px; }
+.project-toolbar__segments button { height: 40px; min-width: 86px; border-radius: 0; background: #fff; color: #374151; box-shadow: none; }
+.project-toolbar__segments button + button { border-left: 1px solid var(--border); }
+.project-toolbar__segments button[aria-pressed="true"] { color: var(--accent); box-shadow: inset 0 0 0 2px #8dacff; }
+
+.project__body { gap: 0; align-items: stretch; }
+.project__body > .gantt { min-width: 0; }
+.gantt { --gantt-label: 540px; --gantt-row: 72px; --gantt-head: 72px; }
+.gantt__summary, .gantt__legend, .gantt__caption { display: none; }
+.gantt__scroll { border-radius: 0; box-shadow: none; border-bottom: 1px solid var(--border); background: #fff; }
+.gantt__head-row { background: #fff; border-bottom: 1px solid var(--border); }
+.gantt__corner { align-items: center; padding-bottom: 0; }
+.gantt__corner-label { font-size: 15px; letter-spacing: 0; text-transform: none; color: #374151; }
+.gantt__month { border-left: 1px solid var(--border); }
+.gantt__month-label { font-size: 15px; color: #4b5563; letter-spacing: .04em; }
+.gantt__day { border-left: 1px solid var(--border); font-size: 14px; color: #6b7280; gap: 6px; }
+.gantt__day-number { font-size: 16px; color: inherit; }
+.gantt__day.is-today, .gantt__day.is-today .gantt__day-number { color: var(--accent); font-weight: 800; }
+.gantt__label { padding: 0 22px 0 28px; border-right: 1px solid var(--border); background: #fff; }
+.gantt__row { border-bottom: 1px solid var(--border); }
+.gantt__row:hover .gantt__lane, .gantt__row:hover .gantt__label { background: #f9fbff; }
+.gantt__row.is-selected .gantt__lane, .gantt__row.is-selected .gantt__label { background: #eef5ff; }
+.gantt__row--category .gantt__label-name { font-size: 18px; font-weight: 700; color: #1f2937; }
+.gantt__row:not(.gantt__row--category) .gantt__label { padding-left: 84px; }
+.gantt__row:not(.gantt__row--category) .gantt__label-name { font-size: 16px; color: #1f2937; }
+.gantt__dot { display: none; }
+.gantt__count, .gantt__pill { display: none; }
+.gantt__grid-day { border-left: 1px dashed #dfe5ee; }
+.gantt__today { border-left: 3px solid rgb(36 89 245 / 55%); }
+.gantt__today-chip { top: -4px; border-radius: 5px; background: #eef4ff; color: var(--accent); border: 1px solid #8dacff; font-size: 11px; }
+.gantt__span { height: 4px; background: #5b5ee6 !important; opacity: .95; }
+.gantt__bar { height: 36px; border-radius: 6px; background: transparent; border: 2px solid var(--accent); color: #fff; box-shadow: none; }
+.gantt__bar[data-status="active"] { background: linear-gradient(90deg, var(--bar) 0 var(--progress, 60%), #eef4ff var(--progress, 60%)); }
+.gantt__bar[data-status="planned"] { background: #f7faff; box-shadow: none; border-color: #5d85ff; }
+.gantt__bar[data-status="done"] { background: #eafbf1; border-color: #22c55e; color: #16a34a; }
+.gantt__bar[data-criticality="critical"] { background: #fff7ed; border-color: #fb923c; color: #ea580c; }
+.gantt__bar-name { display: none; }
+.gantt__progress { display: none; }
+.gantt__ghost { height: 36px; top: 50%; transform: translateY(-50%); background: transparent; border: 2px dashed #bcd0ff; border-radius: 7px; }
+.gantt__mark { top: 13px; height: 42px; width: 4px; border-radius: 3px; background: var(--danger); }
+.gantt__deviation { color: var(--danger); font-size: 15px; font-weight: 800; }
+.arrows polyline { stroke: #2f63f6; stroke-width: 2; }
+.arrows path { fill: #2f63f6; }
+
+.panel { flex: 0 0 388px; border-radius: 0; box-shadow: -1px 0 0 var(--border); min-height: calc(100vh - 0px); padding: 34px 32px; }
+.panel__title { font-size: 24px; }
+.panel__fields .panel__field, .panel__row { grid-template-columns: 112px minmax(0,1fr); gap: 16px; }
+.panel__key, .panel__fields .panel__field label { font-size: 15px; color: #4b5563; }
+.panel__history, .panel__comments { border-top-color: var(--border); }
+.comments { max-width: 740px; margin: 28px 32px; }
+
+@media (max-width: 900px) {
+  .project-head, .project-toolbar { padding-left: 20px; padding-right: 20px; }
+  .project-head__main, .project__body, .project-toolbar { flex-wrap: wrap; }
+  .project-toolbar { height: auto; padding-top: 14px; padding-bottom: 14px; }
+  .panel { flex-basis: 100%; min-height: auto; }
+  .gantt { --gantt-label: 320px; }
 }
-.gantt__summary.is-late { background: transparent; }
-.gantt__summary.is-fine { background: transparent; }
