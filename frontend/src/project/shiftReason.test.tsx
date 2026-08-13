@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { drag } from "../test/pointer";
+import { dragDays } from "../test/pointer";
 import {
   APPROVED,
   APPROVED_WITH_EXTRA,
@@ -31,7 +31,7 @@ describe("порог сдвига", () => {
     renderProject(APPROVED);
 
     // Семь дней вправо при пороге в два дня.
-    drag(await bar(), { fromX: 100, toX: 100 + 26 * 7 });
+    dragDays(await bar(), 7);
 
     expect(await screen.findByRole("dialog")).toHaveTextContent(/Сдвиг на 7 дней/);
     expect(sent).toHaveLength(0);
@@ -39,7 +39,7 @@ describe("порог сдвига", () => {
 
   it("кнопка сохранения неактивна, пока причина пуста", async () => {
     renderProject(APPROVED);
-    drag(await bar(), { fromX: 100, toX: 100 + 26 * 7 });
+    dragDays(await bar(), 7);
     await screen.findByRole("dialog");
 
     const save = screen.getByRole("button", { name: "Сохранить" });
@@ -56,7 +56,7 @@ describe("порог сдвига", () => {
   it("введённая причина уходит на сервер вместе с операцией", async () => {
     const sent = captureMutations();
     renderProject(APPROVED);
-    drag(await bar(), { fromX: 100, toX: 100 + 26 * 7 });
+    dragDays(await bar(), 7);
     await screen.findByRole("dialog");
 
     await userEvent.type(screen.getByLabelText("Причина"), "заказчик не прислал брендбук");
@@ -72,7 +72,7 @@ describe("порог сдвига", () => {
   it("«Вернуть» не отправляет ничего", async () => {
     const sent = captureMutations();
     renderProject(APPROVED);
-    drag(await bar(), { fromX: 100, toX: 100 + 26 * 7 });
+    dragDays(await bar(), 7);
     await screen.findByRole("dialog");
 
     await userEvent.click(screen.getByRole("button", { name: "Вернуть" }));
@@ -85,7 +85,7 @@ describe("порог сдвига", () => {
     const sent = captureMutations();
     renderProject(APPROVED);
 
-    drag(await bar(), { fromX: 100, toX: 100 + 26 * 2 });
+    dragDays(await bar(), 2);
 
     await waitFor(() => expect(sent).toHaveLength(1));
     expect(sent[0].reason).toBeUndefined();
@@ -96,7 +96,7 @@ describe("порог сдвига", () => {
     const sent = captureMutations();
     renderProject(); // черновик: plan_approved_at = null
 
-    drag(await bar(), { fromX: 100, toX: 100 + 26 * 30 });
+    dragDays(await bar(), 30);
 
     await waitFor(() => expect(sent).toHaveLength(1));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -144,7 +144,7 @@ describe("порог сдвига", () => {
     );
     renderProject();
 
-    drag(await bar(), { fromX: 100, toX: 100 + 26 * 9 });
+    dragDays(await bar(), 9);
 
     expect(await screen.findByRole("dialog")).toHaveTextContent(/Сдвиг на 9 дней/);
     await userEvent.type(screen.getByLabelText("Причина"), "подрядчик сорвал срок");

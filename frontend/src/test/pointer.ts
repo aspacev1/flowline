@@ -1,5 +1,7 @@
 import { fireEvent } from "@testing-library/react";
 
+import { DAY_WIDTH } from "../gantt/scale";
+
 /**
  * Жесты указателем.
  *
@@ -16,4 +18,15 @@ export function drag(
   fireEvent.pointerMove(element, { pointerId: 1, clientX: toX, clientY: toY });
   fireEvent.pointerUp(element, { pointerId: 1, clientX: toX, clientY: toY });
   fireEvent.click(element, { clientX: toX, clientY: toY });
+}
+
+/**
+ * Перетаскивание полоски на целое число дней.
+ *
+ * Дни, а не пиксели: ширина дня — это масштаб изображения, и тест, знающий её
+ * числом, ломается от смены масштаба по умолчанию, хотя проверяет не масштаб,
+ * а перенос задачи.
+ */
+export function dragDays(element: HTMLElement, days: number, fromX = 100) {
+  drag(element, { fromX, toX: fromX + days * DAY_WIDTH.day });
 }

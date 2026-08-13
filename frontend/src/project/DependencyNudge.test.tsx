@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import type { ProjectState } from "../api/projects";
 import { addDays, daysBetween } from "../gantt/timescale";
-import { drag } from "../test/pointer";
+import { dragDays } from "../test/pointer";
 import { WITH_DEPENDENCY, projectFixtures, renderProject } from "../test/project";
 import { server } from "../test/server";
 
@@ -65,7 +65,7 @@ describe("предложение подвинуть связанную зада�
 
     // «Логотип» идёт с 4 по 10 марта, «Макет» начинается 11-го. Сдвиг на пять
     // дней вправо ставит окончание предшественника на 15-е.
-    drag(bar, { fromX: 100, toX: 100 + 26 * 5 });
+    dragDays(bar, 5);
 
     expect(
       await screen.findByRole("button", { name: /Подвинуть «Макет» на 5 дней/ }),
@@ -78,7 +78,7 @@ describe("предложение подвинуть связанную зада�
   it("двигает связанную задачу за край предшественника по одной кнопке", async () => {
     const sent = movingServer(WITH_DEPENDENCY);
     renderProject(WITH_DEPENDENCY);
-    drag(await screen.findByRole("button", { name: /Логотип/ }), { fromX: 100, toX: 100 + 26 * 5 });
+    dragDays(await screen.findByRole("button", { name: /Логотип/ }), 5);
 
     await userEvent.click(await screen.findByRole("button", { name: /Подвинуть «Макет»/ }));
 
@@ -95,7 +95,7 @@ describe("предложение подвинуть связанную зада�
   it("закрывается и больше не мешает", async () => {
     movingServer(WITH_DEPENDENCY);
     renderProject(WITH_DEPENDENCY);
-    drag(await screen.findByRole("button", { name: /Логотип/ }), { fromX: 100, toX: 100 + 26 * 5 });
+    dragDays(await screen.findByRole("button", { name: /Логотип/ }), 5);
     await screen.findByRole("button", { name: /Подвинуть «Макет»/ });
 
     await userEvent.click(screen.getByRole("button", { name: "Закрыть предложение" }));
@@ -109,7 +109,7 @@ describe("предложение подвинуть связанную зада�
     const bar = await screen.findByRole("button", { name: /Логотип/ });
 
     // Влево: наезда не возникает.
-    drag(bar, { fromX: 100, toX: 100 - 26 * 3 });
+    dragDays(bar, -3);
 
     await waitFor(() => expect(sent).toHaveLength(1));
     expect(screen.queryByRole("button", { name: /Подвинуть/ })).toBeNull();
@@ -120,7 +120,7 @@ describe("предложение подвинуть связанную зада�
     renderProject(WITH_DEPENDENCY);
     const bar = await screen.findByRole("button", { name: /Логотип/ });
 
-    drag(bar, { fromX: 100, toX: 100 + 26 * 5 });
+    dragDays(bar, 5);
 
     await waitFor(() => expect(sent).toHaveLength(1));
     expect(screen.queryByRole("button", { name: /Подвинуть/ })).toBeNull();

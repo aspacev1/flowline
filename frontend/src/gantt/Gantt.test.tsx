@@ -1,11 +1,9 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ProjectState } from "../api/projects";
 import type { Locale } from "../i18n";
-import { server } from "../test/server";
 import { renderWithProviders } from "../test/utils";
 import { Gantt } from "./Gantt";
 import { DAY_WIDTH } from "./scale";
@@ -63,20 +61,13 @@ function drawWithToolbar(locale: Locale = "ru") {
 }
 
 describe("диаграмма", () => {
-  // Диаграмма сама спрашивает состав — для фильтра «Владелец» в меню
-  // «Фильтр». Здесь она рисуется без остального приложения, и запрос надо
-  // описать самим.
-  beforeEach(() =>
-    server.use(http.get("/api/org/members", () => HttpResponse.json([]))),
-  );
-
   afterEach(() => vi.restoreAllMocks());
 
   it("рисует задачу полоской нужной ширины", () => {
     draw(STATE);
     const bar = screen.getByRole("img", { name: /Логотип/ });
     // 4-10 марта — семь календарных дней
-    expect(bar).toHaveStyle({ width: `${7 * DAY_WIDTH}px` });
+    expect(bar).toHaveStyle({ width: `${7 * DAY_WIDTH.day}px` });
   });
 
   it("ставит полоску в её день, а не в начало ленты", () => {
@@ -84,7 +75,7 @@ describe("диаграмма", () => {
     // Окно открывается с первого числа месяца самой ранней задачи: 4 марта
     // отстоит от 1 марта на три дня.
     expect(container.querySelector<HTMLElement>(".gantt__bar")).toHaveStyle({
-      left: `${3 * DAY_WIDTH}px`,
+      left: `${3 * DAY_WIDTH.day}px`,
     });
   });
 
@@ -116,7 +107,7 @@ describe("диаграмма", () => {
       // 11 марта — десятый день от начала окна (1 марта), и линия стоит
       // посередине его колонки, а не по её левому краю.
       expect(container.querySelector<HTMLElement>(".gantt__today")).toHaveStyle({
-        left: `${10 * DAY_WIDTH + DAY_WIDTH / 2}px`,
+        left: `${10 * DAY_WIDTH.day + DAY_WIDTH.day / 2}px`,
       });
       const day = container.querySelector('.gantt__day[data-day="2026-03-11"]');
       expect(day).toHaveClass("is-today");
@@ -247,24 +238,6 @@ describe("диаграмма", () => {
     expect(screen.getByRole("img", { name: /Встала/ })).toHaveAttribute("data-status", "blocked");
   });
 
-  it("фильтр по статусу прячет строки, но не задачи других статусов", async () => {
-    draw(
-      {
-        ...STATE,
-        tasks: [
-          { ...STATE.tasks[0], id: "t1", name: "Готовая", status: "done", progress_pct: 100 },
-          { ...STATE.tasks[0], id: "t2", name: "Идущая", position: 1 },
-        ],
-      },
-      "ru",
-    );
-    await userEvent.click(screen.getByRole("button", { name: "Фильтр" }));
-    await userEvent.click(screen.getByRole("checkbox", { name: "Готово" }));
-
-    expect(screen.queryByRole("img", { name: /Идущая/ })).not.toBeInTheDocument();
-    expect(screen.getByRole("img", { name: /Готовая/ })).toBeInTheDocument();
-  });
-
   it("свёрнутая категория прячет свои задачи, развёрнутая возвращает", async () => {
     draw(STATE, "ru");
     expect(screen.getByRole("img", { name: /Логотип/ })).toBeInTheDocument();
@@ -284,15 +257,17 @@ describe("диаграмма", () => {
     expect(container.querySelector('[data-day="2026-06-08"]')).toBeInTheDocument();
   });
 
-  it("панель масштаба работает и говорит на языке интерфейса", async () => {
+  it("меню масштаба называет текущий масштаб и меняет его", async () => {
     const { container } = drawWithToolbar("ru");
-    const month = screen.getByRole("button", { name: "Месяц" });
+    // Свёрнутое меню обязано называть выбранное само: иначе, в отличие от
+    // прежнего ряда сегментов, текущий масштаб виден только раскрытым.
+    const button = screen.getByRole("button", { name: "Масштаб: День" });
+    expect(container.querySelector(".gantt")).toHaveClass("gantt--day");
 
-    expect(screen.getByRole("button", { name: "Неделя" })).toHaveAttribute("aria-pressed", "true");
-    await userEvent.click(month);
+    await userEvent.click(button);
+    await userEvent.click(screen.getByRole("radio", { name: "Месяц" }));
 
-    expect(month).toHaveAttribute("aria-pressed", "true");
     expect(container.querySelector(".gantt")).toHaveClass("gantt--month");
-    expect(screen.getByRole("button", { name: "Показать следующий период" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Масштаб: Месяц" })).toBeInTheDocument();
   });
 });
