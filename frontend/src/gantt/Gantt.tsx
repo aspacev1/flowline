@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import type { Category, ProjectState, Task } from "../api/projects";
 import { endShiftDays, isBeyondPlan } from "../project/baseline";
@@ -35,6 +35,7 @@ export function Gantt({
   onAddTask,
   selectedTaskId = null,
   onSelectTask,
+  toolbarAction,
 }: {
   projectId: string;
   state: ProjectState;
@@ -45,11 +46,14 @@ export function Gantt({
   /** Задача, карточка которой открыта. */
   selectedTaskId?: string | null;
   onSelectTask?: (taskId: string) => void;
+  /** Primary project action shown beside the working timeline controls. */
+  toolbarAction?: ReactNode;
 }) {
   const { t } = useLocale();
   const scroller = useRef<HTMLDivElement>(null);
   const reorder = useReorder({ projectId, state, canWrite });
   const reducedMotion = usePrefersReducedMotion();
+  const [zoom, setZoom] = useState<"day" | "week" | "month">("week");
 
   // Свёрнутые категории. Состояние экрана, а не проекта: сосед по проекту не
   // должен получать чужие свёртки, поэтому оно не уходит на сервер.
@@ -69,7 +73,9 @@ export function Gantt({
   // прокрутки к сегодняшнему дню, и лента прыгала бы к сегодня после каждой
   // правки, унося с экрана ту задачу, которую только что двигали.
   const { from, to } = projectWindow(state);
-  const scale = useMemo(() => buildScale({ from, to, dayWidth: DAY_WIDTH }), [from, to]);
+  const dayWidth = zoom === "day" ? 42 : zoom === "month" ? 14 : DAY_WIDTH;
+  const scale = useMemo(() => buildScale({ from, to, dayWidth }), [dayWidth, from, to]);
+  const [visibleDate, setVisibleDate] = useState(today >= from && today <= to ? today : from);
 
   const formatDay = (iso: string) => formatDate(t, iso);
 
@@ -79,8 +85,32 @@ export function Gantt({
     const element = scroller.current;
     if (!element) return;
     if (today < scale.from || today > scale.to) return;
-    element.scrollLeft = Math.max(0, scale.xOf(today) - DAY_WIDTH * 3);
+    element.scrollLeft = Math.max(0, scale.xOf(today) - scale.dayWidth * 3);
   }, [scale, today]);
+
+  const updateVisibleDate = () => {
+    const element = scroller.current;
+    if (!element) return;
+    setVisibleDate(scale.dateAt(element.scrollLeft + element.clientWidth / 2));
+  };
+
+  const moveTimeline = (direction: -1 | 1) => {
+    const element = scroller.current;
+    if (!element) return;
+    element.scrollBy({
+      left: direction * Math.max(scale.dayWidth * 7, element.clientWidth * 0.72),
+      behavior: reducedMotion ? "auto" : "smooth",
+    });
+  };
+
+  const goToToday = () => {
+    const element = scroller.current;
+    if (!element || today < scale.from || today > scale.to) return;
+    element.scrollTo({
+      left: Math.max(0, scale.xOf(today) - element.clientWidth / 2),
+      behavior: reducedMotion ? "auto" : "smooth",
+    });
+  };
 
   const categories = byPosition(state.categories);
   const tasksByCategory = new Map<string, Task[]>();
@@ -144,7 +174,7 @@ export function Gantt({
 
   return (
     <div
-      className={`gantt${reorder.active ? " is-reordering" : ""}${
+      className={`gantt gantt--${zoom}${reorder.active ? " is-reordering" : ""}${
         reducedMotion ? " motion-off" : ""
       }`}
       // Высота строки задаётся отсюда: стрелки считают по ней вертикальные
@@ -152,6 +182,52 @@ export function Gantt({
       // этим.
       style={{ "--gantt-row": `${ROW_HEIGHT}px` } as CSSProperties}
     >
+      {toolbarAction !== undefined && (
+        <div className="project-toolbar" aria-label={t("gantt.toolbar.label")}>
+          {toolbarAction}
+          <span className="project-toolbar__divider" aria-hidden="true" />
+          <button
+            type="button"
+            className="button--quiet"
+            onClick={goToToday}
+            disabled={today < scale.from || today > scale.to}
+          >
+            {t("gantt.today")}
+          </button>
+          <button
+            type="button"
+            className="button--quiet project-toolbar__square"
+            aria-label={t("gantt.toolbar.previous")}
+            onClick={() => moveTimeline(-1)}
+          >
+            ‹
+          </button>
+          <strong className="project-toolbar__month" aria-live="polite">
+            {formatMonth(t, visibleDate)}
+          </strong>
+          <button
+            type="button"
+            className="button--quiet project-toolbar__square"
+            aria-label={t("gantt.toolbar.next")}
+            onClick={() => moveTimeline(1)}
+          >
+            ›
+          </button>
+          <span className="project-toolbar__spacer" />
+          <span className="project-toolbar__segments" aria-label={t("gantt.toolbar.zoom")}>
+            {(["day", "week", "month"] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={zoom === value}
+                onClick={() => setZoom(value)}
+              >
+                {t(`gantt.toolbar.${value}`)}
+              </button>
+            ))}
+          </span>
+        </div>
+      )}
       <Summary state={state} formatDay={formatDay} />
 
       {categories.length > 0 && <Legend />}
@@ -160,7 +236,7 @@ export function Gantt({
         <p className="empty gantt__empty">{t("gantt.empty")}</p>
       ) : (
         <>
-        <div className="gantt__scroll" ref={scroller}>
+        <div className="gantt__scroll" ref={scroller} onScroll={updateVisibleDate}>
           <div className="gantt__canvas">
             <div className="gantt__head-row">
               <div className="gantt__label gantt__corner">

@@ -291,7 +291,16 @@
   },
   "gantt": {
     "empty": "This project has no categories yet. Create a category — tasks live inside it",
-    "today": "Today",
+  "today": "Today",
+  "toolbar": {
+    "label": "Project timeline controls",
+    "previous": "Show the previous period",
+    "next": "Show the next period",
+    "zoom": "Timeline scale",
+    "day": "Day",
+    "week": "Week",
+    "month": "Month"
+  },
     "reorder": "Reorder “{name}”",
     "deadline": "Deadline {date}",
     "late": "Ends after the deadline",
