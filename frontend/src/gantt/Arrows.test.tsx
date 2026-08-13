@@ -48,7 +48,12 @@ describe("стрелки связей", () => {
     const points = pointsOf(container);
 
     expect(points[0][0]).toBe(from.left + from.width);
-    expect(points.at(-1)![0]).toBe(to.left);
+    // Ломаная кончается на размер наконечника раньше полоски: остриё
+    // треугольника доводит стрелку ровно до её левого края.
+    expect(points.at(-1)![0]).toBe(to.left - 4);
+    expect(container.querySelector("svg.arrows path")!.getAttribute("d")).toContain(
+      `L${to.left} `,
+    );
   });
 
   it("подсвечивает нарушенную связь, когда приёмник начат до готовности источника", async () => {

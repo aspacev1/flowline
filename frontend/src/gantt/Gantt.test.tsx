@@ -1,4 +1,5 @@
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ProjectState } from "../api/projects";
@@ -225,6 +226,18 @@ describe("диаграмма", () => {
     });
     expect(screen.getByText("блокер")).toBeInTheDocument();
     expect(screen.getByText("ждёт: Логотип")).toBeInTheDocument();
+  });
+
+  it("свёрнутая категория прячет свои задачи, развёрнутая возвращает", async () => {
+    draw(STATE, "ru");
+    expect(screen.getByRole("img", { name: /Логотип/ })).toBeInTheDocument();
+
+    const chevron = screen.getByRole("button", { name: /Свернуть или развернуть «Дизайн»/ });
+    await userEvent.click(chevron);
+    expect(screen.queryByRole("img", { name: /Логотип/ })).not.toBeInTheDocument();
+
+    await userEvent.click(chevron);
+    expect(screen.getByRole("img", { name: /Логотип/ })).toBeInTheDocument();
   });
 
   it("окно ленты дотягивается до дедлайна, даже если задачи кончились раньше", () => {

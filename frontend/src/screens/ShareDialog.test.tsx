@@ -20,7 +20,7 @@ const UNPUBLISHED = { allowed: true, url: null, comments_enabled: true, created_
 async function openDialog() {
   // Кнопка появляется вместе с экраном проекта, то есть после ответа
   // сервера: искать её сразу — значит проверять скорость сети.
-  await userEvent.click(await screen.findByRole("button", { name: "Публичная ссылка" }));
+  await userEvent.click(await screen.findByRole("button", { name: "Поделиться" }));
 }
 
 describe("публичная ссылка проекта", () => {
@@ -128,6 +128,6 @@ describe("публичная ссылка проекта", () => {
     renderProject(undefined, { canWrite: false });
 
     expect(await screen.findByRole("heading", { level: 1 })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Публичная ссылка" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Поделиться" })).not.toBeInTheDocument();
   });
 });

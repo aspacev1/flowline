@@ -9,7 +9,8 @@
     "days": {
       "one": "{count} day",
       "other": "{count} days"
-    }
+    },
+    "days_short": "{count} d"
   },
   "calendar": {
     "date": "{month} {day}",
@@ -209,6 +210,15 @@
     },
     "create_with_ai": "Create through an interview"
   },
+  "project": {
+    "period": "{from} — {to}",
+    "counts": "{categories}, {tasks}",
+    "meta": "{period} · {counts}",
+    "category_count": {
+      "one": "{count} category",
+      "other": "{count} categories"
+    }
+  },
   "category": {
     "create": "New category",
     "new": {
@@ -306,10 +316,17 @@
       "blocker": "blocker",
       "blocks": "Blocks: {names}",
       "waits": "waits for: {name}"
-    }
+    },
+    "tasks_col": "Tasks",
+    "task_count": {
+      "one": "{count} task",
+      "other": "{count} tasks"
+    },
+    "toggle_category": "Collapse or expand “{name}”",
+    "caption": "The magenta tick is the original deadline; the “+N d” label shows how far the date slipped. A magenta arrow is a violated dependency: the task started before its blocker was done."
   },
   "share": {
-    "open": "Public link",
+    "open": "Share",
     "title": "Public link to the project",
     "hint": "The link opens the project for reading without an account: no internal notes, no assignees",
     "publish": "Publish",
@@ -431,11 +448,14 @@
   },
   "plan": {
     "approve": "Approve plan",
-    "reapprove": "Re-approve plan (version {version})",
+    "reapprove": "Re-approve",
     "reapprove_warning": "Re-approving moves the baseline: shifts will be measured from the new dates",
     "reapprove_confirm": "Re-approve",
     "beyond_plan_explained": "Added after the plan was approved — there is no baseline to compare with",
-    "deviation_summary": "Deviation from the plan: {days}"
+    "deviation_summary": "Deviation from the plan: {days}",
+    "line": "Project plan · v{version}",
+    "line_draft": "Project plan · draft",
+    "changed": "changed after approval"
   },
   "shift": {
     "title": "Shift of {days}",

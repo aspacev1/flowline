@@ -8,11 +8,11 @@
    где полоска начинается и где кончается. */
 
 .gantt {
-  --gantt-label: 240px;
+  --gantt-label: 300px;
   /* --gantt-row приходит из разметки: по этой же величине считаются стрелки
      связей, и второе число здесь разошлось бы с ними при первой правке. */
-  --gantt-row: 32px;
-  --gantt-head: 48px;
+  --gantt-row: 42px;
+  --gantt-head: 60px;
   --motion: 180ms;
 }
 
@@ -103,6 +103,15 @@
   background: var(--accent);
 }
 
+/* Сноска под лентой: расшифровка засечки и стрелки. */
+.gantt__caption {
+  margin: 10px 0 0;
+  max-width: 720px;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
 /* Прокручивается лента, а не страница: левая колонка обязана остаться на
    месте, и sticky работает только внутри своего прокручиваемого предка. */
 .gantt__scroll {
@@ -134,10 +143,16 @@
   height: var(--gantt-head);
 }
 
-.gantt__months,
+/* Шапка делится не пополам: строка месяцев — 26px, строка дней — 34px, как в
+   макете; вместе они дают --gantt-head. */
+.gantt__months {
+  position: relative;
+  height: 26px;
+}
+
 .gantt__days {
   position: relative;
-  height: calc(var(--gantt-head) / 2);
+  height: calc(var(--gantt-head) - 26px);
 }
 
 .gantt__month,
@@ -175,6 +190,13 @@
 .gantt__day-number {
   color: var(--text-muted);
   font-weight: 500;
+}
+
+/* Сегодняшняя колонка выделена в шапке: и день недели, и число. */
+.gantt__day.is-today,
+.gantt__day.is-today .gantt__day-number {
+  color: var(--accent);
+  font-weight: 700;
 }
 
 .gantt__body {
@@ -262,6 +284,16 @@
   stroke: var(--danger);
 }
 
+/* Наконечник — заливка в цвет линии. */
+.arrows path {
+  fill: var(--text-faint);
+  stroke: none;
+}
+
+.arrows g.is-violated path {
+  fill: var(--danger);
+}
+
 .gantt__rows {
   position: relative;
   z-index: 1;
@@ -316,6 +348,17 @@
 
 .gantt__corner {
   height: var(--gantt-head);
+  align-items: flex-end;
+  padding-bottom: 10px;
+}
+
+/* Заголовок левой колонки — как заголовок свойства: мелкий капс вразрядку. */
+.gantt__corner-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
 .gantt__label-name {
@@ -367,6 +410,41 @@
   flex: 0 0 auto;
   background: var(--danger-soft);
   color: var(--danger);
+}
+
+/* «+N дн.» — той же тревожной парой цветов, что и блокер. */
+.gantt__pill--late {
+  flex: 0 0 auto;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+/* Шеврон сворачивания категории — молчаливая кнопка, как ручка и плюс. */
+.gantt__chevron {
+  flex: 0 0 auto;
+  width: 13px;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.gantt__chevron:hover {
+  color: var(--text);
+  background: transparent;
+}
+
+/* Счётчик задач у категории: примечание, а не данные. */
+.gantt__count {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-style: italic;
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 
 /* Ручка перетаскивания: появляется при наведении на строку. Постоянно видимая
@@ -581,6 +659,18 @@
   border-radius: 2px;
   background: var(--text-faint);
   pointer-events: none;
+}
+
+/* Засечка первоначального дедлайна: вертикальная черта цвета тревоги в том
+   дне, где задача должна была кончиться по утверждённому плану. Выше полоски
+   и ниже её — чтобы читалась как метка на шкале, а не как обрез полоски. */
+.gantt__mark {
+  position: absolute;
+  top: 5px;
+  height: 32px;
+  width: 2px;
+  background: var(--danger);
+  z-index: 2;
 }
 
 /* Бейдж отклонения — справа от полоски, а не поверх неё: поверх он закрывал бы

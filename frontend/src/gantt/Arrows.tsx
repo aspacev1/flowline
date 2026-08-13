@@ -55,7 +55,10 @@ export function Arrows({
 
       return {
         key: `${link.from_task_id}-${link.to_task_id}`,
-        points: elbow(startX, startY, endX, endY),
+        // Линия не доходит до полоски на размер наконечника: остриё, лежащее
+        // поверх линии, рисовало бы утолщение вместо стрелки.
+        points: elbow(startX, startY, endX - 4, endY),
+        head: `M${endX - 6} ${endY - 4} L${endX} ${endY} L${endX - 6} ${endY + 4} Z`,
         // Нарушенная связь: приёмник начат, пока источник ещё не кончился.
         // Конец отрезка включительный, поэтому совпадение дат — тоже нахлёст.
         violated: to.start_date <= from.end_date,
@@ -75,11 +78,13 @@ export function Arrows({
       focusable="false"
     >
       {lines.map((line) => (
-        <polyline
-          key={line.key}
-          points={line.points}
-          className={line.violated ? "is-violated" : undefined}
-        />
+        <g key={line.key} className={line.violated ? "is-violated" : undefined}>
+          <polyline points={line.points} className={line.violated ? "is-violated" : undefined} />
+          {/* Наконечник — сплошной треугольник остриём в начало полоски:
+              линия без него не говорит, кто кого ждёт. Входит всегда
+              горизонтально слева — ломаная кончается этим же направлением. */}
+          <path className="arrows__head" d={line.head} />
+        </g>
       ))}
     </svg>
   );

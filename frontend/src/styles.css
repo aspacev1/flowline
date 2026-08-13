@@ -508,6 +508,72 @@ h2 {
   margin: 32px 0 8px;
 }
 
+/* Шапка проекта — лесенкой, а не заголовком с действиями в одну строку.
+   Ярусы разного веса, поставленные в ряд, спорят за первый взгляд; поставленные
+   друг под друга — читаются по порядку: чем действовать, что открыто, из чего
+   оно состоит. */
+.project-head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.project-head__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.project-head__plan {
+  display: flex;
+  align-items: center;
+  gap: 8px 14px;
+  flex-wrap: wrap;
+  margin: 0;
+  font-size: 12px;
+}
+
+/* «ПЛАН ПРОЕКТА · V2» — капитель вразрядку: служебная строка, набранная так,
+   чтобы её нельзя было спутать ни с названием проекта, ни с кнопкой. */
+.project-head__plan-label {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+
+/* Расхождение с согласованным планом — цветом тревоги и курсивом. Это не
+   ошибка, которую надо чинить, а состояние, которое требует решения, поэтому
+   набор, а не плашка. */
+.project-head__plan-note {
+  color: var(--danger);
+  font-style: italic;
+}
+
+.project-head__titles {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Отступ снизу заголовок здесь не несёт: расстояния в шапке задаёт её
+   собственный `gap`, и два источника одного просвета разошлись бы при первой
+   правке. */
+.project-head__title {
+  margin: 0;
+}
+
+/* Сводка — курсивом и приглушённо: подпись под заголовком, а не вторая
+   строка заголовка. */
+.project-head__meta {
+  margin: 0;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 .screen__actions {
   display: flex;
   align-items: center;
@@ -599,6 +665,19 @@ button:disabled:hover {
 .button--quiet:hover,
 .button--quiet:disabled:hover {
   background: var(--hover);
+}
+
+/* Тихая кнопка цветом тревоги: пересогласование плана. Оно отвечает на строку
+   о расхождении и обязано читаться вместе с ней, а не как соседняя серая
+   кнопка — но заливки не получает: действие редкое и необратимое. */
+.button--alert {
+  color: var(--danger);
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+
+.button--alert:hover,
+.button--alert:disabled:hover {
+  background: var(--danger-soft);
 }
 
 .button--quiet[aria-pressed="true"] {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 
 import type { Category, ProjectState, Task } from "../api/projects";
@@ -51,6 +51,17 @@ export function Gantt({
   const reorder = useReorder({ projectId, state, canWrite });
   const reducedMotion = usePrefersReducedMotion();
 
+  // Свёрнутые категории. Состояние экрана, а не проекта: сосед по проекту не
+  // должен получать чужие свёртки, поэтому оно не уходит на сервер.
+  const [closed, setClosed] = useState<ReadonlySet<string>>(new Set());
+  const toggleCategory = (id: string) =>
+    setClosed((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
   const today = toISO(Date.now());
   // Зависимость — границы окна, а не само состояние: после каждого изменения
   // сервер присылает новый объект состояния, и шкала, привязанная к его
@@ -97,11 +108,13 @@ export function Gantt({
     waitsOf.set(link.to_task_id, [...(waitsOf.get(link.to_task_id) ?? []), from]);
   }
 
-  /** Подпись бейджа отклонения. Ноль дней бейджа не получает: он ни о чём. */
+  /** Подпись бейджа отклонения. Ноль дней бейджа не получает: он ни о чём.
+      Единица — короткая («дн.»), как в макете: подпись стоит вплотную к
+      полоске, и полное слово толкало бы соседнюю. */
   const deviationLabel = (task: Task) => {
     const shift = endShiftDays(task);
     if (shift === null || shift === 0) return undefined;
-    const days = t("common.days", { count: Math.abs(shift) });
+    const days = t("common.days_short", { count: Math.abs(shift) });
     return shift > 0 ? t("gantt.deviation_late", { days }) : t("gantt.deviation_early", { days });
   };
 
@@ -120,6 +133,9 @@ export function Gantt({
   let rowCount = 0;
   for (const category of categories) {
     rowCount += 1;
+    // Задачи свёрнутой категории строк не занимают, и стрелка к ним не
+    // рисуется — ей просто не с чем совпасть (см. Arrows).
+    if (closed.has(category.id)) continue;
     for (const task of tasksByCategory.get(category.id) ?? []) {
       rowOf.set(task.id, rowCount);
       rowCount += 1;
@@ -143,13 +159,17 @@ export function Gantt({
       {categories.length === 0 ? (
         <p className="empty gantt__empty">{t("gantt.empty")}</p>
       ) : (
+        <>
         <div className="gantt__scroll" ref={scroller}>
           <div className="gantt__canvas">
             <div className="gantt__head-row">
-              <div className="gantt__label gantt__corner" />
+              <div className="gantt__label gantt__corner">
+                <span className="gantt__corner-label">{t("gantt.tasks_col")}</span>
+              </div>
               <Header
                 scale={scale}
                 calendar={state.calendar}
+                today={today}
                 monthLabel={(iso) => formatMonth(t, iso)}
                 weekdayLabel={(weekday) => weekdayNarrow(t, weekday)}
               />
@@ -179,6 +199,7 @@ export function Gantt({
               <div className="gantt__rows">
                 {categories.map((category: Category) => {
                   const tasks = tasksByCategory.get(category.id) ?? [];
+                  const open = !closed.has(category.id);
                   return (
                     <div key={category.id} className="gantt__group">
                       <CategoryRow
@@ -188,8 +209,13 @@ export function Gantt({
                         addLabel={t("task.add_to", { category: category.name })}
                         onAddTask={onAddTask}
                         reorder={reorder}
+                        open={open}
+                        onToggle={() => toggleCategory(category.id)}
+                        toggleLabel={t("gantt.toggle_category", { name: category.name })}
+                        countLabel={t("gantt.task_count", { count: tasks.length })}
                       />
-                      {tasks.map((task) => (
+                      {open &&
+                        tasks.map((task) => (
                         <TaskRow
                           key={task.id}
                           projectId={projectId}
@@ -228,6 +254,10 @@ export function Gantt({
             </div>
           </div>
         </div>
+        {/* Сноска под лентой, как в макете: расшифровка засечки и стрелки —
+            двух знаков, которые не объясняются легендой из плашек. */}
+        <p className="gantt__caption">{t("gantt.caption")}</p>
+        </>
       )}
     </div>
   );
