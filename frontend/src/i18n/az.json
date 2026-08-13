@@ -315,10 +315,18 @@
       "title": "Yeni tapşırıq",
       "name": "Ad",
       "description": "Təsvir",
+      "status": "Status",
       "category": "Kateqoriya",
       "criticality": "Kritiklik",
       "start": "Başlama tarixi",
       "duration": "Müddət, iş günü",
+      "progress": "Tamamlanıb, %",
+      "internal_note": "Daxili qeyd",
+      "depends_on": "Asılıdır",
+      "blocks": "Bloklayır",
+      "add_link": "Əlaqə əlavə et…",
+      "add_link_to": "«{label}» siyahısına əlavə et",
+      "unlink": "«{name}» ilə əlaqəni sil",
       "assignees": "İcraçılar",
       "submit": "Tapşırıq yarat"
     }
