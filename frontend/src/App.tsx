@@ -5,9 +5,9 @@ import { BrowserRouter } from "react-router-dom";
 // обязана выглядеть одинаково с интернетом и без него.
 import "@fontsource-variable/inter";
 import "./styles.css";
-// Тема Broadsheet: обязана идти после styles.css — перебивает токены,
-// включая тёмный медиазапрос (Broadsheet — только светлая).
-import "./broadsheet-theme.css";
+// Тема Northstar: обязана идти после styles.css — перебивает токены,
+// включая тёмный медиазапрос (Northstar — только светлая).
+import "./northstar-theme.css";
 import { AppRoutes } from "./AppRoutes";
 import { AuthProvider } from "./auth/AuthProvider";
 import { LocaleProvider } from "./i18n/LocaleProvider";
