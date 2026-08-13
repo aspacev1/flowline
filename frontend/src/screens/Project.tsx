@@ -134,15 +134,6 @@ export function Project() {
                       категории: кнопка, открывающая форму с пустым списком
                       категорий, обещает действие, которое не может
                       состояться. */}
-                  {canWrite && query.data.categories.length > 0 && (
-                    <button
-                      type="button"
-                      disabled={offline}
-                      onClick={() => setAddingTaskIn(query.data.categories[0].id)}
-                    >
-                      {t("task.create")}
-                    </button>
-                  )}
                   {canWrite && (
                     <button
                       type="button"
@@ -177,22 +168,6 @@ export function Project() {
               }
             />
 
-            <div className="project-toolbar" aria-label="Project timeline controls">
-              <button type="button" className="project-toolbar__primary" disabled={!editable} onClick={() => setAddingTaskIn(query.data.categories[0]?.id ?? null)}>+ Task</button>
-              <button type="button" className="button--quiet">Today</button>
-              <button type="button" className="button--quiet project-toolbar__square" aria-label="Previous period">‹</button>
-              <strong className="project-toolbar__month">August 2026</strong>
-              <button type="button" className="button--quiet project-toolbar__square" aria-label="Next period">›</button>
-              <span className="project-toolbar__spacer" />
-              <span className="project-toolbar__segments" aria-label="View scale">
-                <button type="button" aria-pressed="true">Day</button>
-                <button type="button">Week</button>
-                <button type="button">Month</button>
-              </span>
-              <button type="button" className="button--quiet">Filter</button>
-              <button type="button" className="button--quiet">View⌄</button>
-            </div>
-
             {offline && <OfflineBar syncedAt={query.dataUpdatedAt || null} />}
 
             {/* Предложение подвинуть связанную задачу — над лентой, а не поверх
@@ -207,6 +182,18 @@ export function Project() {
                 projectId={projectId}
                 state={query.data}
                 canWrite={editable}
+                toolbarAction={
+                  canWrite && query.data.categories.length > 0 ? (
+                    <button
+                      type="button"
+                      className="project-toolbar__primary"
+                      disabled={offline}
+                      onClick={() => setAddingTaskIn(query.data.categories[0].id)}
+                    >
+                      {t("task.create")}
+                    </button>
+                  ) : undefined
+                }
                 onAddTask={editable ? setAddingTaskIn : undefined}
                 selectedTaskId={selectedTaskId}
                 // Повторный щелчок по той же полоске закрывает карточку: люди

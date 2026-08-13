@@ -52,6 +52,13 @@ function draw(state: ProjectState, locale: Locale = "ru") {
   return renderWithProviders(<Gantt projectId="p1" state={state} />, { locale });
 }
 
+function drawWithToolbar(locale: Locale = "ru") {
+  return renderWithProviders(
+    <Gantt projectId="p1" state={STATE} toolbarAction={<button type="button">New task</button>} />,
+    { locale },
+  );
+}
+
 describe("диаграмма", () => {
   // Единственный тест с приколоченным «сегодня» возвращает часы на место,
   // чтобы соседям досталось настоящее время.
@@ -245,5 +252,17 @@ describe("диаграмма", () => {
     // Дедлайн 1 июня и окончание проекта 8 июня обязаны быть на ленте: иначе
     // красная вертикаль рисуется за краем и её не видно.
     expect(container.querySelector('[data-day="2026-06-08"]')).toBeInTheDocument();
+  });
+
+  it("панель масштаба работает и говорит на языке интерфейса", async () => {
+    const { container } = drawWithToolbar("ru");
+    const month = screen.getByRole("button", { name: "Месяц" });
+
+    expect(screen.getByRole("button", { name: "Неделя" })).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(month);
+
+    expect(month).toHaveAttribute("aria-pressed", "true");
+    expect(container.querySelector(".gantt")).toHaveClass("gantt--month");
+    expect(screen.getByRole("button", { name: "Сегодня" })).toBeInTheDocument();
   });
 });
