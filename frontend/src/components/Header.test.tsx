@@ -37,15 +37,26 @@ describe("шапка", () => {
     expect(screen.queryByRole("group", { name: "Язык интерфейса" })).toBeNull();
   });
 
-  it("здоровается с вошедшим только по имени, без фамилии", async () => {
+  it("не здоровается: разделы стоят сразу под названием организации", async () => {
     server.use(
       http.get("/api/auth/me", () => HttpResponse.json({ ...USER, name: "Алексей Смирнов" })),
     );
 
     renderApp({ route: "/projects", locale: "ru" });
 
-    expect(await screen.findByText("Привет, Алексей")).toBeInTheDocument();
-    expect(screen.queryByText("Привет, Алексей Смирнов")).not.toBeInTheDocument();
+    const projects = await screen.findByRole("link", { name: "Проекты" });
+    expect(screen.queryByText(/Привет/)).toBeNull();
+    // Между логотипом и первым разделом не осталось строки с именем: колонка
+    // начинается организацией и сразу переходит к работе.
+    const sidebar = projects.closest(".sidebar")!;
+    expect(sidebar.querySelector(".sidebar__user")).toBeNull();
+  });
+
+  it("подписывает выход значком, как и остальные пункты колонки", async () => {
+    renderApp({ route: "/projects", locale: "ru" });
+
+    const logout = await screen.findByRole("button", { name: "Выйти" });
+    expect(logout.querySelector("svg.sidebar__icon")).not.toBeNull();
   });
 
   it("сворачивается щелчком по логотипу и запоминает выбор", async () => {

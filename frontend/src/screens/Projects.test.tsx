@@ -167,6 +167,8 @@ describe("данные организации", () => {
     renderApp({ route: "/projects", locale: "ru" });
 
     expect(await screen.findByText(ORG.name)).toBeInTheDocument();
-    expect(screen.getByText(new RegExp(USER.name))).toBeInTheDocument();
+    // Имя вошедшего колонка больше не показывает: приветствие убрано, и
+    // верхний блок держит только организацию.
+    expect(screen.queryByText(new RegExp(USER.name))).toBeNull();
   });
 });
