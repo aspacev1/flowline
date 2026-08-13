@@ -1,12 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
-import { addComment, commentsQueryKey, listComments } from "../api/comments";
 import { errorKey } from "../api/errors";
 import { getProject, projectQueryKey } from "../api/projects";
 import { useCanWrite, useOrgRole } from "../auth/permissions";
-import { CommentThread } from "../comments/CommentThread";
 import { Gantt } from "../gantt/Gantt";
 import { usePrefersReducedMotion } from "../gantt/motion";
 import { useLocale } from "../i18n/LocaleProvider";
@@ -41,7 +39,6 @@ export function Project() {
   const reducedMotion = usePrefersReducedMotion();
   const [addingCategory, setAddingCategory] = useState(false);
   const [sharing, setSharing] = useState(false);
-  const queryClient = useQueryClient();
   // Категория, из строки которой открыли форму задачи. `null` — форма закрыта.
   const [addingTaskIn, setAddingTaskIn] = useState<string | null>(null);
   // Задача, карточка которой открыта. Держится идентификатором, а не самой
@@ -53,20 +50,6 @@ export function Project() {
     queryKey: projectQueryKey(projectId),
     queryFn: () => getProject(projectId),
     retry: false,
-  });
-
-  const comments = useQuery({
-    queryKey: commentsQueryKey(projectId),
-    queryFn: () => listComments(projectId),
-    retry: false,
-    // Тот же порядок, что и на публичной странице: пока проект не открылся,
-    // спрашивать его ленту не о чем.
-    enabled: query.isSuccess,
-  });
-
-  const send = useMutation({
-    mutationFn: (input: { body: string }) => addComment(projectId, input.body),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: commentsQueryKey(projectId) }),
   });
 
   // Живая связь открывается вместе с экраном и живёт, пока он открыт: ревизии
@@ -225,17 +208,6 @@ export function Project() {
                 />
               )}
             </div>
-
-            {/* Лента под диаграммой — та же самая, что видит клиент по публичной
-                ссылке: разговор живёт в проекте, а не в почте. */}
-            <CommentThread
-              comments={comments.data ?? []}
-              loading={comments.isPending}
-              error={comments.error}
-              onSend={(input) => send.mutateAsync({ body: input.body })}
-              sending={send.isPending}
-              sendError={send.error}
-            />
 
             {sharing && <ShareDialog projectId={projectId} onClose={() => setSharing(false)} />}
 
