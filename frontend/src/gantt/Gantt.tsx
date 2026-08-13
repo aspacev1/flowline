@@ -155,15 +155,6 @@ export function Gantt({
     });
   };
 
-  const goToToday = () => {
-    const element = scroller.current;
-    if (!element || today < scale.from || today > scale.to) return;
-    element.scrollTo({
-      left: Math.max(0, scale.xOf(today) - element.clientWidth / 2),
-      behavior: reducedMotion ? "auto" : "smooth",
-    });
-  };
-
   const categories = byPosition(state.categories);
   // Две раскладки по категориям: полная — для полосы охвата и процента
   // категории (фильтр прячет строки, но не меняет, чем категория является),
@@ -222,21 +213,14 @@ export function Gantt({
       // этим.
       style={{ "--gantt-row": `${ROW_HEIGHT}px` } as CSSProperties}
     >
-      {/* Тулбар видит и читатель: масштаб, «Сегодня» и фильтр — способы
+      {/* Тулбар видит и читатель: масштаб, прокрутка месяца и фильтр — способы
           смотреть, а не менять, и прятать их от гостя не за что. */}
       <div className="project-toolbar" aria-label={t("gantt.toolbar.label")}>
           {toolbarAction}
           {toolbarAction !== undefined && (
             <span className="project-toolbar__divider" aria-hidden="true" />
           )}
-          <button
-            type="button"
-            className="button--quiet"
-            onClick={goToToday}
-            disabled={today < scale.from || today > scale.to}
-          >
-            {t("gantt.today")}
-          </button>
+          <span className="project-toolbar__spacer" />
           <button
             type="button"
             className="button--quiet project-toolbar__square"
@@ -256,7 +240,6 @@ export function Gantt({
           >
             ›
           </button>
-          <span className="project-toolbar__spacer" />
           <span className="project-toolbar__segments" aria-label={t("gantt.toolbar.zoom")}>
             {(["day", "week", "month"] as const).map((value) => (
               <button

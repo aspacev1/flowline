@@ -84,6 +84,8 @@
   --radius-lg: 10px;
   --gap: 16px;
   --sidebar: 240px;
+  /* Свёрнутая колонка: хватает ровно на логотип и кнопку разворота. */
+  --sidebar-collapsed: 52px;
   /* Высота всех органов управления одна: кнопка, поле и список, стоящие в
      строку, обязаны совпасть по высоте, иначе строка «пляшет». */
   --control: 32px;
@@ -251,6 +253,52 @@ body {
   font-weight: 600;
 }
 
+/* Кнопка сворачивания — тихий квадрат со значком, а не кнопка с заливкой:
+   она орган самой колонки, а не действие страницы. */
+button.sidebar__toggle {
+  flex: 0 0 auto;
+  margin-left: auto;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: transparent;
+  color: var(--text-faint);
+  box-shadow: none;
+}
+
+button.sidebar__toggle:hover {
+  background: var(--hover);
+  color: var(--text-muted);
+}
+
+/* Свёрнутая колонка. Не исчезает целиком, а сжимается до узкой рейки с
+   логотипом: пустой левый край читался бы как сломанная вёрстка, а рейка
+   говорит «меню здесь, оно свёрнуто». */
+.sidebar--collapsed {
+  flex-basis: var(--sidebar-collapsed);
+  width: var(--sidebar-collapsed);
+}
+
+/* Логотип и кнопка встают в столбик: в ширину рейки вдвоём они не помещаются,
+   а прятать кнопку нельзя — без неё колонку нечем развернуть. */
+.sidebar--collapsed .sidebar__workspace {
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px 0;
+}
+
+.sidebar--collapsed .sidebar__toggle {
+  margin-left: 0;
+}
+
+.sidebar--collapsed .sidebar__brand,
+.sidebar--collapsed .org-switch,
+.sidebar--collapsed .sidebar__nav,
+.sidebar--collapsed .sidebar__section,
+.sidebar--collapsed .sidebar__foot {
+  display: none;
+}
+
 /* Подпись раздела колонки. Мельче и тише пунктов: она объясняет их, а не
    соперничает с ними за внимание. */
 .sidebar__section {
@@ -396,6 +444,37 @@ button.sidebar__button:hover {
 
   .sidebar .org-switch {
     width: auto;
+  }
+
+  /* На узком экране колонка и так строка сверху — сворачивать нечего.
+     Кнопка прячется, а свёрнутое на широком экране состояние отменяется,
+     иначе человек, сложивший меню за столом, остался бы без него на
+     телефоне. */
+  button.sidebar__toggle {
+    display: none;
+  }
+
+  .sidebar--collapsed {
+    width: auto;
+  }
+
+  .sidebar--collapsed .sidebar__workspace {
+    flex-direction: row;
+    gap: 8px;
+    padding: 6px 8px 6px 0;
+  }
+
+  .sidebar--collapsed .sidebar__brand {
+    display: block;
+  }
+
+  .sidebar--collapsed .org-switch {
+    display: inline-flex;
+  }
+
+  .sidebar--collapsed .sidebar__nav,
+  .sidebar--collapsed .sidebar__foot {
+    display: flex;
   }
 }
 
