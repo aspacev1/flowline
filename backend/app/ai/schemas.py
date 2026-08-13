@@ -11,8 +11,9 @@
 
 from datetime import date
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
+from app.config import get_settings
 from app.models import Criticality
 
 # --- шаг 1: следующий вопрос -------------------------------------------------
@@ -49,9 +50,21 @@ SUMMARY_SCHEMA = {
 
 
 class Summary(BaseModel):
+    """Потолки — против бесконечных тезисов: и модель, и человек правкой
+    могут прислать простыню, которая ляжет в jsonb и поедет в каждый
+    следующий промпт, раздувая счёт токенов."""
     model_config = ConfigDict(extra="ignore")
 
-    theses: list[str] = Field(min_length=1)
+    theses: list[str] = Field(min_length=1, max_length=40)
+
+    @field_validator("theses", mode="after")
+    @classmethod
+    def _each_thesis_within_limit(cls, value: list[str]) -> list[str]:
+        limit = get_settings().max_text_len
+        for thesis in value:
+            if len(thesis) > limit:
+                raise ValueError(f"тезис длиннее потолка в {limit} символов")
+        return value
 
 
 # --- шаг 3: черновик ---------------------------------------------------------
@@ -100,21 +113,32 @@ class DraftTask(BaseModel):
     name: str = Field(min_length=1, max_length=300)
     description: str = ""
     start_date: date
-    duration_days: int = Field(ge=1)
+    duration_days: int = Field(ge=1, le=3650)
     criticality: Criticality = Criticality.NORMAL
+
+    @field_validator("description", mode="after")
+    @classmethod
+    def _description_within_limit(cls, value: str) -> str:
+        # Тот же потолок, что у HTTP-пути (см. mutations._Wire): описание из
+        # черновика AI ляжет в ту же колонку, и путь через модель не должен
+        # быть шире пути через форму.
+        limit = get_settings().max_text_len
+        if len(value) > limit:
+            raise ValueError(f"длиннее потолка в {limit} символов")
+        return value
 
 
 class DraftCategory(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     name: str = Field(min_length=1, max_length=200)
-    tasks: list[DraftTask] = Field(default_factory=list)
+    tasks: list[DraftTask] = Field(default_factory=list, max_length=200)
 
 
 class Draft(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
-    categories: list[DraftCategory] = Field(min_length=1)
+    categories: list[DraftCategory] = Field(min_length=1, max_length=50)
 
 
 # --- шаг «разбить задачу» ----------------------------------------------------

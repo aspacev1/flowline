@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session as DbSession
 
@@ -270,8 +270,6 @@ _MODELS = {
 # их учтёт, должен узнать об этом сразу, а не гадать потом, почему строка
 # оказалась не там.
 
-_MAX_TEXT_LEN = get_settings().max_text_len
-
 #: Дальний край дат, которые принимает провод. Не date.max: календарь ищет
 #: рабочие дни на годы вперёд от старта (перенос конца за праздники), и дата
 #: у самого края опрокидывала бы арифметику дат за пределы поддерживаемого.
@@ -281,6 +279,18 @@ MAX_WIRE_DATE = date(2200, 12, 31)
 
 class _Wire(BaseModel):
     model_config = ConfigDict(extra="forbid", use_enum_values=True)
+
+    @field_validator("description", "internal_note", mode="after", check_fields=False)
+    @classmethod
+    def _within_max_text_len(cls, value: str) -> str:
+        # Потолок читается в момент вызова, а не запекается в Field при
+        # импорте модуля: MAX_TEXT_LEN — настройка установки, и заданное в
+        # .env значение обязано действовать, а не значение, случившееся при
+        # первом импорте (в тестах это ещё и делало monkeypatch бессильным).
+        limit = get_settings().max_text_len
+        if len(value) > limit:
+            raise ValueError(f"длиннее потолка в {limit} символов")
+        return value
 
 
 class PublicCreateCategory(_Wire):
@@ -295,8 +305,8 @@ class PublicCreateTask(_Wire):
     name: str = Field(min_length=1, max_length=300)
     start_date: date = Field(le=MAX_WIRE_DATE)
     duration_days: int = Field(ge=1)
-    description: str = Field(default="", max_length=_MAX_TEXT_LEN)
-    internal_note: str = Field(default="", max_length=_MAX_TEXT_LEN)
+    description: str = ""
+    internal_note: str = ""
     criticality: Criticality = Criticality.NORMAL
     progress_pct: int = Field(default=0, ge=0, le=100)
     baseline_start: date | None = Field(default=None, le=MAX_WIRE_DATE)
@@ -329,8 +339,8 @@ class PublicSetTaskFields(_Wire):
     type: Literal["set_task_fields"] = "set_task_fields"
     task_id: uuid.UUID
     name: str = Field(min_length=1, max_length=300)
-    description: str = Field(default="", max_length=_MAX_TEXT_LEN)
-    internal_note: str = Field(default="", max_length=_MAX_TEXT_LEN)
+    description: str = ""
+    internal_note: str = ""
 
 
 class PublicSetCriticality(_Wire):
@@ -608,6 +618,16 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
     if isinstance(op, CreateTask):
         if op.duration_days < 1:
             raise InvalidOperation("duration_too_short", "длительность должна быть не меньше одного дня")
+        # Та же проверка, что у set_criticality/set_progress: внутренняя
+        # модель приходит не только с провода (где границы держит публичная),
+        # но и из журнала — и не должна уметь положить строку, которую CHECK
+        # в базе всё равно отвергнет пятисоткой.
+        if op.criticality not in CRITICALITY_LEVELS:
+            raise InvalidOperation("unknown_criticality", f"неизвестный уровень: {op.criticality}")
+        if not 0 <= op.progress_pct <= 100:
+            raise InvalidOperation(
+                "progress_out_of_range", f"процент вне 0..100: {op.progress_pct}"
+            )
         # Внешний ключ гарантирует лишь, что категория где-то существует —
         # не то, что она принадлежит этому проекту. Без явной проверки задача
         # может незаметно оказаться под категорией чужого проекта.
@@ -624,13 +644,17 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
             )
         # Тот же принцип, что и для категорий: наибольшая занятая позиция + 1,
         # а не COUNT(*) — иначе номер, освободившийся после удаления,
-        # достаётся следующей же созданной задаче ещё раз.
+        # достаётся следующей же созданной задаче ещё раз. Считается внутри
+        # категории: позиция и есть номер строки в её списке — раньше номер
+        # брался по всему проекту, и у категорий были дырявые, зависящие от
+        # порядка создания нумерации, которые уникальным ограничением
+        # (category_id, position) не удержать.
         position = (
             op.position
             if op.position is not None
             else db.scalar(
                 select(func.coalesce(func.max(Task.position), -1) + 1).where(
-                    Task.project_id == project.id
+                    Task.category_id == op.category_id
                 )
             )
         )
@@ -814,6 +838,25 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
         _require_task(db, project, op.to_task_id)
         if _find_dependency(db, project, op.from_task_id, op.to_task_id) is not None:
             raise InvalidOperation("dependency_exists", "такая связь уже есть")
+        # Цикл — тоже мусор, даже для «просто стрелок»: диаграмма рисует их
+        # рёбрами, и кольцо A→B→A читается как план, который никогда не
+        # начнётся. Проверка обходом от to к from по существующим рёбрам:
+        # если из to достижима from, новое ребро замыкает кольцо.
+        edges: dict[uuid.UUID, list[uuid.UUID]] = {}
+        for row in db.scalars(
+            select(Dependency).where(Dependency.project_id == project.id)
+        ):
+            edges.setdefault(row.from_task_id, []).append(row.to_task_id)
+        frontier = [op.to_task_id]
+        seen: set[uuid.UUID] = set()
+        while frontier:
+            node = frontier.pop()
+            if node == op.from_task_id:
+                raise InvalidOperation("dependency_cycle", "связь замыкает кольцо")
+            if node in seen:
+                continue
+            seen.add(node)
+            frontier.extend(edges.get(node, ()))
         db.add(
             Dependency(
                 project_id=project.id,
