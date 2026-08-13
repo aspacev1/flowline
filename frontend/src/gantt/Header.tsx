@@ -51,8 +51,8 @@ export function Header({
             }`}
             style={{ left: day.x, width: scale.dayWidth }}
           >
-            {/* День недели над числом, как в макете: курсивная строка сверху —
-                примета набора Broadsheet, и число под ней читается крупнее. */}
+            {/* День недели над числом, как в макете: мелкая строка сверху,
+                число под ней крупнее — и в круге, если день сегодняшний. */}
             <span className="gantt__day-weekday">{weekdayLabel(day.weekday)}</span>
             <span className="gantt__day-number">{day.dayOfMonth}</span>
             {/* Подпись «сегодня» стоит под числом, а не на линии в теле ленты:

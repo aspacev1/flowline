@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
@@ -86,6 +86,18 @@ describe("публичная страница", () => {
     expect(screen.queryByRole("button", { name: "Новая категория" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Новая задача" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Поделиться" })).not.toBeInTheDocument();
+  });
+
+  it("показывает гостю сводку по проекту, но без расхождений с планом", async () => {
+    server.use(guestSession(), noMembers(), publicProject(), noComments());
+
+    renderApp({ route: ROUTE, locale: "ru" });
+
+    const strip = await screen.findByRole("list", { name: "Сводка по проекту" });
+    expect(within(strip).getByText("Всего задач")).toBeInTheDocument();
+    // «Вне плана» считается по базовому плану, а версия плана и расхождения с
+    // ним по ссылке не показываются вовсе. Ячейки нет — не ноль, а нет.
+    expect(within(strip).queryByText("Вне плана")).not.toBeInTheDocument();
   });
 
   it("объясняет отозванную ссылку, а не показывает пустой экран", async () => {

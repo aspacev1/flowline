@@ -329,11 +329,14 @@ export function Gantt({
 }
 
 /**
- * Легенда — строка условных обозначений над лентой, как в макете Broadsheet.
+ * Легенда — строка условных обозначений над лентой.
  *
- * Расшифровывает статусы — именно их означает цвет полоски: насыщенная —
- * в работе, тёмная — готово, контурная — запланировано. Блокер — заливка
- * критической задачи, засечка «+N дн.» — сорванный собственный срок.
+ * Перечисляет не один набор, а два, потому что и полоска говорит двумя
+ * способами. Заливка означает статус, и статусов ровно четыре — они
+ * взаимоисключающие. Просрочка и критичность заливкой не бывают: это флаги
+ * поверх любого статуса, и в легенде они показаны тем же, чем рисуются на
+ * ленте, — контуром и левой гранью на нейтральной заливке. Сплошным цветом
+ * они обещали бы пятый и шестой статус, которых не существует.
  */
 function Legend() {
   const { t } = useLocale();
@@ -346,7 +349,11 @@ function Legend() {
         </span>
       ))}
       <span className="gantt__legend-item">
-        <i className="gantt__swatch" data-criticality="critical" aria-hidden="true" />
+        <i className="gantt__swatch" data-overlay="late" aria-hidden="true" />
+        {t("gantt.late")}
+      </span>
+      <span className="gantt__legend-item">
+        <i className="gantt__swatch" data-overlay="critical" aria-hidden="true" />
         {t("gantt.legend.blocker")}
       </span>
       <span className="gantt__legend-item">

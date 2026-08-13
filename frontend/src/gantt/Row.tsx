@@ -110,6 +110,10 @@ export function CategoryRow({
               left: scale.xOf(span.start),
               width: scale.widthOf(span.start, span.end),
               background: category.color,
+              // Тем же цветом красятся засечки-стрелки по краям полосы: они
+              // рисуются рамкой на псевдоэлементах и берут его через
+              // `currentColor` — второго места с цветом категории не заводим.
+              color: category.color,
             }}
             aria-hidden="true"
           />
