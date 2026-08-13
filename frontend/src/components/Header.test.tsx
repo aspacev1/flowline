@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -33,8 +33,31 @@ describe("шапка", () => {
     expect(screen.queryByRole("link", { name: "Организация" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Профиль" })).toBeNull();
     expect(screen.queryByRole("link", { name: "Команда" })).toBeNull();
-    // Язык — настройка, и переключатель уехал вместе с ней на экран профиля.
-    expect(screen.queryByRole("group", { name: "Язык интерфейса" })).toBeNull();
+  });
+
+  it("переключает язык из самой колонки, над «Настройками»", async () => {
+    const patches: Record<string, unknown>[] = [];
+    server.use(
+      http.patch("/api/auth/me", async ({ request }) => {
+        const patch = (await request.json()) as Record<string, unknown>;
+        patches.push(patch);
+        return HttpResponse.json({ ...USER, ...patch });
+      }),
+    );
+
+    renderApp({ route: "/projects", locale: "ru" });
+
+    const chooser = await screen.findByRole("group", { name: "Язык интерфейса" });
+    const settings = screen.getByRole("link", { name: "Настройки" });
+    // Над «Настройками» и под разделами работы — в нижнем ряду колонки.
+    expect(settings.previousElementSibling).toBe(chooser);
+
+    await userEvent.click(within(chooser).getByRole("button", { name: "AZ" }));
+
+    // Выбор ушёл в профиль, а не только в память браузера, и интерфейс
+    // переключился сразу, не дожидаясь ответа сервера.
+    await waitFor(() => expect(patches).toEqual([{ locale: "az" }]));
+    expect(await screen.findByRole("link", { name: "Layihələr" })).toBeInTheDocument();
   });
 
   it("не здоровается: разделы стоят сразу под названием организации", async () => {

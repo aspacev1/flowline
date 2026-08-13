@@ -581,9 +581,7 @@
       "workdays_extra_hint": "Qeyri-iş günlərini geri qaytarır"
     },
     "profile": {
-      "title": "Profil",
-      "locale": "İnterfeys dili",
-      "locale_hint": "Profildə saxlanılır: başqa kompüterdən girəndə də eyni dil olacaq"
+      "title": "Profil"
     },
     "llm": {
       "title": "LLM qoşulması",

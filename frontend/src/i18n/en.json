@@ -581,9 +581,7 @@
       "workdays_extra_hint": "Brings specific non-working dates back"
     },
     "profile": {
-      "title": "Profile",
-      "locale": "Interface language",
-      "locale_hint": "Kept in your profile: the same language greets you on any computer"
+      "title": "Profile"
     },
     "llm": {
       "title": "LLM connection",
