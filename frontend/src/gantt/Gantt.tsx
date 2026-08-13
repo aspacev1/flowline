@@ -8,7 +8,7 @@ import type { Category, ProjectState, Task, TaskStatus } from "../api/projects";
 import { Menu } from "../components/Menu";
 import { endShiftDays, isBeyondPlan } from "../project/baseline";
 import { progressOf } from "../project/progress";
-import { formatDate, formatMonth, formatShortDate, weekdayNarrow } from "../i18n/dates";
+import { formatDate, formatMonth, weekdayNarrow } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
 import { Grid } from "./Grid";
 import { Header } from "./Header";
@@ -349,6 +349,7 @@ export function Gantt({
                 scale={scale}
                 calendar={state.calendar}
                 today={today}
+                todayLabel={t("gantt.today")}
                 monthLabel={(iso) => formatMonth(t, iso)}
                 weekdayLabel={(weekday) => weekdayNarrow(t, weekday)}
               />
@@ -364,7 +365,6 @@ export function Gantt({
                   state.deadline ? t("gantt.deadline", { date: formatDay(state.deadline) }) : ""
                 }
                 todayLabel={t("gantt.today")}
-                todayChip={formatShortDate(t, today)}
               />
 
               <Arrows

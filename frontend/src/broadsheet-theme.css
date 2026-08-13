@@ -105,7 +105,7 @@ button { height: var(--control); padding: 0 18px; border-radius: 7px; font-size:
 
 .project__body { gap: 0; align-items: stretch; }
 .project__body > .gantt { min-width: 0; }
-.gantt { --gantt-label: 540px; --gantt-row: 72px; --gantt-head: 72px; }
+.gantt { --gantt-label: 540px; --gantt-row: 72px; --gantt-head: 96px; --gantt-today-chip: 26px; }
 /* Легенда, сводка по дедлайну и сноска больше не прячутся отсюда: их
    показывает и прячет меню «Вид» — скрытая стилем разметка была бы враньём
    для чтения с экрана. */
@@ -131,8 +131,8 @@ button { height: var(--control); padding: 0 18px; border-radius: 7px; font-size:
 .gantt__row:not(.gantt__row--category) .gantt__cell--task { padding-left: 56px; }
 .gantt__row:not(.gantt__row--category) .gantt__label-name { font-size: 16px; color: #1f2937; }
 .gantt__grid-day { border-left: 1px dashed #dfe5ee; }
-.gantt__today { border-left: 3px solid rgb(36 89 245 / 55%); }
-.gantt__today-chip { top: -4px; border-radius: 5px; background: #eef4ff; color: var(--accent); border: 1px solid #8dacff; font-size: 11px; }
+.gantt__today { --today-line: 3px; background: rgb(36 89 245 / 55%); }
+.gantt__day-today { border-radius: 5px; background: #eef4ff; color: var(--accent); border: 1px solid #8dacff; font-size: 11px; line-height: 18px; padding: 0 7px; letter-spacing: 0; }
 .gantt__span { height: 4px; background: #5b5ee6 !important; opacity: .95; }
 .gantt__bar { height: 36px; border-radius: 6px; background: transparent; border: 2px solid var(--accent); color: #fff; box-shadow: none; }
 .gantt__bar[data-status="in_progress"] { background: linear-gradient(90deg, var(--bar) 0 var(--progress, 0%), #eef4ff var(--progress, 0%)); }

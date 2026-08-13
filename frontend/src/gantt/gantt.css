@@ -12,7 +12,12 @@
   /* --gantt-row приходит из разметки: по этой же величине считаются стрелки
      связей, и второе число здесь разошлось бы с ними при первой правке. */
   --gantt-row: 42px;
-  --gantt-head: 60px;
+  /* Шапка выше на строку чипа «сегодня»: он стоит под числом, и без запаса
+     по высоте его пришлось бы прятать под обрез колонки. */
+  --gantt-head: 80px;
+  /* Полоса под чип «сегодня». Она вычитается из каждой колонки дня, а не
+     только из сегодняшней: иначе числа встали бы на разной высоте. */
+  --gantt-today-chip: 20px;
   --motion: 180ms;
 }
 
@@ -190,6 +195,7 @@
   justify-content: center;
   line-height: 1.1;
   gap: 1px;
+  padding-bottom: var(--gantt-today-chip);
 }
 
 .gantt__day-number {
@@ -202,6 +208,32 @@
 .gantt__day.is-today .gantt__day-number {
   color: var(--accent);
   font-weight: 700;
+}
+
+/* Чип «сегодня» под числом. Колонка узкая, надпись шире неё — поэтому чип
+   вынесен из потока и центрирован по колонке: иначе он либо растянул бы
+   колонку, либо обрезался бы её `overflow`. */
+.gantt__day.is-today {
+  overflow: visible;
+  z-index: 1;
+}
+
+.gantt__day-today {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0 5px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--accent);
+  background: var(--bg);
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 14px;
+  white-space: nowrap;
 }
 
 .gantt__body {
@@ -237,29 +269,17 @@
   border-left: 2px dashed var(--danger);
 }
 
+/* Линия «сегодня» стоит серединой колонки, поэтому она сдвинута на половину
+   своей толщины влево: иначе центр дня и центр линии разошлись бы на пиксель
+   и линия не совпала бы с чипом в шапке. */
 .gantt__today {
+  --today-line: 2px;
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 0;
-  border-left: 2px solid var(--accent);
-}
-
-/* Чип с датой на линии «сегодня». Поверх строк (сетка лежит под ними), но
-   z-index стоит на чипе, а не на линии: линия должна остаться под полосками. */
-.gantt__today-chip {
-  position: absolute;
-  top: 4px;
-  left: 1px;
-  transform: translateX(-50%);
-  z-index: 2;
-  padding: 1px 7px;
-  border-radius: var(--radius-lg);
+  width: var(--today-line);
+  margin-left: calc(var(--today-line) / -2);
   background: var(--accent);
-  color: #fff;
-  font-size: 10px;
-  font-weight: 600;
-  white-space: nowrap;
 }
 
 /* Слой стрелок. Поверх сетки, но под строками: полоска, на которую стрелка

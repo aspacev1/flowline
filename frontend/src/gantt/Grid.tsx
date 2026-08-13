@@ -20,7 +20,6 @@ export function Grid({
   today,
   deadlineLabel,
   todayLabel,
-  todayChip,
 }: {
   scale: Scale;
   calendar: Calendar;
@@ -28,8 +27,6 @@ export function Grid({
   today: string;
   deadlineLabel: string;
   todayLabel: string;
-  /** Дата в чипе на линии «сегодня», уже отформатированная, например «12 авг». */
-  todayChip?: string;
 }) {
   const withinWindow = (date: string) => date >= scale.from && date <= scale.to;
 
@@ -53,9 +50,15 @@ export function Grid({
       )}
 
       {withinWindow(today) && (
-        <div className="gantt__today" style={{ left: scale.xOf(today) }} title={todayLabel}>
-          {todayChip && <span className="gantt__today-chip">{todayChip}</span>}
-        </div>
+        // Линия идёт серединой колонки, а не по её левому краю: на границе
+        // между вчера и сегодня непонятно, какой из двух дней она называет,
+        // а посередине она однозначно указывает на свой день — и приходится
+        // ровно под подпись «сегодня» в шапке.
+        <div
+          className="gantt__today"
+          style={{ left: scale.xOf(today) + scale.dayWidth / 2 }}
+          title={todayLabel}
+        />
       )}
     </div>
   );

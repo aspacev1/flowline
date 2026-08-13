@@ -107,6 +107,24 @@ describe("диаграмма", () => {
     expect(container.querySelector('[data-day="2026-03-21"]')).not.toHaveClass("is-nonworking");
   });
 
+  it("ведёт линию «сегодня» серединой колонки и подписывает её в шапке", () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(Date.UTC(2026, 2, 11, 9, 0)));
+    try {
+      const { container } = draw(STATE);
+      // 11 марта — десятый день от начала окна (1 марта), и линия стоит
+      // посередине его колонки, а не по её левому краю.
+      expect(container.querySelector<HTMLElement>(".gantt__today")).toHaveStyle({
+        left: `${10 * DAY_WIDTH + DAY_WIDTH / 2}px`,
+      });
+      const day = container.querySelector('.gantt__day[data-day="2026-03-11"]');
+      expect(day).toHaveClass("is-today");
+      expect(day?.querySelector(".gantt__day-today")).toHaveTextContent("Сегодня");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("красит задачу, заезжающую за дедлайн", () => {
     draw({ ...STATE, tasks: [{ ...STATE.tasks[0], end_date: "2026-06-05" }] });
     expect(screen.getByRole("img", { name: /Логотип/ })).toHaveClass("is-late");

@@ -12,6 +12,7 @@ export function Header({
   scale,
   calendar,
   today,
+  todayLabel,
   monthLabel,
   weekdayLabel,
 }: {
@@ -19,6 +20,8 @@ export function Header({
   calendar: Calendar;
   /** Сегодняшний день по ISO: его колонка в шапке выделяется. */
   today: string;
+  /** Подпись под числом сегодняшнего дня, например «Сегодня». */
+  todayLabel: string;
   monthLabel: (iso: string) => string;
   weekdayLabel: (weekday: number) => string;
 }) {
@@ -52,6 +55,10 @@ export function Header({
                 примета набора Broadsheet, и число под ней читается крупнее. */}
             <span className="gantt__day-weekday">{weekdayLabel(day.weekday)}</span>
             <span className="gantt__day-number">{day.dayOfMonth}</span>
+            {/* Подпись «сегодня» стоит под числом, а не на линии в теле ленты:
+                у шапки чип никому не мешает, а на линии он закрывал бы
+                полоски задач того дня, ради которого и нарисован. */}
+            {day.date === today && <span className="gantt__day-today">{todayLabel}</span>}
           </div>
         ))}
       </div>
