@@ -26,7 +26,9 @@
    его же ставит разметка, узнав настройку системы. */
 
 /* Итог по срокам — выноска над лентой, как callout в Notion: одна строка,
-   тонкая заливка, никакой рамки. */
+   тонкая заливка, никакой рамки. Показывает и прячет её меню «Вид», как
+   легенду и сноску: стилем эти три блока не прячутся — скрытая стилем
+   разметка была бы враньём для чтения с экрана. */
 .gantt__summary {
   display: flex;
   align-items: center;
@@ -130,6 +132,8 @@
   /* Рамка тенью внутрь, а не border: рамка вошла бы в ширину и сдвинула бы
      на пиксель всю сетку относительно закреплённой колонки. */
   box-shadow: inset 0 0 0 1px var(--border);
+  /* Нижняя черта — снизу лента граничит с экраном, а не с полем. */
+  border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
 
@@ -184,6 +188,7 @@
 .gantt__month-label {
   padding: 0 6px;
   white-space: nowrap;
+  font-size: 15px;
   font-weight: 500;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -200,6 +205,7 @@
 
 .gantt__day-number {
   color: var(--text-muted);
+  font-size: 16px;
   font-weight: 500;
 }
 
@@ -234,6 +240,27 @@
   text-transform: uppercase;
   line-height: 14px;
   white-space: nowrap;
+}
+
+/* Чем мельче деление, тем меньше в него влезает: в месячном масштабе день
+   узок настолько, что день недели над числом уже не читается, и остаётся одно
+   число — мелкое и без просвета. В дневном, наоборот, места хватает на обе
+   строки с воздухом между ними. */
+.gantt--month .gantt__day-weekday {
+  display: none;
+}
+
+.gantt--month .gantt__day {
+  gap: 0;
+  font-size: 11px;
+}
+
+.gantt--month .gantt__day-number {
+  font-size: 11px;
+}
+
+.gantt--day .gantt__day {
+  gap: 3px;
 }
 
 .gantt__body {
@@ -328,6 +355,7 @@
   display: flex;
   align-items: center;
   height: var(--gantt-row);
+  border-bottom: 1px solid var(--border);
   transition: background var(--motion) ease;
 }
 
@@ -399,6 +427,12 @@
   flex: 1 1 auto;
 }
 
+/* Отступ вложенности — внутри ячейки задачи, а не у всей колонки: иначе
+   подсветка строки при наведении и выделении обрезалась бы слева. */
+.gantt__row:not(.gantt__row--category) .gantt__cell--task {
+  padding-left: 56px;
+}
+
 .gantt__label-name {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -408,10 +442,13 @@
 /* Категория — заголовок группы, как в сгруппированной базе: полужирно и в
    полную плотность чернил, задачи под ней — обычным начертанием. */
 .gantt__row--category .gantt__label-name {
+  font-size: 18px;
   font-weight: 600;
+  color: #1f2937;
 }
 
 .gantt__row:not(.gantt__row--category) .gantt__label-name {
+  font-size: 16px;
   color: var(--text-muted);
 }
 
@@ -539,6 +576,10 @@
   top: 50%;
   height: 4px;
   transform: translateY(-50%);
+  /* Цвет категории приходит из разметки инлайном, и `!important` — то
+     единственное, чем его отсюда можно перебить. Сводная полоса всех
+     категорий сейчас поэтому одного цвета. */
+  background: #5b5ee6 !important;
   border-radius: 2px;
   opacity: 0.5;
 }
@@ -570,6 +611,38 @@
     left var(--motion) ease,
     width var(--motion) ease,
     opacity var(--motion) ease;
+}
+
+/* Второй набор состояний — тот, что приехал сюда из файла темы. Он спорит с
+   набором в конце файла, и спор до сих пор решался порядком склейки: тема
+   эмитилась раньше, значит проигрывала при равной силе селекторов. Теперь оба
+   набора лежат рядом, и видно, что заливку полоски задают три признака сразу —
+   статус, критичность и просрочка. Сводится это в перекраске ленты; здесь
+   правила перенесены дословно, чтобы вид не поехал.
+
+   Цвета рамок ниже сейчас ничего не красят: `border: 0` у самой полоски
+   оставляет им нулевую толщину. */
+.gantt__bar[data-status="in_progress"] {
+  background: linear-gradient(90deg, var(--bar) 0 var(--progress, 0%), #eef4ff var(--progress, 0%));
+}
+
+.gantt__bar[data-status="planned"] {
+  border-color: #5d85ff;
+}
+
+.gantt__bar[data-status="done"] {
+  border-color: #22c55e;
+}
+
+.gantt__bar[data-status="blocked"] {
+  border-color: #f0a63a;
+  color: #b45309;
+}
+
+.gantt__bar[data-criticality="critical"]:not([data-status="done"]):not([data-status="blocked"]) {
+  background: #fff7ed;
+  border-color: #fb923c;
+  color: #ea580c;
 }
 
 .gantt__bar:hover {
@@ -638,13 +711,44 @@
   color: var(--danger);
 }
 
+/* Заливка прогресса скрыта: долю готовности рисует градиент полоски
+   `in_progress` выше, и вторая заливка поверх него означала бы то же самое
+   дважды. */
 .gantt__progress {
+  display: none;
   position: absolute;
   left: 0;
   top: 0;
   bottom: 0;
   background: rgb(var(--ink) / 14%);
   pointer-events: none;
+}
+
+/* Галочка готовой задачи: белый знак в зелёном круге у левого края полоски. */
+.gantt__check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: #22c55e;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* Заблокированная называет состояние словом на самой полоске: оно достаточно
+   редкое и важное, чтобы не полагаться на один цвет. */
+.gantt__bar-blocked {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 /* Призрак базового плана: тонкая серая полоска под текущей.
@@ -656,6 +760,8 @@
   position: absolute;
   top: calc(50% + 12px);
   height: 3px;
+  transform: translateY(-50%);
+  border: 2px dashed #bcd0ff;
   border-radius: 2px;
   background: var(--text-faint);
   pointer-events: none;
@@ -669,6 +775,7 @@
   top: 5px;
   height: 32px;
   width: 2px;
+  border-radius: 3px;
   background: var(--danger);
   z-index: 2;
 }
@@ -679,6 +786,7 @@
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
+  color: var(--danger);
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
@@ -698,4 +806,15 @@
 .gantt__beyond {
   color: var(--text-faint);
   font-weight: 700;
+}
+
+/* Адаптивность ленты живёт здесь же, а не в файле темы: медиазапрос
+   специфичности не добавляет, и такое же правило из более позднего файла
+   перебивало бы его молча — ровно это и случилось с шириной колонки задач.
+   На узком экране колонке места мало, и отступ вложенности жмётся вместе
+   с ней. */
+@media (max-width: 760px) {
+  .gantt__row:not(.gantt__row--category) .gantt__cell--task {
+    padding-left: 18px;
+  }
 }

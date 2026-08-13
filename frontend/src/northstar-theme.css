@@ -104,72 +104,15 @@ button { height: var(--control); padding: 0 18px; border-radius: 7px; font-size:
 
 .project__body { gap: 0; align-items: stretch; }
 .project__body > .gantt { min-width: 0; }
-.gantt { --gantt-label: 320px; --gantt-row: 72px; --gantt-head: 96px; --gantt-today-chip: 26px; }
-/* Легенда, сводка по дедлайну и сноска больше не прячутся отсюда: их
-   показывает и прячет меню «Вид» — скрытая стилем разметка была бы враньём
-   для чтения с экрана. */
-.gantt__summary { margin: 14px 32px 0; }
-.gantt__legend { margin: 14px 32px 0; }
-.gantt__caption { margin: 10px 32px; }
-.gantt__scroll { border-radius: 0; box-shadow: none; border-bottom: 1px solid var(--border); background: #fff; }
-.gantt__head-row { background: #fff; border-bottom: 1px solid var(--border); }
-.gantt__corner { align-items: center; padding-bottom: 0; }
-.gantt__corner-label { font-size: 15px; letter-spacing: 0; text-transform: none; color: #374151; }
-.gantt__month { border-left: 1px solid var(--border); }
-.gantt__month-label { font-size: 15px; color: #4b5563; letter-spacing: .04em; }
-.gantt__day { border-left: 1px solid var(--border); font-size: 14px; color: #6b7280; gap: 6px; }
-.gantt__day-number { font-size: 16px; color: inherit; }
-.gantt__day.is-today, .gantt__day.is-today .gantt__day-number { color: var(--accent); font-weight: 800; }
-.gantt__label { padding: 0 22px 0 28px; border-right: 1px solid var(--border); background: #fff; }
-.gantt__row { border-bottom: 1px solid var(--border); }
-.gantt__row:hover .gantt__lane, .gantt__row:hover .gantt__label { background: #f9fbff; }
-.gantt__row.is-selected .gantt__lane, .gantt__row.is-selected .gantt__label { background: #eef5ff; }
-.gantt__row--category .gantt__label-name { font-size: 18px; font-weight: 700; color: #1f2937; }
-/* Отступ вложенности — внутри ячейки задачи, а не у всей колонки: иначе
-   подсветка строки при наведении и выделении обрезалась бы слева. */
-.gantt__row:not(.gantt__row--category) .gantt__cell--task { padding-left: 56px; }
-.gantt__row:not(.gantt__row--category) .gantt__label-name { font-size: 16px; color: #1f2937; }
-.gantt__grid-day { border-left: 1px dashed #dfe5ee; }
-.gantt__today { --today-line: 3px; background: rgb(36 89 245 / 55%); }
-.gantt__day-today { border-radius: 5px; background: #eef4ff; color: var(--accent); border: 1px solid #8dacff; font-size: 11px; line-height: 18px; padding: 0 7px; letter-spacing: 0; }
-.gantt__span { height: 4px; background: #5b5ee6 !important; opacity: .95; }
-.gantt__bar { height: 36px; border-radius: 6px; background: transparent; border: 2px solid var(--accent); color: #fff; box-shadow: none; }
-.gantt__bar[data-status="in_progress"] { background: linear-gradient(90deg, var(--bar) 0 var(--progress, 0%), #eef4ff var(--progress, 0%)); }
-.gantt__bar[data-status="planned"] { background: #f7faff; box-shadow: none; border-color: #5d85ff; }
-.gantt__bar[data-status="done"] { background: #eafbf1; border-color: #22c55e; color: #16a34a; }
-/* Заблокированная — янтарная пилюля со словом на самой полоске, как в макете:
-   состояние достаточно редкое и важное, чтобы называться прямо на ленте. */
-.gantt__bar[data-status="blocked"] { background: #fff4e5; border-color: #f0a63a; color: #b45309; }
-.gantt__bar[data-criticality="critical"]:not([data-status="done"]):not([data-status="blocked"]) { background: #fff7ed; border-color: #fb923c; color: #ea580c; }
-.gantt__progress { display: none; }
-/* Галочка готовой задачи: белый знак в зелёном круге у левого края полоски. */
-.gantt__check {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  width: 20px;
-  height: 20px;
-  margin-right: 6px;
-  border-radius: 50%;
-  background: #22c55e;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-}
-.gantt__bar-blocked {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-.gantt__ghost { height: 36px; top: 50%; transform: translateY(-50%); background: transparent; border: 2px dashed #bcd0ff; border-radius: 7px; }
-.gantt__mark { top: 13px; height: 42px; width: 4px; border-radius: 3px; background: var(--danger); }
-.gantt__deviation { color: var(--danger); font-size: 15px; font-weight: 800; }
-.arrows polyline { stroke: #2f63f6; stroke-width: 2; }
-.arrows path { fill: #2f63f6; }
+
+/* Оформление самой ленты сюда не пишется — оно целиком в `gantt/gantt.css`.
+   Причина не в чистоте: `gantt.css` подтягивается из `Gantt.tsx`, то есть
+   глубже по графу импортов, и в собранном бандле идёт после этого файла. При
+   равной силе селекторов побеждал он, и шесть десятков здешних правил про
+   ленту не делали ничего — включая адаптивные ширины колонки задач. Порядок
+   склейки — не закон, а следствие графа импортов: ленивая загрузка маршрута
+   проекта сменила бы его молча, и ни один тест этого бы не поймал. Пока один
+   селектор не живёт в двух файлах, порядок ничего не решает. */
 
 .panel { flex: 0 0 388px; border-radius: 0; box-shadow: -1px 0 0 var(--border); min-height: calc(100vh - 0px); padding: 34px 32px; }
 .panel__title { font-size: 24px; }
@@ -417,17 +360,11 @@ body:has(.screen--narrow) {
 .sidebar .locale-switch { align-self: stretch; margin: 4px 8px; }
 .sidebar .locale-switch button { flex: 1; }
 
-.gantt--month .gantt__day-weekday { display: none; }
-.gantt--month .gantt__day { gap: 0; font-size: 11px; }
-.gantt--month .gantt__day-number { font-size: 11px; }
-.gantt--day .gantt__day { gap: 3px; }
-
 @media (max-width: 900px) {
   .project-head, .project-toolbar { padding-left: 20px; padding-right: 20px; }
   .project-head__main, .project__body, .project-toolbar { flex-wrap: wrap; }
   .project-toolbar { height: auto; padding-top: 14px; padding-bottom: 14px; }
   .panel { flex-basis: 100%; min-height: auto; }
-  .gantt { --gantt-label: 320px; }
 }
 
 @media (max-width: 760px) {
@@ -464,8 +401,6 @@ body:has(.screen--narrow) {
   .project-head__actions { justify-content: flex-start; gap: 8px; }
   .project-toolbar { gap: 8px; }
   .project-toolbar__divider { display: none; }
-  .gantt { --gantt-label: 180px; }
-  .gantt__row:not(.gantt__row--category) .gantt__cell--task { padding-left: 18px; }
   .panel { padding: 26px 20px; }
 }
 
