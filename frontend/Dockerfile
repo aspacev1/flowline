@@ -27,8 +27,20 @@ RUN npm run build
 FROM caddy:2-alpine@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648 AS runtime
 COPY --from=build /app/dist /srv
 COPY Caddyfile /etc/caddy/Caddyfile
+# Файловая возможность cap_net_bind_service снимается с двоичного файла.
+# Официальный образ ставит её (setcap ...=+ep), чтобы Caddy мог слушать 80 и
+# 443 не от root, — а вместе с `cap_drop: [ALL]` в compose она же и не даёт
+# ему запуститься: ядро отказывает в exec файла, чей permitted-набор не
+# помещается в пустой bounding-набор процесса, и контейнер падал с
+# «exec caddy failed: Operation not permitted», уходя в бесконечный рестарт.
+# Привилегированные порты здесь не нужны — слушаем 8080, — поэтому
+# возможность убирается с файла, а не возвращается в compose через cap_add:
+# так набор прав остаётся пустым, как и задумано.
+#
 # Не root: Caddy слушает 8080 (непривилегированный) и пишет только в свои
 # каталоги данных — им и отдаётся владелец. adduser -S — системный
 # пользователь без пароля и домашнего каталога.
-RUN adduser -S -u 10001 web && chown -R web /data /config
+RUN setcap -r /usr/bin/caddy \
+	&& adduser -S -u 10001 web \
+	&& chown -R web /data /config
 USER web
