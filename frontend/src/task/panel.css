@@ -218,7 +218,9 @@
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: var(--text-faint);
+  /* Muted, а не faint: 12 пикселей капителью на белом в faint (2.7:1) уже не
+     прочитать — а заголовок раздела читают, а не угадывают. */
+  color: var(--text-muted);
 }
 
 .panel__events {
@@ -245,7 +247,8 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  color: var(--text-faint);
+  /* Кто и когда — данные журнала, им положен контраст текста. */
+  color: var(--text-muted);
   font-size: 12px;
 }
 
@@ -266,7 +269,7 @@
   flex-wrap: wrap;
   gap: 8px;
   margin: 0;
-  color: var(--text-faint);
+  color: var(--text-muted);
   font-size: 12px;
 }
 
@@ -343,7 +346,8 @@
 }
 
 .panel__progress-plan {
-  color: var(--text-faint);
+  /* «По плану сегодня — N%» — цифра, с которой сверяют факт: данные. */
+  color: var(--text-muted);
   font-size: 12px;
   text-align: right;
 }
