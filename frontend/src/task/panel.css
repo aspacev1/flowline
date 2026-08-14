@@ -284,20 +284,163 @@
   overflow-wrap: anywhere;
 }
 
-/* Полоса прогресса под числом: доля видна без чтения цифры. */
-.panel__progressbar {
-  display: block;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--active, var(--hover));
-  overflow: hidden;
+/* --- быстрый прогресс --- */
+
+/* Модуль над полями, а не строка среди них: отметка прогресса — единственное,
+   что в карточке делают каждый день, и ей отдано главное место. Подложка и
+   тонкая грань отделяют орган от анкеты полей под ним. */
+.panel__progress {
+  margin: 0 0 var(--gap);
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle, var(--hover));
+  box-shadow: inset 0 0 0 1px var(--border);
 }
 
-.panel__progressbar i {
-  display: block;
-  height: 100%;
-  border-radius: 999px;
+.panel__progress-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+/* Процент набран крупно и остаётся полем: полосой ставят «на глаз», а точную
+   цифру вводят цифрами. Стрелки браузера убраны — шаги здесь свои, ±5. */
+.panel__progress-pct {
+  display: inline-flex;
+  align-items: baseline;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+
+.panel__progress-pct input {
+  width: 3.4ch;
+  min-height: 0;
+  padding: 0 2px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  box-shadow: none;
+  font: inherit;
+  color: inherit;
+  text-align: right;
+  appearance: textfield;
+}
+
+.panel__progress-pct input::-webkit-outer-spin-button,
+.panel__progress-pct input::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.panel__progress-pct input:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.panel__progress-pct input:focus {
+  outline: none;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.panel__progress-plan {
+  color: var(--text-faint);
+  font-size: 12px;
+  text-align: right;
+}
+
+/* Полоса стала органом: по ней щёлкают и её тянут, поэтому она выше прежней
+   ленточки — в тонкую не попасть пальцем. touch-action обязателен: без него
+   палец на телефоне прокручивает карточку вместо того, чтобы ставить долю. */
+.panel__progress-bar {
+  position: relative;
+  height: 20px;
+  border-radius: 10px;
+  background: var(--active, var(--hover));
+  overflow: hidden;
+  cursor: pointer;
+  touch-action: none;
+}
+
+.panel__progress-bar.is-static {
+  cursor: default;
+}
+
+.panel__progress-bar > i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 10px;
   background: var(--accent);
+}
+
+/* Засечка плана: тень чернил, а не цвет тревоги, — отставание от засечки не
+   ошибка, а положение дел. */
+.panel__progress-bar > b {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgb(var(--ink) / 35%);
+}
+
+.panel__progress-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.panel__progress-step {
+  flex: 0 0 auto;
+  min-width: 44px;
+  height: 32px;
+  padding: 0 10px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Главная кнопка модуля — во всю оставшуюся ширину: «Отметить день» и есть
+   тот самый ежедневный жест, ему самая большая цель. */
+.panel__progress-day {
+  flex: 1;
+  height: 32px;
+  font-size: 13px;
+}
+
+/* Отмеченный день — спокойная зелень, а не выцветшая синяя кнопка: это не
+   «нельзя нажать», а «сделано». Прозрачность отключается по той же причине. */
+.panel__progress-day.is-done,
+.panel__progress-day.is-done:disabled,
+.panel__progress-day.is-done:disabled:hover {
+  background: var(--ok-soft);
+  color: var(--ok);
+  opacity: 1;
+}
+
+/* Последние отметки: срез журнала под полосой. */
+.panel__progress-log {
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.panel__progress-log li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 3px 0;
+  border-top: 1px dashed var(--border);
+}
+
+.panel__progress-log b {
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 /* Связи: «зависит от» и «блокирует». */
