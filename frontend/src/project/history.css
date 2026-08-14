@@ -1,11 +1,16 @@
 /* Лента истории проекта — вкладка «История».
 
-   Одна колонка ограниченной ширины: ленту читают, а не сканируют, и строка
-   на всю ширину диаграммного экрана заставляла бы глаз прыгать от фразы к
-   времени через пол-экрана пустоты. */
+   Рисунок — вертикальный таймлайн: узел дня слева, от него вниз спица, справа
+   от спицы — карточки событий. Карточка, а не строка: у записи три разнородных
+   части — значок рода события, фраза с подписью и время с кнопкой, — и без
+   собственной рамки их колонки не за что выровнять.
+
+   Одна колонка ограниченной ширины: ленту читают, а не сканируют, и строка на
+   всю ширину диаграммного экрана заставляла бы глаз прыгать от фразы к времени
+   через пол-экрана пустоты. */
 
 .feed {
-  max-width: 720px;
+  max-width: 760px;
 }
 
 .feed__filters {
@@ -13,7 +18,7 @@
   flex-wrap: wrap;
   gap: 12px;
   align-items: flex-end;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
 }
 
 .feed__filter {
@@ -24,19 +29,70 @@
   color: var(--text-muted);
 }
 
+/* --- день --- */
+
+/* Отступ слева — под узел дня: карточки начинаются правее спицы. Спица —
+   псевдоэлементом от узла вниз; отрицательный низ дотягивает её через
+   межсекционный просвет до узла следующего дня, чтобы таймлайн читался одной
+   нитью, а не пунктиром по числу дней. */
 .feed__day {
-  margin-bottom: 20px;
+  position: relative;
+  margin-bottom: 26px;
+  padding-left: 48px;
 }
 
-/* Заголовок дня — как линия табов: подпись у линии, а не плашка. */
-.feed__day-title {
-  margin: 0 0 8px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid var(--border);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-muted);
+.feed__day::before {
+  content: "";
+  position: absolute;
+  top: 40px;
+  bottom: -26px;
+  left: 17px;
+  width: 1px;
+  background: var(--border-strong);
 }
+
+/* У последнего дня спице некуда вести. */
+.feed__day:last-of-type::before {
+  display: none;
+}
+
+.feed__day-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* Узел выезжает влево, на линию спицы: заголовок дня стоит в её колонке. */
+  margin: 0 0 12px -48px;
+}
+
+.feed__day-dot {
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 35px;
+  height: 35px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* Сегодняшний узел — акцентом: «вы здесь» на нити времени, тем же цветом,
+   каким приложение говорит это во всех остальных местах. */
+.feed__day--today .feed__day-dot {
+  border-color: transparent;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.feed__day-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* --- карточка события --- */
 
 .feed__list {
   list-style: none;
@@ -47,21 +103,54 @@
   gap: 10px;
 }
 
-/* Вложенный список раскрытой пачки: сдвиг вместо рамки — записи те же,
-   просто их скобка видна по отступу. */
-.feed__list--nested {
-  margin-top: 8px;
-  padding-left: 16px;
-  border-left: 2px solid var(--border);
-  gap: 8px;
+.feed__card {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  column-gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 140ms ease, box-shadow 140ms ease;
 }
+
+.feed__card:hover {
+  border-color: var(--border-strong);
+  box-shadow: 0 8px 24px rgb(16 24 40 / 7%);
+}
+
+.feed__main {
+  min-width: 0;
+  align-self: center;
+}
+
+/* Значок — квадратная плитка с глифом шрифта, тон парой «мягкий фон + густой
+   знак». Тёмные оттенки знака — те же, что у плашек статуса и состояния плана:
+   светлые --ok и --warn на своих подложках не набирают контраста текста. */
+.feed__icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.feed__icon--accent { background: var(--accent-soft); color: var(--accent); }
+.feed__icon--ok { background: var(--ok-soft); color: #187448; }
+.feed__icon--warn { background: var(--warn-soft); color: #785719; }
+.feed__icon--danger { background: var(--danger-soft); color: #b8365a; }
+.feed__icon--muted { background: var(--tag-gray); color: var(--text-muted); }
 
 .feed__line {
   margin: 0;
+  line-height: 1.45;
 }
 
 .feed__actor {
-  font-weight: 600;
+  font-weight: 650;
 }
 
 .feed__subject {
@@ -69,12 +158,37 @@
 }
 
 .feed__meta {
-  margin: 2px 0 0;
+  margin: 4px 0 0;
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 10px;
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-muted);
+}
+
+/* Правая колонка: время у верхнего края карточки, под ним — кнопка отмены,
+   когда она есть. Кнопка видна всегда, а не по наведению, как в макете: она
+   стоит у единственной записи, которую сервер согласен отменить, и прятать
+   один-единственный орган управления ленты — терять его вовсе. */
+.feed__tools {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.feed__time {
+  margin-top: 2px;
+  color: var(--text-faint);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.feed__undo {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
 }
 
 /* Причина — текст человека: выделяется курсивом, а не кавычками интерфейса. */
@@ -89,6 +203,10 @@
   color: var(--text-muted);
 }
 
+.feed__item--undone .feed__icon {
+  opacity: 0.55;
+}
+
 .feed__undone-mark {
   font-style: italic;
 }
@@ -101,9 +219,7 @@
   color: var(--text-muted);
 }
 
-.feed__undo {
-  margin-left: 8px;
-}
+/* --- пачка --- */
 
 .feed__toggle {
   border: none;
@@ -115,11 +231,86 @@
   cursor: pointer;
 }
 
-/* Веха — флажок поперёк ленты, не запись: у неё нет автора-строки и кнопок. */
-.feed__milestone .feed__line {
-  font-weight: 600;
+/* Вложенный список раскрытой пачки: сдвиг вместо рамки — записи те же,
+   просто их скобка видна по отступу. Своих плиток у них нет: род каждой
+   мелкой записи внутри пачки не стоит тридцати повторов значка. */
+.feed__list--nested {
+  margin-top: 10px;
+  padding-left: 14px;
+  border-left: 2px solid var(--border);
+  gap: 8px;
 }
 
+.feed__list--nested .feed__meta {
+  margin-top: 2px;
+}
+
+/* --- веха --- */
+
+/* Веха — флажок поперёк ленты, не запись: зелёная целиком, без кнопок.
+   Кайма — тоном плашки согласованного плана: это одно и то же событие. */
+.feed__milestone {
+  border-color: #bde5ce;
+  background: var(--ok-soft);
+  box-shadow: none;
+}
+
+.feed__milestone .feed__line {
+  font-weight: 650;
+}
+
+/* --- край ленты --- */
+
+.feed__empty {
+  padding: 36px 24px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--bg-subtle);
+  text-align: center;
+}
+
+/* «Показать ещё» встаёт в колонну карточек, а не под узлы дней. */
 .feed__more {
-  margin-top: 4px;
+  margin: 14px 0 0 48px;
+}
+
+/* --- теснота --- */
+
+@media (max-width: 760px) {
+  .feed__day { padding-left: 26px; }
+  .feed__day::before { left: 8px; }
+  .feed__day-head { margin-left: -26px; }
+
+  /* Узел сжимается до точки: номер дня уже есть в заголовке рядом. */
+  .feed__day-dot {
+    width: 17px;
+    height: 17px;
+    border-radius: 50%;
+    font-size: 0;
+  }
+
+  /* Без номера мягкая заливка «сегодня» сливается со страницей: точке нужен
+     сплошной акцент, чтобы остаться отметкой «вы здесь». */
+  .feed__day--today .feed__day-dot {
+    background: var(--accent);
+  }
+
+  /* Правой колонке не хватает ширины: время и отмена уходят под фразу,
+     время — к правому краю своей строки. */
+  .feed__card { grid-template-columns: 30px minmax(0, 1fr); }
+  .feed__icon { width: 30px; height: 30px; border-radius: 9px; font-size: 14px; }
+
+  .feed__tools {
+    grid-column: 2;
+    flex-direction: row;
+    align-items: center;
+    margin-top: 8px;
+  }
+
+  .feed__time {
+    order: 2;
+    margin: 0 0 0 auto;
+  }
+
+  .feed__more { margin-left: 26px; }
 }
