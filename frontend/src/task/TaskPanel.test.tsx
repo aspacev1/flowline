@@ -1,8 +1,8 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { STATE, projectFixtures, renderProject } from "../test/project";
+import { STATE, captureMutations, projectFixtures, renderProject } from "../test/project";
 
 beforeEach(projectFixtures);
 
@@ -45,5 +45,31 @@ describe("карточка задачи", () => {
     renderProject();
     await userEvent.click(await screen.findByRole("button", { name: /Логотип/ }));
     expect(screen.getByText("10 мар")).toBeInTheDocument();
+  });
+
+  it("удаляет задачу после подтверждения на месте", async () => {
+    const sent = captureMutations();
+    renderProject();
+    await userEvent.click(await screen.findByRole("button", { name: /Логотип/ }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Удалить задачу" }));
+    // Первое нажатие ничего не удаляет — разворачивает подтверждение.
+    expect(sent).toHaveLength(0);
+
+    await userEvent.click(screen.getByRole("button", { name: "Да, удалить" }));
+    await waitFor(() =>
+      expect(sent).toEqual([{ op: { type: "delete_task", task_id: "t1" } }]),
+    );
+    // Задачи больше нет — ни карточки, ни полоски на ленте.
+    expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /Логотип/ })).not.toBeInTheDocument(),
+    );
+  });
+
+  it("читателю кнопка удаления не показывается", async () => {
+    renderProject(STATE, { canWrite: false });
+    await userEvent.click(await screen.findByRole("button", { name: /Логотип/ }));
+    expect(screen.queryByRole("button", { name: "Удалить задачу" })).not.toBeInTheDocument();
   });
 });

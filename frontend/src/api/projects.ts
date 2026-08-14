@@ -141,6 +141,8 @@ export type Op =
       status?: TaskStatus;
       progress_pct?: number;
     }
+  | { type: "delete_category"; category_id: string }
+  | { type: "delete_task"; task_id: string }
   | { type: "move_task"; task_id: string; start_date: string }
   | { type: "set_duration"; task_id: string; duration_days: number }
   | {
@@ -179,6 +181,15 @@ export function createProject(name: string): Promise<Project> {
 
 export function getProject(id: string): Promise<ProjectState> {
   return request<ProjectState>(`/api/projects/${id}`);
+}
+
+/**
+ * Удаление проекта целиком. Единственное изменение мимо журнала ревизий:
+ * журнал живёт внутри проекта и умирает вместе с ним, поэтому отмены у этого
+ * действия нет — предупредить об этом человека обязан вызывающий.
+ */
+export function deleteProject(id: string): Promise<void> {
+  return request<void>(`/api/projects/${id}`, { method: "DELETE" });
 }
 
 /**

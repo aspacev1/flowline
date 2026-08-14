@@ -673,6 +673,33 @@
   color: var(--text);
 }
 
+/* Крестик удаления пустой категории — сосед плюса и молчит вместе с ним. */
+.gantt__remove {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: transparent;
+  color: var(--text-faint);
+  box-shadow: none;
+  font-size: 16px;
+  line-height: 1;
+  opacity: 0;
+  transition:
+    opacity 20ms ease-in,
+    background 20ms ease-in;
+}
+
+.gantt__row:hover .gantt__remove,
+.gantt__remove:focus-visible {
+  opacity: 1;
+}
+
+.gantt__remove:hover {
+  background: var(--hover);
+  color: var(--danger);
+}
+
 .gantt__lane {
   position: relative;
   height: 100%;

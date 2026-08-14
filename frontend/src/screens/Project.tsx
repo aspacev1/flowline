@@ -13,6 +13,8 @@ import { LiveProvider } from "../live/LiveProvider";
 import { OfflineBar } from "../live/OfflineBar";
 import { useProjectLive } from "../live/useProjectLive";
 import { DependencyNudge, DependencyNudgeProvider } from "../project/DependencyNudge";
+import { deleteCategory } from "../project/optimistic";
+import { useProjectMutation } from "../project/useProjectMutation";
 import { PlanApproval } from "../project/PlanApproval";
 import { ProjectHead } from "../project/ProjectHead";
 import { ProjectHistory } from "../project/ProjectHistory";
@@ -56,6 +58,17 @@ export function Project({ tab = "gantt" }: { tab?: "gantt" | "history" } = {}) {
   // Живая связь открывается вместе с экраном и живёт, пока он открыт: ревизии
   // соседей приезжают сами, а обрыв — единственное, что запирает редактирование.
   const live = useProjectLive(projectId);
+
+  const { apply } = useProjectMutation(projectId);
+  // Отказ молчит — тем же образом, что у перестановки строк (useReorder):
+  // откат догадки внутри `apply` уже вернул категорию на экран, и этого
+  // достаточно — удалить успели в соседней вкладке или положили в категорию
+  // задачу, и правду покажет ближайший перезапрос.
+  const removeCategory = (categoryId: string) => {
+    void apply({ type: "delete_category", category_id: categoryId }, (state) =>
+      deleteCategory(state, categoryId),
+    ).catch(() => {});
+  };
 
   // Состав организации — только ради имён исполнителей в карточке наведения на
   // полоску. Спрашивает экран, а не лента: у ленты нет признака «это публичная
@@ -220,6 +233,7 @@ export function Project({ tab = "gantt" }: { tab?: "gantt" | "history" } = {}) {
                   ) : undefined
                 }
                 onAddTask={editable ? setAddingTaskIn : undefined}
+                onDeleteCategory={editable ? removeCategory : undefined}
                 selectedTaskId={selectedTaskId}
                 // Повторный щелчок по той же полоске закрывает карточку: люди
                 // делают так не задумываясь, и без этого щелчок выглядит

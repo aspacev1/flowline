@@ -60,6 +60,36 @@ export function patchStatus(state: ProjectState, taskId: string, status: TaskSta
 }
 
 /**
+ * Задача исчезает вместе со своими связями — ровно так, как сделает каскад на
+ * сервере. Оставить связи было бы не осторожностью, а ошибкой: стрелки к
+ * несуществующей строке некуда рисовать, и до ответа сервера лента мигала бы
+ * ими.
+ */
+export function deleteTask(state: ProjectState, taskId: string): ProjectState {
+  return {
+    ...state,
+    tasks: state.tasks.filter((task) => task.id !== taskId),
+    dependencies: state.dependencies.filter(
+      (link) => link.from_task_id !== taskId && link.to_task_id !== taskId,
+    ),
+  };
+}
+
+/**
+ * Категория снимается только пустой — непустую сервер откажется удалять
+ * (category_not_empty), и отказ откатит догадку. Задачи всё равно фильтруются:
+ * догадка не должна уметь показать строки-сироты, даже если её позвали в обход
+ * этого правила.
+ */
+export function deleteCategory(state: ProjectState, categoryId: string): ProjectState {
+  return {
+    ...state,
+    categories: state.categories.filter((category) => category.id !== categoryId),
+    tasks: state.tasks.filter((task) => task.category_id !== categoryId),
+  };
+}
+
+/**
  * Связи — без проверки циклов: их ловит сервер, и отказ откатит догадку.
  * Повторную связь заглушить обязан вызывающий — он же прячет её из списка
  * кандидатов.

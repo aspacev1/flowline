@@ -1,11 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useParams } from "react-router-dom";
+import { useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { errorKey } from "../api/errors";
 import { ORG_QUERY_KEY, organization } from "../api/org";
-import { checkProjectSlug, getProject, projectQueryKey, updateProject } from "../api/projects";
+import {
+  PROJECTS_QUERY_KEY,
+  checkProjectSlug,
+  deleteProject,
+  getProject,
+  projectQueryKey,
+  updateProject,
+} from "../api/projects";
 import type { ProjectState } from "../api/projects";
-import { useCanWrite } from "../auth/permissions";
+import { useCanWrite, useOrgRole } from "../auth/permissions";
 import { useLocale } from "../i18n/LocaleProvider";
 import { SharePanel } from "../project/SharePanel";
 import { DateListField, SlugField, WorkingDaysField } from "../settings/fields";
@@ -23,7 +31,14 @@ export function ProjectSettings() {
   const { t } = useLocale();
   const { projectId = "" } = useParams();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const canWrite = useCanWrite();
+  // Удаление проекта — право владельца, как и пересогласование плана:
+  // редактор правит настройки, но не расстаётся с проектом целиком. Решает
+  // всё равно сервер — здесь лишь не предлагается действие, которое кончится
+  // отказом.
+  const isOwner = useOrgRole() === "owner";
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const query = useQuery({
     queryKey: projectQueryKey(projectId),
@@ -41,6 +56,19 @@ export function ProjectSettings() {
     mutationFn: (patch: Parameters<typeof updateProject>[1]) => updateProject(projectId, patch),
     onSuccess: (state: ProjectState) =>
       queryClient.setQueryData(projectQueryKey(projectId), state),
+  });
+
+  const remove = useMutation({
+    mutationFn: () => deleteProject(projectId),
+    onSuccess: () => {
+      // Кэш проекта не инвалидируется, а выбрасывается: перезапрос по этому
+      // ключу теперь может ответить только 404-й.
+      queryClient.removeQueries({ queryKey: projectQueryKey(projectId) });
+      void queryClient.invalidateQueries({ queryKey: PROJECTS_QUERY_KEY });
+      // replace, а не push: «назад» к настройкам удалённого проекта вело бы
+      // на экран, которому нечего показать, кроме ошибки.
+      navigate("/projects", { replace: true });
+    },
   });
 
   if (query.isPending) {
@@ -206,6 +234,47 @@ export function ProjectSettings() {
         {/* Публичная ссылка — последним блоком: это не настройка расчёта, а
             решение показать проект наружу. */}
         {!readOnly && <SharePanel projectId={projectId} />}
+
+        {/* Удаление — после всего остального: это не настройка, а расставание
+            с проектом. Подтверждение разворачивается на месте, как у
+            пересогласования плана, — и предупреждает честно: вместе с
+            проектом уходит журнал ревизий, то есть и возможность отмены. */}
+        {isOwner && (
+          <div className="settings__danger">
+            {remove.error !== null && (
+              <p className="error" role="alert">
+                {t(errorKey(remove.error))}
+              </p>
+            )}
+            {confirmingDelete ? (
+              <span className="plan__confirm">
+                <span className="muted">{t("settings.project.delete_warning")}</span>
+                <button
+                  type="button"
+                  onClick={() => remove.mutate()}
+                  disabled={remove.isPending}
+                >
+                  {t("settings.project.delete_confirm")}
+                </button>
+                <button
+                  type="button"
+                  className="button--quiet"
+                  onClick={() => setConfirmingDelete(false)}
+                >
+                  {t("common.cancel")}
+                </button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                className="button--quiet button--alert"
+                onClick={() => setConfirmingDelete(true)}
+              >
+                {t("settings.project.delete")}
+              </button>
+            )}
+          </div>
+        )}
       </section>
     </main>
   );

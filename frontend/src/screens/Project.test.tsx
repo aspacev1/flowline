@@ -1,8 +1,9 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
+import { captureMutations, projectFixtures, renderProject } from "../test/project";
 import { server } from "../test/server";
 import { renderApp, sessionHandlers } from "../test/utils";
 
@@ -109,5 +110,36 @@ describe("экран проекта", () => {
     expect(screen.getByRole("link", { name: "Настройки" })).toHaveAttribute("href", "/settings");
     // Кебаб «⋯» не рисуется — в нём был единственный пункт, и тот переехал.
     expect(screen.queryByRole("button", { name: /Ещё действия/i })).not.toBeInTheDocument();
+  });
+});
+
+describe("удаление категории", () => {
+  beforeEach(projectFixtures);
+
+  it("пустая категория удаляется крестиком, у непустой крестика нет", async () => {
+    const sent = captureMutations();
+    renderProject();
+    await screen.findByRole("button", { name: /Логотип/ });
+
+    // В «Дизайне» живёт задача: сервер отказал бы (category_not_empty), и
+    // кнопка обещала бы отказ.
+    expect(
+      screen.queryByRole("button", { name: "Удалить категорию «Дизайн»" }),
+    ).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Удалить категорию «Разработка»" }));
+
+    await waitFor(() =>
+      expect(sent).toEqual([{ op: { type: "delete_category", category_id: "c2" } }]),
+    );
+    await waitFor(() => expect(screen.queryByText("Разработка")).not.toBeInTheDocument());
+  });
+
+  it("читателю крестик не показывается", async () => {
+    renderProject(undefined, { canWrite: false });
+    await screen.findByRole("button", { name: /Логотип/ });
+    expect(
+      screen.queryByRole("button", { name: "Удалить категорию «Разработка»" }),
+    ).not.toBeInTheDocument();
   });
 });

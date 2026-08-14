@@ -1518,6 +1518,14 @@ input[type="checkbox"] {
   color: var(--text-muted);
 }
 
+/* Удаление проекта — под чертой, отдельно от настроек: это не правка, а
+   расставание. */
+.settings__danger {
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
 .settings__key {
   color: var(--text-muted);
   font-size: 13px;

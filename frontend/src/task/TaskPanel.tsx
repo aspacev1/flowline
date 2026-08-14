@@ -9,6 +9,7 @@ import { Avatar } from "../components/Avatar";
 import { baselineOf, deviationDays, endShiftDays, isBeyondPlan } from "../project/baseline";
 import {
   addDependency,
+  deleteTask,
   patchProgress,
   patchStatus,
   patchTask,
@@ -56,6 +57,10 @@ export function TaskPanel({
   const { t } = useLocale();
   const { apply } = useProjectMutation(projectId);
   const [error, setError] = useState<unknown>(null);
+  // Удаление спрашивает подтверждение прямо в карточке — тем же образом, что
+  // пересогласование плана: окно поверх карточки закрывало бы задачу, о
+  // которой спрашивает.
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   // Счётчик отказов. Служит полям знаком «вернись к состоянию»: сравнивать
   // значения им недостаточно — догадка и откат часто укладываются в один кадр,
   // и с точки зрения поля значение не менялось.
@@ -346,6 +351,50 @@ export function TaskPanel({
       <History projectId={projectId} taskId={task.id} />
 
       <Comments projectId={projectId} taskId={task.id} />
+
+      {/* Удаление — последним блоком: это не правка задачи, а расставание с
+          ней. Отдельного окна нет — подтверждение разворачивается на месте,
+          как у пересогласования плана. Само удаление отменяемо: снимок для
+          отмены (со связями, назначениями и разговором) хранит журнал. */}
+      {canWrite && (
+        <div className="panel__danger">
+          {confirmingDelete ? (
+            <span className="plan__confirm">
+              <span className="muted">{t("task.panel.delete_warning")}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  send({ type: "delete_task", task_id: task.id }, (state) =>
+                    deleteTask(state, task.id),
+                  );
+                  // Карточку закрывает сам факт исчезновения задачи из
+                  // состояния, но выбранный идентификатор должен забыться:
+                  // иначе отказ сервера, вернув задачу, снова открыл бы её
+                  // карточку — уже без объяснения, почему.
+                  onClose();
+                }}
+              >
+                {t("task.panel.delete_confirm")}
+              </button>
+              <button
+                type="button"
+                className="button--quiet"
+                onClick={() => setConfirmingDelete(false)}
+              >
+                {t("common.cancel")}
+              </button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              className="button--quiet button--alert"
+              onClick={() => setConfirmingDelete(true)}
+            >
+              {t("task.panel.delete")}
+            </button>
+          )}
+        </div>
+      )}
     </aside>
   );
 }

@@ -46,6 +46,7 @@ export function Gantt({
   state,
   canWrite = false,
   onAddTask,
+  onDeleteCategory,
   selectedTaskId = null,
   onSelectTask,
   toolbarAction,
@@ -57,6 +58,8 @@ export function Gantt({
   canWrite?: boolean;
   /** Плюс на строке категории. Без него диаграмма остаётся на чтение. */
   onAddTask?: (categoryId: string) => void;
+  /** Крестик на строке пустой категории. Без него категории не удаляются. */
+  onDeleteCategory?: (categoryId: string) => void;
   /** Задача, карточка которой открыта. */
   selectedTaskId?: string | null;
   onSelectTask?: (taskId: string) => void;
@@ -300,6 +303,11 @@ export function Gantt({
                         scale={scale}
                         addLabel={t("task.add_to", { category: category.name })}
                         onAddTask={onAddTask}
+                        deleteLabel={t("category.delete", { name: category.name })}
+                        // Крестик — только у пустой категории: непустую сервер
+                        // откажется удалять (сначала разбирают задачи), и
+                        // кнопка обещала бы отказ.
+                        onDelete={tasks.length === 0 ? onDeleteCategory : undefined}
                         reorder={reorder}
                         open={open}
                         onToggle={() => toggleCategory(category.id)}

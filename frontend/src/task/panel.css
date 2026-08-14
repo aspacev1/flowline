@@ -368,3 +368,10 @@
   align-items: center;
   gap: 6px;
 }
+
+/* Блок удаления — в самом низу карточки, отделён от разговора. */
+.panel__danger {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
