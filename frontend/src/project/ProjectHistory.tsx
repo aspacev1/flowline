@@ -33,6 +33,40 @@ const TYPE_GROUPS = {
 
 type TypeGroup = keyof typeof TYPE_GROUPS;
 
+/**
+ * Значок записи: род события виден раньше, чем прочитана фраза.
+ *
+ * Глиф — символ шрифта, а не картинка: пиктограммы здесь размером с букву, и
+ * набор SVG ради тринадцати стрелок был бы зависимостью без выигрыша. Тон
+ * повторяет палитру статусов приложения: сроки и новое — акцентом, готовность
+ * и назначение — зелёным, правки — янтарным, удаления и критичность — тревогой.
+ */
+const EVENT_ICONS: Record<string, readonly [glyph: string, tone: string]> = {
+  move_task: ["↔", "accent"],
+  set_duration: ["↔", "accent"],
+  set_status: ["✓", "ok"],
+  set_progress: ["✓", "ok"],
+  set_criticality: ["!", "danger"],
+  set_task_fields: ["✎", "warn"],
+  rename_category: ["✎", "warn"],
+  set_category_color: ["✎", "warn"],
+  create_task: ["＋", "accent"],
+  create_category: ["＋", "accent"],
+  reorder_task: ["⇅", "warn"],
+  delete_task: ["✕", "danger"],
+  delete_category: ["✕", "danger"],
+  assign_user: ["＋", "ok"],
+  unassign_user: ["−", "warn"],
+  add_dependency: ["→", "accent"],
+  remove_dependency: ["−", "warn"],
+};
+
+/** Запись-отмена узнаётся по стрелке назад, каким бы ни было отменённое. */
+function eventIcon(entry: RevisionEntry): readonly [string, string] {
+  if (entry.undoes_seq !== null) return ["↶", "muted"];
+  return EVENT_ICONS[String(entry.op.type)] ?? ["•", "muted"];
+}
+
 /** День записи по часам читателя: лента группируется по местным суткам. */
 function localDay(iso: string): string {
   const at = new Date(iso);
@@ -147,11 +181,13 @@ export function ProjectHistory({
 
   const today = localDay(new Date().toISOString());
   const yesterday = localDay(new Date(Date.now() - 86_400_000).toISOString());
+  // «Сегодня» — с датой, а не вместо неё: слово стареет в открытой вкладке,
+  // и запись «Сегодня» без числа завтра утром будет ложью.
   const dayLabel = (day: string) =>
     day === today
-      ? t("history.today")
+      ? `${t("history.today")} · ${formatDate(t, day)}`
       : day === yesterday
-        ? t("history.yesterday")
+        ? `${t("history.yesterday")} · ${formatDate(t, day)}`
         : formatDate(t, day);
 
   const toggleBatch = (batchId: string) =>
@@ -191,11 +227,17 @@ export function ProjectHistory({
     </>
   );
 
-  const meta = (entry: RevisionEntry) => {
+  /**
+   * Подпись под фразой. Время карточки стоит в её правой колонке, поэтому сюда
+   * оно попадает только у вложенных записей пачки — у них правой колонки нет.
+   * Пустая подпись не рисуется: карточка без причины остаётся однострочной.
+   */
+  const meta = (entry: RevisionEntry, withTime = false) => {
     const undoneEntry = undoneBy.get(entry.seq);
+    if (!withTime && !entry.reason && !undoneEntry) return null;
     return (
       <p className="feed__meta">
-        <span>{formatTime(locale, new Date(entry.created_at))}</span>
+        {withTime && <span>{formatTime(locale, new Date(entry.created_at))}</span>}
         {/* Причина — текст пользователя: как есть, без перевода. */}
         {entry.reason && <span className="feed__reason">{entry.reason}</span>}
         {undoneEntry && (
@@ -208,6 +250,16 @@ export function ProjectHistory({
       </p>
     );
   };
+
+  const time = (at: string) => (
+    <span className="feed__time">{formatTime(locale, new Date(at))}</span>
+  );
+
+  const icon = (glyph: string, tone: string) => (
+    <span className={`feed__icon feed__icon--${tone}`} aria-hidden="true">
+      {glyph}
+    </span>
+  );
 
   return (
     <section className="feed" aria-label={t("history.title")}>
@@ -271,25 +323,35 @@ export function ProjectHistory({
         </p>
       )}
 
-      {rows.length === 0 && <p className="muted">{t("history.feed_empty")}</p>}
+      {rows.length === 0 && <p className="muted feed__empty">{t("history.feed_empty")}</p>}
 
       {[...days.entries()].map(([day, dayRows]) => (
-        <section key={day} className="feed__day">
-          <h3 className="feed__day-title">{dayLabel(day)}</h3>
+        <section
+          key={day}
+          className={`feed__day${day === today ? " feed__day--today" : ""}`}
+        >
+          <header className="feed__day-head">
+            {/* Номер — прямо из ключа дня: ключ и есть местная дата. */}
+            <span className="feed__day-dot" aria-hidden="true">
+              {Number(day.slice(8, 10))}
+            </span>
+            <h3 className="feed__day-title">{dayLabel(day)}</h3>
+          </header>
           <ol className="feed__list">
             {dayRows.map((row) => {
               if (row.kind === "milestone") {
                 return (
-                  <li key={`plan-${row.approval.version}`} className="feed__milestone">
-                    <p className="feed__line">
-                      {t("history.milestone", { version: row.approval.version })}
-                      {row.approval.approved_by && (
-                        <span className="feed__subject"> · {row.approval.approved_by.name}</span>
-                      )}
-                    </p>
-                    <p className="feed__meta">
-                      <span>{formatTime(locale, new Date(row.at))}</span>
-                    </p>
+                  <li key={`plan-${row.approval.version}`} className="feed__card feed__milestone">
+                    {icon("⚑", "ok")}
+                    <div className="feed__main">
+                      <p className="feed__line">
+                        {t("history.milestone", { version: row.approval.version })}
+                        {row.approval.approved_by && (
+                          <span className="feed__subject"> · {row.approval.approved_by.name}</span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="feed__tools">{time(row.at)}</div>
                   </li>
                 );
               }
@@ -299,54 +361,63 @@ export function ProjectHistory({
                 const isUndo = row.entries.every((entry) => entry.undoes_seq !== null);
                 const head = row.entries[0];
                 return (
-                  <li key={`batch-${row.batchId}`} className="feed__batch">
-                    <p className="feed__line">
-                      {head.actor && <span className="feed__actor">{head.actor.name} </span>}
-                      {!head.actor && (
-                        <span className="feed__actor">{t("history.no_actor")} </span>
+                  <li key={`batch-${row.batchId}`} className="feed__card feed__batch">
+                    {/* Пачка — почерк AI, и её значок — не действие, а искра. */}
+                    {icon(isUndo ? "↶" : "✦", isUndo ? "muted" : "accent")}
+                    <div className="feed__main">
+                      <p className="feed__line">
+                        {head.actor && <span className="feed__actor">{head.actor.name} </span>}
+                        {!head.actor && (
+                          <span className="feed__actor">{t("history.no_actor")} </span>
+                        )}
+                        {t(isUndo ? "history.batch_undo" : "history.batch", {
+                          count: row.entries.length,
+                        })}
+                      </p>
+                      <p className="feed__meta">
+                        <button
+                          type="button"
+                          className="feed__toggle"
+                          aria-expanded={open}
+                          onClick={() => toggleBatch(row.batchId)}
+                        >
+                          {t(open ? "history.collapse" : "history.expand")}
+                        </button>
+                        {undoableBatch === row.batchId && undoButton(t("history.undo_batch"))}
+                      </p>
+                      {open && (
+                        <ol className="feed__list feed__list--nested">
+                          {row.entries.map((entry) => (
+                            <li key={entry.seq} className="feed__item">
+                              <p className="feed__line">{line(entry)}</p>
+                              {meta(entry, true)}
+                            </li>
+                          ))}
+                        </ol>
                       )}
-                      {t(isUndo ? "history.batch_undo" : "history.batch", {
-                        count: row.entries.length,
-                      })}
-                    </p>
-                    <p className="feed__meta">
-                      <span>{formatTime(locale, new Date(head.created_at))}</span>
-                      <button
-                        type="button"
-                        className="feed__toggle"
-                        aria-expanded={open}
-                        onClick={() => toggleBatch(row.batchId)}
-                      >
-                        {t(open ? "history.collapse" : "history.expand")}
-                      </button>
-                      {undoableBatch === row.batchId && undoButton(t("history.undo_batch"))}
-                    </p>
-                    {open && (
-                      <ol className="feed__list feed__list--nested">
-                        {row.entries.map((entry) => (
-                          <li key={entry.seq} className="feed__item">
-                            <p className="feed__line">{line(entry)}</p>
-                            {meta(entry)}
-                          </li>
-                        ))}
-                      </ol>
-                    )}
+                    </div>
+                    <div className="feed__tools">{time(head.created_at)}</div>
                   </li>
                 );
               }
 
               const entry = row.entry;
               const undone = undoneBy.has(entry.seq);
+              const [glyph, tone] = eventIcon(entry);
               return (
                 <li
                   key={entry.seq}
-                  className={`feed__item${undone ? " feed__item--undone" : ""}`}
+                  className={`feed__card feed__item${undone ? " feed__item--undone" : ""}`}
                 >
-                  <p className="feed__line">
-                    {line(entry)}
+                  {icon(glyph, tone)}
+                  <div className="feed__main">
+                    <p className="feed__line">{line(entry)}</p>
+                    {meta(entry)}
+                  </div>
+                  <div className="feed__tools">
+                    {time(entry.created_at)}
                     {undoableSeq === entry.seq && undoButton(t("undo.action"))}
-                  </p>
-                  {meta(entry)}
+                  </div>
                 </li>
               );
             })}
