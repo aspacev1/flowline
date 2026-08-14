@@ -23,6 +23,7 @@ import { useLocale } from "../i18n/LocaleProvider";
 import { Comments } from "./Comments";
 import { SelectField, TextField, ValueField } from "./fields";
 import { History } from "./History";
+import { TaskProgress } from "./TaskProgress";
 
 import "./panel.css";
 
@@ -166,8 +167,22 @@ export function TaskPanel({
       <Baseline task={task} state={state} />
 
       {/* `key` по задаче: переход к соседней начинает поля заново, а не доносит
-          в новую карточку недописанный текст из прежней. */}
-      <div key={task.id} className="panel__fields">
+          в новую карточку недописанный текст из прежней. Модуль прогресса —
+          внутри той же обёртки: «день отмечен» относится к этой задаче. */}
+      <div key={task.id}>
+      <TaskProgress
+        projectId={projectId}
+        task={task}
+        canWrite={canWrite}
+        resetToken={refusals}
+        onCommit={(progress_pct) =>
+          send({ type: "set_progress", task_id: task.id, progress_pct }, (state) =>
+            patchProgress(state, task.id, progress_pct),
+          )
+        }
+      />
+
+      <div className="panel__fields">
         <TextField
           id="panel-name"
           label={t("task.panel.name")}
@@ -270,34 +285,6 @@ export function TaskPanel({
           }}
         />
 
-        <ValueField
-          id="panel-progress"
-          label={t("task.panel.progress")}
-          type="number"
-          value={String(task.progress_pct)}
-          disabled={!canWrite}
-          resetToken={refusals}
-          onCommit={(value) => {
-            const progress_pct = Number(value);
-            send({ type: "set_progress", task_id: task.id, progress_pct }, (state) =>
-              patchProgress(state, task.id, progress_pct),
-            );
-          }}
-        />
-
-        {/* Полоса под числом — как в макете: долю видно без чтения цифры.
-            Число при этом остаётся полем — полосу мышью не тянут. */}
-        <div className="panel__row">
-          <span className="panel__key" aria-hidden="true" />
-          <span
-            className="panel__progressbar"
-            role="img"
-            aria-label={t("task.panel.progress_aria", { pct: task.progress_pct })}
-          >
-            <i style={{ width: `${Math.max(0, Math.min(100, task.progress_pct))}%` }} />
-          </span>
-        </div>
-
         <div className="panel__row">
           <span className="panel__key">{t("task.panel.end")}</span>
           {/* Дата окончания только показывается: её считает сервер по календарю
@@ -318,6 +305,7 @@ export function TaskPanel({
             onCommit={(internal_note) => commitFields({ internal_note })}
           />
         )}
+      </div>
       </div>
 
       <Dependencies task={task} state={state} canWrite={canWrite} send={send} />
