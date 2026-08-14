@@ -16,6 +16,7 @@ import { usePrefersReducedMotion } from "./motion";
 import { useReorder } from "./useReorder";
 import { DAY_WIDTH, ROW_HEIGHT, projectWindow } from "./scale";
 import type { Zoom } from "./scale";
+import { rememberZoom, storedZoom } from "./scalePreference";
 import { buildScale, daysBetween, toISO } from "./timescale";
 
 import "./gantt.css";
@@ -75,10 +76,26 @@ export function Gantt({
   const scroller = useRef<HTMLDivElement>(null);
   const reorder = useReorder({ projectId, state, canWrite });
   const reducedMotion = usePrefersReducedMotion();
-  // Лента открывается в дневном масштабе — самом крупном: на нём у деления
-  // хватает места на день недели над числом, и первое, что человек видит, —
-  // ближайшие дни, а не сжатый до неразличимости квартал.
-  const [zoom, setZoom] = useState<Zoom>("day");
+  // Лента по умолчанию открывается в дневном масштабе — самом крупном: на
+  // нём у деления хватает места на день недели над числом, и первое, что
+  // человек видит, — ближайшие дни, а не сжатый до неразличимости квартал.
+  // Но если для этого проекта масштаб уже выбирали, лента открывается им:
+  // переключение вкладок и уход на другой экран не должны каждый раз
+  // спрашивать заново то, что уже решили (см. scalePreference.ts).
+  const [zoom, setZoomState] = useState<Zoom>(() => storedZoom(projectId) ?? "day");
+
+  // Экран проекта не размонтирует ленту при смене адреса — те же компоненты
+  // просто получают другой `projectId`. Без этого эффекта лента при переходе
+  // между проектами тащила бы за собой масштаб предыдущего вместо того,
+  // чтобы вспомнить, каким его в последний раз выбрали здесь.
+  useEffect(() => {
+    setZoomState(storedZoom(projectId) ?? "day");
+  }, [projectId]);
+
+  const setZoom = (next: Zoom) => {
+    setZoomState(next);
+    rememberZoom(projectId, next);
+  };
 
   // Необязательные слои. Базовый план и сводка по дедлайну видны сразу:
   // первый — язык отклонений, вторая — единственная цифра, которая
