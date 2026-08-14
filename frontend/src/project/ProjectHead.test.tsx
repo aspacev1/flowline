@@ -181,6 +181,31 @@ describe("полоса метрик", () => {
     expect(within(strip).queryByText("После дедлайна проекта")).toBeNull();
   });
 
+  it("«Заблокировано» стоит в полосе и при нуле", async () => {
+    // Единственная задача — в работе, заблокированных нет. Ячейка всё равно
+    // на месте: её исчезновение читается как пропавший счётчик, а не как
+    // «всё хорошо».
+    renderProject();
+
+    expect(await metric("Заблокировано")).toBe("0");
+  });
+
+  it("ноль заблокированных — чёрный: тревогу включает только ненулевой счёт", async () => {
+    renderProject();
+
+    const strip = await screen.findByRole("list", { name: "Сводка по проекту" });
+    const cell = within(strip).getByText("Заблокировано").closest(".project-head__metric");
+    expect(cell).not.toHaveClass("is-warn");
+  });
+
+  it("ненулевой счёт заблокированных — красный", async () => {
+    renderProject(MIXED);
+
+    const strip = await screen.findByRole("list", { name: "Сводка по проекту" });
+    const cell = within(strip).getByText("Заблокировано").closest(".project-head__metric");
+    expect(cell).toHaveClass("is-warn");
+  });
+
   it("считает работу, добавленную сверх согласованного плана", async () => {
     renderProject(APPROVED_WITH_EXTRA);
 
