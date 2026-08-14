@@ -1,10 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 
 import type { Task } from "../api/projects";
-import { listTaskRevisions, revisionsQueryKey } from "../api/revisions";
-import { formatShortDate } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
 import { baselineOf } from "../project/baseline";
 
@@ -18,7 +15,9 @@ import { baselineOf } from "../project/baseline";
  *
  * Все три пути сводятся к одной и той же операции `set_progress`: у сервера
  * нет понятия «отметил день», есть новая готовность — и это намеренно, иначе
- * три способа ввода дали бы три вида записей об одном и том же.
+ * три способа ввода дали бы три вида записей об одном и том же. Сама отметка
+ * попадает в общий журнал задачи и видна на вкладке «История» — второго,
+ * своего списка отметок здесь нарочно нет.
  */
 
 /** Дневная норма: сколько процентов приносит один день работы. */
@@ -49,13 +48,11 @@ function clamp(pct: number): number {
 }
 
 export function TaskProgress({
-  projectId,
   task,
   canWrite,
   resetToken,
   onCommit,
 }: {
-  projectId: string;
   task: Task;
   canWrite: boolean;
   /** Меняется, когда сервер отказал: поле обязано вернуться к правде. */
@@ -73,8 +70,8 @@ export function TaskProgress({
   const [dragPct, setDragPct] = useState<number | null>(null);
 
   // «День отмечен» живёт до закрытия карточки: гашёная кнопка защищает от
-  // двойного тапа сейчас, а не ведёт учёт по календарю — учёт и так виден в
-  // отметках под полосой.
+  // двойного тапа сейчас, а не ведёт учёт по календарю — учёт виден в
+  // журнале, на вкладке «История».
   const [markedDay, setMarkedDay] = useState(false);
 
   // Число — то же поле, что и раньше: черновик, отправка при изменении,
@@ -167,24 +164,6 @@ export function TaskProgress({
         <div className="panel__progress-actions">
           <button
             type="button"
-            className="button--quiet panel__progress-step"
-            aria-label={t("task.panel.progress_minus")}
-            disabled={pct <= 0}
-            onClick={() => onCommit(Math.max(0, pct - 5))}
-          >
-            −5
-          </button>
-          <button
-            type="button"
-            className="button--quiet panel__progress-step"
-            aria-label={t("task.panel.progress_plus")}
-            disabled={pct >= 100}
-            onClick={() => onCommit(Math.min(100, pct + 5))}
-          >
-            +5
-          </button>
-          <button
-            type="button"
             className={markedDay ? "panel__progress-day is-done" : "panel__progress-day"}
             disabled={markedDay || pct >= 100}
             onClick={() => {
@@ -198,50 +177,6 @@ export function TaskProgress({
           </button>
         </div>
       )}
-
-      <ProgressLog projectId={projectId} taskId={task.id} />
     </div>
-  );
-}
-
-/**
- * Последние отметки прогресса — прямо под полосой.
- *
- * Не второй журнал, а его срез: те же записи, что и в ленте истории ниже, из
- * того же запроса и кэша. Здесь они отвечают на один вопрос — «жива ли
- * задача», и отвечают до того, как взгляд дойдёт до истории.
- *
- * Отказ ничего не ломает: без журнала модуль просто короче на две строки.
- */
-function ProgressLog({ projectId, taskId }: { projectId: string; taskId: string }) {
-  const { t } = useLocale();
-
-  const query = useQuery({
-    queryKey: revisionsQueryKey(projectId, taskId),
-    queryFn: () => listTaskRevisions(projectId, taskId),
-    retry: false,
-  });
-
-  const marks = (query.data ?? [])
-    .filter((entry) => entry.op.type === "set_progress")
-    .slice(0, 2);
-
-  if (marks.length === 0) return null;
-
-  return (
-    <ul className="panel__progress-log" aria-label={t("task.panel.progress_log")}>
-      {marks.map((entry) => (
-        <li key={entry.seq}>
-          <span>
-            {/* Имя человека — содержимое, а не хрома: не переводится. */}
-            {entry.actor !== null && `${entry.actor.name} · `}
-            {formatShortDate(t, entry.created_at.slice(0, 10))}
-          </span>
-          <b className="num">
-            {Number(entry.op.from)} → {Number(entry.op.to)}%
-          </b>
-        </li>
-      ))}
-    </ul>
   );
 }

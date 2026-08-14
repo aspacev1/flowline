@@ -38,6 +38,9 @@ async function openCard() {
 
 async function openThread() {
   const panel = await openCard();
+  // Обсуждение — на своей вкладке: свойства задачи открываются первыми, а
+  // ветка разговора появляется по щелчку.
+  await userEvent.click(within(panel).getByRole("tab", { name: "Комментарии" }));
   return within(panel).getByRole("region", { name: "Комментарии" });
 }
 
@@ -151,11 +154,13 @@ describe("обсуждение задачи", () => {
     // Карточка целиком, а не ветка: блока обсуждения здесь нет вовсе, и
     // искать поле внутри него было бы нечем.
     const panel = await openCard();
+    await userEvent.click(within(panel).getByRole("tab", { name: "Комментарии" }));
 
     await waitFor(() =>
-      expect(within(panel).queryByRole("region", { name: "Обсуждение" })).not.toBeInTheDocument(),
+      expect(within(panel).queryByRole("region", { name: "Комментарии" })).not.toBeInTheDocument(),
     );
-    // Карточка выше при этом работает как работала.
+    // Свойства задачи на своей вкладке работают как работали.
+    await userEvent.click(within(panel).getByRole("tab", { name: "Свойства" }));
     expect(within(panel).getByLabelText("Название")).toBeInTheDocument();
   });
 });
