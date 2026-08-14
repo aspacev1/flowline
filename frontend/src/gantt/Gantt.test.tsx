@@ -271,6 +271,28 @@ describe("диаграмма", () => {
     expect(screen.getByRole("button", { name: "Масштаб: Месяц" })).toBeInTheDocument();
   });
 
+  it("помнит выбранный масштаб после ухода с экрана и обратно", async () => {
+    const first = renderWithProviders(
+      <Gantt projectId="p1" state={STATE} toolbarAction={<button type="button">New task</button>} />,
+      { locale: "ru" },
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Масштаб: День" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Неделя" }));
+    expect(first.container.querySelector(".gantt")).toHaveClass("gantt--week");
+
+    // Уход с экрана размонтирует ленту — ровно то, что происходит при
+    // переключении вкладки или уходе на другой экран приложения.
+    first.unmount();
+
+    const again = renderWithProviders(<Gantt projectId="p1" state={STATE} />, { locale: "ru" });
+    expect(again.container.querySelector(".gantt")).toHaveClass("gantt--week");
+    again.unmount();
+
+    // Другой проект не наследует чужой выбор: у него своя память масштаба.
+    const other = renderWithProviders(<Gantt projectId="p2" state={STATE} />, { locale: "ru" });
+    expect(other.container.querySelector(".gantt")).toHaveClass("gantt--day");
+  });
+
   it("имя задачи открывает её карточку, как и полоска", async () => {
     const onSelectTask = vi.fn();
     renderWithProviders(
