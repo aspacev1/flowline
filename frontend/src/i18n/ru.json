@@ -218,14 +218,6 @@
   },
   "project": {
     "period": "{from} — {to}",
-    "counts": "{categories}, {tasks}",
-    "meta": "{period} · {counts}",
-    "category_count": {
-      "one": "{count} категория",
-      "few": "{count} категории",
-      "many": "{count} категорий",
-      "other": "{count} категории"
-    },
     "metrics": {
       "label": "Сводка по проекту",
       "total": "Всего задач",
@@ -452,12 +444,6 @@
     },
     "tip": {
       "more": "{name} +{count}"
-    },
-    "task_count": {
-      "one": "{count} задача",
-      "few": "{count} задачи",
-      "many": "{count} задач",
-      "other": "{count} задачи"
     },
     "toggle_category": "Свернуть или развернуть «{name}»",
     "caption": "Пурпурная засечка — первоначальный дедлайн; подпись «+N дн.» показывает, на сколько сдвинут срок. Пурпурная стрелка — нарушенная зависимость: задача начата до готовности блокера."

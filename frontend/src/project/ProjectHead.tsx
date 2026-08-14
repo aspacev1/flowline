@@ -40,11 +40,6 @@ export function ProjectHead({
   const { t } = useLocale();
   const period = projectPeriod(state);
 
-  const counts = t("project.counts", {
-    categories: t("project.category_count", { count: state.categories.length }),
-    tasks: t("gantt.task_count", { count: state.tasks.length }),
-  });
-
   return (
     <header className="project-head">
       <div className="project-head__main">
@@ -79,17 +74,19 @@ export function ProjectHead({
             )}
           </div>
 
-          <p className="project-head__meta">
-            {period
-              ? t("project.meta", {
-                  period: t("project.period", {
-                    from: formatDate(t, period.from),
-                    to: formatDate(t, period.to),
-                  }),
-                  counts,
-                })
-              : counts}
-          </p>
+          {/* Срок работ и ничего больше. Счёт категорий и задач ушёл: полоса
+              метрик ниже называет то же число задач крупно и в ряду
+              остальных, а счёт категорий не отвечал ни на один вопрос,
+              который задают, открыв проект. Проекту без задач срока нет — и
+              строки тоже. */}
+          {period && (
+            <p className="project-head__meta">
+              {t("project.period", {
+                from: formatDate(t, period.from),
+                to: formatDate(t, period.to),
+              })}
+            </p>
+          )}
         </div>
 
         {actions && <div className="project-head__actions">{actions}</div>}

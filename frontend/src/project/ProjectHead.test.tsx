@@ -26,18 +26,21 @@ async function metric(label: string): Promise<string> {
 }
 
 describe("шапка проекта", () => {
-  it("называет срок работ и объём проекта", async () => {
+  it("называет срок работ", async () => {
     renderProject();
 
     // Срок — от самого раннего старта до посчитанного сервером окончания, а не
     // до конца последней задачи: окончание бывает позже её.
-    expect(await screen.findByText("4 марта — 8 июня · 2 категории, 1 задача")).toBeInTheDocument();
+    expect(await screen.findByText("4 марта — 8 июня")).toBeInTheDocument();
   });
 
   it("проект без задач срока не выдумывает", async () => {
     renderProject({ ...STATE, tasks: [], project_end: null });
 
-    expect(await screen.findByText("2 категории, 0 задач")).toBeInTheDocument();
+    // Строки под названием у такого проекта нет вовсе: срока нет, а считать
+    // категории и задачи в ней больше нечего.
+    await screen.findByRole("list", { name: "Сводка по проекту" });
+    expect(document.querySelector(".project-head__meta")).toBeNull();
   });
 
   it("несогласованный план так и называет себя черновиком", async () => {
