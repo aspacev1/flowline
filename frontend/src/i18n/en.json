@@ -266,6 +266,7 @@
   },
   "category": {
     "create": "New category",
+    "delete": "Delete category “{name}”",
     "new": {
       "title": "New category",
       "name": "Name",
@@ -319,7 +320,10 @@
       "add_link_to": "Add to “{label}”",
       "unlink": "Remove the link with “{name}”",
       "internal_note": "Internal note",
-      "history": "History"
+      "history": "History",
+      "delete": "Delete task",
+      "delete_warning": "The task will be deleted along with its links, assignees and comments. Undo can bring it back",
+      "delete_confirm": "Yes, delete"
     },
     "new": {
       "title": "New task",
@@ -624,7 +628,10 @@
       "holidays_extra": "Extra non-working days",
       "holidays_extra_hint": "Applied on top of the organization calendar",
       "workdays_extra": "Working Saturdays",
-      "workdays_extra_hint": "Brings specific non-working dates back"
+      "workdays_extra_hint": "Brings specific non-working dates back",
+      "delete": "Delete project",
+      "delete_warning": "The project will be deleted entirely — categories, tasks and all of its history. This cannot be undone",
+      "delete_confirm": "Yes, delete the project"
     },
     "profile": {
       "title": "Profile"

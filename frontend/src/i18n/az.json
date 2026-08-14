@@ -266,6 +266,7 @@
   },
   "category": {
     "create": "Yeni kateqoriya",
+    "delete": "«{name}» kateqoriyasını sil",
     "new": {
       "title": "Yeni kateqoriya",
       "name": "Ad",
@@ -319,7 +320,10 @@
       "add_link_to": "«{label}» siyahısına əlavə et",
       "unlink": "«{name}» ilə əlaqəni sil",
       "internal_note": "Daxili qeyd",
-      "history": "Tarixçə"
+      "history": "Tarixçə",
+      "delete": "Tapşırığı sil",
+      "delete_warning": "Tapşırıq əlaqələri, icraçıları və şərhləri ilə birlikdə silinəcək. «Geri al» onu qaytara bilər",
+      "delete_confirm": "Bəli, sil"
     },
     "new": {
       "title": "Yeni tapşırıq",
@@ -624,7 +628,10 @@
       "holidays_extra": "Əlavə qeyri-iş günləri",
       "holidays_extra_hint": "Təşkilatın təqviminin üstünə əlavə olunur",
       "workdays_extra": "İşlənən şənbələr",
-      "workdays_extra_hint": "Qeyri-iş günlərini geri qaytarır"
+      "workdays_extra_hint": "Qeyri-iş günlərini geri qaytarır",
+      "delete": "Layihəni sil",
+      "delete_warning": "Layihə bütövlükdə silinəcək — kateqoriyalar, tapşırıqlar və bütün tarixçə ilə birlikdə. Bunu geri qaytarmaq mümkün olmayacaq",
+      "delete_confirm": "Bəli, layihəni sil"
     },
     "profile": {
       "title": "Profil"

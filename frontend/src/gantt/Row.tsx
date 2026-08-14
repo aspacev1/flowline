@@ -32,6 +32,8 @@ export function CategoryRow({
   scale,
   addLabel,
   onAddTask,
+  deleteLabel,
+  onDelete,
   reorder,
   open = true,
   onToggle,
@@ -42,6 +44,10 @@ export function CategoryRow({
   scale: Scale;
   addLabel: string;
   onAddTask?: (categoryId: string) => void;
+  deleteLabel?: string;
+  /** Крестик удаления. Передаётся только для пустой категории: непустую
+      сервер откажется удалять, и кнопка обещала бы отказ. */
+  onDelete?: (categoryId: string) => void;
   reorder?: Reorder;
   /** Развёрнута ли категория: свёрнутая прячет свои строки задач. */
   open?: boolean;
@@ -95,6 +101,21 @@ export function CategoryRow({
                   onClick={() => onAddTask(category.id)}
                 >
                   +
+                </button>
+              )}
+              {onDelete && (
+                // Подпись с названием — по той же причине, что у «плюса»:
+                // безымянные крестики при чтении с экрана неразличимы.
+                // Подтверждения нет намеренно: удаляется только пустая
+                // категория, и отмена возвращает её одной кнопкой.
+                <button
+                  type="button"
+                  className="gantt__remove"
+                  aria-label={deleteLabel}
+                  title={deleteLabel}
+                  onClick={() => onDelete(category.id)}
+                >
+                  ×
                 </button>
               )}
             </>

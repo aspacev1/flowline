@@ -820,3 +820,59 @@ def test_revision_log_of_a_foreign_project_is_not_found(authed, db):
     response = authed.get(f"/api/projects/{foreign.id}/revisions")
     assert response.status_code == 404
     assert response.json()["detail"] == "project_not_found"
+
+
+def test_owner_deletes_a_project_with_everything_inside(authed):
+    project_id = authed.post("/api/projects", json={"name": "Redesign"}).json()["id"]
+    category_id = authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={"op": {"type": "create_category", "name": "Design", "color": "#3b82f6"}},
+    ).json()["op"]["category_id"]
+    authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={
+            "op": {
+                "type": "create_task",
+                "category_id": category_id,
+                "name": "Logo",
+                "start_date": "2026-03-02",
+                "duration_days": 3,
+            }
+        },
+    )
+
+    assert authed.delete(f"/api/projects/{project_id}").status_code == 204
+
+    # Проект пропал и из списка, и по адресу: удалённый неотличим от
+    # несуществующего.
+    assert authed.get(f"/api/projects/{project_id}").status_code == 404
+    assert authed.get("/api/projects").json() == []
+
+
+def test_editor_cannot_delete_a_project(authed, db):
+    # Право нарочно уже PROJECT_ADMIN: настройки редактор правит, а удаление —
+    # необратимое действие уровня владельца (см. Action.PROJECT_DELETE).
+    project_id = authed.post("/api/projects", json={"name": "Redesign"}).json()["id"]
+
+    _demote_own_membership(authed, db, "editor")
+
+    response = authed.delete(f"/api/projects/{project_id}")
+    assert response.status_code == 403
+    assert response.json()["detail"] == "forbidden"
+    # Проект остался читаемым: отказ ничего не удалил.
+    assert authed.get(f"/api/projects/{project_id}").status_code == 200
+
+
+def test_deleting_a_foreign_project_returns_404(authed, db):
+    from app.models import Organization, Project
+
+    other_org = Organization(name="Other", slug="other")
+    db.add(other_org)
+    db.flush()
+    foreign = Project(org_id=other_org.id, name="Secret", slug="secret")
+    db.add(foreign)
+    db.flush()
+
+    # Тот же 404, что и на чтении: чужой проект неотличим от несуществующего,
+    # и удаление не должно выдавать его существование.
+    assert authed.delete(f"/api/projects/{foreign.id}").status_code == 404

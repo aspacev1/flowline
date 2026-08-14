@@ -3903,6 +3903,57 @@
       }
     },
     "/api/projects/{project_id}": {
+      "delete": {
+        "description": "Удаление проекта целиком.\n\nПраво — своё, а не PROJECT_ADMIN: вместе с проектом каскад уносит журнал\nревизий, то есть и всякую возможность отмены. Необратимое действие такого\nвеса, как и переутверждение плана, остаётся за владельцем.\n\nЧерез журнал ревизий удаление не проходит намеренно: журнал живёт внутри\nпроекта и умирает вместе с ним — записи «проект удалён» негде было бы\nлежать.",
+        "operationId": "delete_project_api_projects__project_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "planora_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Planora Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Project",
+        "tags": [
+          "projects"
+        ]
+      },
       "get": {
         "operationId": "get_project_api_projects__project_id__get",
         "parameters": [

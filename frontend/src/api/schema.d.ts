@@ -686,7 +686,19 @@ export interface paths {
         get: operations["get_project_api_projects__project_id__get"];
         put?: never;
         post?: never;
-        delete?: never;
+        /**
+         * Delete Project
+         * @description Удаление проекта целиком.
+         *
+         *     Право — своё, а не PROJECT_ADMIN: вместе с проектом каскад уносит журнал
+         *     ревизий, то есть и всякую возможность отмены. Необратимое действие такого
+         *     веса, как и переутверждение плана, остаётся за владельцем.
+         *
+         *     Через журнал ревизий удаление не проходит намеренно: журнал живёт внутри
+         *     проекта и умирает вместе с ним — записи «проект удалён» негде было бы
+         *     лежать.
+         */
+        delete: operations["delete_project_api_projects__project_id__delete"];
         options?: never;
         head?: never;
         /**
@@ -3054,6 +3066,37 @@ export interface operations {
                 content: {
                     "application/json": unknown;
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_project_api_projects__project_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

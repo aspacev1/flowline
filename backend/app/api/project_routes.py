@@ -487,6 +487,42 @@ def update_project(
     return response
 
 
+@router.delete("/{project_id}", status_code=204)
+def delete_project(
+    background: BackgroundTasks,
+    context: ProjectContext = Depends(project_context),
+    db: DbSession = Depends(get_db),
+):
+    """Удаление проекта целиком.
+
+    Право — своё, а не PROJECT_ADMIN: вместе с проектом каскад уносит журнал
+    ревизий, то есть и всякую возможность отмены. Необратимое действие такого
+    веса, как и переутверждение плана, остаётся за владельцем.
+
+    Через журнал ревизий удаление не проходит намеренно: журнал живёт внутри
+    проекта и умирает вместе с ним — записи «проект удалён» негде было бы
+    лежать.
+    """
+    context.require(Action.PROJECT_DELETE)
+    project = context.project
+
+    # След в журнале приложения — как у правки настроек: записи в журнале
+    # ревизий у этого действия нет и быть не может.
+    logger.info("проект %s удалил %s", project.id, context.user.id)
+
+    db.delete(project)
+    # Соседние вкладки узнают о судьбе проекта тем же способом, что и о любом
+    # изменении: перечитыванием по сигналу. Перечитав, они получат 404 —
+    # честный ответ «проекта больше нет».
+    _publish(
+        background,
+        db,
+        project.id,
+        {"type": "revision", "op": {"type": "project_deleted"}},
+    )
+    return None
+
+
 @router.post("/{project_id}/undo", status_code=201)
 def undo_last(
     background: BackgroundTasks,

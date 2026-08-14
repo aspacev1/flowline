@@ -17,6 +17,11 @@ class Action(StrEnum):
     # владельца, а не рядовая правка сроков.
     PLAN_APPROVE = "plan_approve"
     PLAN_REAPPROVE = "plan_reapprove"
+    # Удаление проекта — отдельное право, а не часть PROJECT_ADMIN: настройки
+    # правит и редактор, но удаление уносит с собой журнал ревизий — то есть
+    # и всякую возможность отмены. Решение такого веса, как и переутверждение
+    # плана, спецификация оставляет владельцу.
+    PROJECT_DELETE = "project_delete"
 
 
 _MATRIX: dict[Role | None, frozenset[Action]] = {
