@@ -270,4 +270,16 @@ describe("диаграмма", () => {
     expect(container.querySelector(".gantt")).toHaveClass("gantt--month");
     expect(screen.getByRole("button", { name: "Масштаб: Месяц" })).toBeInTheDocument();
   });
+
+  it("имя задачи открывает её карточку, как и полоска", async () => {
+    const onSelectTask = vi.fn();
+    renderWithProviders(
+      <Gantt projectId="p1" state={STATE} onSelectTask={onSelectTask} />,
+      { locale: "ru" },
+    );
+
+    await userEvent.click(screen.getByText("Логотип"));
+
+    expect(onSelectTask).toHaveBeenCalledWith("t1");
+  });
 });
