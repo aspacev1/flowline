@@ -135,7 +135,7 @@ function ProjectMetrics({ state, showPlan }: { state: ProjectState; showPlan: bo
 type Metric = { key: string; value: number; warn?: boolean };
 
 /**
- * Семь цифр полосы — или шесть на публичной странице.
+ * До семи цифр полосы — до шести на публичной странице; нулевые не входят.
  *
  * «Вне плана» считается по базовому плану, и её нет там, где нет и самой
  * строки плана: версия плана и расхождения с ним по ссылке не выводятся
@@ -153,7 +153,7 @@ function projectMetrics(state: ProjectState, showPlan: boolean): Metric[] {
   const overdue =
     deadline === null ? 0 : state.tasks.filter((task) => task.end_date > deadline).length;
 
-  return [
+  const metrics: Metric[] = [
     { key: "total", value: state.tasks.length },
     { key: "in_progress", value: counts.in_progress },
     { key: "blocked", value: counts.blocked, warn: true },
@@ -171,6 +171,13 @@ function projectMetrics(state: ProjectState, showPlan: boolean): Metric[] {
       : []),
     { key: "completed", value: counts.done },
   ];
+
+  // Нулевые ячейки полоса не показывает: «Заблокировано 0» — это норма, а не
+  // сводка, и семь ячеек, где половина нули, прячут те две, ради которых
+  // полоса существует. Появление проблемы само расширит полосу — новая ячейка
+  // с красной цифрой заметнее, чем единица на месте привычного нуля. «Всего»
+  // остаётся всегда: это итог, а у пустого проекта — единственная цифра.
+  return metrics.filter((metric) => metric.value > 0 || metric.key === "total");
 }
 
 /**

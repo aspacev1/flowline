@@ -27,7 +27,7 @@ export const DAY_WIDTH: Record<Zoom, number> = { day: 52, week: 30, month: 18 };
  * расходятся при первой же правке оформления, и стрелки уезжают со строк.
  * Разметка ставит эту величину переменной `--gantt-row`, и CSS берёт её оттуда.
  */
-export const ROW_HEIGHT = 48;
+export const ROW_HEIGHT = 40;
 
 /** Первое число месяца, в который попала дата. */
 function firstOfMonth(iso: string): string {

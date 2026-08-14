@@ -171,10 +171,14 @@ describe("полоса метрик", () => {
     expect(await metric("Завершено")).toBe("2");
   });
 
-  it("без дедлайна проекта просроченных нет", async () => {
+  it("без дедлайна проекта ячейки просрочки нет вовсе", async () => {
     renderProject({ ...MIXED, deadline: null });
 
-    expect(await metric("После дедлайна проекта")).toBe("0");
+    // Нулевая ячейка не показывается: «После дедлайна 0» — норма, а не сводка,
+    // и полоса называет только то, что есть.
+    const strip = await screen.findByRole("list", { name: "Сводка по проекту" });
+    expect(await metric("Всего задач")).toBe("5");
+    expect(within(strip).queryByText("После дедлайна проекта")).toBeNull();
   });
 
   it("считает работу, добавленную сверх согласованного плана", async () => {
@@ -186,6 +190,9 @@ describe("полоса метрик", () => {
   it("у черновика вне плана нет ничего: сравнивать не с чем", async () => {
     renderProject();
 
-    expect(await metric("Вне плана")).toBe("0");
+    // Сравнивать не с чем — счёт нулевой, и ячейка не показывается вовсе.
+    const strip = await screen.findByRole("list", { name: "Сводка по проекту" });
+    expect(await metric("Всего задач")).toBe("1");
+    expect(within(strip).queryByText("Вне плана")).toBeNull();
   });
 });

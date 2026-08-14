@@ -657,7 +657,7 @@ h2 {
   align-items: stretch;
   width: fit-content;
   max-width: 100%;
-  margin: 18px 0 0;
+  margin: 12px 0 0;
   padding: 0;
   list-style: none;
   overflow-x: auto;
@@ -668,8 +668,8 @@ h2 {
 
 .project-head__metric {
   flex: 0 0 auto;
-  min-width: 120px;
-  padding: 10px 15px;
+  min-width: 96px;
+  padding: 6px 12px;
   border-right: 1px solid var(--border);
 }
 
@@ -684,10 +684,11 @@ h2 {
   line-height: 1.3;
 }
 
-/* Подпись мельче цифры вдвое с лишним: в ячейке первой читается цифра, а
-   подпись объясняет её тому, кто уже остановился на ней взглядом. */
+/* Подпись мельче цифры: в ячейке первой читается цифра, а подпись объясняет
+   её тому, кто уже остановился на ней взглядом. 12, а не 11: мельче — это уже
+   не «второстепенно», а «нечитаемо» с рабочего расстояния. */
 .project-head__metric-label {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 

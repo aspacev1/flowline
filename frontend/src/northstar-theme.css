@@ -100,17 +100,18 @@ a:focus-visible,
 /* --- боковая колонка --- */
 
 /* Тёмная колонка макета сюда не переносится (см. план, §1): здесь она светлая
-   и просто перекрашена. Меры крупнее базовых: квадрат логотипа 34 пикселя, и
+   и просто перекрашена. Меры крупнее базовых: квадрат логотипа 30 пикселей, и
    колонка значков равняется по нему — иначе подписи разделов не встают под
-   названием организации. */
-.sidebar { padding: 24px 12px 16px; gap: 14px; background: var(--surface); border-right: 1px solid var(--border); --sidebar-gutter: 10px; --sidebar-mark: 34px; --sidebar-gap: 11px; }
+   названием организации. Крупнее — уже вывеска: колонка о трёх пунктах не
+   должна весить на вид больше страницы, которой служит. */
+.sidebar { padding: 16px 10px 12px; gap: 10px; background: var(--surface); border-right: 1px solid var(--border); --sidebar-gutter: 10px; --sidebar-mark: 30px; --sidebar-gap: 10px; }
 .sidebar__workspace { padding: 0 var(--sidebar-gutter); }
-.sidebar__avatar { width: 34px; height: 34px; border-radius: 9px; font-size: 0; position: relative; background: linear-gradient(145deg, #7182ff, #4256d8); box-shadow: inset 0 0 0 1px rgb(255 255 255 / 18%); }
-.sidebar__avatar::after { content: "P"; color: #fff; font-size: 21px; line-height: 1; font-weight: 800; }
-.sidebar__brand { font-size: 16px; font-weight: 750; color: var(--text); }
+.sidebar__avatar { width: 30px; height: 30px; border-radius: 8px; font-size: 0; position: relative; background: linear-gradient(145deg, #7182ff, #4256d8); box-shadow: inset 0 0 0 1px rgb(255 255 255 / 18%); }
+.sidebar__avatar::after { content: "P"; color: #fff; font-size: 18px; line-height: 1; font-weight: 800; }
+.sidebar__brand { font-size: 15px; font-weight: 700; color: var(--text); }
 .sidebar__section { display: none; }
 .sidebar__nav { gap: 3px; }
-.sidebar__link { min-height: 38px; padding: 0 var(--sidebar-gutter); border-radius: var(--radius-md); color: var(--text-muted); font-size: 14px; font-weight: 600; }
+.sidebar__link { min-height: 34px; padding: 0 var(--sidebar-gutter); border-radius: var(--radius-md); color: var(--text-muted); font-size: 14px; font-weight: 600; }
 .sidebar__link:hover { background: var(--hover); color: var(--text); }
 /* Текущий раздел — та же отметка в три пикселя слева, что и у выбранной строки
    ленты: одно состояние «вы здесь» на всё приложение, а не два разных. */
@@ -120,7 +121,7 @@ a:focus-visible,
    шириной с логотип. */
 .sidebar__icon { height: 22px; color: currentColor; }
 .sidebar__foot { border-top: 1px solid var(--border); gap: 4px; }
-button.sidebar__button { height: 38px; padding: 0 var(--sidebar-gutter); border-radius: var(--radius-md); font-size: 14px; font-weight: 600; }
+button.sidebar__button { height: 34px; padding: 0 var(--sidebar-gutter); border-radius: var(--radius-md); font-size: 14px; font-weight: 600; }
 .org-switch { display: inline-flex; }
 .locale-switch { display: flex; }
 
@@ -145,7 +146,10 @@ button.sidebar__button { height: 38px; padding: 0 var(--sidebar-gutter); border-
 /* --- шапка проекта --- */
 
 .screen--wide { padding: 0; }
-.project-head { margin: 0; padding: 22px 28px 18px; background: var(--surface); border-bottom: 1px solid var(--border); gap: 0; }
+/* Поля шапки умереннее макетных: над лентой и так стоят четыре яруса — шапка,
+   метрики, вкладки, тулбар, — и каждый лишний пиксель здесь умножается на
+   четыре. Содержимому ярусов это не мешает: высоту им задают их органы. */
+.project-head { margin: 0; padding: 14px 24px 12px; background: var(--surface); border-bottom: 1px solid var(--border); gap: 0; }
 .project-head__main { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; width: 100%; }
 .project-head__title { font-size: 25px; font-weight: 700; letter-spacing: -0.025em; line-height: 1.25; }
 .project-head__meta { margin-top: 7px; font-size: 13px; color: var(--text-muted); font-style: normal; }
@@ -194,7 +198,7 @@ button.sidebar__button { height: 38px; padding: 0 var(--sidebar-gutter); border-
 /* Высота — от органа управления, а не от собственного числа: с 36-пиксельными
    кнопками прежние 78 пикселей оставляли над лентой полосу пустоты выше самой
    шапки ленты. */
-.project-toolbar { display: flex; align-items: center; gap: 8px; min-height: 54px; padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.project-toolbar { display: flex; align-items: center; gap: 8px; min-height: 46px; padding: 5px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
 .project-toolbar__primary { padding: 0 12px; }
 .project-toolbar__divider { width: 1px; height: 24px; margin: 0 4px; background: var(--border); }
 .project-toolbar__spacer { flex: 1; }
@@ -402,7 +406,7 @@ textarea:focus {
 
 /* Выбранная вкладка — акцентом, а не чернилами: «вы здесь» во всём остальном
    приложении говорит синий, и вкладки не повод заводить второй такой знак. */
-.tabs__link, .screen .tabs__link { padding: 8px 10px; font-size: 13px; font-weight: 620; text-decoration: none; }
+.tabs__link, .screen .tabs__link { padding: 6px 10px; font-size: 13px; font-weight: 620; text-decoration: none; }
 .tabs__link.is-current { border-bottom-color: var(--accent); color: var(--accent); }
 
 button {
@@ -452,10 +456,15 @@ body:has(.screen--narrow) {
 
 /* --- списки --- */
 
-/* Project portfolio cards keep the scan path clear at both 2 and 20 items. */
+/* Project portfolio cards keep the scan path clear at both 2 and 20 items.
+   auto-fill, а не auto-fit: fit схлопывает пустые дорожки, и единственный
+   проект растягивался карточкой во всю страницу — километровая карточка об
+   одном названии и есть «громоздко». fill держит сетку той же, что и при
+   двадцати проектах, и первая карточка обещает размером, что рядом встанут
+   следующие. */
 .projects {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 16px;
 }
 
@@ -487,7 +496,10 @@ body:has(.screen--narrow) {
 }
 
 .projects li a { width: 100%; color: var(--text); font-size: 16px; font-weight: 700; }
-.projects__slug { margin: 3px 0 0; color: var(--text-faint); font-size: 12px; }
+/* Слаг — обычным шрифтом и приглушённо, а не моноширинным faint: это адрес
+   публичной страницы, то есть данные, и читаться он обязан как текст, а не
+   как отладочная строка; faint на белом (2.7:1) для данных не хватает. */
+.projects__slug { margin: 3px 0 0; color: var(--text-muted); font-size: 12px; font-family: var(--font); }
 
 .home-card, .task-list, .report { border-color: var(--border); border-radius: var(--radius-lg); background: var(--surface); }
 /* Название карточки и ссылка на проект в строке задачи — чернилами, а не

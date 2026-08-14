@@ -180,7 +180,9 @@
 
 .feed__time {
   margin-top: 2px;
-  color: var(--text-faint);
+  /* Приглушённо, но не faint: время события — данные, и на белом им нужен
+     контраст текста, а не декорации. */
+  color: var(--text-muted);
   font-size: 12px;
   white-space: nowrap;
 }
