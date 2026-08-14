@@ -215,7 +215,19 @@ export function TaskRow({
                   ⠿
                 </span>
               )}
-              <span className="gantt__label-name">{task.name}</span>
+              {/* Имя — тоже открывает карточку, не только полоска: его читают
+                  раньше полоски и по нему кликают первым, особенно когда
+                  полоска обрезана краем ленты. Кнопкой имя не становится —
+                  полоска уже даёт то же действие с клавиатуры и для чтения с
+                  экрана, а вторая кнопка с тем же именем на строке была бы для
+                  них лишним, неотличимым от первой шагом Tab. Клик остаётся
+                  доступен указателем и не обещает того, чего не выполняет. */}
+              <span
+                className={`gantt__label-name${onSelect ? " gantt__label-name--clickable" : ""}`}
+                onClick={onSelect ? () => onSelect(task.id) : undefined}
+              >
+                {task.name}
+              </span>
               {late && (
                 <span className="gantt__flag" title={lateLabel} role="img" aria-label={lateLabel}>
                   !
