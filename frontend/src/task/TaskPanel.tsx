@@ -27,6 +27,9 @@ import { TaskProgress } from "./TaskProgress";
 
 import "./panel.css";
 
+/** Вкладка карточки: свойства задачи, история или обсуждение. */
+type PanelTab = "details" | "history" | "comments";
+
 /**
  * Карточка задачи.
  *
@@ -66,6 +69,13 @@ export function TaskPanel({
   // значения им недостаточно — догадка и откат часто укладываются в один кадр,
   // и с точки зрения поля значение не менялось.
   const [refusals, setRefusals] = useState(0);
+
+  // Вкладка карточки. Сбрасывается на «Свойства» при переходе к соседней
+  // задаче: карточка, оставшаяся открытой на «Истории» одной задачи, не
+  // должна молча показывать историю следующей — на неё щёлкнули, чтобы
+  // увидеть саму задачу.
+  const [tab, setTab] = useState<PanelTab>("details");
+  useEffect(() => setTab("details"), [task.id]);
 
   // Отказ здесь — не ошибка карточки: роль `client` состава организации не
   // получает вовсе, и блок исполнителей просто не рисуется. Тот же довод, что
@@ -171,7 +181,6 @@ export function TaskPanel({
           внутри той же обёртки: «день отмечен» относится к этой задаче. */}
       <div key={task.id}>
       <TaskProgress
-        projectId={projectId}
         task={task}
         canWrite={canWrite}
         resetToken={refusals}
@@ -182,168 +191,229 @@ export function TaskPanel({
         }
       />
 
-      <div className="panel__fields">
-        <TextField
-          id="panel-name"
-          label={t("task.panel.name")}
-          value={task.name}
-          disabled={!editsText}
-          resetToken={refusals}
-          onCommit={(name) => commitFields({ name })}
-        />
-
-        <TextField
-          id="panel-description"
-          label={t("task.panel.description")}
-          value={task.description ?? ""}
-          rows={3}
-          disabled={!editsText}
-          resetToken={refusals}
-          onCommit={(description) => commitFields({ description })}
-        />
-
-        <SelectField
-          id="panel-status"
-          label={t("task.panel.status")}
-          value={task.status}
-          disabled={!canWrite}
-          options={TASK_STATUSES.map((status) => ({
-            value: status,
-            label: t(`task.status.${status}`),
-          }))}
-          onCommit={(value) => {
-            const status = value as TaskStatus;
-            // Оптимистичная догадка повторяет серверную сцепку: «готово»
-            // доводит прогресс до ста (см. optimistic.ts).
-            send({ type: "set_status", task_id: task.id, status }, (state) =>
-              patchStatus(state, task.id, status),
-            );
-          }}
-        />
-
-        <SelectField
-          id="panel-category"
-          label={t("task.panel.category")}
-          value={task.category_id}
-          disabled={!canWrite}
-          // Название категории — содержимое пользователя: не переводится.
-          options={categories.map((category) => ({
-            value: category.id,
-            label: category.name,
-          }))}
-          onCommit={(categoryId) => {
-            // В конец выбранной категории: перенос списком — это смена
-            // принадлежности, а не выбор места внутри. Место выбирают
-            // перетаскиванием строки.
-            const position = state.tasks.filter(
-              (row) => row.category_id === categoryId && row.id !== task.id,
-            ).length;
-            send(
-              { type: "reorder_task", task_id: task.id, category_id: categoryId, position },
-              (state) => reorderTask(state, task.id, categoryId, position),
-            );
-          }}
-        />
-
-        <SelectField
-          id="panel-criticality"
-          label={t("task.panel.criticality")}
-          value={task.criticality}
-          disabled={!canWrite}
-          options={CRITICALITY_LEVELS.map((level) => ({
-            value: level,
-            label: t(`task.criticality.${level}`),
-          }))}
-          onCommit={(value) => {
-            const criticality = value as Criticality;
-            send({ type: "set_criticality", task_id: task.id, criticality }, patch({ criticality }));
-          }}
-        />
-
-        <ValueField
-          id="panel-start"
-          label={t("task.panel.start")}
-          type="date"
-          value={task.start_date}
-          disabled={!canWrite}
-          resetToken={refusals}
-          onCommit={(start_date) =>
-            send({ type: "move_task", task_id: task.id, start_date }, patch({ start_date }))
-          }
-        />
-
-        <ValueField
-          id="panel-duration"
-          label={t("task.panel.duration")}
-          type="number"
-          value={String(task.duration_days)}
-          disabled={!canWrite}
-          resetToken={refusals}
-          onCommit={(value) => {
-            const duration_days = Number(value);
-            send({ type: "set_duration", task_id: task.id, duration_days }, patch({ duration_days }));
-          }}
-        />
-
-        <div className="panel__row">
-          <span className="panel__key">{t("task.panel.end")}</span>
-          {/* Дата окончания только показывается: её считает сервер по календарю
-              проекта, и поле для правки обещало бы влияние, которого нет. */}
-          <span className="panel__value">{formatShortDate(t, task.end_date)}</span>
-        </div>
-
-        {/* Единственное поле с ограниченной видимостью. Показывать его или нет,
-            решает сервер: если заметки нет в ответе, блока нет в интерфейсе. */}
-        {"internal_note" in task && (
-          <TextField
-            id="panel-note"
-            label={t("task.panel.internal_note")}
-            value={task.internal_note ?? ""}
-            rows={3}
-            disabled={!editsText}
-          resetToken={refusals}
-            onCommit={(internal_note) => commitFields({ internal_note })}
-          />
-        )}
-      </div>
+      {/* Свойства, история и обсуждение — вкладки одной карточки, а не три
+          ленты подряд: и историю, и разговор за сеанс открывают реже, чем
+          правят поля, и держать их всегда развёрнутыми — растягивать
+          карточку тем, что смотрят от случая к случаю. */}
+      <div className="panel__tabs" role="tablist" aria-label={t("task.panel.tabs")}>
+        <button
+          type="button"
+          role="tab"
+          id="panel-tab-details"
+          aria-selected={tab === "details"}
+          aria-controls="panel-tabpanel-details"
+          className={tab === "details" ? "panel__tab is-active" : "panel__tab"}
+          onClick={() => setTab("details")}
+        >
+          {t("task.panel.tab_details")}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="panel-tab-history"
+          aria-selected={tab === "history"}
+          aria-controls="panel-tabpanel-history"
+          className={tab === "history" ? "panel__tab is-active" : "panel__tab"}
+          onClick={() => setTab("history")}
+        >
+          {t("task.panel.history")}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          id="panel-tab-comments"
+          aria-selected={tab === "comments"}
+          aria-controls="panel-tabpanel-comments"
+          className={tab === "comments" ? "panel__tab is-active" : "panel__tab"}
+          onClick={() => setTab("comments")}
+        >
+          {t("task.panel.comments")}
+        </button>
       </div>
 
-      <Dependencies task={task} state={state} canWrite={canWrite} send={send} />
+      {tab === "details" && (
+        <div id="panel-tabpanel-details" role="tabpanel" aria-labelledby="panel-tab-details">
+          <div className="panel__fields">
+            <TextField
+              id="panel-name"
+              label={t("task.panel.name")}
+              value={task.name}
+              disabled={!editsText}
+              resetToken={refusals}
+              onCommit={(name) => commitFields({ name })}
+            />
 
-      {membersQuery.data && membersQuery.data.length > 0 && (
-        <fieldset className="panel__field panel__fieldset">
-          <legend>{t("task.panel.assignees")}</legend>
-          <div className="panel__chips">
-            {membersQuery.data.map((member) => (
-              // Каждый исполнитель — своя операция: их и снимают по одному, и
-              // в истории они читаются как отдельные события.
-              <button
-                key={member.id}
-                type="button"
-                className="panel__chip"
-                aria-pressed={task.assignee_ids.includes(member.id)}
-                disabled={!canWrite}
-                onClick={() => toggleAssignee(member.id)}
-              >
-                {/* Аватар до имени: в списке и в карточке человек обязан
-                    узнаваться одним и тем же пятном цвета. */}
-                <Avatar name={member.name} size={20} />
-                {/* Имя человека — содержимое, а не хрома. */}
-                {member.name}
-              </button>
-            ))}
+            <TextField
+              id="panel-description"
+              label={t("task.panel.description")}
+              value={task.description ?? ""}
+              rows={3}
+              disabled={!editsText}
+              resetToken={refusals}
+              onCommit={(description) => commitFields({ description })}
+            />
+
+            <SelectField
+              id="panel-status"
+              label={t("task.panel.status")}
+              value={task.status}
+              disabled={!canWrite}
+              options={TASK_STATUSES.map((status) => ({
+                value: status,
+                label: t(`task.status.${status}`),
+              }))}
+              onCommit={(value) => {
+                const status = value as TaskStatus;
+                // Оптимистичная догадка повторяет серверную сцепку: «готово»
+                // доводит прогресс до ста (см. optimistic.ts).
+                send({ type: "set_status", task_id: task.id, status }, (state) =>
+                  patchStatus(state, task.id, status),
+                );
+              }}
+            />
+
+            <SelectField
+              id="panel-category"
+              label={t("task.panel.category")}
+              value={task.category_id}
+              disabled={!canWrite}
+              // Название категории — содержимое пользователя: не переводится.
+              options={categories.map((category) => ({
+                value: category.id,
+                label: category.name,
+              }))}
+              onCommit={(categoryId) => {
+                // В конец выбранной категории: перенос списком — это смена
+                // принадлежности, а не выбор места внутри. Место выбирают
+                // перетаскиванием строки.
+                const position = state.tasks.filter(
+                  (row) => row.category_id === categoryId && row.id !== task.id,
+                ).length;
+                send(
+                  { type: "reorder_task", task_id: task.id, category_id: categoryId, position },
+                  (state) => reorderTask(state, task.id, categoryId, position),
+                );
+              }}
+            />
+
+            <SelectField
+              id="panel-criticality"
+              label={t("task.panel.criticality")}
+              value={task.criticality}
+              disabled={!canWrite}
+              options={CRITICALITY_LEVELS.map((level) => ({
+                value: level,
+                label: t(`task.criticality.${level}`),
+              }))}
+              onCommit={(value) => {
+                const criticality = value as Criticality;
+                send(
+                  { type: "set_criticality", task_id: task.id, criticality },
+                  patch({ criticality }),
+                );
+              }}
+            />
+
+            <ValueField
+              id="panel-start"
+              label={t("task.panel.start")}
+              type="date"
+              value={task.start_date}
+              disabled={!canWrite}
+              resetToken={refusals}
+              onCommit={(start_date) =>
+                send({ type: "move_task", task_id: task.id, start_date }, patch({ start_date }))
+              }
+            />
+
+            <ValueField
+              id="panel-duration"
+              label={t("task.panel.duration")}
+              type="number"
+              value={String(task.duration_days)}
+              disabled={!canWrite}
+              resetToken={refusals}
+              onCommit={(value) => {
+                const duration_days = Number(value);
+                send(
+                  { type: "set_duration", task_id: task.id, duration_days },
+                  patch({ duration_days }),
+                );
+              }}
+            />
+
+            <div className="panel__row">
+              <span className="panel__key">{t("task.panel.end")}</span>
+              {/* Дата окончания только показывается: её считает сервер по
+                  календарю проекта, и поле для правки обещало бы влияние,
+                  которого нет. */}
+              <span className="panel__value">{formatShortDate(t, task.end_date)}</span>
+            </div>
+
+            {/* Единственное поле с ограниченной видимостью. Показывать его
+                или нет, решает сервер: если заметки нет в ответе, блока нет
+                в интерфейсе. */}
+            {"internal_note" in task && (
+              <TextField
+                id="panel-note"
+                label={t("task.panel.internal_note")}
+                value={task.internal_note ?? ""}
+                rows={3}
+                disabled={!editsText}
+                resetToken={refusals}
+                onCommit={(internal_note) => commitFields({ internal_note })}
+              />
+            )}
           </div>
-        </fieldset>
+
+          <Dependencies task={task} state={state} canWrite={canWrite} send={send} />
+
+          {membersQuery.data && membersQuery.data.length > 0 && (
+            <fieldset className="panel__field panel__fieldset">
+              <legend>{t("task.panel.assignees")}</legend>
+              <div className="panel__chips">
+                {membersQuery.data.map((member) => (
+                  // Каждый исполнитель — своя операция: их и снимают по
+                  // одному, и в истории они читаются как отдельные события.
+                  <button
+                    key={member.id}
+                    type="button"
+                    className="panel__chip"
+                    aria-pressed={task.assignee_ids.includes(member.id)}
+                    disabled={!canWrite}
+                    onClick={() => toggleAssignee(member.id)}
+                  >
+                    {/* Аватар до имени: в списке и в карточке человек обязан
+                        узнаваться одним и тем же пятном цвета. */}
+                    <Avatar name={member.name} size={20} />
+                    {/* Имя человека — содержимое, а не хрома. */}
+                    {member.name}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          )}
+        </div>
       )}
 
-      <History projectId={projectId} taskId={task.id} />
+      {tab === "history" && (
+        <div id="panel-tabpanel-history" role="tabpanel" aria-labelledby="panel-tab-history">
+          <History projectId={projectId} taskId={task.id} />
+        </div>
+      )}
 
-      <Comments projectId={projectId} taskId={task.id} />
+      {tab === "comments" && (
+        <div id="panel-tabpanel-comments" role="tabpanel" aria-labelledby="panel-tab-comments">
+          <Comments projectId={projectId} taskId={task.id} />
+        </div>
+      )}
+      </div>
 
-      {/* Удаление — последним блоком: это не правка задачи, а расставание с
-          ней. Отдельного окна нет — подтверждение разворачивается на месте,
-          как у пересогласования плана. Само удаление отменяемо: снимок для
-          отмены (со связями, назначениями и разговором) хранит журнал. */}
+      {/* Удаление — последним блоком, вне вкладок: это не правка задачи, а
+          расставание с ней, и она ждёт на любой вкладке карточки. Отдельного
+          окна нет — подтверждение разворачивается на месте, как у
+          пересогласования плана. Само удаление отменяемо: снимок для отмены
+          (со связями, назначениями и разговором) хранит журнал. */}
       {canWrite && (
         <div className="panel__danger">
           {confirmingDelete ? (

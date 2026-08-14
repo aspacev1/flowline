@@ -208,14 +208,9 @@
   color: var(--ok);
 }
 
-/* --- журнал и обсуждение --- */
-
-.panel__history,
-.panel__comments {
-  margin-top: 20px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
-}
+/* --- журнал и обсуждение ---
+   Оба живут на своих вкладках: разделяющая черта у них была нужна, пока они
+   шли одним списком под полями, — полоса вкладок теперь и есть эта черта. */
 
 .panel__history-title {
   margin: 0 0 8px;
@@ -306,7 +301,8 @@
 }
 
 /* Процент набран крупно и остаётся полем: полосой ставят «на глаз», а точную
-   цифру вводят цифрами. Стрелки браузера убраны — шаги здесь свои, ±5. */
+   цифру вводят цифрами. Стрелки браузера убраны: у числа нет своего шага —
+   шаг дневной нормы задаёт кнопка «Отметить день» под полосой. */
 .panel__progress-pct {
   display: inline-flex;
   align-items: baseline;
@@ -388,21 +384,13 @@
 
 .panel__progress-actions {
   display: flex;
-  gap: 8px;
   margin-top: 10px;
 }
 
-.panel__progress-step {
-  flex: 0 0 auto;
-  min-width: 44px;
-  height: 32px;
-  padding: 0 10px;
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Главная кнопка модуля — во всю оставшуюся ширину: «Отметить день» и есть
-   тот самый ежедневный жест, ему самая большая цель. */
+/* Единственная кнопка модуля — во всю ширину: «Отметить день» и есть тот
+   самый ежедневный жест, ему самая большая цель. Точная правка на 5 и любое
+   другое число уже есть выше, в поле процента и на полосе — второй кнопки
+   ей не требуется. */
 .panel__progress-day {
   flex: 1;
   height: 32px;
@@ -419,28 +407,41 @@
   opacity: 1;
 }
 
-/* Последние отметки: срез журнала под полосой. */
-.panel__progress-log {
-  margin: 10px 0 0;
-  padding: 0;
-  list-style: none;
-  color: var(--text-muted);
-  font-size: 12px;
-}
+/* --- вкладки: свойства / история / комментарии --- */
 
-.panel__progress-log li {
+/* Полоса вкладок под подчёркиванием — как в макете Notion: без фона у
+   неактивных, чтобы сама карточка ниже читалась как единая поверхность, а
+   не как набор панелей. */
+.panel__tabs {
   display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 3px 0;
-  border-top: 1px dashed var(--border);
+  gap: 4px;
+  margin: 0 0 var(--gap);
+  border-bottom: 1px solid var(--border);
 }
 
-.panel__progress-log b {
+.panel__tab {
+  height: 32px;
+  padding: 0 4px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  /* Подчёркивание — прозрачное у неактивной вкладки, а не отсутствующее:
+     иначе переключение вкладок на пиксель сдвигает текст под ним. */
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.panel__tab:hover {
+  background: transparent;
   color: var(--text);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+}
+
+.panel__tab.is-active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
 }
 
 /* Связи: «зависит от» и «блокирует». */
