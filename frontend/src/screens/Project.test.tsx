@@ -1,11 +1,11 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { captureMutations, projectFixtures, renderProject } from "../test/project";
 import { server } from "../test/server";
-import { renderApp, sessionHandlers } from "../test/utils";
+import { USER, renderApp, sessionHandlers } from "../test/utils";
 
 const STATE = {
   id: "p1",
@@ -43,6 +43,35 @@ describe("экран проекта", () => {
     expect(await screen.findByRole("button", { name: /Логотип/ })).toBeInTheDocument();
     // Название проекта — содержимое пользователя, оно не переводится.
     expect(screen.getByRole("heading", { name: "Редизайн" })).toBeInTheDocument();
+  });
+
+  it("считает «сегодня» по поясу из профиля, а не по поясу проекта", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    // 01:00 одиннадцатого марта по UTC: в Баку, где живёт план, это уже утро
+    // одиннадцатого, а у читателя в Нью-Йорке — ещё вечер десятого. Выбор
+    // человека побеждает: линия обязана стоять на его дне.
+    vi.setSystemTime(new Date(Date.UTC(2026, 2, 11, 1, 0)));
+    try {
+      server.use(
+        // Раньше оснастки: из обработчиков одного вызова msw берёт первый
+        // подходящий, и общий профиль перебил бы этот.
+        http.get("/api/auth/me", () =>
+          HttpResponse.json({ ...USER, timezone: "America/New_York" }),
+        ),
+        ...sessionHandlers(),
+        http.get("/api/projects/p1", () => HttpResponse.json(STATE)),
+      );
+
+      const { container } = renderApp({ route: "/projects/p1", locale: "ru" });
+      await screen.findByRole("button", { name: /Логотип/ });
+
+      expect(container.querySelector('.gantt__day[data-day="2026-03-10"]')).toHaveClass("is-today");
+      expect(container.querySelector('.gantt__day[data-day="2026-03-11"]')).not.toHaveClass(
+        "is-today",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("подписывает исполнителей в карточке наведения именами из состава", async () => {

@@ -47,17 +47,54 @@ describe("публичная ссылка проекта", () => {
     expect(await screen.findByLabelText("Адрес ссылки")).toHaveValue(URL);
   });
 
-  it("предупреждает, что перевыпуск убивает прежний адрес", async () => {
-    server.use(http.get("/api/projects/p1/share", () => HttpResponse.json(PUBLISHED)));
+  it("перевыпуск спрашивает и объясняет, что убивает прежний адрес", async () => {
+    let rotated = false;
+    server.use(
+      http.get("/api/projects/p1/share", () => HttpResponse.json(PUBLISHED)),
+      http.post("/api/projects/p1/share/rotate", () => {
+        rotated = true;
+        return HttpResponse.json(PUBLISHED);
+      }),
+    );
 
     renderProject();
     await openDialog();
 
+    await userEvent.click(await screen.findByRole("button", { name: "Перевыпустить" }));
+
+    // Первое нажатие ничего не ломает: адрес, уже отправленный клиенту, живёт
+    // ровно до ответа на вопрос.
+    expect(rotated).toBe(false);
     expect(
-      await screen.findByText(
+      screen.getByText(
         "Новая ссылка мгновенно убивает прежнюю — уже отправленный адрес перестанет открываться",
       ),
     ).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Да, перевыпустить" }));
+
+    await waitFor(() => expect(rotated).toBe(true));
+  });
+
+  it("перевыпуск можно передумать, и адрес остаётся прежним", async () => {
+    let rotated = false;
+    server.use(
+      http.get("/api/projects/p1/share", () => HttpResponse.json(PUBLISHED)),
+      http.post("/api/projects/p1/share/rotate", () => {
+        rotated = true;
+        return HttpResponse.json(PUBLISHED);
+      }),
+    );
+
+    renderProject();
+    await openDialog();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Перевыпустить" }));
+    await userEvent.click(screen.getByRole("button", { name: "Отмена" }));
+
+    expect(rotated).toBe(false);
+    expect(screen.getByRole("button", { name: "Перевыпустить" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Адрес ссылки")).toHaveValue(URL);
   });
 
   it("переключатель комментариев уходит на сервер и адрес не меняется", async () => {
@@ -99,6 +136,10 @@ describe("публичная ссылка проекта", () => {
     await openDialog();
 
     await userEvent.click(await screen.findByRole("button", { name: "Закрыть ссылку" }));
+    // Одного нажатия мало: снятие публикации спрашивает так же, как удаление
+    // проекта, — вернуть прежний адрес нельзя.
+    expect(revoked).toBe(false);
+    await userEvent.click(screen.getByRole("button", { name: "Да, закрыть ссылку" }));
 
     expect(await screen.findByRole("button", { name: "Опубликовать" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Адрес ссылки")).not.toBeInTheDocument();
@@ -129,5 +170,86 @@ describe("публичная ссылка проекта", () => {
 
     expect(await screen.findByRole("heading", { level: 1 })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Поделиться" })).not.toBeInTheDocument();
+  });
+
+  it("перевыпуск идёт отдельным вызовом, а не повторным созданием", async () => {
+    const calls: string[] = [];
+    server.use(
+      http.get("/api/projects/p1/share", () => HttpResponse.json(PUBLISHED)),
+      http.post("/api/projects/p1/share/rotate", () => {
+        calls.push("rotate");
+        return HttpResponse.json(PUBLISHED);
+      }),
+      // Повторное создание сервер встречает отказом: сюда перевыпуск ходить
+      // не должен вовсе.
+      http.post("/api/projects/p1/share", () => {
+        calls.push("issue");
+        return new HttpResponse(null, { status: 409 });
+      }),
+    );
+
+    renderProject();
+    await openDialog();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Перевыпустить" }));
+    await userEvent.click(screen.getByRole("button", { name: "Да, перевыпустить" }));
+
+    await waitFor(() => expect(calls).toEqual(["rotate"]));
+  });
+});
+
+/**
+ * Настройки проекта показывают то же тело, что и окно. Раньше это были два
+ * компонента, и настройки отстали: без «Копировать», без проверки `allowed` и
+ * с перевыпуском через повторное создание. Тесты идут через настройки, потому
+ * что расходится всегда именно эта, вторая точка входа.
+ */
+describe("та же ссылка из настроек проекта", () => {
+  beforeEach(() => projectFixtures());
+
+  function renderSettings() {
+    return renderProject(undefined, { route: "/projects/p1/settings" });
+  }
+
+  it("даёт скопировать адрес и перевыпускает отдельным вызовом", async () => {
+    const calls: string[] = [];
+    server.use(
+      http.get("/api/projects/p1/share", () => HttpResponse.json(PUBLISHED)),
+      http.post("/api/projects/p1/share/rotate", () => {
+        calls.push("rotate");
+        return HttpResponse.json(PUBLISHED);
+      }),
+      http.post("/api/projects/p1/share", () => {
+        calls.push("issue");
+        return new HttpResponse(null, { status: 409 });
+      }),
+    );
+
+    renderSettings();
+
+    expect(await screen.findByLabelText("Адрес ссылки")).toHaveValue(URL);
+    expect(screen.getByRole("button", { name: "Скопировать" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Перевыпустить" }));
+    await userEvent.click(screen.getByRole("button", { name: "Да, перевыпустить" }));
+
+    await waitFor(() => expect(calls).toEqual(["rotate"]));
+  });
+
+  it("в закрытой установке не предлагает публикацию", async () => {
+    server.use(
+      http.get("/api/projects/p1/share", () =>
+        HttpResponse.json({ ...UNPUBLISHED, allowed: false }),
+      ),
+    );
+
+    renderSettings();
+
+    expect(
+      await screen.findByText(
+        "Публичные ссылки выключены: установкой или настройкой организации",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Опубликовать" })).not.toBeInTheDocument();
   });
 });

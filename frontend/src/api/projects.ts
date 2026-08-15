@@ -241,14 +241,27 @@ export function checkProjectSlug(projectId: string, slug: string): Promise<SlugC
 /**
  * Отменить последнее изменение.
  *
- * Номер ревизии не передаётся: сервер сам знает, что было последним, и знает
- * это в одном месте. Причина нужна, когда отмена уводит задачу от базового
- * плана дальше порога, — отмена проходит ту же проверку, что и всякий сдвиг.
+ * Что именно отменять, по-прежнему решает сервер: ревизия из середины журнала
+ * не отменяется, и `seq` — не выбор, а условие. Это номер того изменения,
+ * отмену которого интерфейс пообещал человеку; если верх журнала успел
+ * уехать — чужая правка по сокету, своя правка в карточке, — сервер отвечает
+ * `undo_conflict` вместо того, чтобы снять не тот шаг.
+ *
+ * Причина нужна, когда отмена уводит задачу от базового плана дальше порога, —
+ * отмена проходит ту же проверку, что и всякий сдвиг.
  */
-export function undoLast(projectId: string, reason?: string): Promise<{ seq: number }> {
+export function undoLast(
+  projectId: string,
+  options: { seq?: number; reason?: string } = {},
+): Promise<{ seq: number }> {
+  // Ключи не подставляются пустыми: сервер отличает «номер не назван» от
+  // «названный номер», и первое — отсутствие ключа, а не ключ со значением.
+  const body: Record<string, unknown> = {};
+  if (options.seq !== undefined) body.expected_seq = options.seq;
+  if (options.reason !== undefined) body.reason = options.reason;
   return request(`/api/projects/${projectId}/undo`, {
     method: "POST",
-    body: JSON.stringify(reason === undefined ? {} : { reason }),
+    body: JSON.stringify(body),
   });
 }
 

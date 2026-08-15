@@ -45,6 +45,12 @@ export type FieldSave = {
 /** Чем объясняется стёртое поле. */
 const BLANK = "settings.blank";
 
+/** Разбор по умолчанию: годится всё конечное, кроме пустой строки. */
+function defaultNumber(text: string): number | null {
+  const value = Number(text);
+  return text.trim() === "" || !Number.isFinite(value) ? null : value;
+}
+
 /**
  * Отправки полей одного экрана.
  *
@@ -95,10 +101,22 @@ export function useFieldSaves<Patch>(send: (patch: Patch) => Promise<unknown>) {
       if (trimmed === "") refuse(field, BLANK);
       else commit(field, patch(trimmed));
     },
-    /** Число: стёртое поле и мусор в нём — тот же пустой ответ, а не `NaN`. */
-    commitNumber(field: string, value: string, patch: (value: number) => Patch) {
-      const number = Number(value);
-      if (value.trim() === "" || !Number.isFinite(number)) refuse(field, BLANK);
+    /**
+     * Число, разобранное чужим правилом.
+     *
+     * Разбор передаётся, а не написан здесь: что считать числом, знает поле, а
+     * не общий слой отправки, — у порога сдвига это ещё и «не меньше нуля»
+     * (см. `parseThresholdDays`). `null` от разбора означает «отправлять
+     * нечего»: стёртое поле и мусор в нём — тот же пустой ответ, а не `NaN`.
+     */
+    commitNumber(
+      field: string,
+      value: string,
+      patch: (value: number) => Patch,
+      parse: (text: string) => number | null = defaultNumber,
+    ) {
+      const number = parse(value);
+      if (number === null) refuse(field, BLANK);
       else commit(field, patch(number));
     },
     at: (field: string): FieldSave | undefined => saves[field],

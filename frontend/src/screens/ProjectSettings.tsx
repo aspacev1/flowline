@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { errorKey } from "../api/errors";
@@ -16,9 +15,16 @@ import type { ProjectState } from "../api/projects";
 import { useCanWrite, useOrgRole } from "../auth/permissions";
 import { SaveMark, TextField, ValueField, useFieldSaves } from "../components/autosave";
 import type { FieldSave } from "../components/autosave";
+import { ConfirmAction } from "../components/ConfirmAction";
+import { useToast } from "../components/toast";
 import { useLocale } from "../i18n/LocaleProvider";
 import { SharePanel } from "../project/SharePanel";
-import { DateListField, SlugField, WorkingDaysField } from "../settings/fields";
+import {
+  DateListField,
+  SlugField,
+  WorkingDaysField,
+  parseThresholdDays,
+} from "../settings/fields";
 
 /**
  * Уровень 3 настроек: слаг, целевая дата и переопределения организации.
@@ -34,13 +40,13 @@ export function ProjectSettings() {
   const { projectId = "" } = useParams();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const showToast = useToast();
   const canWrite = useCanWrite();
   // Удаление проекта — право владельца, как и пересогласование плана:
   // редактор правит настройки, но не расстаётся с проектом целиком. Решает
   // всё равно сервер — здесь лишь не предлагается действие, которое кончится
   // отказом.
   const isOwner = useOrgRole() === "owner";
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const query = useQuery({
     queryKey: projectQueryKey(projectId),
@@ -56,14 +62,21 @@ export function ProjectSettings() {
 
   const save = useMutation({
     mutationFn: (patch: Parameters<typeof updateProject>[1]) => updateProject(projectId, patch),
+    // Кнопки «Сохранить» здесь нет, поле уходит на сервер по уходу фокуса — и
+    // о записи отчитывается само поле, отметкой рядом с ним (см. `SaveMark`).
+    // Тостом это говорить нельзя: полей на экране десяток, а тост один и не
+    // называет, чьё именно значение доехало.
     onSuccess: (state: ProjectState) =>
       queryClient.setQueryData(projectQueryKey(projectId), state),
   });
   const saves = useFieldSaves(save.mutateAsync);
 
+  // Имя передаётся в мутацию, а не читается из `state` в обработчике: к моменту
+  // успеха проекта уже нет ни на сервере, ни в кэше — а назвать в тосте нужно
+  // именно то, что удалили.
   const remove = useMutation({
-    mutationFn: () => deleteProject(projectId),
-    onSuccess: () => {
+    mutationFn: (_name: string) => deleteProject(projectId),
+    onSuccess: (_result, name: string) => {
       // Кэш проекта не инвалидируется, а выбрасывается: перезапрос по этому
       // ключу теперь может ответить только 404-й.
       queryClient.removeQueries({ queryKey: projectQueryKey(projectId) });
@@ -71,6 +84,11 @@ export function ProjectSettings() {
       // replace, а не push: «назад» к настройкам удалённого проекта вело бы
       // на экран, которому нечего показать, кроме ошибки.
       navigate("/projects", { replace: true });
+      // Список проектов сам по себе не отчитывается: он выглядит одинаково и
+      // после удаления, и после нажатия «К проектам». Отмены тост не
+      // предлагает намеренно — вместе с проектом ушёл журнал ревизий, и
+      // возвращать состояние неоткуда; об этом честно сказано и в подтверждении.
+      showToast({ message: t("settings.project.deleted", { name }) });
     },
   });
 
@@ -174,10 +192,16 @@ export function ProjectSettings() {
           disabled={readOnly}
           save={saves.at("project-threshold")}
           onInherit={() => saves.commit("project-threshold", { shift_threshold_days: null })}
+          // Пустое поле — не «порог ноль»: пока числа нет, переопределение
+          // остаётся прежним, а не превращается в «объяснять каждый сдвиг».
+          // Разбор общий с настройками организации (см. `parseThresholdDays`).
           onOverride={(value) =>
-            saves.commitNumber("project-threshold", value, (days) => ({
-              shift_threshold_days: days,
-            }))
+            saves.commitNumber(
+              "project-threshold",
+              value,
+              (days) => ({ shift_threshold_days: days }),
+              parseThresholdDays,
+            )
           }
           render={(value, onCommit, disabled, save) => (
             <TextField
@@ -253,33 +277,14 @@ export function ProjectSettings() {
                 {t(errorKey(remove.error))}
               </p>
             )}
-            {confirmingDelete ? (
-              <span className="plan__confirm">
-                <span className="muted">{t("settings.project.delete_warning")}</span>
-                <button
-                  type="button"
-                  onClick={() => remove.mutate()}
-                  disabled={remove.isPending}
-                >
-                  {t("settings.project.delete_confirm")}
-                </button>
-                <button
-                  type="button"
-                  className="button--quiet"
-                  onClick={() => setConfirmingDelete(false)}
-                >
-                  {t("common.cancel")}
-                </button>
-              </span>
-            ) : (
-              <button
-                type="button"
-                className="button--quiet button--alert"
-                onClick={() => setConfirmingDelete(true)}
-              >
-                {t("settings.project.delete")}
-              </button>
-            )}
+            <ConfirmAction
+              className="button--quiet button--alert"
+              label={t("settings.project.delete")}
+              warning={t("settings.project.delete_warning")}
+              confirm={t("settings.project.delete_confirm")}
+              onConfirm={() => remove.mutate(state.name)}
+              disabled={remove.isPending}
+            />
           </div>
         )}
       </section>

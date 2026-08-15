@@ -6,9 +6,15 @@ import { errorKey } from "../api/errors";
 import { ORG_QUERY_KEY, checkOrgSlug, organization, updateOrganization } from "../api/org";
 import type { Organization, OrganizationSettings } from "../api/org";
 import { SaveMark, SelectField, TextField, useFieldSaves } from "../components/autosave";
+import { useToast } from "../components/toast";
 import { SUPPORTED_LOCALES } from "../i18n";
 import { useLocale } from "../i18n/LocaleProvider";
-import { DateListField, SlugField, WorkingDaysField } from "../settings/fields";
+import {
+  DateListField,
+  SlugField,
+  WorkingDaysField,
+  parseThresholdDays,
+} from "../settings/fields";
 
 /**
  * Уровень 2 настроек: дефолты, которые наследуют все проекты организации.
@@ -41,6 +47,9 @@ export function OrgSettings() {
   const save = useMutation({
     mutationFn: (patch: Partial<OrganizationSettings & { name: string; slug: string }>) =>
       updateOrganization(patch),
+    // Обещание «каждое поле уходит на сервер само» подтверждает само поле —
+    // отметкой рядом с ним (см. `SaveMark`), а не тостом поверх страницы: по
+    // тосту не понять, какое из десяти полей доехало, а какое отвергнуто.
     onSuccess: (org: Organization) => queryClient.setQueryData(ORG_QUERY_KEY, org),
   });
   const saves = useFieldSaves(save.mutateAsync);
@@ -127,9 +136,12 @@ export function OrgSettings() {
           disabled={readOnly}
           save={saves.at("org-threshold")}
           onCommit={(value) =>
-            saves.commitNumber("org-threshold", value, (days) => ({
-              default_shift_threshold_days: days,
-            }))
+            saves.commitNumber(
+              "org-threshold",
+              value,
+              (days) => ({ default_shift_threshold_days: days }),
+              parseThresholdDays,
+            )
           }
         />
 
@@ -189,6 +201,7 @@ export function OrgSettings() {
 function LlmConnection({ readOnly }: { readOnly: boolean }) {
   const { t } = useLocale();
   const queryClient = useQueryClient();
+  const showToast = useToast();
   const [key, setKey] = useState("");
 
   const credential = useQuery({
@@ -202,6 +215,9 @@ function LlmConnection({ readOnly }: { readOnly: boolean }) {
     onSuccess: (result) => {
       queryClient.setQueryData(AI_CREDENTIAL_QUERY_KEY, result);
       setKey("");
+      // Поле ключа очищается при успехе — и без тоста это очищение читается
+      // как «ввод не приняли», ровно наоборот смыслу.
+      showToast({ message: t("common.saved") });
     },
   });
 

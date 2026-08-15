@@ -57,7 +57,7 @@ function lastOfMonth(iso: string): string {
  * Края округляются до месяца: шапка с обрезанным первым месяцем читается как
  * ошибка вёрстки.
  */
-export function projectWindow(state: ProjectState): { from: string; to: string } {
+export function projectWindow(state: ProjectState, today: string): { from: string; to: string } {
   const dates = [
     ...state.tasks.map((task) => task.start_date),
     ...state.tasks.map((task) => task.end_date),
@@ -67,8 +67,9 @@ export function projectWindow(state: ProjectState): { from: string; to: string }
 
   if (dates.length === 0) {
     // Ни одной даты — окно вокруг сегодняшнего дня: пустой проект всё равно
-    // должен показать шкалу, иначе экран выглядит сломанным.
-    const today = toISO(Date.now());
+    // должен показать шкалу, иначе экран выглядит сломанным. Сегодня приходит
+    // снаружи, посчитанным в поясе читателя: своё, посчитанное здесь по UTC,
+    // расходилось бы с меткой сегодня на той же ленте.
     return { from: firstOfMonth(today), to: lastOfMonth(addDays(today, 30)) };
   }
 

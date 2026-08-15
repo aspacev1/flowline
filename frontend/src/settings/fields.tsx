@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import type { SlugCheck } from "../api/org";
 import { SaveMark } from "../components/autosave";
 import type { FieldSave } from "../components/autosave";
 import { useLocale } from "../i18n/LocaleProvider";
+import { browserTimeZone, timeZoneNames } from "../time/zone";
 
 /**
  * Поля, которые нужны обоим экранам настроек.
@@ -32,6 +33,21 @@ export function WorkingDaysField({
   save?: FieldSave;
 }) {
   const { t } = useLocale();
+  const [emptied, setEmptied] = useState(false);
+
+  // Неделя без рабочих дней — не настройка, а невозможное состояние: сервер
+  // такую маску не примет, и снятая последняя галочка возвращалась бы обратно
+  // с ответом «проверьте форму», где ни одно поле не названо. Отказ объясняется
+  // здесь же — так же, как список дат объясняет непонятую дату, не отправляя её.
+  const toggle = (day: number, on: boolean) => {
+    const mask = on ? value & ~(1 << day) : value | (1 << day);
+    if (mask === 0) {
+      setEmptied(true);
+      return;
+    }
+    setEmptied(false);
+    onChange(mask);
+  };
 
   return (
     <fieldset className="settings__fieldset">
@@ -51,7 +67,7 @@ export function WorkingDaysField({
                 type="checkbox"
                 checked={on}
                 disabled={disabled}
-                onChange={() => onChange(on ? value & ~(1 << day) : value | (1 << day))}
+                onChange={() => toggle(day, on)}
               />
               {label}
             </label>
@@ -59,7 +75,71 @@ export function WorkingDaysField({
         })}
       </div>
       <SaveMark save={save} />
+      {emptied && (
+        <span className="error" role="alert">
+          {t("settings.working_days_empty")}
+        </span>
+      )}
     </fieldset>
+  );
+}
+
+/**
+ * Часовой пояс — выбором из списка, а не строкой.
+ *
+ * Имя из базы IANA («Europe/Moscow») набрать по памяти без опечатки трудно, а
+ * ошибка в нём не видна: сервер откажет, и человек останется гадать, чем
+ * «Europe/Moskva» хуже. Список даёт сам браузер — своя копия базы поясов
+ * состарилась бы вместе с приложением.
+ *
+ * Пустое значение — не «пусто», а отдельный осмысленный выбор: считать сутки
+ * по часам браузера. Он стоит первым и выбран по умолчанию, потому что почти
+ * всегда прав; руками пояс задают те, у кого браузер врёт, — уехавшие и
+ * сидящие через VPN.
+ */
+export function TimeZoneField({
+  id,
+  label,
+  hint,
+  autoLabel,
+  value,
+  onChange,
+  disabled,
+}: {
+  id: string;
+  label: string;
+  hint?: string;
+  /** Подпись выбора «по браузеру» — с поясом, который браузер сообщает. */
+  autoLabel: string;
+  /** `null` — пояс не выбран, сутки считаются по браузеру. */
+  value: string | null;
+  onChange: (zone: string | null) => void;
+  disabled?: boolean;
+}) {
+  // Сохранённый выбор и пояс машины добавляются к списку принудительно:
+  // браузер старее базы IANA не знает про недавно заведённый пояс, и без
+  // этого поле показало бы не то, что записано в профиле.
+  const zones = useMemo(() => timeZoneNames(value, browserTimeZone()), [value]);
+
+  return (
+    <p className="field">
+      <label htmlFor={id}>{label}</label>
+      {hint && <span className="muted">{hint}</span>}
+      <select
+        id={id}
+        name={id}
+        value={value ?? ""}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value === "" ? null : event.target.value)}
+      >
+        <option value="">{autoLabel}</option>
+        {zones.map((zone) => (
+          <option key={zone} value={zone}>
+            {zone}
+          </option>
+        ))}
+      </select>
+    </p>
   );
 }
 
@@ -69,6 +149,26 @@ export function parseDates(text: string): string[] {
     .split(/[\s,;]+/)
     .map((item) => item.trim())
     .filter((item) => item !== "");
+}
+
+/**
+ * Порог сдвига из поля ввода: `null` — «числа здесь нет, отправлять нечего».
+ *
+ * Пустое поле не значит «ноль»: нулевой порог велит объяснять каждый сдвиг, и
+ * человек, стёрший число перед тем как набрать новое, такого не просил. А
+ * `Number` сам по себе именно это и делает — пустую строку превращает в ноль, а
+ * мусор в `NaN`, — поэтому обе проверки стоят здесь, общие для обоих экранов, а
+ * не написаны на каждом порознь.
+ */
+export function parseThresholdDays(text: string): number | null {
+  const value = text.trim();
+  if (value === "") return null;
+  const days = Number(value);
+  // Отрицательный порог — то же самое, что `min={0}` у поля: дней «минус пять»
+  // не бывает, и сервер откажет; отказ, которого можно не показывать, лучше не
+  // показывать.
+  if (!Number.isFinite(days) || days < 0) return null;
+  return days;
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;

@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import { ME_QUERY_KEY, register as registerRequest } from "../api/auth";
 import type { User } from "../api/auth";
 import { errorKey } from "../api/errors";
+import { afterAuthPath } from "../auth/afterAuth";
 import { inviteQueryKey, previewInvitation } from "../api/invitations";
 import { Field } from "../components/Field";
 import { useLocale } from "../i18n/LocaleProvider";
@@ -15,6 +16,7 @@ export const MIN_PASSWORD_LENGTH = 8;
 export function Register() {
   const { t, adoptProfileLocale } = useLocale();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const [params] = useSearchParams();
   const inviteToken = params.get("invite");
@@ -48,7 +50,9 @@ export function Register() {
       // поход человек смотрит на индикатор загрузки без причины.
       queryClient.setQueryData(ME_QUERY_KEY, user);
       adoptProfileLocale(user.locale);
-      navigate("/projects");
+      // Тот же возврат, что и на входе: человек мог прийти по ссылке на проект
+      // и завести аккаунт прямо здесь.
+      navigate(afterAuthPath(location.state));
     },
   });
 
@@ -136,7 +140,10 @@ export function Register() {
       </form>
 
       <p className="muted">
-        {t("auth.register.have_account")} <Link to="/login">{t("auth.register.link_login")}</Link>
+        {t("auth.register.have_account")}{" "}
+        <Link to="/login" state={location.state}>
+          {t("auth.register.link_login")}
+        </Link>
       </p>
     </main>
   );
