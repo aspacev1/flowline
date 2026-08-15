@@ -63,6 +63,25 @@ describe("отмена с клавиатуры", () => {
     await waitFor(() => expect(undone()).toBe(1));
   });
 
+  it("отказ объявляет тревогой, а не сводкой с галочкой", async () => {
+    // Клавиша — единственный источник ответа: строки ошибки рядом с лентой
+    // нет. Отказ, показанный тоном подтверждения, сообщает ровно обратное
+    // тому, что случилось: отмена не прошла, а тост носит галочку.
+    server.use(
+      http.post("/api/projects/p1/undo", () =>
+        HttpResponse.json({ detail: "undo_conflict" }, { status: 409 }),
+      ),
+    );
+    renderProject(UNDOABLE);
+    await drawn();
+
+    await userEvent.keyboard("{Control>}z{/Control}");
+
+    const failure = await screen.findByRole("alert");
+    expect(failure).toHaveClass("toast--error");
+    expect(failure).not.toHaveTextContent("✓");
+  });
+
   it("отвечает и тогда, когда отменять нечего", async () => {
     const undone = countUndo();
     renderProject(STATE);
