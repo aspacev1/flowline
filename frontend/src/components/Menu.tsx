@@ -1,6 +1,8 @@
 import { useEffect, useId, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
+import { useEscape } from "./useEscape";
+
 /**
  * Кнопка с выпадающей панелью — «Фильтр», «Вид», «⋯» в шапке.
  *
@@ -37,20 +39,17 @@ export function Menu({
   const root = useRef<HTMLSpanElement>(null);
   const id = useId();
 
+  // Раскрытая панель — верхний слой: её открыли последней, и Esc обязан снять
+  // сначала её, а не карточку или окно, над которыми она висит.
+  useEscape(() => setOpen(false), open);
+
   useEffect(() => {
     if (!open) return;
     function onPointerDown(event: globalThis.PointerEvent) {
       if (root.current && !root.current.contains(event.target as Node)) setOpen(false);
     }
-    function onKeyDown(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
-    }
     document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
+    return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [open]);
 
   return (
