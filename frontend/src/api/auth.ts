@@ -8,6 +8,12 @@ export type User = {
   name: string;
   email: string;
   locale: string;
+  /**
+   * Часовой пояс, по которому этому человеку считаются сутки. `null` —
+   * «спросить у браузера»: пояс меняется вместе с человеком, и записанный
+   * однажды при заведении аккаунта врал бы после первой же поездки.
+   */
+  timezone: string | null;
   /** Подтверждён ли адрес. В установке без почты пустой у всех и ничего не
       запрещает — это признак для подсказки, а не для доступа. */
   email_verified: boolean;
@@ -57,9 +63,15 @@ export function me(): Promise<User> {
  *
  * Язык живёт здесь, а не только в памяти браузера: человек, вошедший с
  * другого компьютера, обязан увидеть тот же язык, а не тот, что просит чужой
- * браузер.
+ * браузер. То же и с часовым поясом — с одной добавкой: `null` в нём
+ * означает «считать сутки по браузеру», и поэтому поле уходит на сервер
+ * ровно тогда, когда его назвали, а не когда оно непустое.
  */
-export function updateProfile(patch: { name?: string; locale?: string }): Promise<User> {
+export function updateProfile(patch: {
+  name?: string;
+  locale?: string;
+  timezone?: string | null;
+}): Promise<User> {
   return request<User>("/api/auth/me", {
     method: "PATCH",
     body: JSON.stringify(patch),

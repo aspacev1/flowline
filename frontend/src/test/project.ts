@@ -259,8 +259,13 @@ export function projectFixtures() {
     http.post("/api/projects/p1/mutations", async ({ request }) => {
       const body = (await request.json()) as Sent;
       sent.push(body);
-      state = applied(state, body.op);
-      return HttpResponse.json({ seq: sent.length, op: body.op, inverse: {} }, { status: 201 });
+      const seq = sent.length;
+      // Верх журнала двигается вместе с состоянием — как на сервере.
+      // Заглушка, забывшая про `undoable`, гасила бы кнопку отмены в тосте
+      // просто потому, что «отменять нечего», и тест на отмену проверял бы
+      // не то, что написано в его названии.
+      state = { ...applied(state, body.op), undoable: { seq, op: body.op, batch_id: null } };
+      return HttpResponse.json({ seq, op: body.op, inverse: {} }, { status: 201 });
     }),
   );
 }
