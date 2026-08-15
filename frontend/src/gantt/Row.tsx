@@ -67,6 +67,13 @@ export function CategoryRow({
       className={`gantt__row gantt__row--category ${reorder?.markFor("category", category.id) ?? ""}`.trimEnd()}
       // Заголовок категории — тоже цель броска: перенести задачу в другую
       // категорию иначе можно было бы только через список в карточке.
+      //
+      // Чем строка приходится броску, сказано прямо в разметке: пальцем
+      // события до неё не доходят вовсе, и ручка ищет её попаданием в точку —
+      // по найденному элементу узнать строку больше не по чему (см. `targetAt`
+      // в useReorder).
+      data-drop-kind="category"
+      data-drop-id={category.id}
       onPointerMove={() => reorder?.over({ kind: "category", id: category.id, half: "bottom" })}
       onPointerUp={() => reorder?.drop()}
     >
@@ -196,7 +203,12 @@ export function TaskRow({
   /** Рисовать ли призрак и засечку базового плана — флажок меню «Вид». */
   showBaseline?: boolean;
 }) {
-  const { offset, handlers } = useDragDates({ projectId, task, scale, enabled: canWrite });
+  const { offset, dragging, handlers } = useDragDates({
+    projectId,
+    task,
+    scale,
+    enabled: canWrite,
+  });
   const tip = useBarTip(task);
   const baseline = baselineOf(task);
   const shift = endShiftDays(task);
@@ -206,7 +218,15 @@ export function TaskRow({
       className={`gantt__row${selected ? " is-selected" : ""} ${
         reorder?.markFor("task", task.id) ?? ""
       }`.trimEnd()}
-      onPointerMove={(event) => reorder?.over({ kind: "task", id: task.id, half: halfOf(event) })}
+      data-drop-kind="task"
+      data-drop-id={task.id}
+      onPointerMove={(event) =>
+        reorder?.over({
+          kind: "task",
+          id: task.id,
+          half: halfOf(event.currentTarget, event.clientY),
+        })
+      }
       onPointerUp={() => reorder?.drop()}
     >
       <div className="gantt__label">
@@ -226,12 +246,10 @@ export function TaskRow({
                   className="gantt__handle"
                   aria-hidden="true"
                   title={handleLabel}
-                  onPointerDown={(event) => {
-                    // Без этого нажатие уводит фокус и начинает выделение текста
-                    // вместо перетаскивания.
-                    event.preventDefault();
-                    reorder.start(task.id);
-                  }}
+                  // Весь жест — на ручке, а не только его начало: пальцем
+                  // указатель захвачен ею до самого броска, и строки под
+                  // пальцем событий не получают (см. useReorder).
+                  {...reorder.handleProps(task.id)}
                 >
                   ⠿
                 </span>
@@ -326,14 +344,15 @@ export function TaskRow({
         <Bar
           interactive={Boolean(onSelect) || canWrite}
           className={`gantt__bar${late ? " is-late" : ""}${canWrite ? " is-draggable" : ""}${
-            offset === 0 ? "" : " is-dragging"
+            dragging ? " is-dragging" : ""
           }`}
           data-criticality={task.criticality}
           data-status={task.status}
           style={
             {
               // Пока полоску тащат, она стоит там, где палец, — а не там, где
-              // ей полагается по датам. Сами даты меняются только по ответу
+              // ей полагается по датам; после броска — там, куда её бросили,
+              // пока перенос не решён. Сами даты меняются только по ответу
               // сервера.
               left: scale.xOf(task.start_date) + offset,
               width: scale.widthOf(task.start_date, task.end_date),
