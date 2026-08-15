@@ -14,6 +14,8 @@ import {
 } from "../api/projects";
 import type { ProjectState } from "../api/projects";
 import { useCanWrite, useOrgRole } from "../auth/permissions";
+import { SaveMark, TextField, ValueField, useFieldSaves } from "../components/autosave";
+import type { FieldSave } from "../components/autosave";
 import { useLocale } from "../i18n/LocaleProvider";
 import { SharePanel } from "../project/SharePanel";
 import { DateListField, SlugField, WorkingDaysField } from "../settings/fields";
@@ -57,6 +59,7 @@ export function ProjectSettings() {
     onSuccess: (state: ProjectState) =>
       queryClient.setQueryData(projectQueryKey(projectId), state),
   });
+  const saves = useFieldSaves(save.mutateAsync);
 
   const remove = useMutation({
     mutationFn: () => deleteProject(projectId),
@@ -102,26 +105,15 @@ export function ProjectSettings() {
         <Link to={`/projects/${projectId}`}>{t("settings.project.back")}</Link>
       </div>
 
-      {save.error !== null && (
-        <p className="error" role="alert">
-          {t(errorKey(save.error))}
-        </p>
-      )}
-
       <section className="settings">
-        <p className="field">
-          <label htmlFor="project-name">{t("settings.project.name")}</label>
-          <input
-            id="project-name"
-            name="project-name"
-            defaultValue={state.name}
-            disabled={readOnly}
-            onBlur={(event) => {
-              const name = event.target.value.trim();
-              if (name !== "" && name !== state.name) save.mutate({ name });
-            }}
-          />
-        </p>
+        <TextField
+          id="project-name"
+          label={t("settings.project.name")}
+          value={state.name}
+          disabled={readOnly}
+          save={saves.at("project-name")}
+          onCommit={(value) => saves.commitText("project-name", value, (name) => ({ name }))}
+        />
 
         <SlugField
           id="project-slug"
@@ -129,24 +121,23 @@ export function ProjectSettings() {
           value={state.slug}
           disabled={readOnly}
           check={(slug) => checkProjectSlug(projectId, slug)}
-          onCommit={(slug) => save.mutate({ slug })}
+          save={saves.at("project-slug")}
+          onCommit={(slug) => saves.commit("project-slug", { slug })}
         />
 
-        <p className="field">
-          <label htmlFor="project-deadline">{t("settings.project.deadline")}</label>
-          <input
-            id="project-deadline"
-            name="project-deadline"
-            type="date"
-            defaultValue={state.deadline ?? ""}
-            disabled={readOnly}
-            onChange={(event) => {
-              // Пустая дата — это отсутствие дедлайна, а не пропуск поля.
-              const value = event.target.value;
-              save.mutate({ deadline: value === "" ? null : value });
-            }}
-          />
-        </p>
+        <ValueField
+          id="project-deadline"
+          label={t("settings.project.deadline")}
+          type="date"
+          value={state.deadline ?? ""}
+          disabled={readOnly}
+          // Пустая дата — это отсутствие дедлайна, а не пропуск поля.
+          allowEmpty
+          save={saves.at("project-deadline")}
+          onCommit={(value) =>
+            saves.commit("project-deadline", { deadline: value === "" ? null : value })
+          }
+        />
 
         <Override
           id="project-timezone"
@@ -154,15 +145,19 @@ export function ProjectSettings() {
           inherited={orgSettings?.default_timezone ?? ""}
           overridden={overrides?.timezone ?? null}
           disabled={readOnly}
-          onInherit={() => save.mutate({ timezone: null })}
-          onOverride={(value) => save.mutate({ timezone: value })}
-          render={(value, onCommit, disabled) => (
-            <input
+          save={saves.at("project-timezone")}
+          onInherit={() => saves.commit("project-timezone", { timezone: null })}
+          onOverride={(value) =>
+            saves.commitText("project-timezone", value, (zone) => ({ timezone: zone }))
+          }
+          render={(value, onCommit, disabled, save) => (
+            <TextField
               id="project-timezone"
-              name="project-timezone"
-              defaultValue={value}
+              labelledBy="project-timezone-label"
+              value={value}
               disabled={disabled}
-              onBlur={(event) => onCommit(event.target.value.trim())}
+              save={save}
+              onCommit={onCommit}
             />
           )}
         />
@@ -177,17 +172,23 @@ export function ProjectSettings() {
               : String(overrides.shift_threshold_days)
           }
           disabled={readOnly}
-          onInherit={() => save.mutate({ shift_threshold_days: null })}
-          onOverride={(value) => save.mutate({ shift_threshold_days: Number(value) })}
-          render={(value, onCommit, disabled) => (
-            <input
+          save={saves.at("project-threshold")}
+          onInherit={() => saves.commit("project-threshold", { shift_threshold_days: null })}
+          onOverride={(value) =>
+            saves.commitNumber("project-threshold", value, (days) => ({
+              shift_threshold_days: days,
+            }))
+          }
+          render={(value, onCommit, disabled, save) => (
+            <TextField
               id="project-threshold"
-              name="project-threshold"
+              labelledBy="project-threshold-label"
               type="number"
               min={0}
-              defaultValue={value}
+              value={value}
               disabled={disabled}
-              onBlur={(event) => onCommit(event.target.value)}
+              save={save}
+              onCommit={onCommit}
             />
           )}
         />
@@ -202,12 +203,16 @@ export function ProjectSettings() {
               : String(overrides.working_days)
           }
           disabled={readOnly}
-          onInherit={() => save.mutate({ working_days: null })}
-          onOverride={(value) => save.mutate({ working_days: Number(value) })}
-          render={(value, onCommit, disabled) => (
+          save={saves.at("project-working-days")}
+          onInherit={() => saves.commit("project-working-days", { working_days: null })}
+          onOverride={(value) =>
+            saves.commit("project-working-days", { working_days: Number(value) })
+          }
+          render={(value, onCommit, disabled, save) => (
             <WorkingDaysField
               value={Number(value) || state.calendar.working_days}
               disabled={disabled}
+              save={save}
               onChange={(mask) => onCommit(String(mask))}
             />
           )}
@@ -219,7 +224,8 @@ export function ProjectSettings() {
           hint={t("settings.project.holidays_extra_hint")}
           value={overrides?.holidays_extra ?? []}
           disabled={readOnly}
-          onCommit={(holidays_extra) => save.mutate({ holidays_extra })}
+          save={saves.at("project-holidays")}
+          onCommit={(holidays_extra) => saves.commit("project-holidays", { holidays_extra })}
         />
 
         <DateListField
@@ -228,7 +234,8 @@ export function ProjectSettings() {
           hint={t("settings.project.workdays_extra_hint")}
           value={overrides?.workdays_extra ?? []}
           disabled={readOnly}
-          onCommit={(workdays_extra) => save.mutate({ workdays_extra })}
+          save={saves.at("project-workdays")}
+          onCommit={(workdays_extra) => saves.commit("project-workdays", { workdays_extra })}
         />
 
         {/* Публичная ссылка — последним блоком: это не настройка расчёта, а
@@ -293,6 +300,7 @@ function Override({
   inherited,
   overridden,
   disabled,
+  save,
   onInherit,
   onOverride,
   render,
@@ -304,12 +312,14 @@ function Override({
   /** `null` — наследуется. */
   overridden: string | null;
   disabled?: boolean;
+  save?: FieldSave;
   onInherit: () => void;
   onOverride: (value: string) => void;
   render: (
     value: string,
     onCommit: (value: string) => void,
     disabled: boolean,
+    save?: FieldSave,
   ) => React.ReactNode;
 }) {
   const { t } = useLocale();
@@ -329,7 +339,10 @@ function Override({
         />
         {t("settings.inherit", { value: inherited })}
       </label>
-      {!inherits && render(overridden, onOverride, Boolean(disabled))}
+      {/* Отметка об отправке — там, где стоит орган управления: пока значение
+          наследуется, это сама галочка, а дальше её показывает поле. Иначе о
+          возврате к наследованию не сказал бы никто. */}
+      {inherits ? <SaveMark save={save} /> : render(overridden, onOverride, Boolean(disabled), save)}
     </div>
   );
 }

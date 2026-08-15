@@ -2,8 +2,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { ME_QUERY_KEY, updateProfile } from "../api/auth";
 import type { User } from "../api/auth";
-import { errorKey } from "../api/errors";
 import { useAuth } from "../auth/AuthProvider";
+import { TextField, useFieldSaves } from "../components/autosave";
 import { useLocale } from "../i18n/LocaleProvider";
 
 /**
@@ -26,6 +26,7 @@ export function Profile() {
     mutationFn: (patch: { name?: string }) => updateProfile(patch),
     onSuccess: (updated: User) => queryClient.setQueryData(ME_QUERY_KEY, updated),
   });
+  const saves = useFieldSaves(save.mutateAsync);
 
   if (!user) return null;
 
@@ -35,25 +36,14 @@ export function Profile() {
         <h1>{t("settings.profile.title")}</h1>
       </div>
 
-      {save.error !== null && (
-        <p className="error" role="alert">
-          {t(errorKey(save.error))}
-        </p>
-      )}
-
       <section className="settings">
-        <p className="field">
-          <label htmlFor="profile-name">{t("auth.field.name")}</label>
-          <input
-            id="profile-name"
-            name="profile-name"
-            defaultValue={user.name}
-            onBlur={(event) => {
-              const name = event.target.value.trim();
-              if (name !== "" && name !== user.name) save.mutate({ name });
-            }}
-          />
-        </p>
+        <TextField
+          id="profile-name"
+          label={t("auth.field.name")}
+          value={user.name}
+          save={saves.at("profile-name")}
+          onCommit={(value) => saves.commitText("profile-name", value, (name) => ({ name }))}
+        />
 
         <p className="field">
           <span className="settings__key">{t("auth.field.email")}</span>
