@@ -603,6 +603,14 @@
   line-height: 1;
   cursor: grab;
   opacity: 0;
+  /* Проявляется вместе с плюсом и крестиком и с той же скоростью: три кнопки
+     одной строки, и разная длительность превратила бы одно появление в три. */
+  transition:
+    opacity var(--motion-fast) ease,
+    background-color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease,
+    color var(--motion-fast) ease;
   /* Строку тащат пальцем: без этого браузер принимает жест за прокрутку. */
   touch-action: none;
 }
@@ -661,9 +669,18 @@
   font-size: 16px;
   line-height: 1;
   opacity: 0;
+  /* Появление — тем же временем, что и любой другой отклик на наведение
+     (см. `--motion-fast`). Прежние 20мс не «быстрее», а незаметны: глаз читает
+     их как включение лампочки, и кнопка возникала рывком там, где строка под
+     ней подсвечивалась плавно. Список повторяет переход базовой кнопки, иначе
+     собственное объявление стирает его целиком и тень с рамкой на фокусе
+     появляются мгновенно. */
   transition:
-    opacity 20ms ease-in,
-    background 20ms ease-in;
+    opacity var(--motion-fast) ease,
+    background-color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease,
+    color var(--motion-fast) ease;
 }
 
 .gantt__row:hover .gantt__add,
@@ -676,7 +693,9 @@
   color: var(--text);
 }
 
-/* Крестик удаления пустой категории — сосед плюса и молчит вместе с ним. */
+/* Крестик удаления пустой категории — сосед плюса и молчит вместе с ним, той
+   же скоростью: пара кнопок на одной строке, разойдись у них длительность —
+   они бы проявлялись порознь. */
 .gantt__remove {
   flex: 0 0 auto;
   width: 20px;
@@ -689,8 +708,11 @@
   line-height: 1;
   opacity: 0;
   transition:
-    opacity 20ms ease-in,
-    background 20ms ease-in;
+    opacity var(--motion-fast) ease,
+    background-color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease,
+    color var(--motion-fast) ease;
 }
 
 .gantt__row:hover .gantt__remove,
@@ -771,12 +793,17 @@
   font-weight: 700;
   text-align: left;
   box-shadow: none;
-  /* Сдвиг после подтверждения сервером — переездом, а не прыжком: иначе
-     непонятно, та же это полоска встала на новое место или другая. */
+  /* Две скорости, потому что здесь два разных события. Сдвиг после
+     подтверждения сервером — переездом, а не прыжком: иначе непонятно, та же
+     это полоска встала на новое место или другая. Отклик на наведение —
+     вдвое короче и общим токеном продукта: полоска всё-таки кнопка, и щёлкать
+     подъёмом там, где соседние кнопки проявляются плавно, ей не с чего. */
   transition:
     left var(--motion) ease,
     width var(--motion) ease,
-    opacity var(--motion) ease;
+    opacity var(--motion) ease,
+    transform var(--motion-fast) ease,
+    filter var(--motion-fast) ease;
 }
 
 /* Под курсором полоска светлеет и приподнимается — но не меняет ни цвет, ни
@@ -790,7 +817,9 @@
 
 /* Полоска под пальцем — единственное, что не анимируется никогда: она обязана
    идти за курсором без задержки, иначе жест ощущается вязким, будто интерфейс
-   не успевает. */
+   не успевает. Обнуление — списком целиком, а не вычитанием отдельных свойств:
+   любое, что добавят в переход выше, обязано отключаться и здесь, и `none`
+   делает это само. */
 .gantt__bar.is-dragging {
   transition: none;
   cursor: grabbing;

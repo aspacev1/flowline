@@ -58,6 +58,13 @@
   --radius-pill: 20px;
   --sidebar: 232px;
   --control: 36px;
+  /* Отклик на наведение и нажатие — одной длительностью на весь продукт.
+     Токен, а не число в каждом правиле: стоило одной кнопке написать своё
+     значение, и на соседних элементах одного ряда отклик расходился — часть
+     проявлялась плавно, часть щёлкала. Это короче, чем переезд полоски ленты
+     (`--motion`, 180мс): там движение сообщает «объект встал на новое место»,
+     здесь — лишь «курсор здесь», и ждать этого никто не должен. */
+  --motion-fast: 140ms;
   /* Inter приезжает со сборкой (@fontsource-variable/inter, см. App.tsx), а не
      с CDN: установка самостоятельная, и шрифт обязан работать без интернета. */
   --font: "Inter Variable", Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
@@ -410,7 +417,10 @@ textarea:focus {
 .tabs__link.is-current { border-bottom-color: var(--accent); color: var(--accent); }
 
 button {
-  transition: background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+  transition:
+    background-color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease;
 }
 
 /* --- вход --- */
