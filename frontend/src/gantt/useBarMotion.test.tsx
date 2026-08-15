@@ -6,7 +6,7 @@ import { matchMediaMock } from "../test/motion";
 import { drag } from "../test/pointer";
 import { projectFixtures, renderProject } from "../test/project";
 import { MOTION_MS } from "./motion";
-import { DAY_WIDTH } from "./density";
+import { DAY_WIDTH } from "./scale";
 
 /**
  * Полоска стоит на `left`/`width` и двигается только через `transform`.
