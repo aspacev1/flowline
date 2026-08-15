@@ -1,4 +1,4 @@
-import { Navigate, Outlet } from "react-router-dom";
+import { Navigate, Outlet, useLocation } from "react-router-dom";
 
 import { Header } from "../components/Header";
 import { ToastProvider } from "../components/toast";
@@ -13,6 +13,7 @@ import { useAuth } from "./AuthProvider";
 export function RequireAuth() {
   const { status } = useAuth();
   const { t } = useLocale();
+  const location = useLocation();
 
   if (status === "checking") {
     return (
@@ -23,7 +24,10 @@ export function RequireAuth() {
   }
 
   if (status === "anonymous") {
-    return <Navigate to="/login" replace />;
+    // Адрес, на который шли, едет вместе с переходом: ссылками на проект
+    // делятся, и человек, открывший присланную ссылку, обязан после входа
+    // увидеть проект, а не общий список, забыв, зачем шёл.
+    return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
   // Колонка и страница — соседи в одной строке, а не «шапка и всё

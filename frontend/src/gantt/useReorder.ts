@@ -21,9 +21,32 @@ import { useProjectMutation } from "../project/useProjectMutation";
 export type DropTarget = { kind: "task" | "category"; id: string; half: "top" | "bottom" };
 
 /** Верхняя половина строки или нижняя — от настоящих границ, а не от индекса. */
-export function halfOf(event: PointerEvent<HTMLElement>): "top" | "bottom" {
-  const box = event.currentTarget.getBoundingClientRect();
-  return event.clientY < box.top + box.height / 2 ? "top" : "bottom";
+export function halfOf(row: Element, clientY: number): "top" | "bottom" {
+  const box = row.getBoundingClientRect();
+  return clientY < box.top + box.height / 2 ? "top" : "bottom";
+}
+
+/**
+ * Строка под указателем — по координатам точки, а не по адресату события.
+ *
+ * Пальцем указатель после нажатия неявно захватывается ручкой, за которую
+ * начали жест: до конца жеста все события достаются ей одной, и строка, над
+ * которой ведут палец, о движении не узнаёт. Полагаться на то, кому пришло
+ * событие, значит поддерживать перестановку только мышью — а `touch-action`
+ * на ручке обещает обратное.
+ */
+function targetAt(clientX: number, clientY: number): DropTarget | null {
+  // Метода нет у jsdom, а браузер вернёт `null` за краем окна: попадания может
+  // не быть, и это не ошибка, а «палец не над строкой».
+  const under = document.elementFromPoint?.(clientX, clientY) ?? null;
+  const row = under?.closest<HTMLElement>("[data-drop-id]") ?? null;
+  const id = row?.dataset.dropId;
+  if (row === null || id === undefined) return null;
+  return {
+    kind: row.dataset.dropKind === "category" ? "category" : "task",
+    id,
+    half: halfOf(row, clientY),
+  };
 }
 
 function byOrder<T extends { position: number; id: string }>(rows: T[]): T[] {
@@ -88,63 +111,99 @@ export function useReorder({
     };
   }, [taskId]);
 
+  const start = (id: string) => {
+    if (!canWrite) return;
+    setTaskId(id);
+    setTarget(null);
+  };
+
+  /** `null` — палец увели мимо строк: линия вставки гаснет, бросок ничего не делает. */
+  const over = (next: DropTarget | null) => {
+    if (taskId === null) return;
+    // Над самой собой линия вставки не рисуется: она обещала бы перемещение
+    // туда, где строка и так стоит.
+    setTarget(next !== null && next.kind === "task" && next.id === taskId ? null : next);
+  };
+
+  const drop = () => {
+    if (taskId === null) return;
+    const dragged = taskId;
+    const spot = target;
+    setTaskId(null);
+    setTarget(null);
+    if (spot === null) return;
+
+    const place = placeFor(state, dragged, spot);
+    if (place === null) return;
+
+    // Строка, вернувшаяся на своё место, — не изменение: сравниваем не
+    // индексы, а весь порядок после перестановки. Индексы сравнивать нельзя,
+    // потому что одна и та же позиция считается по-разному в зависимости от
+    // того, откуда пришла строка.
+    const next = reorderTask(state, dragged, place.categoryId, place.position);
+    const unchanged = next.tasks.every((row) => {
+      const before = state.tasks.find((old) => old.id === row.id);
+      return (
+        before !== undefined &&
+        before.position === row.position &&
+        before.category_id === row.category_id
+      );
+    });
+    if (unchanged) return;
+
+    void apply(
+      {
+        type: "reorder_task",
+        task_id: dragged,
+        category_id: place.categoryId,
+        position: place.position,
+      },
+      (current) => reorderTask(current, dragged, place.categoryId, place.position),
+    ).catch(() => {
+      // Откат уже сделан внутри `apply`: строка вернулась туда, откуда её
+      // взяли, и это и есть ответ на отказ.
+    });
+  };
+
   return {
     /** Показывать ли ручки перетаскивания. У гостя их нет вовсе. */
     enabled: canWrite,
     /** Идёт ли перестановка прямо сейчас. */
     active: taskId !== null,
 
-    start(id: string) {
-      if (!canWrite) return;
-      setTaskId(id);
-      setTarget(null);
-    },
+    start,
+    over,
+    drop,
 
-    over(next: DropTarget) {
-      if (taskId === null) return;
-      // Над самой собой линия вставки не рисуется: она обещала бы перемещение
-      // туда, где строка и так стоит.
-      setTarget(next.kind === "task" && next.id === taskId ? null : next);
-    },
-
-    drop() {
-      if (taskId === null) return;
-      const dragged = taskId;
-      const spot = target;
-      setTaskId(null);
-      setTarget(null);
-      if (spot === null) return;
-
-      const place = placeFor(state, dragged, spot);
-      if (place === null) return;
-
-      // Строка, вернувшаяся на своё место, — не изменение: сравниваем не
-      // индексы, а весь порядок после перестановки. Индексы сравнивать нельзя,
-      // потому что одна и та же позиция считается по-разному в зависимости от
-      // того, откуда пришла строка.
-      const next = reorderTask(state, dragged, place.categoryId, place.position);
-      const unchanged = next.tasks.every((row) => {
-        const before = state.tasks.find((old) => old.id === row.id);
-        return (
-          before !== undefined &&
-          before.position === row.position &&
-          before.category_id === row.category_id
-        );
-      });
-      if (unchanged) return;
-
-      void apply(
-        {
-          type: "reorder_task",
-          task_id: dragged,
-          category_id: place.categoryId,
-          position: place.position,
+    /**
+     * Ручка строки. Ею жест не только начинают — ею его и ведут.
+     *
+     * Пальцем указатель захвачен ручкой (см. `targetAt`), и события до чужих
+     * строк не доходят: цель броска ручка ищет сама, попаданием в точку. Мышью
+     * события достаются строкам, и ведут жест их обработчики; здесь ручка
+     * повторяет тот же расчёт для строки под курсором и потому останавливает
+     * событие — иначе своя же строка, до которой оно всплывёт, стёрла бы
+     * найденную цель как «бросок на самого себя».
+     */
+    handleProps(id: string) {
+      return {
+        onPointerDown(event: PointerEvent<HTMLElement>) {
+          // Без этого нажатие уводит фокус и начинает выделение текста вместо
+          // перетаскивания.
+          event.preventDefault();
+          start(id);
         },
-        (current) => reorderTask(current, dragged, place.categoryId, place.position),
-      ).catch(() => {
-        // Откат уже сделан внутри `apply`: строка вернулась туда, откуда её
-        // взяли, и это и есть ответ на отказ.
-      });
+        onPointerMove(event: PointerEvent<HTMLElement>) {
+          if (taskId === null) return;
+          event.stopPropagation();
+          over(targetAt(event.clientX, event.clientY));
+        },
+        onPointerUp(event: PointerEvent<HTMLElement>) {
+          if (taskId === null) return;
+          event.stopPropagation();
+          drop();
+        },
+      };
     },
 
     /** Класс линии вставки для этой строки, если курсор сейчас над ней. */

@@ -1,11 +1,12 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { drag, dragDays } from "../test/pointer";
-import { STATE, captureMutations, projectFixtures, renderProject } from "../test/project";
+import { APPROVED, STATE, captureMutations, projectFixtures, renderProject } from "../test/project";
 import { server } from "../test/server";
+import { lastSocket } from "../test/socket";
 import { DAY_WIDTH } from "./scale";
 
 beforeEach(projectFixtures);
@@ -33,6 +34,24 @@ describe("перетаскивание дат", () => {
     expect(sent).toHaveLength(0);
   });
 
+  it("поднимает полоску над соседями на время жеста, но не от дрожания руки", async () => {
+    renderProject();
+    const bar = await screen.findByRole("button", { name: /Логотип/ });
+
+    fireEvent.pointerDown(bar, { pointerId: 1, button: 0, clientX: 100 });
+    fireEvent.pointerMove(bar, { pointerId: 1, clientX: 102 });
+    // Два пикселя — это ещё щелчок. Признак жеста меняет вид полоски, и
+    // включать его на дрожании руки значит мигать им на каждом открытии
+    // карточки.
+    expect(bar).not.toHaveClass("is-dragging");
+
+    fireEvent.pointerMove(bar, { pointerId: 1, clientX: 160 });
+    expect(bar).toHaveClass("is-dragging");
+
+    fireEvent.pointerUp(bar, { pointerId: 1, clientX: 160 });
+    expect(bar).not.toHaveClass("is-dragging");
+  });
+
   it("не открывает карточку по окончании перетаскивания", async () => {
     renderProject();
     const bar = await screen.findByRole("button", { name: /Логотип/ });
@@ -58,6 +77,54 @@ describe("перетаскивание дат", () => {
     await waitFor(() => expect(bar.style.left).toBe(before));
   });
 
+  it("держит полоску на месте броска, пока спрашивают причину", async () => {
+    // Возврат до вопроса читался бы как отказ: человек ещё ничего не решил, а
+    // полоска уже съездила обратно — и после ответа поехала бы второй раз.
+    const sent = captureMutations();
+    renderProject(APPROVED);
+    const bar = await screen.findByRole("button", { name: /Логотип/ });
+    const before = Number.parseFloat(bar.style.left);
+
+    dragDays(bar, 7);
+
+    await screen.findByRole("dialog");
+    expect(sent).toHaveLength(0);
+    // Место по датам не менялось: полоску держит сдвиг, а не `left` — двигают
+    // её только через `transform` (см. useBarMotion).
+    expect(Number.parseFloat(bar.style.left)).toBe(before);
+    expect(bar.style.getPropertyValue("--bar-dx")).toBe(`${7 * DAY_WIDTH.day}px`);
+  });
+
+  it("возвращает полоску, когда причину объяснять отказались", async () => {
+    renderProject(APPROVED);
+    const bar = await screen.findByRole("button", { name: /Логотип/ });
+    const before = bar.style.left;
+
+    dragDays(bar, 7);
+    await screen.findByRole("dialog");
+
+    await userEvent.click(screen.getByRole("button", { name: "Вернуть" }));
+
+    await waitFor(() => expect(bar.style.left).toBe(before));
+  });
+
+  it("после введённой причины полоска стоит на новом месте и не ездит дважды", async () => {
+    renderProject(APPROVED);
+    const bar = await screen.findByRole("button", { name: /Логотип/ });
+    const before = Number.parseFloat(bar.style.left);
+
+    dragDays(bar, 7);
+    await screen.findByRole("dialog");
+
+    await userEvent.type(screen.getByLabelText("Причина"), "заказчик молчит");
+    await userEvent.click(screen.getByRole("button", { name: "Сохранить" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    // Полоска и до ответа стояла здесь: смена дат её не двигает — она лишь
+    // объясняет положение, в котором полоска уже стоит.
+    expect(Number.parseFloat(bar.style.left)).toBe(before + 7 * DAY_WIDTH.day);
+  });
+
   it("клавиатура двигает задачу так же, как мышь", async () => {
     const sent = captureMutations();
     renderProject();
@@ -79,12 +146,14 @@ describe("перетаскивание дат", () => {
 
     fireEvent.pointerDown(bar, { pointerId: 1, button: 0, clientX: 100 });
     fireEvent.pointerMove(bar, { pointerId: 1, clientX: 100 + 3 * DAY_WIDTH.day });
-    expect(bar.style.left).not.toBe(before);
+    // Полоска ушла за курсором сдвигом, а не местом по датам (см. useBarMotion).
+    expect(bar.style.getPropertyValue("--bar-dx")).toBe(`${3 * DAY_WIDTH.day}px`);
 
     await userEvent.keyboard("{Escape}");
 
     // Полоска дома, и отпускание после Esc уже ничего не отправляет: жест
     // прерван, а не приостановлен.
+    expect(bar.style.getPropertyValue("--bar-dx")).toBe("0px");
     expect(bar.style.left).toBe(before);
     fireEvent.pointerUp(bar, { pointerId: 1, clientX: 100 + 3 * DAY_WIDTH.day });
     fireEvent.click(bar, { clientX: 100 + 3 * DAY_WIDTH.day });
@@ -115,12 +184,16 @@ describe("перетаскивание дат", () => {
 
   it("подтверждённый перенос показывает тост с отменой", async () => {
     // Отмена из тоста бьёт в тот же /undo, что и кнопка в шапке: тост — это
-    // короткий путь к ней, а не второй механизм отмены.
-    let undone = 0;
-    server.use(http.post("/api/projects/p1/undo", () => {
-      undone += 1;
-      return HttpResponse.json({ seq: 1 });
-    }));
+    // короткий путь к ней, а не второй механизм отмены. Номер ревизии в теле
+    // запроса — обещание кнопки: отменяется тот самый перенос, о котором тост
+    // говорит, а не то, что окажется наверху журнала к моменту нажатия.
+    const undos: { expected_seq?: number }[] = [];
+    server.use(
+      http.post("/api/projects/p1/undo", async ({ request }) => {
+        undos.push((await request.json()) as { expected_seq?: number });
+        return HttpResponse.json({ seq: 2 });
+      }),
+    );
 
     renderProject();
     const bar = await screen.findByRole("button", { name: /Логотип/ });
@@ -132,8 +205,46 @@ describe("перетаскивание дат", () => {
     expect(toast).toHaveTextContent("Задача перенесена");
 
     await userEvent.click(screen.getByRole("button", { name: "Отменить" }));
-    await waitFor(() => expect(undone).toBe(1));
+    await waitFor(() => expect(undos).toEqual([{ expected_seq: 1 }]));
     // Нажатая отмена прячет тост: предлагать отменить отменённое нечестно.
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("гасит отмену в тосте, если верх журнала уехал", async () => {
+    // Шесть секунд тоста — достаточный срок, чтобы сосед по проекту применил
+    // свою правку. Отмена «последнего» сняла бы её, поэтому кнопка, обещавшая
+    // вернуть свой перенос, гаснет вместе с обещанием.
+    let undone = 0;
+    server.use(
+      http.post("/api/projects/p1/undo", () => {
+        undone += 1;
+        return HttpResponse.json({ seq: 3 });
+      }),
+    );
+
+    renderProject();
+    const bar = await screen.findByRole("button", { name: /Логотип/ });
+
+    bar.focus();
+    await userEvent.keyboard("{Shift>}{ArrowRight}{/Shift}");
+
+    await screen.findByRole("status");
+    const undo = screen.getByRole("button", { name: "Отменить" });
+    expect(undo).toBeEnabled();
+
+    // Правка соседа: она же становится верхом журнала.
+    server.use(
+      http.get("/api/projects/p1", () =>
+        HttpResponse.json({
+          ...STATE,
+          undoable: { seq: 2, op: { type: "set_progress", task_id: "t1" }, batch_id: null },
+        }),
+      ),
+    );
+    act(() => lastSocket().emit({ type: "revision", seq: 2 }));
+
+    await waitFor(() => expect(undo).toBeDisabled());
+    await userEvent.click(undo);
+    expect(undone).toBe(0);
   });
 });

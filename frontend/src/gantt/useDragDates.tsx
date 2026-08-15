@@ -12,7 +12,9 @@ import { useLocale } from "../i18n/LocaleProvider";
 import { patchTask } from "../project/optimistic";
 import { useAskShiftReason } from "../project/ShiftReason";
 import { useProjectMutation } from "../project/useProjectMutation";
+import { UndoMove } from "./UndoMove";
 import { addDays } from "./timescale";
+import type { BarMotion } from "./useBarMotion";
 import type { Scale } from "./timescale";
 
 /**
@@ -27,6 +29,12 @@ import type { Scale } from "./timescale";
  * Смещение переводится в дни через шкалу, а не делением на ширину дня: шкала
  * знает, где кончается день, и знает это в одном месте.
  *
+ * Саму полоску жест не двигает — он только называет сдвиг, а двигает
+ * `useBarMotion`, записывая его прямо в узел. Раньше сдвиг лежал в состоянии
+ * React, и каждое движение указателя перерисовывало строку целиком; на сотне
+ * задач это десятки перерисовок в секунду ради одного числа, которое дальше
+ * стиля никуда не идёт.
+ *
  * Начатый жест прерывается по Esc: передумать посреди перетаскивания — обычное
  * дело, и единственным выходом иначе было бы дотащить полоску обратно на глаз,
  * то есть попасть точно в тот же день, откуда её взяли.
@@ -36,12 +44,14 @@ export function useDragDates({
   task,
   scale,
   enabled,
+  motion,
 }: {
   projectId: string;
   task: Task;
   scale: Scale;
   /** Гость полоски не двигает. */
   enabled: boolean;
+  motion: BarMotion;
 }) {
   const { apply } = useProjectMutation(projectId);
   const { t } = useLocale();
@@ -53,11 +63,19 @@ export function useDragDates({
   // Было ли движение. Живёт в ref, а не в состоянии: значение читается в
   // обработчике клика сразу после отпускания, и перерисовка тут не нужна.
   const dragged = useRef(false);
-  const [offset, setOffset] = useState(0);
-  // Идёт ли жест — в состоянии, в отличие от `from`: от него зависит, слушаем
-  // ли мы Esc, а слушатель ставится в эффекте, и ref его не разбудит. Ноль в
-  // `offset` для этого не годится: между нажатием и первым движением жест уже
-  // идёт, а смещения ещё нет.
+  // Два состояния, потому что вопроса два, и отвечают на них в разное время.
+  //
+  // `started` — палец на полоске: с этого мгновения жест можно передумать, и
+  // слушатель Esc заводится здесь. Ref для него не годится — слушатель ставится
+  // в эффекте, и ref его не разбудит.
+  //
+  // `dragging` — полоску действительно тащат: она поднимается над соседями и
+  // меняет курсор. Это уже после порога в пару пикселей, иначе вид полоски
+  // мигал бы на каждом открытии карточки.
+  //
+  // Сам сдвиг в состояние не попадает ни в каком виде: его пишет слой движения
+  // прямо в узел.
+  const [started, setStarted] = useState(false);
   const [dragging, setDragging] = useState(false);
 
   /**
@@ -71,14 +89,18 @@ export function useDragDates({
     scale.dateAt(scale.xOf(task.start_date) + dx + scale.dayWidth / 2);
 
   /**
-   * Отмена из тоста. Отменяется последняя операция проекта — на момент показа
-   * тоста это и есть перенос; сам путь тот же, что у кнопки «Отменить»:
-   * отмена подчиняется тому же порогу объяснений, что и любой сдвиг.
+   * Отмена из тоста. Отменяется именно тот перенос, о котором тост говорит:
+   * его номер назвал сервер, применяя операцию, и он же уходит обратно в
+   * `expected_seq`. «Последнее изменение проекта» здесь не годится — за шесть
+   * секунд, что висит тост, последним успевает стать чужое.
+   *
+   * Сам путь тот же, что у кнопки «Отменить» в ленте истории: отмена
+   * подчиняется тому же порогу объяснений, что и любой сдвиг.
    */
-  const undoMove = async () => {
+  const undoMove = async (seq: number) => {
     try {
       try {
-        await undoLast(projectId);
+        await undoLast(projectId, { seq });
       } catch (refusal) {
         if (!(refusal instanceof ApiError) || refusal.code !== "reason_required" || !askReason) {
           throw refusal;
@@ -91,7 +113,7 @@ export function useDragDates({
           thresholdDays: refusal.hints.thresholdDays ?? 0,
         });
         if (reason === null) return;
-        await undoLast(projectId, reason);
+        await undoLast(projectId, { seq, reason });
       }
       await queryClient.invalidateQueries({ queryKey: projectQueryKey(projectId) });
     } catch (error) {
@@ -105,12 +127,16 @@ export function useDragDates({
    * Прервать начатый жест, ничего не отправив.
    *
    * Полоска возвращается туда, откуда её потащили: пока жест идёт, дат он не
-   * менял — их меняет только отпускание.
+   * менял — их меняет только отпускание. Возврат мгновенный, а не переездом:
+   * Esc отменяет жест, а не доводит его до конца, и ехать полоске неоткуда —
+   * её место по датам всё это время не менялось, менялся только сдвиг.
    */
   const cancel = useCallback(() => {
     const start = from.current;
     from.current = null;
-    setOffset(0);
+    motion.hold(0);
+    motion.release();
+    setStarted(false);
     setDragging(false);
     // Захват снимается руками: иначе полоска до конца жеста продолжает
     // получать события указателя, и отпускание прилетело бы уже прерванному
@@ -122,10 +148,10 @@ export function useDragDates({
     // признаком, что и после обычного перетаскивания: Esc означает «ничего не
     // делать», а не «открыть карточку».
     dragged.current = true;
-    // Ни одной живой зависимости: внутри только ref-ы и функции состояния.
-    // Постоянная ссылка нужна эффекту ниже — иначе он переподписывался бы на
-    // каждой отрисовке, то есть на каждом пикселе движения.
-  }, []);
+    // Кроме слоя движения, живых зависимостей нет: внутри только ref-ы да
+    // функции состояния, а сам слой ссылку не меняет. Постоянная ссылка нужна
+    // эффекту ниже — иначе он переподписывался бы на каждой отрисовке.
+  }, [motion]);
 
   // Esc прерывает начатое перетаскивание — как везде, где жест можно начать и
   // передумать. Слушатель на окне, а не на полоске: захват указателя держит
@@ -133,7 +159,7 @@ export function useDragDates({
   // угодно — на полоске, если браузер отдал его нажатию, и на теле документа,
   // если не отдал.
   useEffect(() => {
-    if (!dragging) return;
+    if (!started) return;
     function onKeyDown(event: globalThis.KeyboardEvent) {
       if (event.key !== "Escape") return;
       event.preventDefault();
@@ -141,43 +167,78 @@ export function useDragDates({
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [cancel, dragging]);
+  }, [cancel, started]);
 
-  const move = (startDate: string) => {
+  /**
+   * @param hold Держать ли полоску там, куда её бросили, пока перенос идёт.
+   *   Так делает перетаскивание: полоску отпустили под пальцем, и до решения
+   *   ей место там. Клавиатура не держит ничего — там полоска и не двигалась,
+   *   а поехавшая до ответа на вопрос о причине означала бы сдвиг, которого
+   *   ещё не было.
+   *
+   *   Держит сам слой движения: сдвиг уже записан в узел, и «подождать» здесь
+   *   значит не снимать его до ответа. Второе состояние с той же датой считало
+   *   бы этот сдвиг ещё раз — и полоска на кадр уезжала бы вдвое.
+   */
+  const move = (startDate: string, hold = false) => {
     // Ноль дней — ничего не отправляем: жест, вернувший полоску на место, не
     // изменение и не должен оставлять запись в истории.
-    if (startDate === task.start_date) return;
+    if (startDate === task.start_date) {
+      if (hold) motion.settle();
+      return;
+    }
     apply(
       { type: "move_task", task_id: task.id, start_date: startDate },
       (state) => patchTask(state, task.id, { start_date: startDate }),
-    ).then(
-      () => {
-        // Тост с отменой — после подтверждения сервером, как в макете:
-        // перенос применяется сразу, а лёгкий путь назад лежит под рукой.
-        showToast({
-          message: t("gantt.moved", { date: formatShortDate(t, startDate) }),
-          actionLabel: t("undo.action"),
-          onAction: () => void undoMove(),
-        });
-      },
-      () => {
-        // Откат уже сделан внутри `apply`, и полоска на глазах вернулась туда,
-        // откуда её тащили. Это и есть сообщение об отказе: другого места для
-        // него на ленте нет, а модальное окно поверх диаграммы прерывало бы
-        // работу там, где человек и так всё увидел.
-      },
-    );
+    )
+      .then(
+        (revision) => {
+          // Тост с отменой — после подтверждения сервером, как в макете:
+          // перенос применяется сразу, а лёгкий путь назад лежит под рукой.
+          // Номер ревизии — из ответа сервера: он и делает кнопку обещанием
+          // вернуть этот перенос, а не «что там сейчас сверху журнала».
+          showToast({
+            message: t("gantt.moved", { date: formatShortDate(t, startDate) }),
+            action: (
+              <UndoMove
+                projectId={projectId}
+                seq={revision.seq}
+                onUndo={() => void undoMove(revision.seq)}
+              />
+            ),
+          });
+        },
+        () => {
+          // Откат уже сделан внутри `apply`, а полоска возвращается туда,
+          // откуда её тащили, когда отпускается захват ниже. Это и есть
+          // сообщение об отказе: другого места для него на ленте нет, а
+          // модальное окно поверх диаграммы прерывало бы работу там, где
+          // человек и так всё увидел. Отказ при этом всегда приходит после
+          // решения человека, а не до него, — и движение назад читается как
+          // ответ на его жест, а не как отказ ещё не заданного вопроса.
+        },
+      )
+      .finally(() => {
+        // Перенос решён — сдвиг можно снимать. Подтверждённый снял уже слой
+        // разметки: новый `left` пришёл с датами, и `settle` увидит ноль.
+        // Отказанный снимается здесь, и полоска едет назад — после ответа, а
+        // не до него.
+        if (hold) motion.settle();
+      });
   };
 
   return {
-    /** Сдвиг полоски в пикселях, пока её тащат. */
-    offset,
+    /** Идёт ли жест прямо сейчас. */
+    dragging,
     handlers: {
       onPointerDown(event: PointerEvent<HTMLElement>) {
         if (!enabled || event.button !== 0) return;
         from.current = { pointerId: event.pointerId, x: event.clientX, bar: event.currentTarget };
         dragged.current = false;
-        setDragging(true);
+        // Жест начат — с этого мгновения его можно передумать по Esc. Вид
+        // полоски при этом не меняется: щелчок начинается точно так же, и
+        // подъём над соседями мигал бы на каждом открытии карточки.
+        setStarted(true);
         // jsdom этого метода не знает, да и браузер откажет на устаревшем
         // указателе. Захват — улучшение жеста, а не его условие.
         event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -190,17 +251,25 @@ export function useDragDates({
         // Порог в пару пикселей: дрожание руки при щелчке не должно
         // превращать щелчок в перетаскивание и закрывать карточку, которую
         // человек как раз открывал.
-        if (Math.abs(dx) > 2) dragged.current = true;
-        setOffset(dx);
+        if (Math.abs(dx) > 2 && !dragged.current) {
+          dragged.current = true;
+          setDragging(true);
+        }
+        motion.hold(dx);
       },
 
       onPointerUp(event: PointerEvent<HTMLElement>) {
         const start = from.current;
         if (start === null || start.pointerId !== event.pointerId) return;
         from.current = null;
-        setOffset(0);
+        setStarted(false);
         setDragging(false);
-        move(dateAfter(event.clientX - start.x));
+        // Полоска ждёт ровно там, где её отпустили, — сдвиг снимет `settle`,
+        // когда перенос решится, и она доедет до своего дня уже с ответом.
+        // Снятый прямо сейчас, он вернул бы её на место ещё до вопроса о
+        // причине — то есть ответил бы «не получилось» раньше, чем спросили.
+        motion.release(true);
+        move(dateAfter(event.clientX - start.x), true);
       },
 
       onPointerCancel() {

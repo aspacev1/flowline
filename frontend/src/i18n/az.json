@@ -12,6 +12,13 @@
     },
     "days_short": "{count} gün"
   },
+  "modal": {
+    "discard": {
+      "question": "Pəncərə bağlansın? Daxil edilənlər itəcək.",
+      "keep": "Davam et",
+      "close": "Saxlamadan bağla"
+    }
+  },
   "calendar": {
     "date": "{day} {month}",
     "date_short": "{day} {month}",
@@ -71,6 +78,7 @@
   "nav": {
     "my_tasks": "Tapşırıqlarım",
     "projects": "Layihələr",
+    "portfolio": "Portfel",
     "reports": "Hesabatlar",
     "logout": "Çıxış",
     "org_settings": "Təşkilat",
@@ -167,6 +175,7 @@
     "mail_disabled": "Bu quraşdırmada poçt söndürülüb",
     "offline": "Serverlə əlaqə yoxdur: dəyişiklik göndərilmədi",
     "nothing_to_undo": "Geri alınacaq bir şey yoxdur",
+    "undo_conflict": "Layihə dəyişdi — geri alma səhv addımı götürərdi",
     "batch_not_found": "Paket tapılmadı",
     "reason_required": "Bu sürüşmə üçün səbəb lazımdır",
     "slug_taken": "Bu ünvan artıq tutulub",
@@ -227,7 +236,8 @@
       "completed": "Tamamlanıb"
     }
   },
-  "home": {
+  "portfolio": {
+    "title": "Portfel",
     "greeting": "Salam, {name} — layihə portfeli bir baxışda",
     "tasks": {
       "one": "{count} tapşırıq",
@@ -342,7 +352,8 @@
       "add_link_to": "«{label}» siyahısına əlavə et",
       "unlink": "«{name}» ilə əlaqəni sil",
       "assignees": "İcraçılar",
-      "submit": "Tapşırıq yarat"
+      "submit": "Tapşırıq yarat",
+      "partial": "Tapşırıq artıq yaradılıb — təkrar yalnız qalanını əlavə edəcək."
     }
   },
   "history": {
@@ -463,11 +474,12 @@
     "copied": "Kopyalandı",
     "reissue": "Yenidən ver",
     "reissue_warning": "Yeni keçid veriləndə köhnəsi dərhal ölür — göndərilmiş ünvan açılmayacaq",
+    "reissue_confirm": "Bəli, yenidən ver",
     "revoke": "Keçidi bağla",
+    "revoke_warning": "Keçid göndərilmiş hər kəs üçün layihə bağlanacaq. Yenidən keçid vermək olar — ünvan başqa olacaq",
+    "revoke_confirm": "Bəli, keçidi bağla",
     "comments_enabled": "Şərhlərə icazə ver",
-    "disabled": "İctimai keçidlər söndürülüb: quraşdırma və ya təşkilat ayarı",
-    "hidden": "Layihə bayıra açıq deyil",
-    "comments": "Şərhlərə icazə verilir"
+    "disabled": "İctimai keçidlər söndürülüb: quraşdırma və ya təşkilat ayarı"
   },
   "comments": {
     "title": "Şərhlər",
@@ -476,17 +488,10 @@
     "your_name": "Adınız",
     "body": "Şərh",
     "send": "Göndər",
-    "closed": "Layihənin sahibi şərhləri bağlayıb",
-    "disabled": "Bu keçiddə şərhlər bağlıdır",
-    "field": "Şərh",
-    "submit": "Göndər"
+    "closed": "Layihənin sahibi şərhləri bağlayıb"
   },
   "public": {
-    "badge": "İctimai səhifə",
-    "revoked": "Bu keçid artıq işləmir",
-    "revoked_hint": "Keçidi sizə göndərəndən yenisini istəyin",
-    "guest_name": "Adınız",
-    "guest_mark": "{name} (qonaq)"
+    "badge": "İctimai səhifə"
   },
   "org": {
     "switch_label": "Təşkilat"
@@ -499,29 +504,6 @@
       "editor": "Redaktor",
       "viewer": "İzləyici",
       "client": "Müştəri"
-    },
-    "emails": "Ünvanlar",
-    "emails_hint": "Hər sətirdə bir ünvan. Boş buraxsanız — sadəcə keçid çıxarılacaq, onu kim açsa, o da qəbul edəcək",
-    "role_label": "Rol",
-    "projects": "Layihələr",
-    "invite_and_send": "Dəvət et və məktub göndər",
-    "invite_link_only": "Keçid çıxar",
-    "issued": "Çıxarılmış keçidlər",
-    "issued_hint": "Keçid yalnız indi görünür: server onu yadda saxlamır, bazada yalnız hash var",
-    "copy": "Kopyala",
-    "sent": "Məktub göndərildi",
-    "mail_failed": "Məktub getmədi — keçidi kopyalayın",
-    "by_link": "Keçidlə (təqdim edənə)",
-    "people": "İştirakçılar",
-    "invitations": "Dəvətlər",
-    "no_invitations": "Hələ dəvət yoxdur",
-    "reissue": "Keçidi yenidən çıxar",
-    "revoke": "Ləğv et",
-    "status": {
-      "pending": "gözləyir",
-      "accepted": "qəbul edilib",
-      "revoked": "ləğv edilib",
-      "expired": "vaxtı keçib"
     }
   },
   "invite": {
@@ -548,7 +530,12 @@
     "action": {
       "link": "Yeni keçid",
       "resend": "Yenidən göndər",
-      "revoke": "Geri al"
+      "revoke": "Geri al",
+      "reissue_warning": "Köhnə keçid dərhal ölür: onu almış adam artıq aça bilməyəcək",
+      "link_confirm": "Bəli, yeni keçid",
+      "resend_confirm": "Bəli, yenidən göndər",
+      "revoke_warning": "Dəvət qüvvədən düşür: göndərilmiş keçidlə daxil olmaq mümkün olmayacaq",
+      "revoke_confirm": "Bəli, geri al"
     },
     "issued": {
       "link": "Dəvət keçidi",
@@ -569,10 +556,7 @@
       "wrong_account": "Dəvət {email} ünvanına yazılıb. Çıxın və həmin ünvanla daxil olun",
       "logout": "Çıx",
       "go_home": "Layihələrə"
-    },
-    "bearer": "Bu dəvət ünvana bağlı deyil: kim keçidi açsa, o da qəbul edir",
-    "sign_in_first": "Qəbul etmək üçün daxil olun və ya qeydiyyatdan keçin — sonra bu keçidə qayıdın",
-    "another_account": "Dəvət {email} ünvanına ünvanlanıb. Başqa hesabla girmisiniz — çıxın və düzgün hesabla daxil olun"
+    }
   },
   "plan": {
     "approve": "Planı təsdiqlə",
@@ -595,13 +579,15 @@
   "undo": {
     "action": "Geri al",
     "done": "Dəyişiklik geri alındı",
-    "nothing": "Geri alınacaq bir şey yoxdur"
+    "nothing": "Geri alınacaq bir şey yoxdur",
+    "stale": "Layihə dəyişdi: bu köçürməni artıq geri almaq olmaz"
   },
   "settings": {
     "timezone": "Saat qurşağı",
     "threshold": "Sürüşmə həddi, gün",
     "threshold_hint": "Təsdiqlənmiş plandan bundan çox kənara çıxan dəyişiklik səbəb tələb edir",
     "working_days": "İş günləri",
+    "working_days_empty": "Həftədə ən azı bir gün iş günü qalmalı",
     "inherit": "Təşkilatdan miras al ({value})",
     "slug_taken": "Bu ünvan tutulub. Boş variant:",
     "bad_dates": "Tarix formatı İİİİ-AA-GG olmalıdır: {dates}",
@@ -633,7 +619,10 @@
       "delete_confirm": "Bəli, layihəni sil"
     },
     "profile": {
-      "title": "Profil"
+      "title": "Profil",
+      "timezone_hint": "Bugünkü tarix bu qurşaqla hesablanır: lentdəki «bu gün» xətti, tapşırıqdakı plan nişanı və gecikmiş tarixlər",
+      "timezone_auto": "Brauzerin saatı ilə",
+      "timezone_auto_at": "Brauzerin saatı ilə ({zone})"
     },
     "llm": {
       "title": "LLM qoşulması",
@@ -645,24 +634,6 @@
       "key_set": "Açar təyin edilib. Boş buraxsanız — dəyişmir",
       "key_missing": "Açar hələ yoxdur",
       "save": "Qoşulmanı saxla"
-    },
-    "link": "Tənzimləmələr",
-    "title": "Layihə tənzimləmələri",
-    "back": "Diaqrama qayıt",
-    "share": {
-      "title": "Public keçid",
-      "address": "Səhifə ünvanı",
-      "copy": "Kopyala",
-      "copied": "Kopyalandı",
-      "published": "Public keçid",
-      "comments": "Public səhifədə şərhlər"
-    },
-    "slug": {
-      "title": "Layihə ünvanı",
-      "field": "Keçiddəki ünvan",
-      "taken": "Tutulub. Boş variant:",
-      "save": "Ünvanı saxla",
-      "warning": "Ünvan dəyişəndən sonra köhnə ünvan açılmayacaq — keçidi yenidən göndərmək lazım gələcək."
     }
   },
   "ai": {
