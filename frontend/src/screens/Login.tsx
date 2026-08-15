@@ -71,6 +71,10 @@ export function Login() {
       </form>
 
       <p className="muted">
+        <Link to="/forgot-password">{t("auth.login.link_forgot")}</Link>
+      </p>
+
+      <p className="muted">
         {t("auth.login.no_account")}{" "}
         <Link to={inviteToken === null ? "/register" : `/register?invite=${encodeURIComponent(inviteToken)}`}>
           {t("auth.login.link_register")}

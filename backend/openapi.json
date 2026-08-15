@@ -274,6 +274,21 @@
         "title": "DraftIn",
         "type": "object"
       },
+      "ForgotPasswordIn": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "format": "email",
+            "title": "Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "ForgotPasswordIn",
+        "type": "object"
+      },
       "GuestCommentIn": {
         "properties": {
           "body": {
@@ -1669,6 +1684,29 @@
         "title": "ReissueIn",
         "type": "object"
       },
+      "ResetPasswordIn": {
+        "additionalProperties": false,
+        "properties": {
+          "new_password": {
+            "maxLength": 200,
+            "minLength": 8,
+            "title": "New Password",
+            "type": "string"
+          },
+          "token": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "new_password"
+        ],
+        "title": "ResetPasswordIn",
+        "type": "object"
+      },
       "SessionsClosedOut": {
         "properties": {
           "closed": {
@@ -2863,6 +2901,76 @@
           }
         },
         "summary": "Change Password Route",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/password/forgot": {
+      "post": {
+        "description": "Просьба о письме для восстановления пароля. Куки не требует.\n\nОтвет одинаковый для любого адреса — 204: есть ли такой аккаунт, форма\nне сообщает. Иначе она была бы справочником «кто здесь зарегистрирован»,\nтем самым, который authenticate() прячет ценой холостого хеширования.\nПо той же причине пауза между повторами не отвечает 429: молчаливый 204\nи есть ответ. Предел по IP один на все адреса — каждая просьба, чей бы\nадрес в ней ни стоял, превращается в письмо с нашего отправителя.",
+        "operationId": "forgot_password_route_api_auth_password_forgot_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ForgotPasswordIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Forgot Password Route",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/password/reset": {
+      "post": {
+        "description": "Погашение ссылки из письма: новый пароль вместо забытого.\n\nКуки не требует по той же причине, что и подтверждение адреса: ссылку\nоткрывают там, куда пришла почта. Сессию не открывает: пароль только что\nзадан, и вход им — секундное дело, а вот все прежние сессии умирают\nвнутри redeem_token — восстановлением пользуются как раз тогда, когда\nпароль, похоже, утёк.",
+        "operationId": "reset_password_route_api_auth_password_reset_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reset Password Route",
         "tags": [
           "auth"
         ]

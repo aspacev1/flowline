@@ -3,6 +3,10 @@
     "subject": "Planora: e-poçt ünvanınızı təsdiqləyin",
     "body": "Salam, {name}!\n\nE-poçt ünvanınızı təsdiqləmək üçün keçidi açın:\n\n{link}\n\nKeçid {hours} saat ərzində qüvvədədir. Əgər Planora-da qeydiyyatdan keçməmisinizsə, bu məktubu nəzərə almayın."
   },
+  "reset_password": {
+    "subject": "Planora: parolun bərpası",
+    "body": "Salam, {name}!\n\nYeni parol təyin etmək üçün keçidi açın:\n\n{link}\n\nKeçid {hours} saat ərzində qüvvədədir. Əgər parolun bərpasını siz istəməmisinizsə, bu məktubu nəzərə almayın — parolunuz olduğu kimi qalacaq."
+  },
   "invitation": {
     "subject": "{org} təşkilatına dəvət",
     "body": "{inviter} sizi Planora-da «{org}» təşkilatına dəvət edir.\nRolunuz: {role}.\n\nQoşulmaq üçün keçid:\n{link}\n\nKeçid {expires} tarixinədək etibarlıdır.\n"

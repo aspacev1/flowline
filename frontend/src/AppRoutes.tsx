@@ -2,6 +2,7 @@ import { Navigate, Route, Routes } from "react-router-dom";
 
 import { RequireAuth } from "./auth/RequireAuth";
 import { AiIntake } from "./screens/AiIntake";
+import { ForgotPassword } from "./screens/ForgotPassword";
 import { Home } from "./screens/Home";
 import { Invite } from "./screens/Invite";
 import { Login } from "./screens/Login";
@@ -15,6 +16,7 @@ import { ProjectSettings } from "./screens/ProjectSettings";
 import { Projects } from "./screens/Projects";
 import { PublicProject } from "./screens/PublicProject";
 import { Register } from "./screens/Register";
+import { ResetPassword } from "./screens/ResetPassword";
 import { Settings, SettingsHome } from "./screens/Settings";
 import { VerifyEmail } from "./screens/VerifyEmail";
 
@@ -28,6 +30,11 @@ export function AppRoutes() {
     <Routes>
       <Route path="/register" element={<Register />} />
       <Route path="/login" element={<Login />} />
+      {/* Обе страницы восстановления живут вне RequireAuth: сюда приходят
+          именно потому, что войти нечем, а ссылку из письма открывают в том
+          браузере, куда пришла почта, — как и подтверждение адреса. */}
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       {/* Публичная страница живёт вне RequireAuth: у гостя нет и не будет
           сессии, а обёртка увела бы его на вход — то есть ссылка, ради
           которой всё и затевалось, не открывалась бы вовсе. */}

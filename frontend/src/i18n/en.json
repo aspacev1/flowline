@@ -86,7 +86,8 @@
     "field": {
       "name": "Name",
       "email": "Email",
-      "password": "Password"
+      "password": "Password",
+      "new_password": "New password"
     },
     "register": {
       "title": "Register",
@@ -98,7 +99,22 @@
       "title": "Log in",
       "submit": "Log in",
       "no_account": "No account yet?",
-      "link_register": "Register"
+      "link_register": "Register",
+      "link_forgot": "Forgot your password?"
+    },
+    "forgot": {
+      "title": "Password recovery",
+      "intro": "Enter your email address, and we will send you a link to set a new password.",
+      "submit": "Send the letter",
+      "sent": "If this address is registered, the letter is on its way — check your inbox",
+      "link_login": "Back to log in"
+    },
+    "reset": {
+      "title": "New password",
+      "submit": "Save the password",
+      "done": "The password is changed — log in with the new one",
+      "link_login": "Log in",
+      "link_again": "Request a new link"
     },
     "verify": {
       "title": "Email confirmation",
