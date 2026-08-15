@@ -64,7 +64,10 @@ export function UndoHotkey({
         onSuccess: (undone) => {
           if (undone) showToast({ message: t("undo.done") });
         },
-        onError: (error) => showToast({ message: t(errorKey(error)) }),
+        // Отказ — тоном отказа: галочка рядом с «отменить этот перенос уже
+        // нельзя» сообщает ровно обратное тому, что случилось, а `role="status"`
+        // прячет отказ от читалки в сводку, тогда как отменить не удалось.
+        onError: (error) => showToast({ message: t(errorKey(error)), tone: "error" }),
       });
     }
 
