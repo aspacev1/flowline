@@ -11,17 +11,74 @@
    полоски. Линии тонкие и одинаковые, заливок ровно столько, сколько
    состояний, и цвет полоски означает ровно одно — статус задачи. */
 
+/* Оформительские переменные ленты.
+
+   Здесь только то, что знает один CSS: кегли, скругления, цвета линий и
+   заливок. Геометрия — ширина дня, высота строки, высота полоски, высоты
+   шапки — сюда не попадает намеренно: её знают и расчёты тоже, и она приходит
+   из `density.ts` переменными, которые разметка ставит на корне ленты. Одно
+   число — одно место; повтори мы его здесь, сетка разъехалась бы с шапкой при
+   первой же правке масштаба, причём не сразу, а к правому краю ленты.
+
+   Цвета названы литералами, как в спецификации, и переопределяются в тёмной
+   теме ниже: продукт живёт и в темноте, а `#ffffff` фоном рабочего дня
+   означал бы там белую ленту на тёмном экране. */
+:root {
+  /* Типографика */
+  --gantt-month-font-size: 22px;
+  --gantt-weekday-font-size: 17px;
+  --gantt-date-font-size: 21px;
+  /* Число сегодняшнего дня — в круге, и потому мельче соседних: 21 пиксель
+     полужирного касался бы его края. */
+  --gantt-today-font-size: 18px;
+  --gantt-task-font-size: 18px;
+  --gantt-badge-font-size: 14px;
+  --gantt-toolbar-font-size: 17px;
+
+  /* Геометрия. Скругление полоски — от её высоты, а не само по себе: при
+     тридцати пикселях одиннадцать превращают короткую задачу в пилюлю, и её
+     края перестают показывать день начала и день конца. */
+  --gantt-task-radius: 9px;
+  /* Ромб засечки базового плана — единственная точечная метка на этой ленте:
+     вех как отдельного вида задачи в продукте нет. */
+  --gantt-milestone-size: 12px;
+  --gantt-control-radius: 10px;
+  --gantt-badge-radius: 14px;
+
+  /* Сетка. Обычная линия — в пиксель, граница месяца — вдвое толще и темнее:
+     деление календаря обязано отличаться от деления дней, иначе месяц теряется
+     в частоколе. */
+  --gantt-grid-color: #dfe3ea;
+  --gantt-major-grid-color: #c6ccd6;
+  --gantt-major-grid-width: 2px;
+
+  /* Фоны колонок */
+  --gantt-working-day-background: #ffffff;
+  --gantt-weekend-background: #f5f6f8;
+  --gantt-today-background: rgb(83 104 238 / 8%);
+  --gantt-today-line-width: 2px;
+}
+
+/* В темноте те же роли берут токены темы: они уже посчитаны от чернил и
+   поверхности, и вторая палитра, выписанная числами, разошлась бы с продуктом
+   при первой правке темы. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --gantt-grid-color: var(--border);
+    --gantt-major-grid-color: var(--border-strong);
+    --gantt-working-day-background: var(--surface);
+    --gantt-weekend-background: rgb(var(--ink) / 3.5%);
+    --gantt-today-background: var(--accent-soft);
+  }
+}
+
 .gantt {
   --gantt-label: 260px;
-  /* --gantt-row приходит из разметки: по этой же величине считаются стрелки
-     связей, и второе число здесь разошлось бы с ними при первой правке. */
-  --gantt-row: 48px;
-  /* Шапка = полоса месяцев + полоса дней. Обе меры выведены из этих двух
-     переменных, а не записаны литералами в трёх местах: прежде высота полосы
-     месяцев стояла числом и в её собственном правиле, и в вычитании для
-     полосы дней, и правка одного молча ломала другое. */
-  --gantt-head: 68px;
-  --gantt-month-row: 27px;
+  /* Шапка = полоса месяцев + полоса дней. Сумма, а не третье число: прежде
+     высота полосы месяцев стояла литералом и в её собственном правиле, и в
+     вычитании для полосы дней, и правка одного молча ломала другое. Слагаемые
+     приходят из `density.ts` — их же знает разметка. */
+  --gantt-head: calc(var(--gantt-month-height) + var(--gantt-days-height));
   /* Отступ задачи внутри категории — от левого края колонки, а не поверх
      собственных полей ячейки (см. .gantt__cell--task). Значение подобрано не
      произвольно: оно равно тому же отступу, с которым уже начинается название
@@ -29,10 +86,6 @@
      текстом (6px). Разойдись эти числа — имя задачи съедет относительно
      заголовка своей же категории, как и произошло до этой правки. */
   --gantt-indent: 31px;
-  /* Полоске при строке в 40 пикселей (см. ROW_HEIGHT) остаётся просвет по
-     7 сверху и снизу: прежние 28 оставляли 6 — полоски соседних строк почти
-     смыкались, и лента читалась сплошной заливкой. */
-  --gantt-bar: 26px;
   /* Разделитель строк светлее рамок ленты: на полусотне строк линия в полную
      силу рисует решётку, в которой не видно самих строк. */
   --gantt-row-line: #edf0f4;
@@ -58,6 +111,55 @@
 /* Само правило «меньше движения» живёт в styles.css: оно общее для всего
    интерфейса, а не для одной диаграммы. Здесь только признак на корне ленты —
    его же ставит разметка, узнав настройку системы. */
+
+/* Верхняя панель ленты — «Изменить дату старта», «Масштаб», «Вид».
+
+   Правила лежат здесь, а не в теме, и потому сужены до `.gantt`: панель
+   принадлежит диаграмме и живёт по её меркам, а тот же класс встречается на
+   экране проекта и вне ленты. Панель — не главное на экране: её высота задана
+   минимумом, а кнопки в ней не переваливают за 44 пикселя, иначе ряд органов
+   управления начинает спорить с самой диаграммой. */
+.gantt .project-toolbar {
+  min-height: var(--gantt-toolbar-height);
+  height: auto;
+  padding: 6px 24px;
+  gap: 10px;
+}
+
+.gantt .project-toolbar button,
+.gantt .project-toolbar .menu__button,
+.gantt .project-toolbar .button-link {
+  height: 44px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: var(--gantt-control-radius);
+  font-size: var(--gantt-toolbar-font-size);
+  line-height: 20px;
+}
+
+/* Стрелка меню — знак направления, а не вторая подпись: в кегль кнопки она
+   спорила бы с её словом. */
+.gantt .project-toolbar .menu__caret {
+  font-size: 13px;
+  line-height: 1;
+}
+
+/* Сегменты представления и плашка режима стоят в том же ряду и обязаны
+   совпасть с ним по высоте: 36 внутри трёхпиксельной подложки дают те же 42–44,
+   что у соседних кнопок, и ряд читается одной линией, а не лесенкой. */
+.gantt .project-toolbar__views button,
+.gantt .project-toolbar__mode {
+  height: 36px;
+  padding: 0 12px;
+  font-size: var(--gantt-badge-font-size);
+}
+
+.gantt .project-toolbar__divider {
+  height: 28px;
+}
 
 /* Итог по срокам — выноска над лентой: одна строка, тонкая заливка, никакой
    рамки. Поля по бокам те же, что у шапки проекта: лента идёт во всю ширину
@@ -226,13 +328,13 @@
 
 .gantt__months {
   position: relative;
-  height: var(--gantt-month-row);
-  border-bottom: 1px solid var(--border);
+  height: var(--gantt-month-height);
+  border-bottom: var(--gantt-grid-width) solid var(--gantt-grid-color);
 }
 
 .gantt__days {
   position: relative;
-  height: calc(var(--gantt-head) - var(--gantt-month-row));
+  height: var(--gantt-days-height);
 }
 
 /* Относительная шкала: между месяцами и днями — строка недель. Высота шапки
@@ -240,12 +342,15 @@
    которой в относительной шкале нет. */
 .gantt__weeks {
   position: relative;
-  height: var(--gantt-week-row, 16px);
-  border-bottom: 1px solid var(--border);
+  height: var(--gantt-week-height);
+  border-bottom: var(--gantt-grid-width) solid var(--gantt-grid-color);
 }
 
+/* Строку недель полоса дней отдаёт из своей высоты, а не добавляет к шапке:
+   угол левой колонки стоит на общей высоте шапки, и выросшая относительная
+   шапка разошлась бы с ним ровно на эту строку. */
 .gantt__head--relative .gantt__days {
-  height: calc(var(--gantt-head) - var(--gantt-month-row) - var(--gantt-week-row, 16px));
+  height: calc(var(--gantt-days-height) - var(--gantt-week-height));
 }
 
 .gantt__week {
@@ -283,38 +388,47 @@
   bottom: 0;
   display: flex;
   align-items: center;
-  font-size: 10px;
   color: var(--text-muted);
-  border-left: 1px solid var(--border);
+  border-left: var(--gantt-grid-width) solid var(--gantt-grid-color);
   overflow: hidden;
 }
 
-/* Месяц — заголовок колонок: мелко, вразрядку, капителью и по левому краю
-   своей полосы, как заголовок столбца, а не подпись под ним. */
+/* Месяц — заголовок своего диапазона: по его центру, а не по левому краю.
+   Граница между месяцами заметнее обычной сетки — иначе на ленте в квартал
+   деление календаря не видно вовсе. */
 .gantt__month {
-  justify-content: flex-start;
+  justify-content: center;
   padding: 0 12px;
+  border-left: var(--gantt-major-grid-width) solid var(--gantt-major-grid-color);
 }
 
 .gantt__month-label {
   white-space: nowrap;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.05em;
+  font-size: var(--gantt-month-font-size);
+  line-height: 26px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
   text-transform: uppercase;
   color: #475467;
 }
 
-/* Полоса дней ровно вмещает три меры: верхнее поле, строку дня недели и круг
-   вокруг числа (3 + 15 + 22 = 40 при высоте полосы 41). Просвета между
-   строкой и кругом нет намеренно — он есть внутри самого круга. */
+/* Полоса дней вмещает две меры с просветом между ними: строку дня недели и
+   круг вокруг числа (20 + 4 + 32 = 56 при высоте полосы 76). Остаток делится
+   поровну сверху и снизу — содержимое стоит по центру клетки, а не прижато к
+   её верху. */
 .gantt__day {
   flex-direction: column;
-  justify-content: flex-start;
+  justify-content: center;
   align-items: center;
-  gap: 0;
-  padding-top: 3px;
-  line-height: 15px;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.gantt__day-weekday {
+  font-size: var(--gantt-weekday-font-size);
+  line-height: 20px;
+  font-weight: 400;
+  color: #687386;
 }
 
 .gantt__day-number {
@@ -323,19 +437,27 @@
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: var(--gantt-today-size);
+  height: var(--gantt-today-size);
   border-radius: 50%;
-  color: #344054;
-  font-size: 12px;
-  font-weight: 500;
+  color: #30394a;
+  font-size: var(--gantt-date-font-size);
+  line-height: 25px;
+  font-weight: 600;
+}
+
+/* Граница месяца — в шапке и в теле одной толщины и на одном пикселе: линии,
+   разошедшиеся на пиксель, читаются как дефект отрисовки. */
+.gantt__day.is-month-start,
+.gantt__grid-day.is-month-start {
+  border-left: var(--gantt-major-grid-width) solid var(--gantt-major-grid-color);
 }
 
 /* Сегодняшняя колонка выделена в шапке: подложка на всю колонку, а число —
    белым в круге цвета акцента, как в макете. Круг — та же фигура, что и
    точка над линией «сегодня» в теле ленты, и они читаются как одно. */
 .gantt__day.is-today {
-  background: #f2f3ff;
+  background: var(--gantt-today-background);
   color: var(--accent);
   font-weight: 700;
 }
@@ -343,6 +465,10 @@
 .gantt__day.is-today .gantt__day-number {
   background: var(--accent);
   color: var(--accent-text);
+  /* Круг у сегодняшнего дня заполнен, и число в нём мельче соседних: в кегле
+     обычного дня полужирная белая цифра упиралась бы в край круга. */
+  font-size: var(--gantt-today-font-size);
+  line-height: 1;
   font-weight: 700;
 }
 
@@ -377,14 +503,23 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  border-left: 1px solid var(--border);
+  background: var(--gantt-working-day-background);
+  border-left: var(--gantt-grid-width) solid var(--gantt-grid-color);
 }
 
 /* Один и тот же признак нерабочего дня и в шапке, и в теле: заливка,
-   обрывающаяся под шапкой, читается как дефект отрисовки. Затемнение, а не
-   свой цвет: под ним и белое тело ленты, и серая шапка. */
-.is-nonworking {
-  background: var(--nonworking);
+   обрывающаяся под шапкой, читается как дефект отрисовки. */
+.gantt .is-nonworking {
+  background: var(--gantt-weekend-background);
+}
+
+/* Сегодняшний день заливается поверх выходного: суббота, на которую пришлось
+   сегодня, обязана остаться помеченной — иначе метка пропадает ровно в те два
+   дня недели, когда её и ищут. Побеждает она силой селектора, а не порядком
+   правил: два класса против одного. */
+.gantt__grid-day.is-today,
+.gantt__day.is-today.is-nonworking {
+  background: var(--gantt-today-background);
 }
 
 .gantt__deadline {
@@ -399,7 +534,7 @@
    своей толщины влево: иначе центр дня и центр линии разошлись бы на пиксель
    и линия не совпала бы с кругом в шапке. */
 .gantt__today {
-  --today-line: 2px;
+  --today-line: var(--gantt-today-line-width);
   position: absolute;
   top: 0;
   bottom: 0;
@@ -435,7 +570,9 @@
 .arrows polyline {
   fill: none;
   stroke: #7d879c;
-  stroke-width: 1.5;
+  /* Два пикселя, как у линии сегодняшнего дня: полутора не хватает, чтобы
+     связь читалась поверх заливок строк и колонок. */
+  stroke-width: 2;
   /* Скруглённые углы: на изломе в один пиксель острый угол читается как
      артефакт отрисовки. */
   stroke-linejoin: round;
@@ -480,11 +617,18 @@
   z-index: 1;
 }
 
+/* Строка — одна на левую колонку и ленту: это буквально один узел, а не две
+   половины, которые нужно держать одной высоты. Три меры вместо одной потому,
+   что содержимое обеих половин не должно раздвигать строку: имя в два слова
+   или бейдж отклонения иначе прибавили бы этой строке пиксель, а стрелки
+   связей считают её высоту постоянной (см. density.ts). */
 .gantt__row {
   display: flex;
   align-items: center;
-  height: var(--gantt-row);
-  border-bottom: 1px solid var(--gantt-row-line);
+  height: var(--gantt-row-height);
+  min-height: var(--gantt-row-height);
+  max-height: var(--gantt-row-height);
+  border-bottom: var(--gantt-grid-width) solid var(--gantt-row-line);
   transition: background var(--motion-base) var(--motion-ease);
 }
 
@@ -566,10 +710,17 @@
   position: relative;
 }
 
+/* Имя задачи — тот же кегль, что и подпись на полоске: это одна и та же вещь,
+   названная в двух местах строки. Не переносится и не растёт: длинное имя
+   обрезается многоточием, потому что вторая строка развалила бы сетку строк, а
+   с нею и стрелки связей. */
 .gantt__label-name {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: var(--gantt-task-font-size);
+  line-height: 22px;
 }
 
 /* Курсор и подчёркивание при наведении — единственная разница с обычным
@@ -796,9 +947,18 @@
   color: var(--danger);
 }
 
+/* Сторона шкалы считает свою высоту от строки, а не от её содержимого, и
+   стоит от её верха.
+
+   Разница ровно в разделителе строк: он рисуется рамкой, то есть отъедает у
+   содержимого свой пиксель, и полоска, поставленная по центру оставшихся
+   сорока девяти, получала бы 4.5 сверху и 5.5 снизу — просвет, не равный сам
+   себе. Закреплённой колонке та же правка не годится: у неё непрозрачная
+   заливка, и она закрыла бы собой этот разделитель. */
 .gantt__lane {
   position: relative;
-  height: 100%;
+  align-self: flex-start;
+  height: var(--gantt-row-height);
   transition: background var(--motion-base) var(--motion-ease);
 }
 
@@ -809,17 +969,20 @@
 .gantt__span {
   position: absolute;
   top: 50%;
-  height: 7px;
+  height: var(--gantt-summary-height);
   transform: translateY(-50%);
-  border-radius: 3px;
+  border-radius: 5px;
   box-shadow: inset 0 0 0 1px rgb(0 0 0 / 8%);
 }
 
+/* Засечки по краям свисают под полосу и обязаны уместиться в строке: полоса
+   стоит по её центру, и пять пикселей острия ниже её низа — это ещё десять с
+   небольшим от середины строки при её половине в двадцать пять. */
 .gantt__span::before,
 .gantt__span::after {
   content: "";
   position: absolute;
-  top: 5px;
+  top: calc(var(--gantt-summary-height) - 4px);
   width: 0;
   height: 0;
   border-left: 5px solid transparent;
@@ -837,18 +1000,23 @@
   transform: translateX(2px);
 }
 
-/* Полоска — прямоугольник со скруглением 7 на шкале времени.
+/* Полоска — прямоугольник со скруглением на шкале времени.
    Заливка означает статус и только его; критичность и просрочка ложатся
    поверх накладками (ниже). Раньше все три состояния писали в один и тот же
-   фон, и цвет полоски определялся не смыслом, а порядком правил в файле. */
+   фон, и цвет полоски определялся не смыслом, а порядком правил в файле.
+
+   Тридцать пикселей полоски в строке на пятьдесят оставляют просвет по десять
+   сверху и снизу — то есть двадцать между полосками соседних строк. Просвет
+   здесь работает не меньше самой полоски: это он делает из ленты ряд, а не
+   закрашенное поле. */
 .gantt__bar {
   position: absolute;
   /* По вертикали полоска встаёт отступом, а не сдвигом. Отступ считается один
      раз на рендер и потом не меняется, а `transform` целиком отдан движению по
      горизонтали: делить его на два дела значило бы пересобирать всю строку
      `translate` там, где меняется одна её половина. */
-  top: calc(50% - var(--gantt-bar) / 2);
-  height: var(--gantt-bar);
+  top: calc(50% - var(--gantt-task-height) / 2);
+  height: var(--gantt-task-height);
   /* Место полоски на ленте — `left` и `width`; оба выставляет разметка на
      рендер, и дальше их не трогает никто. Двигается полоска только по
      `--bar-dx`: и под пальцем, и переездом после ответа сервера (см.
@@ -860,7 +1028,7 @@
   --bar-dx: 0px;
   --bar-lift: 0px;
   transform: translate3d(var(--bar-dx), var(--bar-lift), 0);
-  padding: 0 11px;
+  padding: 0 12px;
   display: flex;
   align-items: center;
   /* Содержимое прижато к началу полоски. Правило не лишнее: полоска — это
@@ -871,11 +1039,12 @@
   overflow: hidden;
   white-space: nowrap;
   border: 0;
-  border-radius: var(--radius);
+  border-radius: var(--gantt-task-radius);
   background: var(--gantt-fill-progress);
   color: var(--accent-text);
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--gantt-task-font-size);
+  line-height: 22px;
+  font-weight: 600;
   text-align: left;
   box-shadow: none;
   /* Переход — только на подсветке: полоска всё-таки кнопка, и вспыхивать
@@ -1010,14 +1179,18 @@
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 18px;
-  height: 18px;
+  /* Круг помещается в полоску с запасом в пять пикселей: галочка в тридцати
+     пикселях высоты, поставленная под самый её край, читается заплатой. */
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   background: rgb(255 255 255 / 22%);
-  font-size: 11px;
+  font-size: var(--gantt-badge-font-size);
   line-height: 1;
 }
 
+/* Подпись на полоске обрезается многоточием и никогда не переносится: вторая
+   строка не поместилась бы в высоту полоски и раздвинула бы строку ленты. */
 .gantt__bar-blocked {
   display: inline-flex;
   align-items: center;
@@ -1033,9 +1206,14 @@
    плановую дату, а конец фактическую, и полоска перестала бы означать
    реальные даты задачи. Один раз обманув глаз, диаграмма теряет доверие
    целиком. */
+/* Призрак идёт по нижнему просвету строки, а не под ним: полоска в сорок
+   пикселей оставляет от строки в пятьдесят ровно пять снизу, и толще этого
+   призрак не бывает — он налез бы на саму полоску, под которой стоит. Отсюда
+   и четыре пикселя вместо тонкой полосы в восемь: высота строки и высота
+   полоски заданы, и просвет между ними — это остаток, а не выбор. */
 .gantt__ghost {
   position: absolute;
-  top: calc(50% + 16px);
+  top: calc(50% + var(--gantt-task-height) / 2 + 1px);
   height: 3px;
   border-radius: 2px;
   background: var(--text-faint);
@@ -1048,20 +1226,26 @@
    полоски. */
 .gantt__mark {
   position: absolute;
-  top: 4px;
-  height: 32px;
+  /* Выше полоски и ниже её на равные три пикселя: засечка обязана читаться
+     меткой на шкале, а не обрезом полоски. Считается от высоты полоски, а не
+     стоит числом, — иначе первая же правка масштаба спрятала бы её под
+     полоску. */
+  top: calc(50% - var(--gantt-task-height) / 2 - 3px);
+  height: calc(var(--gantt-task-height) + 6px);
   width: 2px;
   background: var(--danger);
   z-index: 2;
 }
 
+/* Ромб на верхушке засечки — по её центру: смещение на половину своей ширины,
+   а не на подобранное число, иначе он съезжает с линии при её правке. */
 .gantt__mark::after {
   content: "";
   position: absolute;
-  top: -2px;
-  left: -2.5px;
-  width: 7px;
-  height: 7px;
+  top: -3px;
+  left: calc(50% - var(--gantt-milestone-size) / 2);
+  width: var(--gantt-milestone-size);
+  height: var(--gantt-milestone-size);
   background: var(--danger);
   transform: rotate(45deg);
 }
@@ -1072,11 +1256,21 @@
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  padding: 2px 6px;
+  /* Шесть пикселей от конца полоски: вплотную бейдж читается её продолжением,
+     то есть обещает задаче лишние дни, которых у неё нет. Отступ полем, а не
+     сдвигом координаты: координату считает шкала, и она отвечает за даты. */
+  margin-left: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Ниже полоски намеренно: бейдж — примечание к ней, а не второй её конец. */
+  min-height: 28px;
+  padding: 0 9px;
   border: 1px solid transparent;
-  border-radius: 12px;
-  font-size: 10px;
-  font-weight: 800;
+  border-radius: var(--gantt-badge-radius);
+  font-size: var(--gantt-badge-font-size);
+  line-height: 18px;
+  font-weight: 700;
   white-space: nowrap;
   pointer-events: none;
 }
@@ -1187,23 +1381,41 @@
   letter-spacing: 0.01em;
 }
 
-/* На мелких масштабах от подписи дня остаётся число: день недели в колонку
-   шириной 18 пикселей не помещается, а обрезанный читается как мусор. */
+/* Масштаб меняет только ширину деления и то, сколько подписей в него влезает.
+   Высота строки, высота полоски и кегль имени задачи от него не зависят
+   нигде — ни здесь, ни в расчётах: переключение «День → Месяц» обязано сжимать
+   время, а не перестраивать строки.
+
+   На «месяце» день — двадцать два пикселя, и от подписи остаётся число: день
+   недели в такую колонку не помещается, а обрезанный читается как мусор. Обе
+   меры — переопределение переменных, а не второй набор правил: правило одно и
+   то же, число в нём другое. */
+.gantt--month {
+  --gantt-date-font-size: 12px;
+  --gantt-today-font-size: 11px;
+  --gantt-today-size: 20px;
+}
+
 .gantt--month .gantt__day-weekday {
   display: none;
 }
 
 .gantt--month .gantt__day-number {
-  width: auto;
-  height: auto;
-  font-size: 10px;
+  line-height: 1;
+  font-weight: 600;
 }
 
-/* Круг сужается до ширины колонки: на «месяце» день — восемнадцать пикселей,
-   и двадцатидвухпиксельный круг вылез бы за свою колонку в соседнюю. */
-.gantt--month .gantt__day.is-today .gantt__day-number {
-  width: 18px;
-  height: 18px;
+/* Круг остаётся кругом только у сегодняшнего дня — у остальных это просто
+   число, и заданная фигура в узкой колонке отняла бы у него место. */
+.gantt--month .gantt__day:not(.is-today) .gantt__day-number {
+  width: auto;
+  height: auto;
+}
+
+/* Название месяца на узком делении: диапазон в месяц — это 660 пикселей, и
+   кегль шапки в нём не нужен, зато нужен на всех делениях один ритм. */
+.gantt--month .gantt__month-label {
+  font-size: 16px;
 }
 
 /* Адаптивность ленты. Точки те же, что у остального приложения. Без них

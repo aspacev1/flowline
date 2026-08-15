@@ -7,7 +7,7 @@ import { drag, dragDays } from "../test/pointer";
 import { APPROVED, STATE, captureMutations, projectFixtures, renderProject } from "../test/project";
 import { server } from "../test/server";
 import { lastSocket } from "../test/socket";
-import { DAY_WIDTH } from "./scale";
+import { DAY_WIDTH } from "./density";
 
 beforeEach(projectFixtures);
 

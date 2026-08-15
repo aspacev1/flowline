@@ -1,5 +1,5 @@
 import type { Dependency, Task } from "../api/projects";
-import { ROW_HEIGHT } from "./scale";
+import { ROW_HEIGHT } from "./density";
 import type { Scale } from "./timescale";
 
 /**
@@ -19,6 +19,12 @@ import type { Scale } from "./timescale";
 
 /** Отступ, на который стрелка отходит от полоски, прежде чем повернуть. */
 const ELBOW = 8;
+
+/**
+ * Длина наконечника. Пропорция к строке в 50 пикселей: меньший теряется на
+ * фоне двухпиксельной линии, больший накрывает край полоски, в который целит.
+ */
+const ARROW = 8;
 
 export function Arrows({
   scale,
@@ -53,14 +59,14 @@ export function Arrows({
       const endX = scale.xOf(to.start_date);
       const endY = toRow * ROW_HEIGHT + ROW_HEIGHT / 2;
 
-      // Линия не доходит до полоски на размер наконечника: остриё, лежащее
+      // Линия не доходит до полоски на половину наконечника: остриё, лежащее
       // поверх линии, рисовало бы утолщение вместо стрелки.
-      const shape = elbow(startX, startY, endX - 4, endY);
+      const shape = elbow(startX, startY, endX - ARROW / 2, endY);
 
       return {
         key: `${link.from_task_id}-${link.to_task_id}`,
         points: shape.map(([x, y]) => `${x},${y}`).join(" "),
-        head: `M${endX - 6} ${endY - 4} L${endX} ${endY} L${endX - 6} ${endY + 4} Z`,
+        head: `M${endX - ARROW} ${endY - ARROW / 2} L${endX} ${endY} L${endX - ARROW} ${endY + ARROW / 2} Z`,
         // Место для знака нарушения — середина среднего звена ломаной, а не
         // повторно вычисленная по тем же условиям точка: второе такое же
         // вычисление разошлось бы с самой ломаной при первой её правке.
