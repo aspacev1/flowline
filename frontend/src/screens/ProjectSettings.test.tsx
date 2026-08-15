@@ -71,3 +71,60 @@ describe("удаление проекта", () => {
     expect(screen.queryByRole("button", { name: "Удалить проект" })).not.toBeInTheDocument();
   });
 });
+
+describe("публичная ссылка в настройках проекта", () => {
+  const PUBLISHED = {
+    allowed: true,
+    url: "https://planora.example.com/p/seher-studiyasi/redizayn?s=t0ken",
+    comments_enabled: false,
+    created_at: "2026-03-05T10:00:00+00:00",
+  };
+
+  it("перевыпуск спрашивает и уходит на свой маршрут, а не повторяет выпуск", async () => {
+    const calls: string[] = [];
+    server.use(
+      http.get("/api/projects/p1/share", () => HttpResponse.json(PUBLISHED)),
+      // Повторный POST /share сервер встречает 409-м: выпуск и перевыпуск —
+      // разные решения, и разными маршрутами они и остаются.
+      http.post("/api/projects/p1/share", () => {
+        calls.push("issue");
+        return HttpResponse.json({ detail: "share_link_exists" }, { status: 409 });
+      }),
+      http.post("/api/projects/p1/share/rotate", () => {
+        calls.push("rotate");
+        return HttpResponse.json({ ...PUBLISHED, url: `${PUBLISHED.url}-new` }, { status: 201 });
+      }),
+    );
+    renderProject(undefined, { route: "/projects/p1/settings" });
+
+    await userEvent.click(await screen.findByRole("button", { name: "Перевыпустить" }));
+    expect(calls).toEqual([]);
+    expect(screen.getByText(/уже отправленный адрес перестанет открываться/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Да, перевыпустить" }));
+
+    await waitFor(() => expect(calls).toEqual(["rotate"]));
+  });
+
+  it("закрытие ссылки без ответа на вопрос не случается", async () => {
+    let revoked = false;
+    server.use(
+      http.get("/api/projects/p1/share", () => HttpResponse.json(PUBLISHED)),
+      http.delete("/api/projects/p1/share", () => {
+        revoked = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+    renderProject(undefined, { route: "/projects/p1/settings" });
+
+    await userEvent.click(await screen.findByRole("button", { name: "Закрыть ссылку" }));
+    await userEvent.click(screen.getByRole("button", { name: "Отмена" }));
+
+    expect(revoked).toBe(false);
+
+    await userEvent.click(screen.getByRole("button", { name: "Закрыть ссылку" }));
+    await userEvent.click(screen.getByRole("button", { name: "Да, закрыть ссылку" }));
+
+    await waitFor(() => expect(revoked).toBe(true));
+  });
+});

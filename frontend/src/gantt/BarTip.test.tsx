@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ProjectState, Task } from "../api/projects";
 import { renderWithProviders } from "../test/utils";
+import { GAP, SHOW_DELAY } from "./BarTip";
 import { Gantt } from "./Gantt";
 
 const TASK: Task = {
@@ -67,6 +68,22 @@ function bar() {
   return screen.getByRole("button", { name: /Логотип/ });
 }
 
+/**
+ * Наведение с ожиданием карточки.
+ *
+ * Ждать приходится по-настоящему: карточка выходит с выдержкой, и без
+ * ожидания каждая проверка ниже читала бы пустую ленту.
+ */
+async function hoverBar() {
+  await userEvent.hover(bar());
+  return screen.findByTestId("bar-tip");
+}
+
+/** Ожидание настоящего времени: выдержку карточки отсчитывает таймер. */
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /** Проект с теми же задачами, но с назначенными исполнителями. */
 function withAssignees(...ids: string[]): ProjectState {
   return { ...STATE, tasks: [{ ...TASK, assignee_ids: ids }] };
@@ -76,9 +93,8 @@ describe("карточка наведения на полоску", () => {
   it("называет статус, даты и готовность", async () => {
     draw();
 
-    await userEvent.hover(bar());
+    const tip = await hoverBar();
 
-    const tip = screen.getByTestId("bar-tip");
     expect(tip).toHaveTextContent("Логотип");
     expect(tip).toHaveTextContent("В работе");
     expect(tip).toHaveTextContent("4 мар → 10 мар");
@@ -88,8 +104,7 @@ describe("карточка наведения на полоску", () => {
   it("исчезает, когда курсор ушёл с полоски", async () => {
     draw();
 
-    await userEvent.hover(bar());
-    expect(screen.getByTestId("bar-tip")).toBeInTheDocument();
+    await hoverBar();
 
     await userEvent.unhover(bar());
     expect(screen.queryByTestId("bar-tip")).not.toBeInTheDocument();
@@ -98,27 +113,21 @@ describe("карточка наведения на полоску", () => {
   it("предупреждает знаком о заблокированной задаче", async () => {
     draw({ state: { ...STATE, tasks: [{ ...TASK, status: "blocked" }] } });
 
-    await userEvent.hover(bar());
-
-    expect(screen.getByTestId("bar-tip")).toHaveTextContent("⚠ Заблокировано");
+    expect(await hoverBar()).toHaveTextContent("⚠ Заблокировано");
   });
 
   it("одного исполнителя зовёт по имени", async () => {
     draw({ state: withAssignees("u1"), names: NAMES });
 
-    await userEvent.hover(bar());
-
-    expect(screen.getByTestId("bar-tip")).toHaveTextContent("Алексей");
+    expect(await hoverBar()).toHaveTextContent("Алексей");
   });
 
   it("нескольких сводит к первому и счётчику остальных", async () => {
     draw({ state: withAssignees("u1", "u2", "u3"), names: NAMES });
 
-    await userEvent.hover(bar());
-
     // Перечисления карточка такой ширины не выдержит, а «+2» отвечает на
     // вопрос «одна ли это работа» не хуже трёх имён.
-    const tip = screen.getByTestId("bar-tip");
+    const tip = await hoverBar();
     expect(tip).toHaveTextContent("Алексей +2");
     expect(tip).not.toHaveTextContent("Мария");
   });
@@ -128,9 +137,7 @@ describe("карточка наведения на полоску", () => {
     // гостю не отдают, и назначенные исполнители остаются безымянными.
     draw({ state: withAssignees("u1", "u2") });
 
-    await userEvent.hover(bar());
-
-    const tip = screen.getByTestId("bar-tip");
+    const tip = await hoverBar();
     expect(tip).not.toHaveTextContent("Алексей");
     expect(tip).toHaveTextContent("40%");
   });
@@ -140,16 +147,13 @@ describe("карточка наведения на полоску", () => {
     // нет: карточка молчит о нём, а не пишет «undefined».
     draw({ state: withAssignees("u9"), names: NAMES });
 
-    await userEvent.hover(bar());
-
-    expect(screen.getByTestId("bar-tip")).not.toHaveTextContent("undefined");
+    expect(await hoverBar()).not.toHaveTextContent("undefined");
   });
 
   it("гаснет на время жеста и не возвращается под палец сама", async () => {
     draw();
 
-    await userEvent.hover(bar());
-    expect(screen.getByTestId("bar-tip")).toBeInTheDocument();
+    await hoverBar();
 
     // Карточка, идущая за курсором, закрывала бы ровно ту сетку дней, по
     // которой человек целится.
@@ -165,13 +169,14 @@ describe("карточка наведения на полоску", () => {
     expect(screen.queryByTestId("bar-tip")).not.toBeInTheDocument();
 
     await userEvent.unhover(bar());
-    await userEvent.hover(bar());
-    expect(screen.getByTestId("bar-tip")).toBeInTheDocument();
+    expect(await hoverBar()).toBeInTheDocument();
   });
 
-  it("показывается по фокусу с клавиатуры и прячется, когда фокус ушёл", () => {
+  it("показывается по фокусу с клавиатуры сразу и прячется, когда фокус ушёл", () => {
     draw();
 
+    // Без выдержки: полоску под фокусом выбрали, а не задели по дороге к
+    // соседней, и ждать здесь нечего.
     fireEvent.focus(bar());
     expect(screen.getByTestId("bar-tip")).toBeInTheDocument();
 
@@ -179,12 +184,64 @@ describe("карточка наведения на полоску", () => {
     expect(screen.queryByTestId("bar-tip")).not.toBeInTheDocument();
   });
 
-  it("скрыта от чтения с экрана: полоска называет то же самое сама", async () => {
+  it("под курсором не появляется сразу", async () => {
     draw();
 
     await userEvent.hover(bar());
 
-    expect(screen.getByTestId("bar-tip")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByTestId("bar-tip")).not.toBeInTheDocument();
+  });
+
+  it("не оставляет вспышки за курсором, прошедшим ленту насквозь", async () => {
+    draw();
+
+    // Курсор через полоску, а не на полоску: без выдержки каждая полоска на
+    // пути высекала бы по карточке.
+    await userEvent.hover(bar());
+    await userEvent.unhover(bar());
+    await wait(SHOW_DELAY * 2);
+
+    expect(screen.queryByTestId("bar-tip")).not.toBeInTheDocument();
+  });
+
+  it("гаснет, когда лента поехала под ней", async () => {
+    const { container } = draw();
+
+    await hoverBar();
+
+    // Карточка стоит по координатам окна и за лентой не едет: оставшись
+    // висеть, она приписывала бы работу одной задачи другой.
+    fireEvent.scroll(container.querySelector(".gantt__scroll")!);
+    expect(screen.queryByTestId("bar-tip")).not.toBeInTheDocument();
+  });
+
+  it("переворачивается у нижнего края по своей настоящей высоте", async () => {
+    // Высота — измеренная, а не взятая из головы: у задачи с длинным именем
+    // карточка выше, и по числу из кода она у низа окна не переворачивалась
+    // бы, а обрезалась.
+    const height = 200;
+    const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetHeight");
+    Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
+      configurable: true,
+      get: () => height,
+    });
+
+    try {
+      draw();
+      await userEvent.hover(bar());
+      fireEvent.pointerMove(bar(), { pointerId: 1, clientX: 100, clientY: 700 });
+
+      const tip = await screen.findByTestId("bar-tip");
+      expect(tip).toHaveStyle({ top: `${700 - GAP - height}px` });
+    } finally {
+      if (original) Object.defineProperty(HTMLElement.prototype, "offsetHeight", original);
+    }
+  });
+
+  it("скрыта от чтения с экрана: полоска называет то же самое сама", async () => {
+    draw();
+
+    expect(await hoverBar()).toHaveAttribute("aria-hidden", "true");
     // Нативной подсказки у полоски нет: браузерная всплывала бы поверх этой
     // карточки и говорила бы то же самое вторым окном.
     expect(bar()).not.toHaveAttribute("title");

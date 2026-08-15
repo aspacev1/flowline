@@ -12,6 +12,7 @@ import { useLocale } from "../i18n/LocaleProvider";
 import { patchTask } from "../project/optimistic";
 import { useAskShiftReason } from "../project/ShiftReason";
 import { useProjectMutation } from "../project/useProjectMutation";
+import { UndoMove } from "./UndoMove";
 import { addDays } from "./timescale";
 import type { BarMotion } from "./useBarMotion";
 import type { Scale } from "./timescale";
@@ -74,14 +75,18 @@ export function useDragDates({
     scale.dateAt(scale.xOf(task.start_date) + dx + scale.dayWidth / 2);
 
   /**
-   * Отмена из тоста. Отменяется последняя операция проекта — на момент показа
-   * тоста это и есть перенос; сам путь тот же, что у кнопки «Отменить»:
-   * отмена подчиняется тому же порогу объяснений, что и любой сдвиг.
+   * Отмена из тоста. Отменяется именно тот перенос, о котором тост говорит:
+   * его номер назвал сервер, применяя операцию, и он же уходит обратно в
+   * `expected_seq`. «Последнее изменение проекта» здесь не годится — за шесть
+   * секунд, что висит тост, последним успевает стать чужое.
+   *
+   * Сам путь тот же, что у кнопки «Отменить» в ленте истории: отмена
+   * подчиняется тому же порогу объяснений, что и любой сдвиг.
    */
-  const undoMove = async () => {
+  const undoMove = async (seq: number) => {
     try {
       try {
-        await undoLast(projectId);
+        await undoLast(projectId, { seq });
       } catch (refusal) {
         if (!(refusal instanceof ApiError) || refusal.code !== "reason_required" || !askReason) {
           throw refusal;
@@ -94,7 +99,7 @@ export function useDragDates({
           thresholdDays: refusal.hints.thresholdDays ?? 0,
         });
         if (reason === null) return;
-        await undoLast(projectId, reason);
+        await undoLast(projectId, { seq, reason });
       }
       await queryClient.invalidateQueries({ queryKey: projectQueryKey(projectId) });
     } catch (error) {
@@ -104,30 +109,62 @@ export function useDragDates({
     }
   };
 
-  const move = (startDate: string) => {
+  /**
+   * @param hold Держать ли полоску там, куда её бросили, пока перенос идёт.
+   *   Так делает перетаскивание: полоску отпустили под пальцем, и до решения
+   *   ей место там. Клавиатура не держит ничего — там полоска и не двигалась,
+   *   а поехавшая до ответа на вопрос о причине означала бы сдвиг, которого
+   *   ещё не было.
+   *
+   *   Держит сам слой движения: сдвиг уже записан в узел, и «подождать» здесь
+   *   значит не снимать его до ответа. Второе состояние с той же датой считало
+   *   бы этот сдвиг ещё раз — и полоска на кадр уезжала бы вдвое.
+   */
+  const move = (startDate: string, hold = false) => {
     // Ноль дней — ничего не отправляем: жест, вернувший полоску на место, не
     // изменение и не должен оставлять запись в истории.
-    if (startDate === task.start_date) return;
+    if (startDate === task.start_date) {
+      if (hold) motion.settle();
+      return;
+    }
     apply(
       { type: "move_task", task_id: task.id, start_date: startDate },
       (state) => patchTask(state, task.id, { start_date: startDate }),
-    ).then(
-      () => {
-        // Тост с отменой — после подтверждения сервером, как в макете:
-        // перенос применяется сразу, а лёгкий путь назад лежит под рукой.
-        showToast({
-          message: t("gantt.moved", { date: formatShortDate(t, startDate) }),
-          actionLabel: t("undo.action"),
-          onAction: () => void undoMove(),
-        });
-      },
-      () => {
-        // Откат уже сделан внутри `apply`, и полоска на глазах вернулась туда,
-        // откуда её тащили. Это и есть сообщение об отказе: другого места для
-        // него на ленте нет, а модальное окно поверх диаграммы прерывало бы
-        // работу там, где человек и так всё увидел.
-      },
-    );
+    )
+      .then(
+        (revision) => {
+          // Тост с отменой — после подтверждения сервером, как в макете:
+          // перенос применяется сразу, а лёгкий путь назад лежит под рукой.
+          // Номер ревизии — из ответа сервера: он и делает кнопку обещанием
+          // вернуть этот перенос, а не «что там сейчас сверху журнала».
+          showToast({
+            message: t("gantt.moved", { date: formatShortDate(t, startDate) }),
+            action: (
+              <UndoMove
+                projectId={projectId}
+                seq={revision.seq}
+                onUndo={() => void undoMove(revision.seq)}
+              />
+            ),
+          });
+        },
+        () => {
+          // Откат уже сделан внутри `apply`, а полоска возвращается туда,
+          // откуда её тащили, когда отпускается захват ниже. Это и есть
+          // сообщение об отказе: другого места для него на ленте нет, а
+          // модальное окно поверх диаграммы прерывало бы работу там, где
+          // человек и так всё увидел. Отказ при этом всегда приходит после
+          // решения человека, а не до него, — и движение назад читается как
+          // ответ на его жест, а не как отказ ещё не заданного вопроса.
+        },
+      )
+      .finally(() => {
+        // Перенос решён — сдвиг можно снимать. Подтверждённый снял уже слой
+        // разметки: новый `left` пришёл с датами, и `settle` увидит ноль.
+        // Отказанный снимается здесь, и полоска едет назад — после ответа, а
+        // не до него.
+        if (hold) motion.settle();
+      });
   };
 
   return {
@@ -162,11 +199,12 @@ export function useDragDates({
         if (start === null || start.pointerId !== event.pointerId) return;
         from.current = null;
         setDragging(false);
-        // Сначала отпускаем полоску, потом отправляем перенос: `release`
-        // оставляет сдвиг до следующего кадра как раз затем, чтобы приехавший
-        // из `move` новый `left` успел стать концом переезда, а не его началом.
-        motion.release();
-        move(dateAfter(event.clientX - start.x));
+        // Полоска ждёт ровно там, где её отпустили, — сдвиг снимет `settle`,
+        // когда перенос решится, и она доедет до своего дня уже с ответом.
+        // Снятый прямо сейчас, он вернул бы её на место ещё до вопроса о
+        // причине — то есть ответил бы «не получилось» раньше, чем спросили.
+        motion.release(true);
+        move(dateAfter(event.clientX - start.x), true);
       },
 
       onPointerCancel() {
