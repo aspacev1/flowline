@@ -332,6 +332,7 @@
       "criticality": "Criticality",
       "status": "Status",
       "start": "Start",
+      "start_day": "Start, project day",
       "duration": "Duration, working days",
       "end": "End",
       "progress": "Done, %",
@@ -362,6 +363,7 @@
       "category": "Category",
       "criticality": "Criticality",
       "start": "Start date",
+      "start_day": "Start, project day",
       "duration": "Duration, working days",
       "progress": "Done, %",
       "internal_note": "Internal note",
@@ -438,7 +440,40 @@
       }
     }
   },
+  "schedule": {
+   "open": "Set start date",
+   "change": "Change start date",
+   "title": "Set the start date",
+   "change_title": "Move the start date",
+   "start": "Start date",
+   "week_label": "Working week",
+   "week": {
+    "keep": "As in project settings",
+    "mon_fri": "Mon–Fri (5/2)",
+    "mon_sat": "Mon–Sat (6/1)",
+    "all": "Calendar days (no days off)"
+   },
+   "holidays_note": "Days off and holidays come from the organization and project settings — the dates are computed around them.",
+   "tasks_legend": "Tasks",
+   "tasks_shift": "Shift all tasks along with the start",
+   "tasks_keep": "Keep task dates as they are",
+   "preview": "Project timeline: {from} — {to}",
+   "preview_empty": "Project start: {from}. No tasks yet.",
+   "apply": "Apply dates"
+  },
   "gantt": {
+    "relative": {
+     "badge": "Relative plan",
+     "hint": "Plan the timeline now. Assign a start date when the project is approved.",
+     "month": "Month {number}",
+     "week": "Week {number}",
+     "day": "Day {number}"
+    },
+    "mode": {
+     "label": "Timeline view",
+     "relative": "Relative",
+     "calendar": "Calendar"
+    },
     "empty": "This project has no categories yet. Create a category — tasks live inside it",
   "today": "Today",
   "moved": "Task moved to {date}",

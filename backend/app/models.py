@@ -56,6 +56,22 @@ class TaskStatus(StrEnum):
 TASK_STATUSES: tuple[str, ...] = tuple(status.value for status in TaskStatus)
 
 
+class ScheduleMode(StrEnum):
+    """Каким временем живёт план проекта.
+
+    `relative` — предварительный план без дат: шкала «Месяц 1 / Неделя 1 /
+    День 1», старт проекта ещё не назначен. `calendar` — старт назначен, у
+    задач настоящие даты. Значение по умолчанию — `relative`: при создании
+    проекта дата начала не спрашивается, её назначают, когда проект утверждён.
+    """
+
+    RELATIVE = "relative"
+    CALENDAR = "calendar"
+
+
+SCHEDULE_MODES: tuple[str, ...] = tuple(mode.value for mode in ScheduleMode)
+
+
 def _uuid_pk() -> Mapped[uuid.UUID]:
     return mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
@@ -260,7 +276,16 @@ class PasswordReset(Base):
 
 class Project(Base):
     __tablename__ = "projects"
-    __table_args__ = (UniqueConstraint("org_id", "slug"),)
+    __table_args__ = (
+        UniqueConstraint("org_id", "slug"),
+        # Тот же принцип, что у CHECK-ограничений задачи: инвариант держит
+        # база, а не только слой приложения — второй путь записи не должен
+        # уметь положить режим, которого не существует.
+        CheckConstraint(
+            "schedule_mode IN (" + ", ".join(f"'{mode}'" for mode in SCHEDULE_MODES) + ")",
+            name="ck_projects_schedule_mode",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = _uuid_pk()
     org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id", ondelete="CASCADE"))
@@ -269,6 +294,22 @@ class Project(Base):
     deadline: Mapped[date | None] = mapped_column(Date)
     plan_approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     plan_version: Mapped[int] = mapped_column(Integer, default=0)
+
+    # Относительный план или календарный (см. ScheduleMode). В относительном
+    # режиме `start_date` пуста, а даты задач — координаты на относительной
+    # оси: день N проекта хранится как RELATIVE_EPOCH + (N-1) (см.
+    # app.schedule). Источник истины — старт + длительности + связи + рабочий
+    # календарь; дат окончания в базе нет и в этом режиме тоже.
+    #
+    # server_default — по той же причине, что у Task.status: NOT NULL без
+    # значения сломал бы второй путь записи.
+    schedule_mode: Mapped[str] = mapped_column(
+        Text, default=ScheduleMode.RELATIVE, server_default=text("'relative'")
+    )
+    # Назначенная дата старта. Появляется при привязке плана к календарю и
+    # остаётся якорем: от неё считают относительное представление уже
+    # календарного проекта и сдвиг всех задач при переносе старта.
+    start_date: Mapped[date | None] = mapped_column(Date)
 
     # nullable = «наследовать от организации»
     timezone: Mapped[str | None] = mapped_column(String(64))

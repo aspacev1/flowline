@@ -53,6 +53,12 @@ export type Task = {
   name: string;
   description?: string;
   start_date: string;
+  /**
+   * Смещение от начала проекта в рабочих днях — модель задачи относительного
+   * плана. Считает сервер из координаты `start_date`; у календарного проекта
+   * его нет. Клиент рабочие дни не пересчитывает и здесь тоже.
+   */
+  start_offset_days?: number | null;
   duration_days: number;
   /** Считает сервер. Клиент календарную арифметику не повторяет. */
   end_date: string;
@@ -88,12 +94,21 @@ export type ProjectOverrides = {
   workdays_extra: string[];
 };
 
+/**
+ * Каким временем живёт план: `relative` — предварительный план без дат
+ * («Месяц 1 / Неделя 1»), `calendar` — старт назначен, даты настоящие.
+ */
+export type ScheduleMode = "relative" | "calendar";
+
 export type ProjectState = {
   id: string;
   name: string;
   slug: string;
   deadline: string | null;
   project_end: string | null;
+  schedule_mode: ScheduleMode;
+  /** Назначенная дата старта; `null`, пока план относительный. */
+  start_date: string | null;
   /** `null` — план ещё черновик: правки свободны, ничего не спрашивается. */
   plan_approved_at: string | null;
   plan_version: number;
@@ -229,6 +244,43 @@ export function updateProject(
   return request<ProjectState>(`/api/projects/${projectId}`, {
     method: "PATCH",
     body: JSON.stringify(patch),
+  });
+}
+
+/** Что можно попросить у привязки к дате старта — и у её предпросмотра. */
+export type ScheduleRequest = {
+  start_date: string;
+  /** Маска новой рабочей недели; не прислана — остаётся действующая. */
+  working_days?: number;
+  /** false — при повторной смене старта оставить даты задач как есть. */
+  shift_tasks?: boolean;
+};
+
+/**
+ * Предпросмотр привязки: границы проекта после неё, ничего не меняя.
+ * Даты считает сервер — по рабочему календарю с праздниками, которых клиент
+ * не знает и знать не должен.
+ */
+export function previewSchedule(
+  projectId: string,
+  body: ScheduleRequest,
+): Promise<{ start_date: string; end_date: string | null }> {
+  return request(`/api/projects/${projectId}/schedule/preview`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/**
+ * Назначение (или перенос) даты старта. Переводит относительный план в
+ * календарный: смещения, длительности и связи сохраняются, меняется только
+ * ось, на которой они отложены. Отмены через журнал у действия нет — обратный
+ * путь остаётся видом «Относительный план».
+ */
+export function applySchedule(projectId: string, body: ScheduleRequest): Promise<ProjectState> {
+  return request(`/api/projects/${projectId}/schedule`, {
+    method: "POST",
+    body: JSON.stringify(body),
   });
 }
 

@@ -560,6 +560,9 @@ def test_the_calendar_reports_the_project_exceptions(authed, db):
 
     project_id, _, _ = _project_with_task(authed)
     project = db.get(Project, uuid_module.UUID(project_id))
+    # Исключения — принадлежность календарного режима: у относительной оси
+    # настоящих дат нет, и календарь там — одна недельная маска.
+    project.schedule_mode = "calendar"
     project.holidays_extra = ["2026-03-09"]
     project.workdays_extra = ["2026-03-07"]
     db.flush()
@@ -609,6 +612,9 @@ def test_a_calendar_too_short_for_the_duration_is_also_explained(authed, db):
         "start_date": "2026-03-06", "duration_days": 2}})
 
     project = db.get(Project, uuid.UUID(project_id))
+    # Календарный режим: объявленные рабочие дни — свойство настоящих дат,
+    # относительная ось их не видит.
+    project.schedule_mode = "calendar"
     # Единственный рабочий день во всём календаре — тот, с которого задача
     # начинается; на второй день длительности рабочих дней уже не остаётся.
     project.working_days = 0

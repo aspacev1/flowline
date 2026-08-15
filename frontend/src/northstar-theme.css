@@ -211,6 +211,14 @@ button.sidebar__button { height: 34px; padding: 0 var(--sidebar-gutter); border-
 .project-toolbar__spacer { flex: 1; }
 /* Меню тулбара — «Масштаб» и «Вид» — одной высоты между собой. */
 .project-toolbar .menu__button { height: var(--control); }
+/* Индикатор «Относительный план»: плашка состояния, а не кнопка — до
+   назначения даты старта режим один и переключать нечего. */
+.project-toolbar__mode { display: inline-flex; align-items: center; height: 29px; padding: 0 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 650; white-space: nowrap; }
+/* Переключатель представления календарного проекта — тем же рисунком, что и
+   переключатель языка: сегменты в утопленной подложке, активный — карточкой. */
+.project-toolbar__views { display: inline-flex; padding: 3px; border-radius: 9px; background: #f1f3f7; }
+.project-toolbar__views button { height: 29px; padding: 0 10px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 650; box-shadow: none; background: transparent; color: var(--text-muted); }
+.project-toolbar__views button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgb(16 24 40 / 13%); }
 
 .project__body { gap: 0; align-items: stretch; }
 /* Лента обсуждения на публичной странице — колонкой для чтения, с полями от

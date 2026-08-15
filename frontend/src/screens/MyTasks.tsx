@@ -4,6 +4,7 @@ import { errorKey } from "../api/errors";
 import type { ProjectState, Task } from "../api/projects";
 import { useAuth } from "../auth/AuthProvider";
 import { StatusChip } from "../components/StatusChip";
+import { relativeDayLabel } from "../gantt/relative";
 import { formatShortDate } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
 import { useProjectStates } from "./projectStates";
@@ -73,8 +74,14 @@ export function MyTasks() {
                 </span>
                 <span className={`task-list__dates${overdue ? " is-late" : ""}`}>
                   {t("project.period", {
-                    from: formatShortDate(t, task.start_date),
-                    to: formatShortDate(t, task.end_date),
+                    from:
+                      project.schedule_mode === "relative"
+                        ? relativeDayLabel(t, task.start_date)
+                        : formatShortDate(t, task.start_date),
+                    to:
+                      project.schedule_mode === "relative"
+                        ? relativeDayLabel(t, task.end_date)
+                        : formatShortDate(t, task.end_date),
                   })}
                   {overdue && (
                     <span role="img" aria-label={t("my_tasks.overdue")} title={t("my_tasks.overdue")}>

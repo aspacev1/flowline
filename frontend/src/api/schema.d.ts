@@ -927,6 +927,56 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project_id}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Assign Schedule
+         * @description Назначение (или перенос) даты старта проекта.
+         *
+         *     Право — то же, что у настроек (PROJECT_ADMIN): действие меняет систему
+         *     отсчёта всего плана и рабочую неделю, а не одну задачу. Через журнал
+         *     ревизий не проходит по той же причине, что и настройки: это не правка
+         *     плана, и отмены у него нет — обратный путь остаётся видом «Относительный
+         *     план», который никуда не девается.
+         */
+        post: operations["assign_schedule_api_projects__project_id__schedule_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/schedule/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview Schedule
+         * @description Что станет с планом после привязки к дате: границы проекта до записи.
+         *
+         *     Окно привязки обязано показать рассчитанную дату завершения до
+         *     подтверждения — обещание «учтём выходные и праздники» без этой цифры
+         *     непроверяемо.
+         */
+        post: operations["preview_schedule_api_projects__project_id__schedule_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{project_id}/share": {
         parameters: {
             query?: never;
@@ -1803,6 +1853,30 @@ export interface components {
             new_password: string;
             /** Token */
             token: string;
+        };
+        /**
+         * ScheduleIn
+         * @description Привязка плана к дате старта — или её предпросмотр.
+         *
+         *     `working_days` — маска новой рабочей недели, если её выбрали в том же
+         *     окне; None — оставить действующую. `shift_tasks=False` — при повторной
+         *     смене старта календарного проекта оставить даты задач как есть; для
+         *     относительного проекта значения не имеет — его задачи раскладываются по
+         *     календарю всегда.
+         */
+        ScheduleIn: {
+            /**
+             * Shift Tasks
+             * @default true
+             */
+            shift_tasks: boolean;
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+            /** Working Days */
+            working_days?: number | null;
         };
         /** SessionsClosedOut */
         SessionsClosedOut: {
@@ -3562,6 +3636,80 @@ export interface operations {
             };
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    assign_schedule_api_projects__project_id__schedule_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_schedule_api_projects__project_id__schedule_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScheduleIn"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {

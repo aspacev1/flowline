@@ -5,7 +5,7 @@ import type { KeyboardEvent, MouseEvent, PointerEvent } from "react";
 import { ApiError } from "../api/client";
 import { errorKey } from "../api/errors";
 import { projectQueryKey, undoLast } from "../api/projects";
-import type { Task } from "../api/projects";
+import type { ProjectState, Task } from "../api/projects";
 import { useToast } from "../components/toast";
 import { formatShortDate } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
@@ -13,6 +13,7 @@ import { patchTask } from "../project/optimistic";
 import { useAskShiftReason } from "../project/ShiftReason";
 import { useProjectMutation } from "../project/useProjectMutation";
 import { UndoMove } from "./UndoMove";
+import { relativeDayLabel } from "./relative";
 import { addDays } from "./timescale";
 import type { BarMotion } from "./useBarMotion";
 import type { Scale } from "./timescale";
@@ -58,6 +59,12 @@ export function useDragDates({
   const showToast = useToast();
   const askReason = useAskShiftReason();
   const queryClient = useQueryClient();
+  // Ось проекта — из кэша, без запроса: экран, который держит эту ленту, уже
+  // спросил состояние. Тост о переносе обязан говорить на языке шкалы:
+  // «на День 8», а не настоящей датой, которой у относительного плана нет.
+  const relativeAxis =
+    queryClient.getQueryData<ProjectState>(projectQueryKey(projectId))?.schedule_mode ===
+    "relative";
 
   const from = useRef<{ pointerId: number; x: number; bar: HTMLElement } | null>(null);
   // Было ли движение. Живёт в ref, а не в состоянии: значение читается в
@@ -198,7 +205,9 @@ export function useDragDates({
           // Номер ревизии — из ответа сервера: он и делает кнопку обещанием
           // вернуть этот перенос, а не «что там сейчас сверху журнала».
           showToast({
-            message: t("gantt.moved", { date: formatShortDate(t, startDate) }),
+            message: t("gantt.moved", {
+              date: relativeAxis ? relativeDayLabel(t, startDate) : formatShortDate(t, startDate),
+            }),
             action: (
               <UndoMove
                 projectId={projectId}

@@ -30,6 +30,12 @@ export const STATE: ProjectState = {
   plan_approved_at: null,
   plan_version: 0,
   undoable: null,
+  // Календарный режим: заглушки существующих тестов живут настоящими датами.
+  // Относительные проекты собирают своё состояние поверх этого (см. тесты
+  // относительной шкалы).
+  schedule_mode: "calendar" as const,
+  start_date: null,
+
   calendar: { working_days: 31, holidays: ["2026-03-20"], extra_workdays: [] },
   settings: { shift_threshold_days: 2, timezone: "Asia/Baku" },
   categories: [

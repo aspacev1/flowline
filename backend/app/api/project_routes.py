@@ -1,6 +1,6 @@
 import logging
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -41,11 +41,18 @@ from app.mutations import (
 # Псевдоним, потому что обработчик маршрута ниже называется так же — имя
 # обработчика менять нельзя без нужды: из него FastAPI строит operationId,
 # на который завязан снимок контракта.
-from app.mutations import undo_last as undo_last_revision
+from app.mutations import MAX_WIRE_DATE, undo_last as undo_last_revision
 from app.orgs import current_membership
 from app.plans import PlanVersionNotFound, approve_plan, plan_versions, restore_plan_version
 from app.projects import create_project as create_project_entity
-from app.settings_input import NULLABLE_PROJECT_FIELDS, ProjectSettingsIn, changes
+from app.schedule import apply_schedule, planned_schedule
+from app.settings_input import (
+    MAX_WORKING_DAYS,
+    MIN_WORKING_DAYS,
+    NULLABLE_PROJECT_FIELDS,
+    ProjectSettingsIn,
+    changes,
+)
 from app.slugs import slug_check
 
 logger = logging.getLogger(__name__)
@@ -490,6 +497,111 @@ def update_project(
             project.id,
             {"type": "revision", "op": {"type": "settings_changed"}},
         )
+    return response
+
+
+class ScheduleIn(BaseModel):
+    """Привязка плана к дате старта — или её предпросмотр.
+
+    `working_days` — маска новой рабочей недели, если её выбрали в том же
+    окне; None — оставить действующую. `shift_tasks=False` — при повторной
+    смене старта календарного проекта оставить даты задач как есть; для
+    относительного проекта значения не имеет — его задачи раскладываются по
+    календарю всегда.
+    """
+
+    start_date: date = Field(le=MAX_WIRE_DATE)
+    working_days: int | None = Field(default=None, ge=MIN_WORKING_DAYS, le=MAX_WORKING_DAYS)
+    shift_tasks: bool = True
+
+
+def _schedule_out(plan) -> dict:
+    return {
+        "start_date": plan.start_date.isoformat(),
+        "end_date": plan.end_date.isoformat() if plan.end_date else None,
+    }
+
+
+@router.post("/{project_id}/schedule/preview")
+def preview_schedule(
+    payload: ScheduleIn,
+    context: ProjectContext = Depends(project_context),
+    db: DbSession = Depends(get_db),
+):
+    """Что станет с планом после привязки к дате: границы проекта до записи.
+
+    Окно привязки обязано показать рассчитанную дату завершения до
+    подтверждения — обещание «учтём выходные и праздники» без этой цифры
+    непроверяемо.
+    """
+    context.require(Action.PROJECT_ADMIN)
+    try:
+        plan = planned_schedule(
+            db,
+            context.project,
+            context.org,
+            start=payload.start_date,
+            working_days=payload.working_days,
+            shift_tasks=payload.shift_tasks,
+        )
+    except CalendarError as error:
+        raise HTTPException(status_code=422, detail=error.code)
+    return _schedule_out(plan)
+
+
+@router.post("/{project_id}/schedule")
+def assign_schedule(
+    payload: ScheduleIn,
+    background: BackgroundTasks,
+    context: ProjectContext = Depends(project_context),
+    db: DbSession = Depends(get_db),
+):
+    """Назначение (или перенос) даты старта проекта.
+
+    Право — то же, что у настроек (PROJECT_ADMIN): действие меняет систему
+    отсчёта всего плана и рабочую неделю, а не одну задачу. Через журнал
+    ревизий не проходит по той же причине, что и настройки: это не правка
+    плана, и отмены у него нет — обратный путь остаётся видом «Относительный
+    план», который никуда не девается.
+    """
+    context.require(Action.PROJECT_ADMIN)
+    project = context.project
+
+    # Замок строки проекта — тот же, что у настроек и мутаций: раскладка задач
+    # по календарю не должна идти вперемешку с чьим-то переносом задачи.
+    db.execute(select(Project.id).where(Project.id == project.id).with_for_update())
+
+    try:
+        plan = apply_schedule(
+            db,
+            project,
+            context.org,
+            start=payload.start_date,
+            working_days=payload.working_days,
+            shift_tasks=payload.shift_tasks,
+        )
+    except CalendarError as error:
+        db.rollback()
+        raise HTTPException(status_code=422, detail=error.code)
+
+    # След — в журнал приложения, как у правки настроек: в журнале ревизий
+    # этого действия нет.
+    logger.info(
+        "дата старта проекта %s назначена %s: %s",
+        project.id,
+        context.user.id,
+        plan.start_date.isoformat(),
+    )
+
+    response = get_project(context, db)
+    # Синтетический op — как settings_changed: соседним вкладкам от события
+    # нужен только повод перечитать проект.
+    _publish(
+        background,
+        db,
+        project.id,
+        {"type": "revision", "op": {"type": "schedule_changed"}},
+    )
     return response
 
 

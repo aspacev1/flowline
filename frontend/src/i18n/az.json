@@ -333,6 +333,7 @@
       "criticality": "Kritiklik",
       "status": "Status",
       "start": "Başlanğıc",
+      "start_day": "Start, layihə günü",
       "duration": "Müddət, iş günü",
       "end": "Son",
       "progress": "Tamamlanıb, %",
@@ -363,6 +364,7 @@
       "category": "Kateqoriya",
       "criticality": "Kritiklik",
       "start": "Başlama tarixi",
+      "start_day": "Start, layihə günü",
       "duration": "Müddət, iş günü",
       "progress": "Tamamlanıb, %",
       "internal_note": "Daxili qeyd",
@@ -439,7 +441,40 @@
       }
     }
   },
+  "schedule": {
+   "open": "Başlama tarixini təyin et",
+   "change": "Başlama tarixini dəyiş",
+   "title": "Başlama tarixinin təyini",
+   "change_title": "Başlama tarixinin köçürülməsi",
+   "start": "Başlama tarixi",
+   "week_label": "İş həftəsi",
+   "week": {
+    "keep": "Layihə ayarlarındakı kimi",
+    "mon_fri": "B.e–Cümə (5/2)",
+    "mon_sat": "B.e–Şənbə (6/1)",
+    "all": "Təqvim günləri (istirahət günsüz)"
+   },
+   "holidays_note": "İstirahət və bayram günləri təşkilatın və layihənin ayarlarından götürülür — tarixlər onlara görə hesablanır.",
+   "tasks_legend": "Tapşırıqlar",
+   "tasks_shift": "Bütün tapşırıqları startla birlikdə sürüşdür",
+   "tasks_keep": "Tapşırıq tarixlərini olduğu kimi saxla",
+   "preview": "Layihə müddəti: {from} — {to}",
+   "preview_empty": "Layihənin startı: {from}. Hələ tapşırıq yoxdur.",
+   "apply": "Tarixləri tətbiq et"
+  },
   "gantt": {
+    "relative": {
+     "badge": "Nisbi plan",
+     "hint": "Cədvəli indi planlaşdırın. Başlama tarixini layihə təsdiqlənəndə təyin edərsiniz.",
+     "month": "Ay {number}",
+     "week": "Həftə {number}",
+     "day": "Gün {number}"
+    },
+    "mode": {
+     "label": "Şkala görünüşü",
+     "relative": "Nisbi",
+     "calendar": "Təqvim"
+    },
     "empty": "Layihədə hələ bir dənə də kateqoriya yoxdur. Kateqoriya yaradın, tapşırıqlar isə onun içində olacaq",
   "today": "Bu gün",
   "moved": "Tapşırıq {date} tarixinə keçirildi",

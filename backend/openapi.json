@@ -1729,6 +1729,39 @@
         "title": "ResetPasswordIn",
         "type": "object"
       },
+      "ScheduleIn": {
+        "description": "Привязка плана к дате старта — или её предпросмотр.\n\n`working_days` — маска новой рабочей недели, если её выбрали в том же\nокне; None — оставить действующую. `shift_tasks=False` — при повторной\nсмене старта календарного проекта оставить даты задач как есть; для\nотносительного проекта значения не имеет — его задачи раскладываются по\nкалендарю всегда.",
+        "properties": {
+          "shift_tasks": {
+            "default": true,
+            "title": "Shift Tasks",
+            "type": "boolean"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "working_days": {
+            "anyOf": [
+              {
+                "maximum": 127.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Working Days"
+          }
+        },
+        "required": [
+          "start_date"
+        ],
+        "title": "ScheduleIn",
+        "type": "object"
+      },
       "SessionsClosedOut": {
         "properties": {
           "closed": {
@@ -4881,6 +4914,142 @@
           }
         },
         "summary": "List Revisions",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/schedule": {
+      "post": {
+        "description": "Назначение (или перенос) даты старта проекта.\n\nПраво — то же, что у настроек (PROJECT_ADMIN): действие меняет систему\nотсчёта всего плана и рабочую неделю, а не одну задачу. Через журнал\nревизий не проходит по той же причине, что и настройки: это не правка\nплана, и отмены у него нет — обратный путь остаётся видом «Относительный\nплан», который никуда не девается.",
+        "operationId": "assign_schedule_api_projects__project_id__schedule_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "planora_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Planora Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Assign Schedule",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/schedule/preview": {
+      "post": {
+        "description": "Что станет с планом после привязки к дате: границы проекта до записи.\n\nОкно привязки обязано показать рассчитанную дату завершения до\nподтверждения — обещание «учтём выходные и праздники» без этой цифры\nнепроверяемо.",
+        "operationId": "preview_schedule_api_projects__project_id__schedule_preview_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "planora_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Planora Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preview Schedule",
         "tags": [
           "projects"
         ]

@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import type { ProjectState } from "../api/projects";
+import { relativeDayLabel } from "../gantt/relative";
 import { formatDate } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
 import { changedSinceApproval, isBeyondPlan } from "./baseline";
@@ -81,10 +82,18 @@ export function ProjectHead({
               строки тоже. */}
           {period && (
             <p className="project-head__meta">
-              {t("project.period", {
-                from: formatDate(t, period.from),
-                to: formatDate(t, period.to),
-              })}
+              {/* У относительного плана вместо дат — дни проекта: «День 1 —
+                  День 45». Настоящих сроков у него ещё нет, и подставить сюда
+                  координаты оси значило бы назвать выдуманную дату. */}
+              {state.schedule_mode === "relative"
+                ? t("project.period", {
+                    from: relativeDayLabel(t, period.from),
+                    to: relativeDayLabel(t, period.to),
+                  })
+                : t("project.period", {
+                    from: formatDate(t, period.from),
+                    to: formatDate(t, period.to),
+                  })}
             </p>
           )}
         </div>

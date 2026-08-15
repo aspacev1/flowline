@@ -208,6 +208,10 @@ def test_the_same_slug_in_another_organization_is_free(authed, db):
 
 def test_project_settings_round_trip(authed):
     project_id = authed.post("/api/projects", json={"name": "Redesign"}).json()["id"]
+    # Календарный режим: блок calendar показывает праздники и объявленные
+    # рабочие дни только там, где у плана есть настоящие даты, — у
+    # относительной оси календарь состоит из одной недельной маски.
+    authed.post(f"/api/projects/{project_id}/schedule", json={"start_date": "2026-05-01"})
 
     response = authed.patch(
         f"/api/projects/{project_id}",
