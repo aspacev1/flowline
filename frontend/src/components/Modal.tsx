@@ -1,6 +1,8 @@
 import { useEffect, useId, useRef } from "react";
 import type { ReactNode } from "react";
 
+import { useEscape } from "./useEscape";
+
 type ModalProps = {
   title: string;
   onClose: () => void;
@@ -43,16 +45,13 @@ export function Modal({ title, onClose, children }: ModalProps) {
     };
   }, []);
 
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    // Слушатель на документе, а не на самом окне: Esc обязан работать и
-    // тогда, когда фокус ушёл из окна, — иначе правило действует не всегда,
-    // а это хуже, чем не действовать вовсе.
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  // Esc через общую стопку слоёв, а не своим слушателем на документе: окно
+  // почти всегда всплывает поверх чего-то — карточки задачи, меню, другого
+  // окна, — и собственный слушатель у каждого закрывал бы одним нажатием всех
+  // сразу. Слушатель всё так же на документе, а не на самом окне: Esc обязан
+  // работать и тогда, когда фокус ушёл из окна, — иначе правило действует не
+  // всегда, а это хуже, чем не действовать вовсе.
+  useEscape(onClose);
 
   return (
     <div
