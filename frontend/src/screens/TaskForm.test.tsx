@@ -381,6 +381,61 @@ describe("создание задачи", () => {
     expect(screen.getByRole("button", { name: /создать задачу/i })).toBeDisabled();
   });
 
+  it("повтор после сбоя на хвосте цепочки не заводит вторую задачу", async () => {
+    const sent: { op: Record<string, unknown> }[] = [];
+    let failAssign = true;
+    server.use(
+      // Свой состав — раньше общего из sessionHandlers: msw берёт первый
+      // подходящий обработчик в списке.
+      http.get("/api/org/members", () => HttpResponse.json(MEMBERS)),
+      ...sessionHandlers(),
+      http.get("/api/projects/p1", () => HttpResponse.json(STATE)),
+      http.post("/api/projects/p1/mutations", async ({ request }) => {
+        const body = (await request.json()) as { op: Record<string, unknown> };
+        // Падает только назначение исполнителя, и только в первый раз:
+        // задача к этому моменту уже создана.
+        if (body.op.type === "assign_user" && failAssign) {
+          failAssign = false;
+          return HttpResponse.json({ detail: "conflict" }, { status: 409 });
+        }
+        sent.push(body);
+        return HttpResponse.json(
+          {
+            seq: sent.length + 2,
+            op: body.op.type === "create_task" ? { task_id: "t9" } : {},
+            inverse: {},
+          },
+          { status: 201 },
+        );
+      }),
+    );
+
+    renderApp({ route: "/projects/p1", locale: "ru" });
+    await openTaskForm();
+    await userEvent.type(screen.getByLabelText(/^название/i), "Макеты");
+    await userEvent.click(screen.getByRole("checkbox", { name: /Nigar/ }));
+    await userEvent.selectOptions(screen.getByLabelText(/добавить в «зависит от»/i), "t1");
+    await userEvent.click(screen.getByRole("button", { name: /создать задачу/i }));
+
+    // Форма осталась открытой с отказом — и сообщает, что задача уже есть,
+    // потому что кнопка по-прежнему подписана «создать».
+    expect(await screen.findByText(/задача уже создана/i)).toBeInTheDocument();
+    await waitFor(() => expect(sent).toHaveLength(1));
+
+    await userEvent.click(screen.getByRole("button", { name: /создать задачу/i }));
+
+    // Повтор догоняет только оставшееся: второго create_task нет, иначе сбой
+    // на хвосте чинился бы дубликатом задачи.
+    await waitFor(() => expect(sent).toHaveLength(3));
+    expect(sent.filter((row) => row.op.type === "create_task")).toHaveLength(1);
+    expect(sent[1].op).toEqual({ type: "assign_user", task_id: "t9", user_id: "u2" });
+    expect(sent[2].op).toEqual({
+      type: "add_dependency",
+      from_task_id: "t1",
+      to_task_id: "t9",
+    });
+  });
+
   it("критичность отправляется выбранная, а не всегда обычная", async () => {
     const sent: { op: Record<string, unknown> }[] = [];
     server.use(

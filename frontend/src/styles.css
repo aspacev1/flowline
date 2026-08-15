@@ -89,6 +89,31 @@
   /* Высота всех органов управления одна: кнопка, поле и список, стоящие в
      строку, обязаны совпасть по высоте, иначе строка «пляшет». */
   --control: 32px;
+
+  /* Движение. Две длительности на весь продукт и одна кривая — как и у цвета,
+     значение выбирается здесь, а не по месту. Прежде в коде жили четыре
+     режима (20, 120, 140 и 180 мс) в четырёх подсистемах, и переходы,
+     одинаковые по смыслу, шли с разной скоростью: подсветка строки списка —
+     за 20 мс, подсветка строки ленты — за 180.
+       Быстрая — отклик на курсор: смена фона, проявление кнопки строки.
+       Базовая — смена состояния или положения: переключатель, выезд карточки,
+     переезд полоски на ленте. Ей нужно время, чтобы глаз проследил путь.
+     Кривая одна на оба случая: ease тормозит к концу, и движение выглядит
+     доведённым до места. Прежний ease-in на переходах наведения делал ровно
+     обратное — начинал вяло и обрывался на полном ходу. */
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-ease: ease;
+
+  /* Появление всплывающих слоёв — та же пара длительностей, названная по месту
+     применения: правила шкалы в разделе «движение всплывающих слоёв» ниже.
+     Величины берутся из продуктовых токенов, а не задаются заново, иначе тема,
+     переопределившая скорость, разошлась бы со слоями. Кривая здесь своя:
+     у входа ease-out гасит движение к концу, и слой встаёт, а не влетает. */
+  --motion-layer: var(--motion-fast);
+  --motion-layer-lg: var(--motion-base);
+  --motion-layer-ease: ease-out;
+
   --font:
     ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, "Apple Color Emoji",
     Arial, sans-serif;
@@ -150,7 +175,12 @@
    действует сразу, ещё до первого кадра разметки, и покрывает всё подряд.
    Класс ставит разметка, спросив ту же настройку, — он нужен там, где от неё
    зависит не только оформление. Правила одинаковы, и порядок между ними
-   значения не имеет. */
+   значения не имеет.
+
+   Свести их в один блок нельзя: условие медиа-запроса не выражается
+   селектором, поэтому объявления приходится держать в двух копиях. Копии уже
+   однажды разошлись — из класса выпал scroll-behavior. Меняя одно правило,
+   меняйте второе. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -166,6 +196,54 @@
 .motion-off *::after {
   transition: none !important;
   animation: none !important;
+  scroll-behavior: auto !important;
+}
+
+/* --- движение всплывающих слоёв ---
+
+   Всё, что появляется поверх страницы, движется по одной шкале: окно с
+   подложкой, выпадающая панель меню, тост, карточка задачи, карточка
+   наведения на ленте. Шкалы раньше не было — окно въезжало за 120 мс,
+   карточка за 180, а тост, меню и подложка возникали срезом, — и одинаковые
+   по смыслу слои вели себя по-разному в зависимости от того, в каком файле
+   их дописали.
+
+   Появление — 120 мс тому, кто возникает на своём месте, и 180 мс тому, кто
+   приезжает издалека: путь длиннее, и на 120 мс он читается рывком, а не
+   движением. Направление говорит, откуда слой взялся: меню разворачивается
+   вниз из своей кнопки, тост и окно поднимаются, карточка задачи выезжает
+   сбоку — от полоски, по которой щёлкнули. Подложке двигаться некуда, ей
+   остаётся проявление: экран темнеет на 60–80%, и срез такой величины
+   читается вспышкой.
+
+   Уход — мгновенный у всех, и это решение, а не недосмотр. Слой снимается
+   размонтированием, и чтобы проводить его анимацией, каждому из пяти
+   компонентов понадобилось бы состояние «уже закрыт, но ещё виден» и таймер
+   к нему. Появление объясняет, откуда слой взялся; уходить ему объяснять
+   нечего — его закрыли, и это уже известно тому, кто закрыл.
+
+   Само движение гасится общими правилами выше, когда человек просил меньше
+   движения. Своих таких правил у слоёв нет — второе такое же однажды
+   разошлось бы с первым. */
+
+@keyframes layer-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes layer-rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@keyframes layer-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
 }
 
 body {
@@ -341,7 +419,7 @@ button.sidebar__workspace:hover {
   color: var(--text-muted);
   font-weight: 500;
   text-decoration: none;
-  transition: background 20ms ease-in;
+  transition: background var(--motion-fast) var(--motion-ease);
 }
 
 .sidebar__link:hover {
@@ -772,7 +850,7 @@ button {
   background: var(--accent);
   color: var(--accent-text);
   box-shadow: var(--shadow-sm);
-  transition: background 20ms ease-in;
+  transition: background var(--motion-fast) var(--motion-ease);
 }
 
 button:hover {
@@ -1148,7 +1226,7 @@ input[type="checkbox"] {
   border-radius: 999px;
   background: rgb(var(--ink) / 30%);
   box-shadow: none;
-  transition: background 180ms ease;
+  transition: background var(--motion-base) var(--motion-ease);
 }
 
 .switch__handle:hover {
@@ -1167,7 +1245,7 @@ input[type="checkbox"] {
   border-radius: 50%;
   background: #ffffff;
   box-shadow: var(--shadow-sm);
-  transition: transform 180ms ease;
+  transition: transform var(--motion-base) var(--motion-ease);
 }
 
 .switch__handle[aria-checked="true"] .switch__dot {
@@ -1226,7 +1304,7 @@ input[type="checkbox"] {
   padding: 10px 8px;
   border-bottom: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  transition: background 20ms ease-in;
+  transition: background var(--motion-fast) var(--motion-ease);
 }
 
 .projects li:hover,
@@ -1283,7 +1361,7 @@ input[type="checkbox"] {
    не влияет на доступное дерево. */
 .invite__actions button {
   opacity: 0;
-  transition: opacity 20ms ease-in;
+  transition: opacity var(--motion-fast) var(--motion-ease);
 }
 
 .invite:hover .invite__actions button,
@@ -1320,13 +1398,10 @@ input[type="checkbox"] {
 
 /* --- окно --- */
 
-@keyframes modal-in {
-  from {
-    opacity: 0;
-    transform: translateY(4px) scale(0.98);
-  }
-}
-
+/* Подложка проявляется, а не включается: она затемняет весь экран на 60% (в
+   темноте на 80%), и такая величина, поставленная одним кадром, читается
+   вспышкой. Проявление идёт по подложке целиком, вместе с окном внутри, —
+   окно поверх этого поднимается своим движением. */
 .modal__backdrop {
   position: fixed;
   inset: 0;
@@ -1336,6 +1411,7 @@ input[type="checkbox"] {
   justify-content: center;
   padding: var(--gap);
   background: var(--backdrop);
+  animation: layer-fade var(--motion-layer) var(--motion-layer-ease);
 }
 
 .modal {
@@ -1349,7 +1425,7 @@ input[type="checkbox"] {
   /* Тень вместо рамки: окно висит над страницей, и рамка вокруг него
      нарисовала бы вторую границу поверх той, что уже дала тень. */
   box-shadow: var(--shadow-md);
-  animation: modal-in 120ms ease-out;
+  animation: layer-rise var(--motion-layer) var(--motion-layer-ease);
 }
 
 .modal__title {
@@ -1656,6 +1732,8 @@ input[type="checkbox"] {
   background: var(--accent);
 }
 
+/* Панель разворачивается вниз из своей кнопки: она висит под ней и открыта
+   именно ею, и движение сверху вниз — это и есть та связь. */
 .menu__pop {
   position: absolute;
   top: calc(100% + 6px);
@@ -1667,6 +1745,7 @@ input[type="checkbox"] {
   border-radius: var(--radius);
   background: var(--surface);
   box-shadow: var(--shadow-md);
+  animation: layer-drop var(--motion-layer) var(--motion-layer-ease);
 }
 
 .menu__title {
@@ -1714,6 +1793,17 @@ input[type="checkbox"] {
 
 /* --- тост --- */
 
+/* Тот же подъём, что у общего `layer-rise`, но своим набором кадров:
+   `transform` тоста занят центрированием, и общий набор, задающий один
+   `translateY`, на время движения сдвинул бы пилюлю к правому краю. Величины
+   взяты оттуда же — расходиться им незачем. */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 4px);
+  }
+}
+
 /* Тёмная пилюля внизу по центру, как в макете: подтверждение с лёгким путём
    отмены. Fixed, а не absolute: лента прокручивается, а тост обязан стоять. */
 .toast {
@@ -1733,6 +1823,7 @@ input[type="checkbox"] {
   font-size: 14px;
   font-weight: 500;
   box-shadow: 0 18px 40px rgb(15 23 42 / 35%);
+  animation: toast-in var(--motion-layer) var(--motion-layer-ease);
 }
 
 .toast__check {

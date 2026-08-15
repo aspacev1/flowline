@@ -7,7 +7,12 @@ import { ORG_QUERY_KEY, checkOrgSlug, organization, updateOrganization } from ".
 import type { Organization, OrganizationSettings } from "../api/org";
 import { SUPPORTED_LOCALES } from "../i18n";
 import { useLocale } from "../i18n/LocaleProvider";
-import { DateListField, SlugField, WorkingDaysField } from "../settings/fields";
+import {
+  DateListField,
+  SlugField,
+  WorkingDaysField,
+  parseThresholdDays,
+} from "../settings/fields";
 
 /**
  * Уровень 2 настроек: дефолты, которые наследуют все проекты организации.
@@ -142,8 +147,8 @@ export function OrgSettings() {
             defaultValue={settings.default_shift_threshold_days}
             disabled={readOnly}
             onBlur={(event) => {
-              const days = Number(event.target.value);
-              if (Number.isFinite(days) && days !== settings.default_shift_threshold_days) {
+              const days = parseThresholdDays(event.target.value);
+              if (days !== null && days !== settings.default_shift_threshold_days) {
                 save.mutate({ default_shift_threshold_days: days });
               }
             }}
