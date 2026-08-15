@@ -1870,6 +1870,14 @@ input[type="checkbox"] {
   font-size: 11px;
 }
 
+/* Отказ носит тот же кружок, но с восклицательным знаком вместо галочки:
+   галочка на «задача не найдена» противоречит самому тексту рядом. */
+.toast--error .toast__check {
+  border-color: #f87171;
+  color: #fca5a5;
+  font-weight: 700;
+}
+
 .toast__message {
   min-width: 0;
 }

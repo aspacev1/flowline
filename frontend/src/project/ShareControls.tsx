@@ -11,6 +11,7 @@ import {
   shareQueryKey,
 } from "../api/share";
 import { ConfirmAction } from "../components/ConfirmAction";
+import { useToast } from "../components/toast";
 import { useLocale } from "../i18n/LocaleProvider";
 
 /**
@@ -42,6 +43,7 @@ export function ShareControls({
 }) {
   const { t } = useLocale();
   const queryClient = useQueryClient();
+  const showToast = useToast();
   const [copied, setCopied] = useState(false);
 
   const share = useQuery({
@@ -68,6 +70,10 @@ export function ShareControls({
     mutationFn: () => rotateShare(projectId),
     onSuccess: () => {
       setCopied(false);
+      // Единственный видимый след перевыпуска — другая строка в поле адреса, а
+      // строки эти отличаются серединой токена и на глаз неразличимы. Без
+      // тоста получилось бы, что прежняя ссылка умерла молча.
+      showToast({ message: t("share.reissued") });
       return refresh();
     },
   });
@@ -81,6 +87,7 @@ export function ShareControls({
     mutationFn: () => revokeShare(projectId),
     onSuccess: () => {
       setCopied(false);
+      showToast({ message: t("share.revoked") });
       return refresh();
     },
   });

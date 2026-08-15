@@ -6,6 +6,7 @@
     "loading": "Loading…",
     "create": "Create",
     "cancel": "Cancel",
+    "saved": "Saved",
     "days": {
       "one": "{count} day",
       "other": "{count} days"
@@ -221,7 +222,8 @@
       "title": "New project",
       "name": "Name"
     },
-    "create_with_ai": "Create through an interview"
+    "create_with_ai": "Create through an interview",
+    "created": "Project “{name}” created"
   },
   "project": {
     "period": "{from} — {to}",
@@ -476,6 +478,8 @@
     "reissue_warning": "A new link kills the old one instantly — an address you already sent will stop opening",
     "reissue_confirm": "Yes, reissue",
     "revoke": "Close the link",
+    "revoked": "Public link closed",
+    "reissued": "Link reissued — the old one no longer opens",
     "revoke_warning": "The project stops opening for everyone the link was sent to. You can publish it again — the address will be a different one",
     "revoke_confirm": "Yes, close the link",
     "comments_enabled": "Allow comments",
@@ -537,6 +541,7 @@
       "revoke_warning": "The invitation stops working: the link you sent will no longer let anyone in",
       "revoke_confirm": "Yes, revoke"
     },
+    "revoked": "Invitation revoked",
     "issued": {
       "link": "Invitation link",
       "once": "Copy the link now: there is nowhere to take it a second time — the server keeps only its fingerprint",
@@ -616,7 +621,8 @@
       "workdays_extra_hint": "Brings specific non-working dates back",
       "delete": "Delete project",
       "delete_warning": "The project will be deleted entirely — categories, tasks and all of its history. This cannot be undone",
-      "delete_confirm": "Yes, delete the project"
+      "delete_confirm": "Yes, delete the project",
+      "deleted": "Project “{name}” deleted"
     },
     "profile": {
       "title": "Profile",
