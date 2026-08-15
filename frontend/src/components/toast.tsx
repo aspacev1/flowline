@@ -5,8 +5,8 @@ import type { ReactNode } from "react";
  * Тост внизу экрана: «Задача перенесена на 19 авг · Отменить».
  *
  * Один, а не очередь: перетаскивания идут подряд, и стопка из пяти «задача
- * перенесена» не сообщает ничего сверх последнего. Новый тост сменяет прежний
- * и заново заводит таймер.
+ * перенесена» не сообщает ничего сверх последнего. Новый тост сменяет прежний,
+ * заново появляется и заново заводит таймер.
  *
  * `role="status"`, а не `alert`: это подтверждение уже сделанного, а не
  * тревога, и перебивать им чтение с экрана не за что.
@@ -25,12 +25,18 @@ const ToastContext = createContext<(toast: Toast) => void>(() => {});
 const TOAST_MS = 6000;
 
 export function ToastProvider({ children }: { children: ReactNode }) {
-  const [toast, setToast] = useState<Toast | null>(null);
+  const [toast, setToast] = useState<(Toast & { id: number }) | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Номер тоста. Нужен ровно затем, чтобы стать ключом: без него смена тоста
+  // на тот же узел не считается появлением, узел остаётся прежним, и второе
+  // «задача перенесена» подряд возникло бы срезом — тем самым, от которого
+  // избавлено первое.
+  const count = useRef(0);
 
   const show = useCallback((next: Toast) => {
     if (timer.current !== null) clearTimeout(timer.current);
-    setToast(next);
+    count.current += 1;
+    setToast({ ...next, id: count.current });
     timer.current = setTimeout(() => setToast(null), TOAST_MS);
   }, []);
 
@@ -45,7 +51,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastContext.Provider value={show}>
       {children}
       {toast && (
-        <div className="toast" role="status">
+        <div className="toast" role="status" key={toast.id}>
           <span className="toast__check" aria-hidden="true">
             ✓
           </span>
