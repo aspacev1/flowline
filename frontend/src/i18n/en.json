@@ -168,6 +168,7 @@
     "mail_disabled": "Mail is turned off in this installation",
     "offline": "No connection to the server: the change was not sent",
     "nothing_to_undo": "There is nothing to undo",
+    "undo_conflict": "The project has changed — undoing would take back the wrong step",
     "batch_not_found": "That batch was not found",
     "reason_required": "This shift needs a reason",
     "slug_taken": "That address is already taken",
@@ -344,7 +345,8 @@
       "add_link_to": "Add to “{label}”",
       "unlink": "Remove the link with “{name}”",
       "assignees": "Assignees",
-      "submit": "Create task"
+      "submit": "Create task",
+      "partial": "The task itself is already created — retrying will only add what is left."
     }
   },
   "history": {
@@ -466,9 +468,7 @@
     "reissue_warning": "A new link kills the old one instantly — an address you already sent will stop opening",
     "revoke": "Close the link",
     "comments_enabled": "Allow comments",
-    "disabled": "Public links are switched off: by the installation or by the organization",
-    "hidden": "The project is not shared",
-    "comments": "Comments are allowed"
+    "disabled": "Public links are switched off: by the installation or by the organization"
   },
   "comments": {
     "title": "Comments",
@@ -477,17 +477,10 @@
     "your_name": "Your name",
     "body": "Comment",
     "send": "Send",
-    "closed": "The project owner has closed comments",
-    "disabled": "Comments are off for this link",
-    "field": "Comment",
-    "submit": "Send"
+    "closed": "The project owner has closed comments"
   },
   "public": {
-    "badge": "Public page",
-    "revoked": "This link no longer works",
-    "revoked_hint": "Ask whoever sent it to you for a new one",
-    "guest_name": "Your name",
-    "guest_mark": "{name} (guest)"
+    "badge": "Public page"
   },
   "org": {
     "switch_label": "Organization"
@@ -500,29 +493,6 @@
       "editor": "Editor",
       "viewer": "Viewer",
       "client": "Client"
-    },
-    "emails": "Addresses",
-    "emails_hint": "One per line. Leave empty to issue a link only — whoever opens it accepts it",
-    "role_label": "Role",
-    "projects": "Projects",
-    "invite_and_send": "Invite and send email",
-    "invite_link_only": "Issue a link",
-    "issued": "Issued links",
-    "issued_hint": "The link is visible only now: the server does not remember it, only its hash",
-    "copy": "Copy",
-    "sent": "Email sent",
-    "mail_failed": "The email did not go out — copy the link",
-    "by_link": "By link (to the bearer)",
-    "people": "People",
-    "invitations": "Invitations",
-    "no_invitations": "No invitations yet",
-    "reissue": "Issue a new link",
-    "revoke": "Revoke",
-    "status": {
-      "pending": "pending",
-      "accepted": "accepted",
-      "revoked": "revoked",
-      "expired": "expired"
     }
   },
   "invite": {
@@ -570,10 +540,7 @@
       "wrong_account": "The invitation was issued to {email}. Sign out and sign in with that address",
       "logout": "Sign out",
       "go_home": "To projects"
-    },
-    "bearer": "This invitation is not tied to an address: whoever opens the link accepts it",
-    "sign_in_first": "Sign in or register to accept — then come back to this link",
-    "another_account": "This invitation is addressed to {email}. You are signed in as someone else — sign out and back in"
+    }
   },
   "plan": {
     "approve": "Approve plan",
@@ -594,13 +561,15 @@
     "save": "Save"
   },
   "undo": {
-    "action": "Undo"
+    "action": "Undo",
+    "stale": "The project has changed: this move can no longer be undone"
   },
   "settings": {
     "timezone": "Time zone",
     "threshold": "Shift threshold, days",
     "threshold_hint": "A change that moves further than this from the approved plan needs a reason",
     "working_days": "Working days",
+    "working_days_empty": "At least one day of the week has to stay a working day",
     "inherit": "Inherit from the organization ({value})",
     "slug_taken": "That address is taken. A free one:",
     "bad_dates": "Dates must look like YYYY-MM-DD: {dates}",
@@ -632,7 +601,10 @@
       "delete_confirm": "Yes, delete the project"
     },
     "profile": {
-      "title": "Profile"
+      "title": "Profile",
+      "timezone_hint": "Today is worked out in this zone: the today line on the chart, the plan mark on a task and overdue dates",
+      "timezone_auto": "Follow the browser clock",
+      "timezone_auto_at": "Follow the browser clock ({zone})"
     },
     "llm": {
       "title": "LLM connection",
@@ -644,24 +616,6 @@
       "key_set": "A key is set. Leave empty to keep it",
       "key_missing": "No key yet",
       "save": "Save the connection"
-    },
-    "link": "Settings",
-    "title": "Project settings",
-    "back": "Back to the chart",
-    "share": {
-      "title": "Public link",
-      "address": "Page address",
-      "copy": "Copy",
-      "copied": "Copied",
-      "published": "Public link",
-      "comments": "Comments on the public page"
-    },
-    "slug": {
-      "title": "Project address",
-      "field": "Address inside the link",
-      "taken": "Taken. Free:",
-      "save": "Save the address",
-      "warning": "Changing the address stops the old one from opening — you will have to send the link again."
     }
   },
   "ai": {

@@ -61,4 +61,15 @@ describe("портфель", () => {
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/projects"));
     expect(await screen.findByRole("heading", { name: "Проекты" })).toBeInTheDocument();
   });
+
+  it("при отказе загрузки не утверждает, что проектов нет", async () => {
+    server.use(...sessionHandlers(), http.get("/api/projects", () => HttpResponse.error()));
+
+    renderApp({ route: "/", locale: "ru" });
+
+    // Пустой список и несостоявшийся ответ — разные вещи: пока причина в
+    // отказе, «проектов нет» было бы враньём поверх баннера ошибки.
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.queryByText(/ни одного проекта/i)).not.toBeInTheDocument();
+  });
 });

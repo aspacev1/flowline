@@ -295,3 +295,51 @@ def test_an_unsupported_profile_locale_is_refused(authed):
 
 def test_the_profile_needs_a_session(client):
     assert client.patch("/api/auth/me", json={"locale": "ru"}).status_code == 401
+
+
+def test_a_new_account_has_no_timezone_of_its_own(authed):
+    """Пустой пояс — не пропуск, а «считать сутки по браузеру».
+
+    Копия пояса организации при заведении аккаунта выглядела бы как
+    сознательный выбор человека и пережила бы правку дефолта организации.
+    """
+    assert authed.get("/api/auth/me").json()["timezone"] is None
+
+
+def test_the_timezone_lives_in_the_profile(authed, db):
+    response = authed.patch("/api/auth/me", json={"timezone": "Europe/Moscow"})
+
+    assert response.status_code == 200
+    assert response.json()["timezone"] == "Europe/Moscow"
+    # И это именно профиль, а не память браузера: тот же человек с другого
+    # компьютера обязан увидеть свои сутки, а не сутки чужого браузера.
+    assert authed.get("/api/auth/me").json()["timezone"] == "Europe/Moscow"
+    assert db.scalar(select(User.timezone).where(User.email == "alex@example.com")) == "Europe/Moscow"
+
+
+def test_a_null_timezone_returns_the_profile_to_the_browser(authed):
+    authed.patch("/api/auth/me", json={"timezone": "Europe/Moscow"})
+
+    response = authed.patch("/api/auth/me", json={"timezone": None})
+
+    assert response.status_code == 200
+    assert response.json()["timezone"] is None
+
+
+def test_a_profile_field_that_was_not_sent_is_not_touched(authed):
+    """«Не прислали» и «прислали null» — разные вещи и здесь.
+
+    Иначе смена языка стирала бы выбранный пояс: экран настроек шлёт каждое
+    поле само по себе, когда с ним закончили.
+    """
+    authed.patch("/api/auth/me", json={"timezone": "Europe/Moscow"})
+
+    authed.patch("/api/auth/me", json={"locale": "ru"})
+
+    assert authed.get("/api/auth/me").json()["timezone"] == "Europe/Moscow"
+
+
+def test_an_unknown_profile_timezone_is_refused(authed):
+    response = authed.patch("/api/auth/me", json={"timezone": "Mars/Olympus"})
+
+    assert response.status_code == 422

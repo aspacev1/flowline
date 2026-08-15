@@ -1,4 +1,13 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { CSSProperties, FocusEvent, PointerEvent, ReactNode } from "react";
 
 import type { Task } from "../api/projects";
@@ -21,8 +30,12 @@ import { useLocale } from "../i18n/LocaleProvider";
 type Anchor = { x: number; y: number };
 
 type BarTipApi = {
-  show: (task: Task, anchor: Anchor) => void;
-  /** Двигать за курсором — но только ту карточку, которая уже видна. */
+  /**
+   * Навести. Карточка не появляется сразу: `immediate` нужен там, где ждать
+   * нечего, — при переходе фокуса с клавиатуры.
+   */
+  show: (task: Task, anchor: Anchor, immediate?: boolean) => void;
+  /** Двигать за курсором — но только ту карточку, которая уже назначена. */
   track: (anchor: Anchor) => void;
   hide: () => void;
   /** Нажатие: карточка гаснет и запирается до конца жеста. */
@@ -31,27 +44,53 @@ type BarTipApi = {
   release: () => void;
 };
 
+/**
+ * Назначенная карточка. `shown` отделяет назначенную от показанной: пока
+ * выдержка не вышла, задача и точка уже известны, а на экране ничего нет.
+ */
+type Pending = { task: Task; anchor: Anchor; shown: boolean };
+
 const BarTipContext = createContext<BarTipApi | null>(null);
 
 /** Отступ карточки от курсора — как в макете. */
-const GAP = 14;
+export const GAP = 14;
 /** Ширина карточки. Та же величина стоит в стилях: шире имени она не станет. */
 const TIP_WIDTH = 235;
 /**
- * Высота, по которой карточка решает, переворачиваться ли у нижнего края.
+ * Высота до первого измерения — на один кадр разметки, не больше.
  *
- * Число, а не измерение живого узла: измерять пришлось бы после отрисовки, то
- * есть показать карточку не на месте и переставить её следующим кадром. Запас
- * взят с избытком — ошибка в большую сторону лишь раньше переворачивает
- * карточку, ошибка в меньшую оставила бы её за обрезом экрана.
+ * Настоящая высота у каждой карточки своя: имя задачи переносится на вторую
+ * строку, и по этому числу карточка с длинным именем у нижнего края экрана не
+ * переворачивалась бы, а обрезалась. Живой узел меряется сразу после
+ * отрисовки (см. `BarTip`), а запас здесь взят с избытком: ошибка в большую
+ * сторону лишь раньше переворачивает карточку, в меньшую — оставила бы её за
+ * обрезом.
  */
 const TIP_HEIGHT = 96;
+/**
+ * Сколько курсор стоит на полоске, прежде чем появится карточка.
+ *
+ * Без выдержки проведённый поперёк ленты курсор высекает по вспышке на каждой
+ * полоске: карточка успевает показаться и погаснуть там, где её никто не
+ * звал. Столько же держат наведение системные подсказки — меньше читается как
+ * дребезг, больше как задумчивость.
+ */
+export const SHOW_DELAY = 300;
 
-/** Карточка не выходит за край экрана: у края она переворачивается на другую сторону. */
-function placeTip({ x, y }: Anchor): CSSProperties {
+/**
+ * Карточка не выходит за край экрана: у края она переворачивается на другую
+ * сторону, а если и перевёрнутой не помещается — прижимается к краю.
+ */
+function placeTip({ x, y }: Anchor, height: number): CSSProperties {
   const left = x + GAP + TIP_WIDTH > window.innerWidth ? x - GAP - TIP_WIDTH : x + GAP;
-  const top = y + GAP + TIP_HEIGHT > window.innerHeight ? y - GAP - TIP_HEIGHT : y + GAP;
-  return { left: Math.max(GAP, left), top: Math.max(GAP, top) };
+  const top = y + GAP + height > window.innerHeight ? y - GAP - height : y + GAP;
+  // Нижняя граница считается по измеренной высоте, поэтому карточка выше
+  // окна прижимается к верхнему краю, а не уезжает за него: `Math.max`
+  // стоит снаружи и в споре двух прижатий побеждает верхнее.
+  return {
+    left: Math.max(GAP, left),
+    top: Math.max(GAP, Math.min(top, window.innerHeight - height - GAP)),
+  };
 }
 
 export function BarTipProvider({
@@ -66,37 +105,75 @@ export function BarTipProvider({
   names?: ReadonlyMap<string, string>;
   children: ReactNode;
 }) {
-  const [tip, setTip] = useState<{ task: Task; anchor: Anchor } | null>(null);
+  const [tip, setTip] = useState<Pending | null>(null);
   // Идёт ли жест. В ref, а не в состоянии: значение читается в обработчиках
   // указателя и на отрисовку не влияет.
   const pressed = useRef(false);
+  // Отложенный показ. Тоже ref: отсчёт идёт мимо отрисовки, а отменять его
+  // приходится из каждого второго обработчика.
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const api = useMemo<BarTipApi>(
-    () => ({
-      show: (task, anchor) => {
+  const api = useMemo<BarTipApi>(() => {
+    const forget = () => {
+      clearTimeout(timer.current);
+      timer.current = undefined;
+    };
+    return {
+      show: (task, anchor, immediate = false) => {
         if (pressed.current) return;
-        setTip({ task, anchor });
+        forget();
+        setTip({ task, anchor, shown: immediate });
+        if (immediate) return;
+        timer.current = setTimeout(() => {
+          timer.current = undefined;
+          setTip((current) => (current === null ? null : { ...current, shown: true }));
+        }, SHOW_DELAY);
       },
       // Наведение показывает, движение только переставляет: иначе карточка
       // возвращалась бы прямо под пальцем сразу после перетаскивания — а
-      // человек к этому моменту уже целится в соседний день.
+      // человек к этому моменту уже целится в соседний день. Пока идёт
+      // выдержка, движение переставляет будущее место карточки: за это время
+      // курсор уходит с той точки, на которой вошёл на полоску.
       track: (anchor) => setTip((current) => (current === null ? null : { ...current, anchor })),
-      hide: () => setTip(null),
+      hide: () => {
+        forget();
+        setTip(null);
+      },
       press: () => {
         pressed.current = true;
+        forget();
         setTip(null);
       },
       release: () => {
         pressed.current = false;
       },
-    }),
-    [],
-  );
+    };
+  }, []);
+
+  // Отсчёт не должен пережить ленту: сработавший после размонтирования таймер
+  // ставит состояние отсутствующему узлу.
+  useEffect(() => () => clearTimeout(timer.current), []);
+
+  /**
+   * Прокрутка уводит полоску из-под карточки.
+   *
+   * Карточка стоит по координатам окна и сама за лентой не едет — оставшись
+   * висеть, она приписывала бы работу одной задачи другой, оказавшейся под
+   * ней. Слушаем на перехвате: событие прокрутки не всплывает, а прокручиваются
+   * здесь и лента, и страница под ней.
+   */
+  const armed = tip !== null;
+  useEffect(() => {
+    if (!armed) return;
+    const dismiss = () => api.hide();
+    window.addEventListener("scroll", dismiss, { capture: true, passive: true });
+    return () => window.removeEventListener("scroll", dismiss, { capture: true });
+  }, [api, armed]);
 
   return (
     <BarTipContext.Provider value={api}>
       {children}
-      {tip && <BarTip task={tip.task} anchor={tip.anchor} names={names} />}
+      {tip !== null && tip.shown && <BarTip task={tip.task} anchor={tip.anchor} names={names} />}
     </BarTipContext.Provider>
   );
 }
@@ -124,10 +201,12 @@ export function useBarTip(task: Task) {
       onPointerUp: () => api?.release(),
       onPointerCancel: () => api?.release(),
       // С клавиатуры курсора нет, и карточка встаёт у самой полоски: место под
-      // курсором означало бы точку, которой на экране никто не видит.
+      // курсором означало бы точку, которой на экране никто не видит. И без
+      // выдержки: ждать её незачем там, где полоску выбрали, а не задели по
+      // дороге к соседней.
       onFocus: (event: FocusEvent<HTMLElement>) => {
         const box = event.currentTarget.getBoundingClientRect();
-        api?.show(task, { x: box.left, y: box.bottom });
+        api?.show(task, { x: box.left, y: box.bottom }, true);
       },
       onBlur: () => api?.hide(),
     }),
@@ -152,6 +231,24 @@ function BarTip({
   names?: ReadonlyMap<string, string>;
 }) {
   const { t } = useLocale();
+  const node = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState(TIP_HEIGHT);
+
+  /**
+   * Настоящая высота карточки — по живому узлу.
+   *
+   * Меряем в разметочном эффекте: он идёт после отрисовки, но до кадра, и
+   * перевёрнутой у нижнего края карточка появляется сразу, а не переставляет
+   * себя у человека на глазах. В зависимостях написанное, а не точка под
+   * курсором: ширина карточки постоянна, высота меняется только от текста, а
+   * мерить её заново на каждом движении курсора значило бы столько же раз
+   * пересчитывать разметку страницы. Нулевую высоту не берём: столько узел
+   * показывает, пока разметки нет вовсе, — тогда честнее запас.
+   */
+  useLayoutEffect(() => {
+    const measured = node.current?.offsetHeight ?? 0;
+    if (measured > 0) setHeight(measured);
+  }, [task, names, t]);
 
   // Короткая форма даты, а не полная: карточка шириной 235px, и «12 августа —
   // 14 августа» в её правой колонке переносится на вторую строку.
@@ -163,7 +260,13 @@ function BarTip({
   const people = assigneeText(task, t, names);
 
   return (
-    <div className="gantt__tip" style={placeTip(anchor)} data-testid="bar-tip" aria-hidden="true">
+    <div
+      ref={node}
+      className="gantt__tip"
+      style={placeTip(anchor, height)}
+      data-testid="bar-tip"
+      aria-hidden="true"
+    >
       {/* Название — содержимое пользователя: не переводится. */}
       <strong className="gantt__tip-name">{task.name}</strong>
       <div className="gantt__tip-grid">

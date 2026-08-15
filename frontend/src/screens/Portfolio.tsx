@@ -45,7 +45,7 @@ export function Portfolio() {
         </p>
       )}
 
-      {!pending && states.length === 0 && (
+      {!pending && error === null && states.length === 0 && (
         <div className="empty">
           <p className="empty__title">{t("projects.empty.title")}</p>
           <p className="muted">{t("projects.empty.hint")}</p>

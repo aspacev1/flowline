@@ -7,7 +7,7 @@ import { StatusChip } from "../components/StatusChip";
 import { formatShortDate } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
 import { useProjectStates } from "./projectStates";
-import { toISO } from "../gantt/timescale";
+import { useToday } from "../time/useToday";
 
 /**
  * «Мои задачи»: всё, что назначено вошедшему, поверх всех проектов.
@@ -20,7 +20,9 @@ export function MyTasks() {
   const { t } = useLocale();
   const { user } = useAuth();
   const { pending, error, states } = useProjectStates();
-  const today = toISO(Date.now());
+  // Проектов здесь много, и у каждого мог быть свой пояс: «просрочено» на
+  // общем списке считается по суткам читателя, а не по суткам одного из них.
+  const today = useToday();
 
   const mine: { task: Task; project: ProjectState }[] = states
     .flatMap((project) =>
