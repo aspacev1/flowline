@@ -31,6 +31,7 @@ from app.mutations import (
     NotFoundInProject,
     PublicOp,
     ReasonRequired,
+    UndoConflict,
     apply_op,
     last_undoable,
     to_internal,
@@ -329,9 +330,14 @@ def _refuse(error: MutationError):
     несуществующей (404), непроизнесённая причина снимается тем же запросом с
     добавленным полем (409), а неверно составленная операция не пройдёт
     никогда (422).
+
+    Устаревший номер отменяемой ревизии — тоже 409: запрос верен, состояние
+    под ним изменилось, и клиенту достаточно перечитать проект.
     """
     if isinstance(error, NotFoundInProject):
         return HTTPException(status_code=404, detail=error.code)
+    if isinstance(error, UndoConflict):
+        return HTTPException(status_code=409, detail=error.code)
     if isinstance(error, ReasonRequired):
         return HTTPException(
             status_code=409,
@@ -527,15 +533,18 @@ def delete_project(
 def undo_last(
     background: BackgroundTasks,
     reason: str | None = Body(default=None, embed=True),
+    expected_seq: int | None = Body(default=None, embed=True),
     context: ProjectContext = Depends(project_context),
     db: DbSession = Depends(get_db),
 ):
     """Отмена последнего изменения.
 
-    Номер ревизии в адресе не принимается сознательно: спецификация обещает
-    отмену последнего действия, а произвольная ревизия из середины журнала —
-    это другая функция («вернуть вот это одно»), и её обратная операция
-    построена для того состояния, которого уже нет.
+    Произвольная ревизия из середины журнала не отменяется по-прежнему: это
+    другая функция («вернуть вот это одно»), и её обратная операция построена
+    для того состояния, которого уже нет. `expected_seq` — не выбор ревизии, а
+    условие: отменяется всё тот же верх журнала, но лишь пока он тот самый,
+    который клиент назвал человеку. Разошлись — отказ 409, а не молчаливая
+    отмена чужой правки, влезшей в зазор между показом кнопки и нажатием.
 
     Причина принимается, потому что отмена проходит ту же проверку порога, что
     и всякое изменение сроков: возврат, уводящий задачу от базового плана
@@ -546,9 +555,14 @@ def undo_last(
     # Выбор отменяемой ревизии — внутри undo_last, под замком проекта: выбор
     # здесь, в маршруте, давал бы двум одновременным нажатиям одну и ту же
     # ревизию, и второе отменяло бы уже отменённое (см. mutations.undo_last).
+    # По той же причине там же, а не здесь, сверяется expected_seq.
     try:
         applied, revision = undo_last_revision(
-            db, context.project, actor_id=context.user.id, reason=reason
+            db,
+            context.project,
+            actor_id=context.user.id,
+            reason=reason,
+            expected_seq=expected_seq,
         )
     except MutationError as error:
         raise _refuse(error)

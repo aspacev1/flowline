@@ -167,6 +167,7 @@
     "mail_disabled": "Mail is turned off in this installation",
     "offline": "No connection to the server: the change was not sent",
     "nothing_to_undo": "There is nothing to undo",
+    "undo_conflict": "The project has changed — undoing would take back the wrong step",
     "batch_not_found": "That batch was not found",
     "reason_required": "This shift needs a reason",
     "slug_taken": "That address is already taken",
@@ -592,7 +593,8 @@
     "save": "Save"
   },
   "undo": {
-    "action": "Undo"
+    "action": "Undo",
+    "stale": "The project has changed: this move can no longer be undone"
   },
   "settings": {
     "timezone": "Time zone",
