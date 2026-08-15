@@ -630,7 +630,10 @@
       "delete_confirm": "Bəli, layihəni sil"
     },
     "profile": {
-      "title": "Profil"
+      "title": "Profil",
+      "timezone_hint": "Bugünkü tarix bu qurşaqla hesablanır: lentdəki «bu gün» xətti, tapşırıqdakı plan nişanı və gecikmiş tarixlər",
+      "timezone_auto": "Brauzerin saatı ilə",
+      "timezone_auto_at": "Brauzerin saatı ilə ({zone})"
     },
     "llm": {
       "title": "LLM qoşulması",

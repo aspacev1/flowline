@@ -183,6 +183,7 @@ export function TaskPanel({
       <TaskProgress
         task={task}
         canWrite={canWrite}
+        timeZone={state.settings?.timezone}
         resetToken={refusals}
         onCommit={(progress_pct) =>
           send({ type: "set_progress", task_id: task.id, progress_pct }, (state) =>

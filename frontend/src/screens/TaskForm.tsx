@@ -3,11 +3,17 @@ import { useState } from "react";
 
 import { errorKey } from "../api/errors";
 import { MEMBERS_QUERY_KEY, members as fetchMembers } from "../api/org";
-import { CRITICALITY_LEVELS, TASK_STATUSES, applyOp, projectQueryKey } from "../api/projects";
+import {
+  CRITICALITY_LEVELS,
+  TASK_STATUSES,
+  applyOp,
+  getProject,
+  projectQueryKey,
+} from "../api/projects";
 import type { Category, Criticality, Task, TaskStatus } from "../api/projects";
 import { Field } from "../components/Field";
 import { Modal } from "../components/Modal";
-import { toISO } from "../gantt/timescale";
+import { useToday } from "../time/useToday";
 import { useLocale } from "../i18n/LocaleProvider";
 import { progressForStatus, statusForProgress } from "../project/optimistic";
 
@@ -49,7 +55,16 @@ export function TaskForm({
   const [criticality, setCriticality] = useState<Criticality>("normal");
   const [status, setStatus] = useState<TaskStatus>("planned");
   const [progressPct, setProgressPct] = useState("0");
-  const [startDate, setStartDate] = useState(() => toISO(Date.now()));
+  // Пояс проекта — из кэша, без запроса: экран, с которого открыта эта форма,
+  // состояние проекта уже спросил. Сегодня по нему же, что и линия на ленте
+  // за спиной у формы: разойдись они, задача заводилась бы «со вчера».
+  const project = useQuery({
+    queryKey: projectQueryKey(projectId),
+    queryFn: () => getProject(projectId),
+    enabled: false,
+  });
+  const today = useToday(project.data?.settings?.timezone);
+  const [startDate, setStartDate] = useState(today);
   const [durationDays, setDurationDays] = useState("1");
   const [assignees, setAssignees] = useState<string[]>([]);
   // Две стороны одной и той же связи: «зависит от» — где будущая задача

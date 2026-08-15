@@ -17,7 +17,8 @@ import { useReorder } from "./useReorder";
 import { DAY_WIDTH, ROW_HEIGHT, projectWindow } from "./scale";
 import type { Zoom } from "./scale";
 import { rememberZoom, storedZoom } from "./scalePreference";
-import { buildScale, daysBetween, toISO } from "./timescale";
+import { buildScale, daysBetween } from "./timescale";
+import { useToday } from "../time/useToday";
 
 import "./gantt.css";
 
@@ -124,13 +125,16 @@ export function Gantt({
       return next;
     });
 
-  const today = toISO(Date.now());
+  // Сегодня — в поясе проекта, а не по UTC: линия сегодняшнего дня обязана
+  // стоять там, где у читателя сегодня, и в поясе восточнее Гринвича по UTC
+  // она каждую ночь до утра стояла на вчерашнем числе.
+  const today = useToday(state.settings?.timezone);
   // Зависимость — границы окна, а не само состояние: после каждого изменения
   // сервер присылает новый объект состояния, и шкала, привязанная к его
   // тождеству, пересобиралась бы всякий раз. Ниже она сама — зависимость
   // прокрутки к сегодняшнему дню, и лента прыгала бы к сегодня после каждой
   // правки, унося с экрана ту задачу, которую только что двигали.
-  const { from, to } = projectWindow(state);
+  const { from, to } = projectWindow(state, today);
   const dayWidth = DAY_WIDTH[zoom];
   const scale = useMemo(() => buildScale({ from, to, dayWidth }), [dayWidth, from, to]);
 
