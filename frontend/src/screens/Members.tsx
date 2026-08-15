@@ -13,6 +13,7 @@ import type { Invitation, Issued } from "../api/invitations";
 import { MEMBERS_QUERY_KEY, ORG_QUERY_KEY, members, organization } from "../api/org";
 import { PROJECTS_QUERY_KEY, listProjects } from "../api/projects";
 import { Modal } from "../components/Modal";
+import { useToast } from "../components/toast";
 import { useLocale } from "../i18n/LocaleProvider";
 
 const ROLES = ["owner", "editor", "viewer", "client"] as const;
@@ -220,6 +221,7 @@ function InvitationRow({
 }) {
   const { t } = useLocale();
   const queryClient = useQueryClient();
+  const showToast = useToast();
   const [link, setLink] = useState<string | null>(null);
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: INVITATIONS_QUERY_KEY });
@@ -237,6 +239,10 @@ function InvitationRow({
     onSuccess: () => {
       setLink(null);
       void refresh();
+      // Отзыв убивает выданную ссылку — самое разрушительное, что здесь можно
+      // сделать, — а на экране от него меняются два слова в подписи статуса и
+      // исчезает ряд кнопок. Для необратимого действия это слишком тихо.
+      showToast({ message: t("invite.revoked") });
     },
   });
 

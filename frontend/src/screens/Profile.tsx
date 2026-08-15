@@ -4,6 +4,7 @@ import { ME_QUERY_KEY, updateProfile } from "../api/auth";
 import type { User } from "../api/auth";
 import { errorKey } from "../api/errors";
 import { useAuth } from "../auth/AuthProvider";
+import { useToast } from "../components/toast";
 import { useLocale } from "../i18n/LocaleProvider";
 
 /**
@@ -21,10 +22,16 @@ export function Profile() {
   const { t } = useLocale();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const showToast = useToast();
 
   const save = useMutation({
     mutationFn: (patch: { name?: string }) => updateProfile(patch),
-    onSuccess: (updated: User) => queryClient.setQueryData(ME_QUERY_KEY, updated),
+    onSuccess: (updated: User) => {
+      queryClient.setQueryData(ME_QUERY_KEY, updated);
+      // Имя сохраняется по уходу фокуса и нигде на этом экране не повторяется,
+      // кроме самого поля. Без тоста подтверждения нет вовсе.
+      showToast({ message: t("common.saved") });
+    },
   });
 
   if (!user) return null;

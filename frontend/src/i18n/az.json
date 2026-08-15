@@ -6,6 +6,7 @@
     "loading": "Yüklənir…",
     "create": "Yarat",
     "cancel": "Ləğv et",
+    "saved": "Yadda saxlanıldı",
     "days": {
       "one": "{count} gün",
       "other": "{count} gün"
@@ -212,7 +213,8 @@
       "title": "Yeni layihə",
       "name": "Ad"
     },
-    "create_with_ai": "Müsahibə ilə yarat"
+    "create_with_ai": "Müsahibə ilə yarat",
+    "created": "«{name}» layihəsi yaradıldı"
   },
   "project": {
     "period": "{from} — {to}",
@@ -463,6 +465,8 @@
     "reissue": "Yenidən ver",
     "reissue_warning": "Yeni keçid veriləndə köhnəsi dərhal ölür — göndərilmiş ünvan açılmayacaq",
     "revoke": "Keçidi bağla",
+    "revoked": "İctimai keçid bağlandı",
+    "reissued": "Keçid yenidən verildi — köhnəsi artıq açılmır",
     "comments_enabled": "Şərhlərə icazə ver",
     "disabled": "İctimai keçidlər söndürülüb: quraşdırma və ya təşkilat ayarı",
     "hidden": "Layihə bayıra açıq deyil",
@@ -549,6 +553,7 @@
       "resend": "Yenidən göndər",
       "revoke": "Geri al"
     },
+    "revoked": "Dəvət geri alındı",
     "issued": {
       "link": "Dəvət keçidi",
       "once": "Keçidi indi köçürün: ikinci dəfə onu heç yerdən götürmək olmayacaq — server yalnız izini saxlayır",
@@ -627,7 +632,8 @@
       "workdays_extra_hint": "Qeyri-iş günlərini geri qaytarır",
       "delete": "Layihəni sil",
       "delete_warning": "Layihə bütövlükdə silinəcək — kateqoriyalar, tapşırıqlar və bütün tarixçə ilə birlikdə. Bunu geri qaytarmaq mümkün olmayacaq",
-      "delete_confirm": "Bəli, layihəni sil"
+      "delete_confirm": "Bəli, layihəni sil",
+      "deleted": "«{name}» layihəsi silindi"
     },
     "profile": {
       "title": "Profil"

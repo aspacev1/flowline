@@ -11,6 +11,7 @@ import {
   shareQueryKey,
 } from "../api/share";
 import { Modal } from "../components/Modal";
+import { useToast } from "../components/toast";
 import { useLocale } from "../i18n/LocaleProvider";
 
 /**
@@ -24,6 +25,7 @@ import { useLocale } from "../i18n/LocaleProvider";
 export function ShareDialog({ projectId, onClose }: { projectId: string; onClose: () => void }) {
   const { t } = useLocale();
   const queryClient = useQueryClient();
+  const showToast = useToast();
   const [copied, setCopied] = useState(false);
 
   const share = useQuery({
@@ -50,6 +52,9 @@ export function ShareDialog({ projectId, onClose }: { projectId: string; onClose
     mutationFn: () => rotateShare(projectId),
     onSuccess: () => {
       setCopied(false);
+      // Единственный видимый след перевыпуска — другая строка в поле адреса,
+      // а строки эти отличаются серединой токена и на глаз неразличимы.
+      showToast({ message: t("share.reissued") });
       return refresh();
     },
   });
@@ -63,6 +68,9 @@ export function ShareDialog({ projectId, onClose }: { projectId: string; onClose
     mutationFn: () => revokeShare(projectId),
     onSuccess: () => {
       setCopied(false);
+      // Окно после отзыва выглядит как у проекта, который наружу и не
+      // показывали: та же подсказка, та же кнопка «Опубликовать».
+      showToast({ message: t("share.revoked") });
       return refresh();
     },
   });

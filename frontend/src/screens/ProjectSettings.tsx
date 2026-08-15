@@ -14,6 +14,7 @@ import {
 } from "../api/projects";
 import type { ProjectState } from "../api/projects";
 import { useCanWrite, useOrgRole } from "../auth/permissions";
+import { useToast } from "../components/toast";
 import { useLocale } from "../i18n/LocaleProvider";
 import { SharePanel } from "../project/SharePanel";
 import { DateListField, SlugField, WorkingDaysField } from "../settings/fields";
@@ -32,6 +33,7 @@ export function ProjectSettings() {
   const { projectId = "" } = useParams();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
+  const showToast = useToast();
   const canWrite = useCanWrite();
   // Удаление проекта — право владельца, как и пересогласование плана:
   // редактор правит настройки, но не расстаётся с проектом целиком. Решает
@@ -54,13 +56,22 @@ export function ProjectSettings() {
 
   const save = useMutation({
     mutationFn: (patch: Parameters<typeof updateProject>[1]) => updateProject(projectId, patch),
-    onSuccess: (state: ProjectState) =>
-      queryClient.setQueryData(projectQueryKey(projectId), state),
+    onSuccess: (state: ProjectState) => {
+      queryClient.setQueryData(projectQueryKey(projectId), state);
+      // Кнопки «Сохранить» здесь нет, поле уходит на сервер по уходу фокуса —
+      // и без тоста единственный признак записи это то, что значение не
+      // отскочило обратно. Отсутствие отката — плохое подтверждение: оно
+      // выглядит ровно так же, как ничего не отправленный запрос.
+      showToast({ message: t("common.saved") });
+    },
   });
 
+  // Имя передаётся в мутацию, а не читается из `state` в обработчике: к моменту
+  // успеха проекта уже нет ни на сервере, ни в кэше — а назвать в тосте нужно
+  // именно то, что удалили.
   const remove = useMutation({
-    mutationFn: () => deleteProject(projectId),
-    onSuccess: () => {
+    mutationFn: (_name: string) => deleteProject(projectId),
+    onSuccess: (_result, name: string) => {
       // Кэш проекта не инвалидируется, а выбрасывается: перезапрос по этому
       // ключу теперь может ответить только 404-й.
       queryClient.removeQueries({ queryKey: projectQueryKey(projectId) });
@@ -68,6 +79,11 @@ export function ProjectSettings() {
       // replace, а не push: «назад» к настройкам удалённого проекта вело бы
       // на экран, которому нечего показать, кроме ошибки.
       navigate("/projects", { replace: true });
+      // Список проектов сам по себе не отчитывается: он выглядит одинаково и
+      // после удаления, и после нажатия «К проектам». Отмены тост не
+      // предлагает намеренно — вместе с проектом ушёл журнал ревизий, и
+      // возвращать состояние неоткуда; об этом честно сказано и в подтверждении.
+      showToast({ message: t("settings.project.deleted", { name }) });
     },
   });
 
@@ -251,7 +267,7 @@ export function ProjectSettings() {
                 <span className="muted">{t("settings.project.delete_warning")}</span>
                 <button
                   type="button"
-                  onClick={() => remove.mutate()}
+                  onClick={() => remove.mutate(state.name)}
                   disabled={remove.isPending}
                 >
                   {t("settings.project.delete_confirm")}

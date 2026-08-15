@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { errorKey } from "../api/errors";
 import { getShare, issueShare, revokeShare, setShareComments } from "../api/share";
 import type { Share } from "../api/share";
+import { useToast } from "../components/toast";
 import { useLocale } from "../i18n/LocaleProvider";
 
 const shareQueryKey = (projectId: string) => ["project", projectId, "share"] as const;
@@ -18,19 +19,37 @@ const shareQueryKey = (projectId: string) => ["project", projectId, "share"] as 
 export function SharePanel({ projectId }: { projectId: string }) {
   const { t } = useLocale();
   const queryClient = useQueryClient();
+  const showToast = useToast();
   const key = shareQueryKey(projectId);
 
   const query = useQuery({ queryKey: key, queryFn: () => getShare(projectId), retry: false });
   const write = (share: Share | null) => queryClient.setQueryData(key, share);
 
-  const issue = useMutation({ mutationFn: () => issueShare(projectId), onSuccess: write });
+  // Признак «была ли ссылка» передаётся в мутацию, а не читается из состояния
+  // в обработчике: маршрут у выпуска и перевыпуска один, а сказать про них
+  // надо разное — первый выпуск и так виден по появившемуся полю, перевыпуск
+  // же меняет одну строку адреса на другую и молча убивает разосланную.
+  const issue = useMutation({
+    mutationFn: (_reissue: boolean) => issueShare(projectId),
+    onSuccess: (share: Share, reissue: boolean) => {
+      write(share);
+      if (reissue) showToast({ message: t("share.reissued") });
+    },
+  });
   const comments = useMutation({
     mutationFn: (enabled: boolean) => setShareComments(projectId, enabled),
     onSuccess: write,
   });
   const revoke = useMutation({
     mutationFn: () => revokeShare(projectId),
-    onSuccess: () => write(null),
+    onSuccess: () => {
+      write(null);
+      // Отзыв закрывает проект наружу: с этой секунды разосланный адрес не
+      // открывается ни у кого. Панель после него выглядит так же, как у
+      // проекта, который наружу и не показывали, — то есть ничего не говорит
+      // о случившемся.
+      showToast({ message: t("share.revoked") });
+    },
   });
 
   const failure = issue.error ?? comments.error ?? revoke.error;
@@ -49,7 +68,7 @@ export function SharePanel({ projectId }: { projectId: string }) {
       {share === null ? (
         <>
           <p className="muted">{t("share.hidden")}</p>
-          <button type="button" onClick={() => issue.mutate()} disabled={issue.isPending}>
+          <button type="button" onClick={() => issue.mutate(false)} disabled={issue.isPending}>
             {t("share.publish")}
           </button>
         </>
@@ -75,7 +94,7 @@ export function SharePanel({ projectId }: { projectId: string }) {
             <button
               type="button"
               className="button--quiet"
-              onClick={() => issue.mutate()}
+              onClick={() => issue.mutate(true)}
               disabled={issue.isPending}
             >
               {/* Прежняя ссылка умирает мгновенно — об этом сказано в самой

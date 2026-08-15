@@ -88,7 +88,7 @@ export function useDragDates({
     } catch (error) {
       // Отказ отмены показывается там же, где было предложение отменить:
       // человек смотрит на тост, а не на шапку проекта.
-      showToast({ message: t(errorKey(error)) });
+      showToast({ message: t(errorKey(error)), tone: "error" });
     }
   };
 

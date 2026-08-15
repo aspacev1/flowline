@@ -6,6 +6,7 @@
     "loading": "Loading…",
     "create": "Create",
     "cancel": "Cancel",
+    "saved": "Saved",
     "days": {
       "one": "{count} day",
       "other": "{count} days"
@@ -212,7 +213,8 @@
       "title": "New project",
       "name": "Name"
     },
-    "create_with_ai": "Create through an interview"
+    "create_with_ai": "Create through an interview",
+    "created": "Project “{name}” created"
   },
   "project": {
     "period": "{from} — {to}",
@@ -463,6 +465,8 @@
     "reissue": "Reissue",
     "reissue_warning": "A new link kills the old one instantly — an address you already sent will stop opening",
     "revoke": "Close the link",
+    "revoked": "Public link closed",
+    "reissued": "Link reissued — the old one no longer opens",
     "comments_enabled": "Allow comments",
     "disabled": "Public links are switched off: by the installation or by the organization",
     "hidden": "The project is not shared",
@@ -549,6 +553,7 @@
       "resend": "Send again",
       "revoke": "Revoke"
     },
+    "revoked": "Invitation revoked",
     "issued": {
       "link": "Invitation link",
       "once": "Copy the link now: there is nowhere to take it a second time — the server keeps only its fingerprint",
@@ -627,7 +632,8 @@
       "workdays_extra_hint": "Brings specific non-working dates back",
       "delete": "Delete project",
       "delete_warning": "The project will be deleted entirely — categories, tasks and all of its history. This cannot be undone",
-      "delete_confirm": "Yes, delete the project"
+      "delete_confirm": "Yes, delete the project",
+      "deleted": "Project “{name}” deleted"
     },
     "profile": {
       "title": "Profile"
