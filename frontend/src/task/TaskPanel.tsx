@@ -1,11 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 
 import { errorKey } from "../api/errors";
 import { MEMBERS_QUERY_KEY, members as fetchMembers } from "../api/org";
 import { CRITICALITY_LEVELS, TASK_STATUSES } from "../api/projects";
 import type { Criticality, Op, ProjectState, Task, TaskStatus } from "../api/projects";
 import { Avatar } from "../components/Avatar";
+import { StatusChip } from "../components/StatusChip";
 import { useEscape } from "../components/useEscape";
 import { baselineOf, deviationDays, endShiftDays, isBeyondPlan } from "../project/baseline";
 import {
@@ -33,12 +35,19 @@ import "./panel.css";
 type PanelTab = "details" | "history" | "comments";
 
 /**
- * Карточка задачи.
+ * Карточка задачи — выдвижная панель во всю высоту экрана.
  *
- * `complementary`, а не `dialog`: карточка не перекрывает диаграмму и не
- * забирает фокус — по ней и по ленте работают одновременно, сверяя полоску с
- * полями. Окно на её месте требовало бы закрывать себя перед каждым взглядом
- * на соседнюю задачу.
+ * `position: fixed` от верхнего края окна до нижнего, поверх шапки проекта и
+ * ленты: карточка не начинается от места клика и не зависит от прокрутки
+ * страницы — при любой прокрутке ленты она остаётся растянутой от края до
+ * края. Устроена тремя ярусами: закреплённая шапка (название, статус, период,
+ * прогресс и вкладки), прокручиваемая середина и закреплённый подвал с
+ * кнопками. Если содержимое не помещается, прокручивается только середина.
+ *
+ * `complementary`, а не `dialog`: карточка накрывает лишь правую колонку
+ * экрана и не забирает фокус — по ленте слева работают одновременно с ней,
+ * сверяя полоску с полями. Окно с подложкой требовало бы закрывать себя перед
+ * каждым взглядом на соседнюю задачу.
  *
  * Закрывается тремя способами, потому что к ней приходят тремя путями: мышью
  * за крестик, с клавиатуры по Esc и повторным щелчком по той же полоске —
@@ -156,6 +165,11 @@ export function TaskPanel({
     );
   };
 
+  // Период в шапке — теми же словами, что и поля дат ниже: относительный план
+  // говорит днями проекта, календарный — короткими датами.
+  const dateLabel = (iso: string) =>
+    relative ? relativeDayLabel(t, iso) : formatShortDate(t, iso);
+
   return (
     <aside
       className="panel"
@@ -164,49 +178,63 @@ export function TaskPanel({
       // «дополнительная информация» без имени не говорит, о какой из них речь.
       aria-label={t("task.panel.aria", { name: task.name })}
     >
-      <div className="panel__head">
-        {/* Название задачи — содержимое пользователя: не переводится. */}
-        <h2 className="panel__title">{task.name}</h2>
-        <button
-          type="button"
-          className="panel__close"
-          aria-label={t("task.panel.close")}
-          title={t("task.panel.close")}
-          onClick={onClose}
-        >
-          ×
-        </button>
-      </div>
+      {/* Шапка закреплена: название, статус с периодом, прогресс и вкладки
+          видны при любой прокрутке середины. */}
+      <header className="panel__head">
+        <div className="panel__head-top">
+          {/* Название задачи — содержимое пользователя: не переводится. */}
+          <h2 className="panel__title">{task.name}</h2>
+          <button
+            type="button"
+            className="panel__close"
+            aria-label={t("task.panel.close")}
+            title={t("task.panel.close")}
+            onClick={onClose}
+          >
+            ×
+          </button>
+        </div>
 
-      {error !== null && (
-        <p className="error" role="alert">
-          {t(errorKey(error))}
-        </p>
-      )}
+        {/* `key` по задаче: «день отмечен» и черновик процента относятся к
+            этой задаче и не должны доноситься до соседней. */}
+        <TaskProgress
+          key={task.id}
+          task={task}
+          canWrite={canWrite}
+          timeZone={state.settings?.timezone}
+          resetToken={refusals}
+          meta={
+            <>
+              <StatusChip status={task.status} label={t(`task.status.${task.status}`)} />
+              <span className="panel__meta-sep" aria-hidden="true" />
+              {/* Период одной строкой «старт — конец»: тире внутри строки, а
+                  не два узла, — иначе даты разъезжаются по флексу. */}
+              <span className="panel__period">
+                {dateLabel(task.start_date)} — {dateLabel(task.end_date)}
+              </span>
+              <span className="panel__meta-sep" aria-hidden="true" />
+            </>
+          }
+          onCommit={(progress_pct) =>
+            send({ type: "set_progress", task_id: task.id, progress_pct }, (state) =>
+              patchProgress(state, task.id, progress_pct),
+            )
+          }
+        />
 
-      <Baseline task={task} state={state} />
+        {/* Отказ сервера — в шапке, а не в прокручиваемой середине: объяснение
+            обязано быть на глазах, на какой бы глубине ни правили поле. */}
+        {error !== null && (
+          <p className="error" role="alert">
+            {t(errorKey(error))}
+          </p>
+        )}
 
-      {/* `key` по задаче: переход к соседней начинает поля заново, а не доносит
-          в новую карточку недописанный текст из прежней. Модуль прогресса —
-          внутри той же обёртки: «день отмечен» относится к этой задаче. */}
-      <div key={task.id}>
-      <TaskProgress
-        task={task}
-        canWrite={canWrite}
-        timeZone={state.settings?.timezone}
-        resetToken={refusals}
-        onCommit={(progress_pct) =>
-          send({ type: "set_progress", task_id: task.id, progress_pct }, (state) =>
-            patchProgress(state, task.id, progress_pct),
-          )
-        }
-      />
-
-      {/* Свойства, история и обсуждение — вкладки одной карточки, а не три
-          ленты подряд: и историю, и разговор за сеанс открывают реже, чем
-          правят поля, и держать их всегда развёрнутыми — растягивать
-          карточку тем, что смотрят от случая к случаю. */}
-      <div className="panel__tabs" role="tablist" aria-label={t("task.panel.tabs")}>
+        {/* Свойства, история и обсуждение — вкладки одной карточки, а не три
+            ленты подряд: и историю, и разговор за сеанс открывают реже, чем
+            правят поля, и держать их всегда развёрнутыми — растягивать
+            карточку тем, что смотрят от случая к случаю. */}
+        <div className="panel__tabs" role="tablist" aria-label={t("task.panel.tabs")}>
         <button
           type="button"
           role="tab"
@@ -240,10 +268,21 @@ export function TaskPanel({
         >
           {t("task.panel.comments")}
         </button>
-      </div>
+        </div>
+      </header>
+
+      {/* Середина — единственное, что прокручивается: шапка и подвал стоят.
+          `key` по задаче: переход к соседней начинает поля заново, а не
+          доносит в новую карточку недописанный текст из прежней. */}
+      <div className="panel__body" key={task.id}>
+      <Baseline task={task} state={state} />
 
       {tab === "details" && (
         <div id="panel-tabpanel-details" role="tabpanel" aria-labelledby="panel-tab-details">
+          {/* Свойства собраны аккордеонами, как в макете. Все раскрыты с
+              порога: аккордеон здесь — оглавление длинной карточки и способ
+              убрать с глаз лишнее, а не спрятать поля по умолчанию. */}
+          <Section title={t("task.panel.section_main")}>
           <div className="panel__fields">
             <TextField
               id="panel-name"
@@ -398,13 +437,21 @@ export function TaskPanel({
               />
             )}
           </div>
+          </Section>
 
-          <Dependencies task={task} state={state} canWrite={canWrite} send={send} />
+          <Section title={t("task.panel.section_links")}>
+            <Dependencies task={task} state={state} canWrite={canWrite} send={send} />
+          </Section>
 
           {membersQuery.data && membersQuery.data.length > 0 && (
-            <fieldset className="panel__field panel__fieldset">
-              <legend>{t("task.panel.assignees")}</legend>
-              <div className="panel__chips">
+            <Section title={t("task.panel.assignees")}>
+              {/* Группа с подписью: заголовок аккордеона — украшение, а имя
+                  списку исполнителей нужно и на слух. */}
+              <div
+                className="panel__chips"
+                role="group"
+                aria-label={t("task.panel.assignees")}
+              >
                 {membersQuery.data.map((member) => (
                   // Каждый исполнитель — своя операция: их и снимают по
                   // одному, и в истории они читаются как отдельные события.
@@ -424,7 +471,7 @@ export function TaskPanel({
                   </button>
                 ))}
               </div>
-            </fieldset>
+            </Section>
           )}
         </div>
       )}
@@ -440,7 +487,6 @@ export function TaskPanel({
           <Comments projectId={projectId} taskId={task.id} />
         </div>
       )}
-      </div>
 
       {/* Удаление — последним блоком, вне вкладок: это не правка задачи, а
           расставание с ней, и она ждёт на любой вкладке карточки. Отдельного
@@ -486,7 +532,42 @@ export function TaskPanel({
           )}
         </div>
       )}
+      </div>
+
+      {/* Подвал закреплён, как в макете. Поля карточки сохраняют себя сами
+          (см. components/autosave), поэтому обе кнопки завершают правку:
+          щелчок по «Сохранить изменения» сперва уводит фокус из поля — и тем
+          отправляет недописанный черновик, — потом закрывает карточку.
+          «Отмена» просто закрывает: откат уже записанного — работа кнопки
+          «Отменить» в журнале, а не подвала. Читателю подвал не показывается:
+          сохранять ему нечего, закрыть можно крестиком и Esc. */}
+      {canWrite && (
+        <footer className="panel__foot">
+          <button type="button" className="button--quiet" onClick={onClose}>
+            {t("common.cancel")}
+          </button>
+          <button type="button" className="panel__save" onClick={onClose}>
+            {t("task.panel.save")}
+          </button>
+        </footer>
+      )}
     </aside>
+  );
+}
+
+/**
+ * Аккордеон карточки: заголовок-створка и содержимое под ней.
+ *
+ * Нативный `details`: створка доступна с клавиатуры и читается вслух без
+ * единой строки скрипта. Раскрыт с порога — аккордеон здесь способ свернуть
+ * прочитанное, а не спрятать поля по умолчанию.
+ */
+function Section({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <details className="panel__section" open>
+      <summary className="panel__section-head">{title}</summary>
+      {children}
+    </details>
   );
 }
 

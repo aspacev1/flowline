@@ -604,14 +604,13 @@ body:has(.screen--narrow) {
 
 /* --- карточка задачи --- */
 
-/* Ширина — 404 пикселя макета. Карточка остаётся третьей колонкой, а не
-   оверлеем (см. план, §1), поэтому от ящика макета берётся только его
-   волосяная грань слева: тень в 12 пикселей под колонкой, стоящей в потоке,
-   рисовала бы обрыв страницы там, где её нет. */
-.panel { flex: 0 0 404px; border-radius: 0; box-shadow: -1px 0 0 var(--border-strong); min-height: 100%; padding: 18px 20px 30px; background: var(--surface); }
-.panel__head { padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+/* Карточка — оверлей во всю высоту экрана, как в макете: раскладку (fixed,
+   640 пикселей, три яруса) задаёт panel.css, тема добавляет только облик —
+   грань слева и тень отрыва от страницы: карточка лежит поверх ленты, а не
+   стоит колонкой в потоке. */
+.panel { border-radius: 0; box-shadow: -1px 0 0 var(--border-strong), -32px 0 64px rgb(23 32 51 / 12%); background: var(--surface); }
 .panel__title { font-size: 19px; font-weight: 700; letter-spacing: -0.02em; }
-.panel__fields { gap: 4px; padding-top: 16px; }
+.panel__fields { gap: 4px; }
 .panel__fields .panel__field, .panel__row { grid-template-columns: 112px minmax(0, 1fr); gap: 12px; }
 .panel__key, .panel__fields .panel__field label { min-height: var(--control); color: var(--text-muted); font-size: 11px; font-weight: 700; }
 .panel__value { min-height: var(--control); }
@@ -657,7 +656,6 @@ body:has(.screen--narrow) {
 
 .panel__chip { height: 23px; border-radius: var(--radius-pill); background: var(--tag-gray); font-size: 11px; font-weight: 700; }
 .panel__baseline { padding: 10px 12px; border-radius: var(--radius-md); background: var(--bg-subtle); box-shadow: inset 0 0 0 1px var(--border); font-size: 12px; }
-.panel__fieldset legend { font-size: 11px; font-weight: 700; color: var(--text-muted); }
 .panel__history, .panel__comments { border-top-color: var(--border); }
 .panel__history-title, .comments__title { font-size: 10px; font-weight: 800; letter-spacing: 0.06em; color: var(--text-muted); }
 
@@ -667,7 +665,6 @@ body:has(.screen--narrow) {
   .project-head, .project-toolbar { padding-left: 20px; padding-right: 20px; }
   .project-head__main, .project__body, .project-toolbar { flex-wrap: wrap; }
   .project-toolbar { height: auto; padding-top: 14px; padding-bottom: 14px; }
-  .panel { flex-basis: 100%; min-height: auto; }
 }
 
 @media (max-width: 760px) {

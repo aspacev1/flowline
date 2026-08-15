@@ -338,7 +338,7 @@
       "end": "Son",
       "progress": "Tamamlanıb, %",
       "progress_aria": "{pct}% hazırdır",
-      "mark_day": "Günü qeyd et · +{pct}%",
+      "mark_day": "Proqresi qeyd et · +{pct}%",
       "day_marked": "Gün qeyd olundu",
       "plan_expected": "Plana görə bu gün — {pct}%",
       "tabs": "Kart bölmələri",
@@ -354,7 +354,10 @@
       "comments": "Şərhlər",
       "delete": "Tapşırığı sil",
       "delete_warning": "Tapşırıq əlaqələri, icraçıları və şərhləri ilə birlikdə silinəcək. «Geri al» onu qaytara bilər",
-      "delete_confirm": "Bəli, sil"
+      "delete_confirm": "Bəli, sil",
+      "save": "Dəyişiklikləri yadda saxla",
+      "section_main": "Əsas",
+      "section_links": "Əlaqələr"
     },
     "new": {
       "title": "Yeni tapşırıq",

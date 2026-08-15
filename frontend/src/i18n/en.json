@@ -337,7 +337,7 @@
       "end": "End",
       "progress": "Done, %",
       "progress_aria": "{pct}% done",
-      "mark_day": "Log a day · +{pct}%",
+      "mark_day": "Log progress · +{pct}%",
       "day_marked": "Day logged",
       "plan_expected": "On plan today — {pct}%",
       "tabs": "Card sections",
@@ -353,7 +353,10 @@
       "comments": "Comments",
       "delete": "Delete task",
       "delete_warning": "The task will be deleted along with its links, assignees and comments. Undo can bring it back",
-      "delete_confirm": "Yes, delete"
+      "delete_confirm": "Yes, delete",
+      "save": "Save changes",
+      "section_main": "General",
+      "section_links": "Links"
     },
     "new": {
       "title": "New task",
