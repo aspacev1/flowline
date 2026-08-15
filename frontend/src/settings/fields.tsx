@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type { SlugCheck } from "../api/org";
+import { SaveMark } from "../components/autosave";
+import type { FieldSave } from "../components/autosave";
 import { useLocale } from "../i18n/LocaleProvider";
 import { browserTimeZone, timeZoneNames } from "../time/zone";
 
@@ -23,10 +25,12 @@ export function WorkingDaysField({
   value,
   onChange,
   disabled,
+  save,
 }: {
   value: number;
   onChange: (mask: number) => void;
   disabled?: boolean;
+  save?: FieldSave;
 }) {
   const { t } = useLocale();
   const [emptied, setEmptied] = useState(false);
@@ -47,6 +51,8 @@ export function WorkingDaysField({
 
   return (
     <fieldset className="settings__fieldset">
+      {/* Отметка стоит под днями, а не в подписи: подпись — имя всей группы,
+          и «Сохранено», попавшее в него, читалка прочтёт как часть названия. */}
       <legend>{t("settings.working_days")}</legend>
       <div className="settings__days">
         {[0, 1, 2, 3, 4, 5, 6].map((day) => {
@@ -68,6 +74,7 @@ export function WorkingDaysField({
           );
         })}
       </div>
+      <SaveMark save={save} />
       {emptied && (
         <span className="error" role="alert">
           {t("settings.working_days_empty")}
@@ -180,6 +187,7 @@ export function DateListField({
   value,
   onCommit,
   disabled,
+  save,
 }: {
   id: string;
   label: string;
@@ -187,13 +195,20 @@ export function DateListField({
   value: string[];
   onCommit: (dates: string[]) => void;
   disabled?: boolean;
+  save?: FieldSave;
 }) {
   const { t } = useLocale();
   const [text, setText] = useState(value.join("\n"));
+  const [typing, setTyping] = useState(false);
 
   // Сервер нормализует список — сортирует и убирает повторы, — и поле обязано
-  // показать то, что он вернул, а не то, что человек набрал.
-  useEffect(() => setText(value.join("\n")), [value]);
+  // показать то, что он вернул, а не то, что человек набрал. Отсортированный
+  // список нередко равен присланному, поэтому одного `value` для этого мало:
+  // возврат к правде запускает и завершённая отправка.
+  useEffect(() => {
+    setText(value.join("\n"));
+    setTyping(false);
+  }, [value, save?.settled]);
 
   const broken = parseDates(text).filter((item) => !ISO_DATE.test(item));
 
@@ -207,18 +222,24 @@ export function DateListField({
         rows={4}
         value={text}
         disabled={disabled}
-        onChange={(event) => setText(event.target.value)}
+        onChange={(event) => {
+          setText(event.target.value);
+          setTyping(true);
+        }}
         onBlur={() => {
+          setTyping(false);
           if (broken.length > 0) return;
           const dates = parseDates(text);
           // Порядок в списке ничего не значит: это множество дат.
           if (dates.join(",") !== [...value].join(",")) onCommit(dates);
         }}
       />
-      {broken.length > 0 && (
+      {broken.length > 0 ? (
         <span className="error" role="alert">
           {t("settings.bad_dates", { dates: broken.join(", ") })}
         </span>
+      ) : (
+        <SaveMark save={typing ? undefined : save} />
       )}
     </p>
   );
@@ -239,6 +260,7 @@ export function SlugField({
   check,
   onCommit,
   disabled,
+  save,
 }: {
   id: string;
   label: string;
@@ -246,12 +268,19 @@ export function SlugField({
   check: (slug: string) => Promise<SlugCheck>;
   onCommit: (slug: string) => void;
   disabled?: boolean;
+  save?: FieldSave;
 }) {
   const { t } = useLocale();
   const [draft, setDraft] = useState(value);
   const [status, setStatus] = useState<SlugCheck | null>(null);
+  const [typing, setTyping] = useState(false);
 
-  useEffect(() => setDraft(value), [value]);
+  // Сервер приводит слаг к своей форме — «Редизайн 2026» возвращается как
+  // `redizayn-2026`, — и поле обязано показать то, что он вернул.
+  useEffect(() => {
+    setDraft(value);
+    setTyping(false);
+  }, [value, save?.settled]);
 
   useEffect(() => {
     const candidate = draft.trim();
@@ -279,6 +308,7 @@ export function SlugField({
 
   const commit = (slug: string) => {
     setDraft(slug);
+    setTyping(false);
     if (slug !== value) onCommit(slug);
   };
 
@@ -290,7 +320,10 @@ export function SlugField({
         name={id}
         value={draft}
         disabled={disabled}
-        onChange={(event) => setDraft(event.target.value)}
+        onChange={(event) => {
+          setDraft(event.target.value);
+          setTyping(true);
+        }}
         onBlur={() => {
           const candidate = draft.trim();
           if (candidate !== "" && (status === null || status.available)) commit(candidate);
@@ -306,6 +339,9 @@ export function SlugField({
           </button>
         </span>
       )}
+      {/* Занятый слаг уже объяснён подсказкой рядом: вторая строка про то же
+          самое — шум. */}
+      {!(status && !status.available) && <SaveMark save={typing ? undefined : save} />}
     </p>
   );
 }

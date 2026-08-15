@@ -155,6 +155,53 @@ describe("настройки организации", () => {
     await waitFor(() => expect(patches).toEqual([{ slug: "globex-2" }]));
   });
 
+  it("сохранённое поле говорит об этом рядом с собой", async () => {
+    orgFixtures();
+    renderApp({ route: "/settings/organization" });
+
+    const zone = await screen.findByLabelText("Часовой пояс");
+    await userEvent.clear(zone);
+    await userEvent.type(zone, "Europe/Berlin");
+    await userEvent.tab();
+
+    // Кнопки «Сохранить» здесь нет, и молчание после потери фокуса
+    // неотличимо от «ничего не отправилось».
+    expect(await screen.findByText("Сохранено")).toBeInTheDocument();
+  });
+
+  it("отвергнутое поле объясняет отказ у себя и возвращается к правде", async () => {
+    orgFixtures();
+    server.use(
+      http.patch("/api/org", () => HttpResponse.json({ detail: "forbidden" }, { status: 403 })),
+    );
+    renderApp({ route: "/settings/organization" });
+
+    const zone = await screen.findByLabelText("Часовой пояс");
+    await userEvent.clear(zone);
+    await userEvent.type(zone, "Europe/Berlin");
+    await userEvent.tab();
+
+    const refusal = await screen.findByText("Для этого у вас нет прав");
+    // Отказ читается у того поля, о котором он: общий баннер вверху страницы
+    // не говорит, какое из десяти полей отвергнуто.
+    expect(refusal.closest(".field")).toBe(zone.closest(".field"));
+    // И отвергнутое значение в поле не остаётся: там снова то, что на сервере.
+    await waitFor(() => expect(zone).toHaveValue("Asia/Baku"));
+  });
+
+  it("пустое поле не отправляется, но и не остаётся пустым молча", async () => {
+    const patches = orgFixtures();
+    renderApp({ route: "/settings/organization" });
+
+    const name = await screen.findByLabelText("Название");
+    await userEvent.clear(name);
+    await userEvent.tab();
+
+    expect(await screen.findByText("Пустым это поле не бывает")).toBeInTheDocument();
+    expect(patches).toEqual([]);
+    expect(name).toHaveValue(ORG.name);
+  });
+
   it("редактору поля показываются, но не даются", async () => {
     orgFixtures("editor");
     renderApp({ route: "/settings/organization" });
@@ -285,6 +332,24 @@ describe("профиль", () => {
     // «Настройками». Второй здесь означал бы две копии одного выбора рядом.
     const chooser = screen.getByRole("group", { name: "Язык интерфейса" });
     expect(chooser.closest(".sidebar")).not.toBeNull();
+  });
+
+  it("имя уходит само и отчитывается о себе у поля", async () => {
+    server.use(
+      http.patch("/api/auth/me", async ({ request }) => {
+        const patch = (await request.json()) as Partial<typeof USER>;
+        return HttpResponse.json({ ...USER, ...patch });
+      }),
+    );
+    renderApp({ route: "/settings/profile" });
+
+    const name = await screen.findByLabelText("Имя");
+    await userEvent.clear(name);
+    await userEvent.type(name, "Алексей Владимирович");
+    await userEvent.tab();
+
+    expect(await screen.findByText("Сохранено")).toBeInTheDocument();
+    expect(name).toHaveValue("Алексей Владимирович");
   });
 
   it("адрес показывается, но не правится", async () => {

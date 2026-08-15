@@ -6,6 +6,8 @@
     "loading": "Yüklənir…",
     "create": "Yarat",
     "cancel": "Ləğv et",
+    "saving": "Saxlanılır…",
+    "saved": "Saxlanıldı",
     "saved": "Yadda saxlanıldı",
     "days": {
       "one": "{count} gün",
@@ -596,6 +598,7 @@
     "inherit": "Təşkilatdan miras al ({value})",
     "slug_taken": "Bu ünvan tutulub. Boş variant:",
     "bad_dates": "Tarix formatı İİİİ-AA-GG olmalıdır: {dates}",
+    "blank": "Bu sahə boş qala bilməz",
     "tabs_label": "Parametr bölmələri",
     "org": {
       "title": "Təşkilatın parametrləri",

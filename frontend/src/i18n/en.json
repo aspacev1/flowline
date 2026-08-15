@@ -6,6 +6,7 @@
     "loading": "Loading…",
     "create": "Create",
     "cancel": "Cancel",
+    "saving": "Saving…",
     "saved": "Saved",
     "days": {
       "one": "{count} day",
@@ -596,6 +597,7 @@
     "inherit": "Inherit from the organization ({value})",
     "slug_taken": "That address is taken. A free one:",
     "bad_dates": "Dates must look like YYYY-MM-DD: {dates}",
+    "blank": "This field cannot be empty",
     "tabs_label": "Settings sections",
     "org": {
       "title": "Organization settings",

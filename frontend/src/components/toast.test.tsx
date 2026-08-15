@@ -64,7 +64,10 @@ describe("подтверждения тихих операций", () => {
     expect(within(toast()).queryByRole("button")).toBeNull();
   });
 
-  it("поле настроек проекта, ушедшее по потере фокуса, подтверждается", async () => {
+  // Это подтверждение — единственное здесь, которое тостом не показывается:
+  // полей на экране десяток, и о записи каждого отчитывается оно само,
+  // отметкой рядом (см. SaveMark). Тост назвал бы «сохранено», не назвав что.
+  it("поле настроек проекта, ушедшее по потере фокуса, подтверждается у поля", async () => {
     server.use(
       http.patch("/api/projects/p1", async ({ request }) => {
         const patch = (await request.json()) as Record<string, unknown>;
@@ -78,7 +81,10 @@ describe("подтверждения тихих операций", () => {
     await userEvent.type(name, "Редизайн сайта");
     await userEvent.tab();
 
-    expect(await screen.findByText("Сохранено")).toBeInTheDocument();
+    // Отметка у поля, а не плашка внизу экрана: класс отличает одно от другого,
+    // а `role="status"` носят оба — и говорят они об одном и том же.
+    expect(await screen.findByText("Сохранено")).toHaveClass("field__mark");
+    expect(screen.queryByRole("status")).not.toHaveClass("toast");
   });
 
   it("отзыв публичной ссылки подтверждается: панель после него выглядит как до публикации", async () => {
@@ -165,7 +171,7 @@ describe("подтверждения на экранах организации"
     expect(await screen.findByText("Приглашение отозвано")).toBeInTheDocument();
   });
 
-  it("правка профиля по потере фокуса подтверждается", async () => {
+  it("правка профиля по потере фокуса подтверждается у поля", async () => {
     renderApp({ route: "/settings/profile", locale: "ru" });
 
     const name = await screen.findByLabelText("Имя");
@@ -173,10 +179,10 @@ describe("подтверждения на экранах организации"
     await userEvent.type(name, "Алексей Петров");
     await userEvent.tab();
 
-    expect(await screen.findByText("Сохранено")).toBeInTheDocument();
+    expect(await screen.findByText("Сохранено")).toHaveClass("field__mark");
   });
 
-  it("настройка организации по потере фокуса подтверждается", async () => {
+  it("настройка организации по потере фокуса подтверждается у поля", async () => {
     server.use(
       http.get("/api/ai/credential", () =>
         HttpResponse.json({ provider: "openai", base_url: "", model: "", configured: false }),
@@ -193,7 +199,7 @@ describe("подтверждения на экранах организации"
     await userEvent.type(zone, "Europe/Moscow");
     await userEvent.tab();
 
-    expect(await screen.findByText("Сохранено")).toBeInTheDocument();
+    expect(await screen.findByText("Сохранено")).toHaveClass("field__mark");
   });
 });
 
