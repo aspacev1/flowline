@@ -119,7 +119,9 @@ export function sessionHandlers() {
  */
 function LocationProbe() {
   const location = useLocation();
-  return <span data-testid="location">{location.pathname}</span>;
+  // Вместе с запросом и якорем: возврат на присланную ссылку обязан сохранять
+  // её целиком, а по одному пути этого не увидеть.
+  return <span data-testid="location">{`${location.pathname}${location.search}${location.hash}`}</span>;
 }
 
 /** Всё приложение целиком: маршруты, аутентификация, языки — как в бою. */
