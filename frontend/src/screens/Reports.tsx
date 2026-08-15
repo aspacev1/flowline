@@ -6,7 +6,7 @@ import { formatShortDate } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
 import { daysBetween, toISO } from "../gantt/timescale";
 import { progressOf, statusCounts } from "../project/progress";
-import { useProjectStates } from "./portfolio";
+import { useProjectStates } from "./projectStates";
 
 /**
  * Отчёты: таблица «как идут проекты» для того, кто отвечает за все сразу.

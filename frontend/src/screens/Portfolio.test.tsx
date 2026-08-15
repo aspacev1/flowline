@@ -6,15 +6,17 @@ import { describe, expect, it } from "vitest";
 import { server } from "../test/server";
 import { renderApp, sessionHandlers } from "../test/utils";
 
-describe("главный экран", () => {
-  it("называется так же, как пункт колонки, по которому сюда приходят", async () => {
+describe("портфель", () => {
+  it("называется своим именем, а не «Проектами»", async () => {
     server.use(...sessionHandlers(), http.get("/api/projects", () => HttpResponse.json([])));
 
-    renderApp({ route: "/", locale: "ru" });
+    renderApp({ route: "/portfolio", locale: "ru" });
 
-    // Заголовок, а не любой текст: слово «Проекты» есть и в боковой колонке.
-    expect(await screen.findByRole("heading", { name: "Проекты" })).toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: /все проекты/i })).not.toBeInTheDocument();
+    // Заголовок, а не любой текст: слово «Портфель» есть и в боковой колонке.
+    expect(await screen.findByRole("heading", { name: "Портфель" })).toBeInTheDocument();
+    // Второго экрана с заголовком «Проекты» здесь нет: имя — единственное,
+    // чем портфель и список проектов различимы снаружи.
+    expect(screen.queryByRole("heading", { name: "Проекты" })).toBeNull();
   });
 
   it("даёт завести проект обоими способами, не уходя со страницы", async () => {
@@ -37,7 +39,7 @@ describe("главный экран", () => {
       ),
     );
 
-    renderApp({ route: "/", locale: "ru" });
+    renderApp({ route: "/portfolio", locale: "ru" });
 
     expect(await screen.findByRole("link", { name: /создать через интервью/i })).toHaveAttribute(
       "href",
@@ -49,5 +51,14 @@ describe("главный экран", () => {
     await userEvent.click(screen.getByRole("button", { name: /^создать$/i }));
 
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/projects/p1"));
+  });
+
+  it("корень ведёт туда же, куда вход, — на список проектов", async () => {
+    server.use(...sessionHandlers(), http.get("/api/projects", () => HttpResponse.json([])));
+
+    renderApp({ route: "/", locale: "ru" });
+
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/projects"));
+    expect(await screen.findByRole("heading", { name: "Проекты" })).toBeInTheDocument();
   });
 });

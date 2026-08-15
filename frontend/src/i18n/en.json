@@ -71,6 +71,7 @@
   "nav": {
     "my_tasks": "My tasks",
     "projects": "Projects",
+    "portfolio": "Portfolio",
     "reports": "Reports",
     "logout": "Log out",
     "org_settings": "Organization",
@@ -227,7 +228,8 @@
       "completed": "Completed"
     }
   },
-  "home": {
+  "portfolio": {
+    "title": "Portfolio",
     "greeting": "Hello, {name} — here is your portfolio at a glance",
     "tasks": {
       "one": "{count} task",
