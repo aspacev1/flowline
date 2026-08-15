@@ -66,6 +66,17 @@ describe("настройки организации", () => {
     await waitFor(() => expect(patches).toEqual([{ default_shift_threshold_days: 5 }]));
   });
 
+  it("стёртый порог не уходит на сервер нулём", async () => {
+    const patches = orgFixtures();
+    renderApp({ route: "/settings/organization" });
+
+    // Ноль — это «объяснять каждый сдвиг»: пустое поле такого не просило.
+    await userEvent.clear(await screen.findByLabelText("Порог сдвига, дней"));
+    await userEvent.tab();
+
+    expect(patches).toEqual([]);
+  });
+
   it("рабочие дни отправляются маской, где нулевой бит — понедельник", async () => {
     const patches = orgFixtures();
     renderApp({ route: "/settings/organization" });
@@ -196,6 +207,20 @@ describe("настройки проекта", () => {
     await userEvent.click(inherit);
 
     await waitFor(() => expect(patches).toEqual([{ shift_threshold_days: null }]));
+  });
+
+  it("стёртый порог проекта не уходит на сервер нулём", async () => {
+    const patches = projectSettingsFixtures({ shift_threshold_days: 7 });
+    renderApp({ route: "/projects/p1/settings" });
+
+    // Поле порога на этом экране — единственное числовое; своей подписи у него
+    // нет, она стоит над переключателем «наследовать».
+    await userEvent.clear(await screen.findByRole("spinbutton"));
+    await userEvent.tab();
+
+    // Ни нуля, ни NaN: пока числа в поле нет, отправлять нечего — прежнее
+    // переопределение остаётся в силе.
+    expect(patches).toEqual([]);
   });
 
   it("целевая дата снимается пустым полем", async () => {
