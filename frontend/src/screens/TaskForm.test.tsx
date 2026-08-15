@@ -381,6 +381,29 @@ describe("создание задачи", () => {
     expect(screen.getByRole("button", { name: /создать задачу/i })).toBeDisabled();
   });
 
+  it("не теряется от промаха мимо окна, даже если название ещё не набрано", async () => {
+    server.use(
+      // Свой состав — раньше общего из sessionHandlers: msw берёт первый
+      // подходящий обработчик в списке.
+      http.get("/api/org/members", () => HttpResponse.json(MEMBERS)),
+      ...sessionHandlers(),
+      http.get("/api/projects/p1", () => HttpResponse.json(STATE)),
+    );
+
+    renderApp({ route: "/projects/p1", locale: "ru" });
+    await openTaskForm();
+
+    // Заполненность считается по всем полям, а не по одному названию: человек,
+    // выбравший исполнителей и критичность, теряет от промаха ровно столько же.
+    await userEvent.selectOptions(screen.getByLabelText(/критичность/i), "critical");
+    await userEvent.click(screen.getByRole("checkbox", { name: /Nigar/ }));
+    await userEvent.click(screen.getByTestId("modal-backdrop"));
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByLabelText(/критичность/i)).toHaveValue("critical");
+    expect(screen.getByRole("checkbox", { name: /Nigar/ })).toBeChecked();
+  });
+
   it("критичность отправляется выбранная, а не всегда обычная", async () => {
     const sent: { op: Record<string, unknown> }[] = [];
     server.use(

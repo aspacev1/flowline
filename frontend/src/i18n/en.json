@@ -12,6 +12,13 @@
     },
     "days_short": "{count} d"
   },
+  "modal": {
+    "discard": {
+      "question": "Close this window? What you entered will be lost.",
+      "keep": "Keep editing",
+      "close": "Close without saving"
+    }
+  },
   "calendar": {
     "date": "{month} {day}",
     "date_short": "{month} {day}",

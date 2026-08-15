@@ -49,7 +49,11 @@ export function TaskForm({
   const [criticality, setCriticality] = useState<Criticality>("normal");
   const [status, setStatus] = useState<TaskStatus>("planned");
   const [progressPct, setProgressPct] = useState("0");
-  const [startDate, setStartDate] = useState(() => toISO(Date.now()));
+  // Сегодняшний день считается один раз и остаётся рядом со значением поля:
+  // с ним сравнивают, чтобы отличить нетронутую форму от заполненной, а
+  // пересчитанный на каждом рендере он менял бы ответ в полночь.
+  const [today] = useState(() => toISO(Date.now()));
+  const [startDate, setStartDate] = useState(today);
   const [durationDays, setDurationDays] = useState("1");
   const [assignees, setAssignees] = useState<string[]>([]);
   // Две стороны одной и той же связи: «зависит от» — где будущая задача
@@ -136,6 +140,23 @@ export function TaskForm({
     }
   };
 
+  // Тронута ли форма — считается по всем полям, а не по одному названию:
+  // человек, выбравший исполнителей и связи, но не дошедший до названия,
+  // теряет от случайного щелчка ровно столько же.
+  const dirty =
+    name !== "" ||
+    description !== "" ||
+    internalNote !== "" ||
+    categoryId !== initialCategoryId ||
+    criticality !== "normal" ||
+    status !== "planned" ||
+    progressPct !== "0" ||
+    startDate !== today ||
+    durationDays !== "1" ||
+    assignees.length > 0 ||
+    dependsOn.length > 0 ||
+    blocks.length > 0;
+
   const days = Number(durationDays);
   const pct = Number(progressPct);
   const valid =
@@ -149,7 +170,7 @@ export function TaskForm({
     pct <= 100;
 
   return (
-    <Modal title={t("task.new.title")} onClose={onClose}>
+    <Modal title={t("task.new.title")} onClose={onClose} dirty={dirty}>
       <form
         onSubmit={(event) => {
           event.preventDefault();
