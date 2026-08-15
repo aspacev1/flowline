@@ -14,13 +14,13 @@ async function openPanel() {
 }
 
 describe("быстрый прогресс в карточке", () => {
-  it("«Отметить день» прибавляет дневную норму одной операцией и гаснет", async () => {
+  it("«Записать прогресс» прибавляет дневную норму одной операцией и гаснет", async () => {
     const sent = captureMutations();
     renderProject();
     await openPanel();
 
     // Пять рабочих дней — дневная норма 20%: 40 → 60.
-    await userEvent.click(screen.getByRole("button", { name: "Отметить день · +20%" }));
+    await userEvent.click(screen.getByRole("button", { name: "Записать прогресс · +20%" }));
     await waitFor(() =>
       expect(sent).toEqual([
         { op: { type: "set_progress", task_id: "t1", progress_pct: 60 } },
@@ -41,11 +41,11 @@ describe("быстрый прогресс в карточке", () => {
 
     renderProject();
     await openPanel();
-    await userEvent.click(screen.getByRole("button", { name: "Отметить день · +20%" }));
+    await userEvent.click(screen.getByRole("button", { name: "Записать прогресс · +20%" }));
 
     // Прогресс не записан — значит день не отмечен: главная дневная кнопка не
     // имеет права остаться погасшей до конца захода.
-    const day = await screen.findByRole("button", { name: "Отметить день · +20%" });
+    const day = await screen.findByRole("button", { name: "Записать прогресс · +20%" });
     await waitFor(() => expect(day).toBeEnabled());
   });
 
@@ -69,6 +69,6 @@ describe("быстрый прогресс в карточке", () => {
     await openPanel();
 
     expect(screen.getByLabelText(/выполнено/i)).toBeDisabled();
-    expect(screen.queryByRole("button", { name: /Отметить день/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Записать прогресс/ })).not.toBeInTheDocument();
   });
 });

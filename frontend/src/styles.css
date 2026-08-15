@@ -1429,7 +1429,9 @@ input[type="checkbox"] {
 .modal__backdrop {
   position: fixed;
   inset: 0;
-  z-index: 10;
+  /* Выше карточки задачи (z-index 1000, см. panel.css): «объясните сдвиг» и
+     прочие окна открываются и поверх неё. */
+  z-index: 1100;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1876,7 +1878,9 @@ input[type="checkbox"] {
   bottom: 26px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 60;
+  /* Выше и окон, и карточки задачи: подтверждение с кнопкой отмены обязано
+     быть видно, чем бы ни был накрыт экран. */
+  z-index: 1200;
   display: flex;
   align-items: center;
   gap: 11px;

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { PointerEvent as ReactPointerEvent } from "react";
+import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
 
 import type { Task } from "../api/projects";
 import { useLocale } from "../i18n/LocaleProvider";
@@ -53,6 +53,7 @@ export function TaskProgress({
   canWrite,
   timeZone,
   resetToken,
+  meta,
   onCommit,
 }: {
   task: Task;
@@ -61,6 +62,13 @@ export function TaskProgress({
   timeZone?: string;
   /** Меняется, когда сервер отказал: поле обязано вернуться к правде. */
   resetToken: unknown;
+  /**
+   * Статус и период задачи — в одну строку с процентом, как в макете. Их
+   * рисует карточка: модулю прогресса они не принадлежат, но строка у них
+   * общая, и разложить её по двум компонентам значило бы выравнивать два
+   * флекса друг под друга.
+   */
+  meta?: ReactNode;
   onCommit: (pct: number) => void;
 }) {
   const { t } = useLocale();
@@ -125,7 +133,10 @@ export function TaskProgress({
 
   return (
     <div className="panel__progress">
-      <div className="panel__progress-top">
+      {/* Строка «статус | период | процент» — как в макете. Процент остаётся
+          полем: полосой ставят «на глаз», а точную цифру вводят цифрами. */}
+      <div className="panel__meta">
+        {meta}
         <span className="panel__progress-pct">
           <input
             id="panel-progress"
@@ -152,30 +163,32 @@ export function TaskProgress({
         </span>
       </div>
 
-      {/* Полоса — орган для мыши и пальца; для чтения и клавиатуры есть число
-          выше. role="img" с подписью — как у прежней полосы: доля видна и на
-          слух, а вторым слайдером с фокусом она дублировала бы поле числа. */}
-      <div
-        ref={barRef}
-        className={canWrite ? "panel__progress-bar" : "panel__progress-bar is-static"}
-        role="img"
-        aria-label={t("task.panel.progress_aria", { pct: shown })}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-      >
-        <i style={{ width: `${shown}%` }} />
-        {/* Засечка плана: опережение и отставание видны без арифметики. */}
-        <b
-          style={{ left: `${expected}%` }}
-          title={t("task.panel.plan_expected", { pct: expected })}
-          aria-hidden="true"
-        />
-      </div>
+      {/* Полоса и кнопка записи — одной строкой, как в макете: полоса забирает
+          ширину, кнопка стоит справа от неё. */}
+      <div className="panel__progress-row">
+        {/* Полоса — орган для мыши и пальца; для чтения и клавиатуры есть число
+            выше. role="img" с подписью — как у прежней полосы: доля видна и на
+            слух, а вторым слайдером с фокусом она дублировала бы поле числа. */}
+        <div
+          ref={barRef}
+          className={canWrite ? "panel__progress-bar" : "panel__progress-bar is-static"}
+          role="img"
+          aria-label={t("task.panel.progress_aria", { pct: shown })}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+        >
+          <i style={{ width: `${shown}%` }} />
+          {/* Засечка плана: опережение и отставание видны без арифметики. */}
+          <b
+            style={{ left: `${expected}%` }}
+            title={t("task.panel.plan_expected", { pct: expected })}
+            aria-hidden="true"
+          />
+        </div>
 
-      {canWrite && (
-        <div className="panel__progress-actions">
+        {canWrite && (
           <button
             type="button"
             className={markedDay ? "panel__progress-day is-done" : "panel__progress-day"}
@@ -189,8 +202,8 @@ export function TaskProgress({
               ? t("task.panel.day_marked")
               : t("task.panel.mark_day", { pct: step })}
           </button>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
