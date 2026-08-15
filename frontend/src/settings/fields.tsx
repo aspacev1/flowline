@@ -29,6 +29,21 @@ export function WorkingDaysField({
   disabled?: boolean;
 }) {
   const { t } = useLocale();
+  const [emptied, setEmptied] = useState(false);
+
+  // Неделя без рабочих дней — не настройка, а невозможное состояние: сервер
+  // такую маску не примет, и снятая последняя галочка возвращалась бы обратно
+  // с ответом «проверьте форму», где ни одно поле не названо. Отказ объясняется
+  // здесь же — так же, как список дат объясняет непонятую дату, не отправляя её.
+  const toggle = (day: number, on: boolean) => {
+    const mask = on ? value & ~(1 << day) : value | (1 << day);
+    if (mask === 0) {
+      setEmptied(true);
+      return;
+    }
+    setEmptied(false);
+    onChange(mask);
+  };
 
   return (
     <fieldset className="settings__fieldset">
@@ -46,13 +61,18 @@ export function WorkingDaysField({
                 type="checkbox"
                 checked={on}
                 disabled={disabled}
-                onChange={() => onChange(on ? value & ~(1 << day) : value | (1 << day))}
+                onChange={() => toggle(day, on)}
               />
               {label}
             </label>
           );
         })}
       </div>
+      {emptied && (
+        <span className="error" role="alert">
+          {t("settings.working_days_empty")}
+        </span>
+      )}
     </fieldset>
   );
 }
@@ -122,6 +142,26 @@ export function parseDates(text: string): string[] {
     .split(/[\s,;]+/)
     .map((item) => item.trim())
     .filter((item) => item !== "");
+}
+
+/**
+ * Порог сдвига из поля ввода: `null` — «числа здесь нет, отправлять нечего».
+ *
+ * Пустое поле не значит «ноль»: нулевой порог велит объяснять каждый сдвиг, и
+ * человек, стёрший число перед тем как набрать новое, такого не просил. А
+ * `Number` сам по себе именно это и делает — пустую строку превращает в ноль, а
+ * мусор в `NaN`, — поэтому обе проверки стоят здесь, общие для обоих экранов, а
+ * не написаны на каждом порознь.
+ */
+export function parseThresholdDays(text: string): number | null {
+  const value = text.trim();
+  if (value === "") return null;
+  const days = Number(value);
+  // Отрицательный порог — то же самое, что `min={0}` у поля: дней «минус пять»
+  // не бывает, и сервер откажет; отказ, которого можно не показывать, лучше не
+  // показывать.
+  if (!Number.isFinite(days) || days < 0) return null;
+  return days;
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;

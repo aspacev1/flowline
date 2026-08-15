@@ -205,6 +205,62 @@ def test_undo_that_breaks_the_threshold_asks_for_a_reason(authed, project_with_t
     assert _state(authed, project_id)["tasks"][0]["start_date"] == "2026-03-16"
 
 
+def test_undo_of_a_named_revision_goes_through_while_it_is_still_on_top(authed, project_with_task):
+    project_id, _, task_id = project_with_task
+    moved = authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={"op": {"type": "move_task", "task_id": task_id, "start_date": "2026-03-09"}},
+    ).json()
+
+    response = authed.post(
+        f"/api/projects/{project_id}/undo", json={"expected_seq": moved["seq"]}
+    )
+
+    assert response.status_code == 201
+    assert response.json()["undone_seq"] == moved["seq"]
+    assert _state(authed, project_id)["tasks"][0]["start_date"] == "2026-03-02"
+
+
+def test_undo_refuses_when_the_top_of_the_journal_moved_on(authed, project_with_task):
+    """Кнопка обещала вернуть свой перенос, а вернула бы чужую правку.
+
+    Между показом «Отменить» и нажатием сосед по проекту успевает применить
+    своё изменение. Безномерная отмена сняла бы его — молча и не спросив ни
+    того, кто нажал, ни того, чью правку сняли.
+    """
+    project_id, _, task_id = project_with_task
+    mine = authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={"op": {"type": "move_task", "task_id": task_id, "start_date": "2026-03-09"}},
+    ).json()
+    authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={"op": {"type": "set_progress", "task_id": task_id, "progress_pct": 40}},
+    )
+
+    refused = authed.post(f"/api/projects/{project_id}/undo", json={"expected_seq": mine["seq"]})
+
+    assert refused.status_code == 409
+    assert refused.json()["detail"] == "undo_conflict"
+    # Ни одной правки отказ не тронул: ни своей, ни чужой.
+    task = _state(authed, project_id)["tasks"][0]
+    assert (task["start_date"], task["progress_pct"]) == ("2026-03-09", 40)
+
+
+def test_an_empty_project_refuses_a_named_undo_as_nothing_to_undo(authed):
+    """Пустой журнал — это «отменять нечего», а не «не то наверху».
+
+    Разные коды не педантичность: по первому кнопка исчезает, по второму
+    интерфейс перечитывает состояние и показывает, что теперь наверху.
+    """
+    project_id = authed.post("/api/projects", json={"name": "Пустой"}).json()["id"]
+
+    refused = authed.post(f"/api/projects/{project_id}/undo", json={"expected_seq": 1})
+
+    assert refused.status_code == 404
+    assert refused.json()["detail"] == "nothing_to_undo"
+
+
 def test_a_viewer_may_not_undo(authed, db, project_with_task):
     project_id, _, _ = project_with_task
     user_id = authed.get("/api/auth/me").json()["id"]

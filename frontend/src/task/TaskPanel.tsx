@@ -6,6 +6,7 @@ import { MEMBERS_QUERY_KEY, members as fetchMembers } from "../api/org";
 import { CRITICALITY_LEVELS, TASK_STATUSES } from "../api/projects";
 import type { Criticality, Op, ProjectState, Task, TaskStatus } from "../api/projects";
 import { Avatar } from "../components/Avatar";
+import { useEscape } from "../components/useEscape";
 import { baselineOf, deviationDays, endShiftDays, isBeyondPlan } from "../project/baseline";
 import {
   addDependency,
@@ -87,15 +88,19 @@ export function TaskPanel({
     staleTime: Infinity,
   });
 
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
-    }
-    // Слушатель на документе: к моменту нажатия фокус чаще всего на полоске, а
-    // не внутри карточки, и слушатель на самой карточке молчал бы.
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [onClose]);
+  // Карточка — нижний слой: поверх неё встают и окно «объясните сдвиг», и
+  // меню ленты, и встроенное подтверждение удаления. Своим слушателем на
+  // документе карточка закрывалась бы вместе с любым из них, унося
+  // недописанное; общая стопка отдаёт Esc только верхнему.
+  //
+  // Слушатель по-прежнему на документе, а не на самой карточке: к моменту
+  // нажатия фокус чаще всего на полоске, и слушатель на карточке молчал бы.
+  useEscape(onClose);
+
+  // Подтверждение удаления живёт внутри карточки, но ведёт себя как слой над
+  // ней: Esc здесь значит «передумал удалять», а не «закрой карточку». Второе
+  // унесло бы и вопрос, и задачу, о которой он.
+  useEscape(() => setConfirmingDelete(false), confirmingDelete);
 
   const send = (op: Op, optimistic: (state: ProjectState) => ProjectState) => {
     setError(null);

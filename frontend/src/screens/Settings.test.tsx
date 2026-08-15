@@ -17,9 +17,9 @@ import { ORG, USER, renderApp, sessionHandlers } from "../test/utils";
 
 type Patch = Record<string, unknown>;
 
-function orgFixtures(role = "owner") {
+function orgFixtures(role = "owner", settings: Patch = {}) {
   const patches: Patch[] = [];
-  let org = { ...ORG, role };
+  let org = { ...ORG, role, settings: { ...ORG.settings, ...settings } };
   // Без sessionHandlers(): их ставит beforeEach, а внутри одного вызова
   // `server.use` предпочтение получает обработчик, названный раньше, — и
   // общий ответ про организацию перебил бы этот.
@@ -66,6 +66,17 @@ describe("настройки организации", () => {
     await waitFor(() => expect(patches).toEqual([{ default_shift_threshold_days: 5 }]));
   });
 
+  it("стёртый порог не уходит на сервер нулём", async () => {
+    const patches = orgFixtures();
+    renderApp({ route: "/settings/organization" });
+
+    // Ноль — это «объяснять каждый сдвиг»: пустое поле такого не просило.
+    await userEvent.clear(await screen.findByLabelText("Порог сдвига, дней"));
+    await userEvent.tab();
+
+    expect(patches).toEqual([]);
+  });
+
   it("рабочие дни отправляются маской, где нулевой бит — понедельник", async () => {
     const patches = orgFixtures();
     renderApp({ route: "/settings/organization" });
@@ -75,6 +86,22 @@ describe("настройки организации", () => {
 
     // Пн–пт плюс суббота.
     await waitFor(() => expect(patches).toEqual([{ working_days: 0b111111 }]));
+  });
+
+  it("последний рабочий день недели снять нельзя", async () => {
+    // Организация с одним рабочим днём: следующий щелчок оставил бы неделю
+    // вовсе без работы.
+    const patches = orgFixtures("owner", { working_days: 0b1 });
+    renderApp({ route: "/settings/organization" });
+
+    const days = await screen.findByRole("group", { name: "Рабочие дни" });
+    await userEvent.click(within(days).getByLabelText("пн"));
+
+    // Маска 0 не уходит на сервер: вместо отказа «проверьте форму», где ни одно
+    // поле не названо, человек читает, чего от него хотят.
+    expect(within(days).getByRole("alert")).toHaveTextContent(/хотя бы один день/i);
+    expect(patches).toEqual([]);
+    expect(within(days).getByLabelText("пн")).toBeChecked();
   });
 
   it("праздники приводятся к списку дат", async () => {
@@ -155,9 +182,11 @@ describe("настройки проекта", () => {
     };
     server.use(
       http.get("/api/projects/p1", () => HttpResponse.json(state)),
-      // Панель публичной ссылки живёт на этом же экране: без ответа она
-      // показывает «проект наружу не показан», но запрос всё равно уходит.
-      http.get("/api/projects/p1/share", () => HttpResponse.json(null)),
+      // Панель публичной ссылки живёт на этом же экране. Сервер и тут отвечает
+      // объектом: «не опубликован» — это url: null, а не пустой ответ.
+      http.get("/api/projects/p1/share", () =>
+        HttpResponse.json({ allowed: true, url: null, comments_enabled: false, created_at: null }),
+      ),
       http.patch("/api/projects/p1", async ({ request }) => {
         const patch = (await request.json()) as Patch;
         patches.push(patch);
@@ -196,6 +225,20 @@ describe("настройки проекта", () => {
     await userEvent.click(inherit);
 
     await waitFor(() => expect(patches).toEqual([{ shift_threshold_days: null }]));
+  });
+
+  it("стёртый порог проекта не уходит на сервер нулём", async () => {
+    const patches = projectSettingsFixtures({ shift_threshold_days: 7 });
+    renderApp({ route: "/projects/p1/settings" });
+
+    // Поле порога на этом экране — единственное числовое; своей подписи у него
+    // нет, она стоит над переключателем «наследовать».
+    await userEvent.clear(await screen.findByRole("spinbutton"));
+    await userEvent.tab();
+
+    // Ни нуля, ни NaN: пока числа в поле нет, отправлять нечего — прежнее
+    // переопределение остаётся в силе.
+    expect(patches).toEqual([]);
   });
 
   it("целевая дата снимается пустым полем", async () => {
