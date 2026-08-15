@@ -342,7 +342,8 @@
       "add_link_to": "«{label}» siyahısına əlavə et",
       "unlink": "«{name}» ilə əlaqəni sil",
       "assignees": "İcraçılar",
-      "submit": "Tapşırıq yarat"
+      "submit": "Tapşırıq yarat",
+      "partial": "Tapşırıq artıq yaradılıb — təkrar yalnız qalanını əlavə edəcək."
     }
   },
   "history": {
