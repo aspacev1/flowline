@@ -28,6 +28,21 @@ export function WorkingDaysField({
   disabled?: boolean;
 }) {
   const { t } = useLocale();
+  const [emptied, setEmptied] = useState(false);
+
+  // Неделя без рабочих дней — не настройка, а невозможное состояние: сервер
+  // такую маску не примет, и снятая последняя галочка возвращалась бы обратно
+  // с ответом «проверьте форму», где ни одно поле не названо. Отказ объясняется
+  // здесь же — так же, как список дат объясняет непонятую дату, не отправляя её.
+  const toggle = (day: number, on: boolean) => {
+    const mask = on ? value & ~(1 << day) : value | (1 << day);
+    if (mask === 0) {
+      setEmptied(true);
+      return;
+    }
+    setEmptied(false);
+    onChange(mask);
+  };
 
   return (
     <fieldset className="settings__fieldset">
@@ -45,13 +60,18 @@ export function WorkingDaysField({
                 type="checkbox"
                 checked={on}
                 disabled={disabled}
-                onChange={() => onChange(on ? value & ~(1 << day) : value | (1 << day))}
+                onChange={() => toggle(day, on)}
               />
               {label}
             </label>
           );
         })}
       </div>
+      {emptied && (
+        <span className="error" role="alert">
+          {t("settings.working_days_empty")}
+        </span>
+      )}
     </fieldset>
   );
 }

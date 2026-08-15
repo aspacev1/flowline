@@ -17,9 +17,9 @@ import { ORG, USER, renderApp, sessionHandlers } from "../test/utils";
 
 type Patch = Record<string, unknown>;
 
-function orgFixtures(role = "owner") {
+function orgFixtures(role = "owner", settings: Patch = {}) {
   const patches: Patch[] = [];
-  let org = { ...ORG, role };
+  let org = { ...ORG, role, settings: { ...ORG.settings, ...settings } };
   // Без sessionHandlers(): их ставит beforeEach, а внутри одного вызова
   // `server.use` предпочтение получает обработчик, названный раньше, — и
   // общий ответ про организацию перебил бы этот.
@@ -86,6 +86,22 @@ describe("настройки организации", () => {
 
     // Пн–пт плюс суббота.
     await waitFor(() => expect(patches).toEqual([{ working_days: 0b111111 }]));
+  });
+
+  it("последний рабочий день недели снять нельзя", async () => {
+    // Организация с одним рабочим днём: следующий щелчок оставил бы неделю
+    // вовсе без работы.
+    const patches = orgFixtures("owner", { working_days: 0b1 });
+    renderApp({ route: "/settings/organization" });
+
+    const days = await screen.findByRole("group", { name: "Рабочие дни" });
+    await userEvent.click(within(days).getByLabelText("пн"));
+
+    // Маска 0 не уходит на сервер: вместо отказа «проверьте форму», где ни одно
+    // поле не названо, человек читает, чего от него хотят.
+    expect(within(days).getByRole("alert")).toHaveTextContent(/хотя бы один день/i);
+    expect(patches).toEqual([]);
+    expect(within(days).getByLabelText("пн")).toBeChecked();
   });
 
   it("праздники приводятся к списку дат", async () => {
