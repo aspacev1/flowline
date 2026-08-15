@@ -4,8 +4,9 @@ import { HttpResponse, http } from "msw";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { drag, dragDays } from "../test/pointer";
-import { captureMutations, projectFixtures, renderProject } from "../test/project";
+import { APPROVED, captureMutations, projectFixtures, renderProject } from "../test/project";
 import { server } from "../test/server";
+import { DAY_WIDTH } from "./scale";
 
 beforeEach(projectFixtures);
 
@@ -55,6 +56,51 @@ describe("перетаскивание дат", () => {
     dragDays(bar, 3);
 
     await waitFor(() => expect(bar.style.left).toBe(before));
+  });
+
+  it("держит полоску на месте броска, пока спрашивают причину", async () => {
+    // Возврат до вопроса читался бы как отказ: человек ещё ничего не решил, а
+    // полоска уже съездила обратно — и после ответа поехала бы второй раз.
+    const sent = captureMutations();
+    renderProject(APPROVED);
+    const bar = await screen.findByRole("button", { name: /Логотип/ });
+    const before = Number.parseFloat(bar.style.left);
+
+    dragDays(bar, 7);
+
+    await screen.findByRole("dialog");
+    expect(sent).toHaveLength(0);
+    expect(Number.parseFloat(bar.style.left)).toBe(before + 7 * DAY_WIDTH.day);
+  });
+
+  it("возвращает полоску, когда причину объяснять отказались", async () => {
+    renderProject(APPROVED);
+    const bar = await screen.findByRole("button", { name: /Логотип/ });
+    const before = bar.style.left;
+
+    dragDays(bar, 7);
+    await screen.findByRole("dialog");
+
+    await userEvent.click(screen.getByRole("button", { name: "Вернуть" }));
+
+    await waitFor(() => expect(bar.style.left).toBe(before));
+  });
+
+  it("после введённой причины полоска стоит на новом месте и не ездит дважды", async () => {
+    renderProject(APPROVED);
+    const bar = await screen.findByRole("button", { name: /Логотип/ });
+    const before = Number.parseFloat(bar.style.left);
+
+    dragDays(bar, 7);
+    await screen.findByRole("dialog");
+
+    await userEvent.type(screen.getByLabelText("Причина"), "заказчик молчит");
+    await userEvent.click(screen.getByRole("button", { name: "Сохранить" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    // Полоска и до ответа стояла здесь: смена дат её не двигает — она лишь
+    // объясняет положение, в котором полоска уже стоит.
+    expect(Number.parseFloat(bar.style.left)).toBe(before + 7 * DAY_WIDTH.day);
   });
 
   it("клавиатура двигает задачу так же, как мышь", async () => {

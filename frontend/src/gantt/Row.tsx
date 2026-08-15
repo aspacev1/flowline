@@ -196,7 +196,12 @@ export function TaskRow({
   /** Рисовать ли призрак и засечку базового плана — флажок меню «Вид». */
   showBaseline?: boolean;
 }) {
-  const { offset, handlers } = useDragDates({ projectId, task, scale, enabled: canWrite });
+  const { offset, dragging, handlers } = useDragDates({
+    projectId,
+    task,
+    scale,
+    enabled: canWrite,
+  });
   const tip = useBarTip(task);
   const baseline = baselineOf(task);
   const shift = endShiftDays(task);
@@ -326,14 +331,15 @@ export function TaskRow({
         <Bar
           interactive={Boolean(onSelect) || canWrite}
           className={`gantt__bar${late ? " is-late" : ""}${canWrite ? " is-draggable" : ""}${
-            offset === 0 ? "" : " is-dragging"
+            dragging ? " is-dragging" : ""
           }`}
           data-criticality={task.criticality}
           data-status={task.status}
           style={
             {
               // Пока полоску тащат, она стоит там, где палец, — а не там, где
-              // ей полагается по датам. Сами даты меняются только по ответу
+              // ей полагается по датам; после броска — там, куда её бросили,
+              // пока перенос не решён. Сами даты меняются только по ответу
               // сервера.
               left: scale.xOf(task.start_date) + offset,
               width: scale.widthOf(task.start_date, task.end_date),
