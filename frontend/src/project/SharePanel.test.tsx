@@ -7,6 +7,7 @@ import { projectFixtures, renderProject } from "../test/project";
 import { server } from "../test/server";
 
 const URL = "https://planora.example.com/p/seher-studiyasi/redizayn?s=sh4re-t0ken";
+const ROTATED = "https://planora.example.com/p/seher-studiyasi/redizayn?s=n3w-t0ken";
 
 const PUBLISHED = {
   allowed: true,
@@ -15,68 +16,117 @@ const PUBLISHED = {
   created_at: "2026-03-05T10:00:00+00:00",
 };
 
-const UNPUBLISHED = { allowed: true, url: null, comments_enabled: false, created_at: null };
+const UNPUBLISHED = { allowed: true, url: null, comments_enabled: true, created_at: null };
 
-describe("панель публикации в настройках проекта", () => {
+function renderSettings() {
+  renderProject(undefined, { route: "/projects/p1/settings" });
+}
+
+describe("публичная ссылка в настройках проекта", () => {
   beforeEach(projectFixtures);
 
-  // Сервер всегда отвечает объектом, где «не опубликован» — это url: null.
-  // Панель обязана ветвиться по адресу, а не по отсутствию ответа: иначе
-  // неопубликованный проект показывает пустое поле ссылки и кнопки
-  // «Перевыпустить»/«Закрыть ссылку», которым нечего перевыпускать.
-  it("неопубликованный проект предлагает публикацию, а не пустой адрес", async () => {
-    server.use(http.get("/api/projects/p1/share", () => HttpResponse.json(UNPUBLISHED)));
-    renderProject(undefined, { route: "/projects/p1/settings" });
+  it("перевыпуск идёт отдельным маршрутом, а не повторным выпуском", async () => {
+    // POST /share на опубликованном проекте отвечает 409 — этим он и защищает
+    // разосланный адрес от ретрая. Если панель зовёт его, перевыпуск не
+    // работает никогда, и тест ловит именно это: маршрут, а не текст ошибки.
+    const calls: string[] = [];
+    server.use(
+      http.get("/api/projects/p1/share", () =>
+        HttpResponse.json(calls.length === 0 ? PUBLISHED : { ...PUBLISHED, url: ROTATED }),
+      ),
+      http.post("/api/projects/p1/share", () => {
+        calls.push("issue");
+        return HttpResponse.json({ detail: "share_link_exists" }, { status: 409 });
+      }),
+      http.post("/api/projects/p1/share/rotate", () => {
+        calls.push("rotate");
+        return HttpResponse.json({ ...PUBLISHED, url: ROTATED }, { status: 201 });
+      }),
+    );
 
-    expect(await screen.findByText("Проект наружу не показан")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Опубликовать" })).toBeInTheDocument();
+    renderSettings();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Перевыпустить" }));
+
+    await waitFor(() => expect(calls).toEqual(["rotate"]));
+    expect(await screen.findByLabelText("Адрес ссылки")).toHaveValue(ROTATED);
+  });
+
+  it("первый выпуск остаётся выпуском", async () => {
+    const calls: string[] = [];
+    server.use(
+      http.get("/api/projects/p1/share", () =>
+        HttpResponse.json(calls.length === 0 ? UNPUBLISHED : PUBLISHED),
+      ),
+      http.post("/api/projects/p1/share", () => {
+        calls.push("issue");
+        return HttpResponse.json(PUBLISHED, { status: 201 });
+      }),
+    );
+
+    renderSettings();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Опубликовать" }));
+
+    await waitFor(() => expect(calls).toEqual(["issue"]));
+    expect(await screen.findByLabelText("Адрес ссылки")).toHaveValue(URL);
+  });
+
+  it("неопубликованный проект не показывает ни адреса, ни перевыпуска", async () => {
+    // Сервер отвечает и на неопубликованный проект — объектом с `url: null`.
+    // Панель, считающая опубликованным всё, на что пришёл ответ, показала бы
+    // пустое поле адреса и кнопку перевыпуска, которой нечего перевыпускать.
+    server.use(http.get("/api/projects/p1/share", () => HttpResponse.json(UNPUBLISHED)));
+
+    renderSettings();
+
+    expect(await screen.findByRole("button", { name: "Опубликовать" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Адрес ссылки")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Перевыпустить" })).not.toBeInTheDocument();
   });
 
-  it("опубликованный проект показывает адрес и кнопки управления ссылкой", async () => {
-    server.use(http.get("/api/projects/p1/share", () => HttpResponse.json(PUBLISHED)));
-    renderProject(undefined, { route: "/projects/p1/settings" });
-
-    expect(await screen.findByLabelText("Адрес ссылки")).toHaveValue(URL);
-    expect(screen.getByRole("button", { name: "Перевыпустить" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Опубликовать" })).not.toBeInTheDocument();
-  });
-
-  it("перевыпуск идёт отдельным вызовом, а не повторной публикацией", async () => {
-    const rotated = { ...PUBLISHED, url: `${URL}-2` };
-    let issued = 0;
-    server.use(
-      http.get("/api/projects/p1/share", () => HttpResponse.json(PUBLISHED)),
-      // Повторный POST на /share сервер отбивает 409-м: если панель пойдёт
-      // сюда вместо /share/rotate, тест увидит это по счётчику.
-      http.post("/api/projects/p1/share", () => {
-        issued += 1;
-        return HttpResponse.json({ code: "share_already_exists" }, { status: 409 });
-      }),
-      http.post("/api/projects/p1/share/rotate", () => HttpResponse.json(rotated)),
-    );
-    renderProject(undefined, { route: "/projects/p1/settings" });
-
-    await userEvent.click(await screen.findByRole("button", { name: "Перевыпустить" }));
-
-    await waitFor(() => expect(screen.getByLabelText("Адрес ссылки")).toHaveValue(rotated.url));
-    expect(issued).toBe(0);
-  });
-
-  it("в закрытой установке публикация не предлагается вовсе", async () => {
+  it("в закрытой установке не предлагает публикацию вовсе", async () => {
     server.use(
       http.get("/api/projects/p1/share", () =>
         HttpResponse.json({ ...UNPUBLISHED, allowed: false }),
       ),
     );
-    renderProject(undefined, { route: "/projects/p1/settings" });
+
+    renderSettings();
 
     expect(
-      await screen.findByText(
-        "Публичные ссылки выключены: установкой или настройкой организации",
-      ),
+      await screen.findByText("Публичные ссылки выключены: установкой или настройкой организации"),
     ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Опубликовать" })).not.toBeInTheDocument();
+  });
+
+  it("отзыв возвращает проект в неопубликованное состояние", async () => {
+    let revoked = false;
+    server.use(
+      http.get("/api/projects/p1/share", () =>
+        HttpResponse.json(revoked ? UNPUBLISHED : PUBLISHED),
+      ),
+      http.delete("/api/projects/p1/share", () => {
+        revoked = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    renderSettings();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Закрыть ссылку" }));
+
+    expect(await screen.findByRole("button", { name: "Опубликовать" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Адрес ссылки")).not.toBeInTheDocument();
+  });
+
+  it("опубликованный проект показывает адрес и кнопки управления ссылкой", async () => {
+    server.use(http.get("/api/projects/p1/share", () => HttpResponse.json(PUBLISHED)));
+
+    renderSettings();
+
+    expect(await screen.findByLabelText("Адрес ссылки")).toHaveValue(URL);
+    expect(screen.getByRole("button", { name: "Перевыпустить" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Опубликовать" })).not.toBeInTheDocument();
   });
 });
