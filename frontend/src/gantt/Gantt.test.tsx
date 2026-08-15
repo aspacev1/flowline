@@ -33,6 +33,7 @@ const STATE: ProjectState = {
       start_date: "2026-03-04",
       end_date: "2026-03-10",
       duration_days: 5,
+      milestone: false,
       criticality: "high",
       status: "in_progress",
       progress_pct: 40,
@@ -72,8 +73,10 @@ describe("диаграмма", () => {
   it("рисует задачу полоской нужной ширины", () => {
     draw(STATE);
     const bar = screen.getByRole("img", { name: /Логотип/ });
-    // 4-10 марта — семь календарных дней
-    expect(bar).toHaveStyle({ width: `${7 * DAY_WIDTH.day}px` });
+    // 4-10 марта — семь календарных дней. Ширина стоит свойством, а не
+    // `width`: полоску растягивают за грань, и к ней прибавляется сдвиг
+    // пальца (см. --bar-dw в gantt.css).
+    expect(bar.style.getPropertyValue("--bar-w")).toBe(`${7 * DAY_WIDTH.day}px`);
   });
 
   it("ставит полоску в её день, а не в начало ленты", () => {
@@ -213,10 +216,12 @@ describe("диаграмма", () => {
   });
 
   it("прогресс задачи виден в полоске", () => {
-    const { container } = draw(STATE);
-    expect(container.querySelector<HTMLElement>(".gantt__progress")).toHaveStyle({
-      width: "40%",
-    });
+    draw(STATE);
+    // Процент — свойством на полоске: по нему считается и ширина заливки, и
+    // место ручки, которой её тянут, и второе число здесь разошлось бы с
+    // первым при первой же правке.
+    const bar = screen.getByRole("img", { name: /Логотип/ });
+    expect(bar.style.getPropertyValue("--progress")).toBe("40%");
   });
 
   it("легенда включается через меню «Вид» и расшифровывает статусы", async () => {

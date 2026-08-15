@@ -1,5 +1,5 @@
 import type { Op, ProjectState, Task } from "../api/projects";
-import { daysBetween } from "../gantt/timescale";
+import { addDays, daysBetween } from "../gantt/timescale";
 
 /**
  * Отклонение от базового плана — то же правило, что и на сервере.
@@ -109,20 +109,56 @@ export type ShiftRequest = {
  * ещё нет, либо отклонение укладывается в порог.
  */
 export function shiftNeedingReason(state: ProjectState, op: Op): ShiftRequest | null {
-  if (op.type !== "move_task" && op.type !== "set_duration") return null;
+  const worst = worstDeviation(state, op);
+  if (worst === null) return null;
+
+  const threshold = thresholdOf(state);
+  if (worst.deviationDays <= threshold) return null;
+  return { ...worst, thresholdDays: threshold };
+}
+
+/**
+ * Самая уехавшая задача операции и её отклонение — или `null`, если операция
+ * не про сроки либо сравнивать не с чем.
+ *
+ * «Самая» здесь не преувеличение: сдвиг категории двигает много задач одним
+ * движением, а объяснение у движения одно. Спрашивать причину по каждой строке
+ * значило бы задать один и тот же вопрос столько раз, сколько их в категории.
+ */
+function worstDeviation(
+  state: ProjectState,
+  op: Op,
+): { taskName: string; deviationDays: number } | null {
+  if (op.type === "move_category") {
+    const moved = state.tasks
+      .filter((task) => task.category_id === op.category_id)
+      .map((task) => ({
+        taskName: task.name,
+        deviationDays: deviationDays(task, { start_date: addDays(task.start_date, op.days) }),
+      }))
+      .filter((row): row is { taskName: string; deviationDays: number } => row.deviationDays !== null);
+    if (moved.length === 0) return null;
+    return moved.reduce((a, b) => (b.deviationDays > a.deviationDays ? b : a));
+  }
+
+  if (op.type !== "move_task" && op.type !== "set_duration" && op.type !== "resize_task") {
+    return null;
+  }
 
   const task = state.tasks.find((row) => row.id === op.task_id);
   if (!task) return null;
 
+  // Изменение подставляется тем измерением, которое операция называет.
+  // `resize_task` называет оба: левая грань двигает старт и меняет
+  // длительность одним движением.
   const deviation = deviationDays(
     task,
     op.type === "move_task"
       ? { start_date: op.start_date }
-      : { duration_days: op.duration_days },
+      : op.type === "set_duration"
+        ? { duration_days: op.duration_days }
+        : { start_date: op.start_date, duration_days: op.duration_days },
   );
   if (deviation === null) return null;
-
-  const threshold = thresholdOf(state);
-  if (deviation <= threshold) return null;
-  return { taskName: task.name, deviationDays: deviation, thresholdDays: threshold };
+  return { taskName: task.name, deviationDays: deviation };
 }

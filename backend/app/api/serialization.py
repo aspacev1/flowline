@@ -172,6 +172,10 @@ def project_state(
                 ),
                 "duration_days": t.duration_days,
                 "end_date": task_end.isoformat(),
+                # Веха рисуется ромбом в своём дне, а не отрезком. Признак, а
+                # не вывод из «длительность равна одному дню»: однодневных
+                # задач полно, и вехой они не становятся.
+                "milestone": t.milestone,
                 "criticality": t.criticality,
                 "progress_pct": t.progress_pct,
                 # Статус не секретнее прогресса: публичная страница показывает

@@ -38,6 +38,7 @@ const STATE: ProjectState = {
       start_date: "2026-03-04",
       end_date: "2026-03-10",
       duration_days: 5,
+      milestone: false,
       criticality: "high",
       status: "in_progress",
       progress_pct: 40,

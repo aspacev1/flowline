@@ -1,6 +1,7 @@
 import { HttpResponse, http } from "msw";
 
 import type { ProjectState } from "../api/projects";
+import { addDays } from "../gantt/timescale";
 import type { Locale } from "../i18n";
 import { deleteCategory, deleteTask, reorderTask } from "../project/optimistic";
 import { server } from "./server";
@@ -51,6 +52,7 @@ export const STATE: ProjectState = {
       start_date: "2026-03-04",
       end_date: "2026-03-10",
       duration_days: 5,
+      milestone: false,
       criticality: "high",
       status: "in_progress",
       progress_pct: 40,
@@ -131,6 +133,42 @@ export const APPROVED_WITH_EXTRA: ProjectState = {
   ],
 };
 
+/** Две задачи в одной категории — для сдвига категории целиком и для связей. */
+export const TWO_TASKS: ProjectState = {
+  ...STATE,
+  tasks: [
+    STATE.tasks[0],
+    {
+      ...STATE.tasks[0],
+      id: "t2",
+      name: "Макет",
+      position: 1,
+      start_date: "2026-03-11",
+      end_date: "2026-03-17",
+    },
+  ],
+};
+
+/** Задача и веха: точка на шкале рисуется ромбом и граней не имеет. */
+export const WITH_MILESTONE: ProjectState = {
+  ...STATE,
+  tasks: [
+    STATE.tasks[0],
+    {
+      ...STATE.tasks[0],
+      id: "t2",
+      name: "Сдача",
+      position: 1,
+      start_date: "2026-03-16",
+      end_date: "2026-03-16",
+      duration_days: 1,
+      milestone: true,
+      status: "planned",
+      progress_pct: 0,
+    },
+  ],
+};
+
 /** Две задачи со стрелкой между ними. */
 export const WITH_DEPENDENCY: ProjectState = {
   ...STATE,
@@ -174,6 +212,27 @@ function applied(state: ProjectState, op: Record<string, unknown>): ProjectState
       return patch({ start_date: op.start_date as string });
     case "set_duration":
       return patch({ duration_days: op.duration_days as number });
+    case "resize_task":
+      return patch({
+        start_date: op.start_date as string,
+        duration_days: op.duration_days as number,
+      });
+    case "set_milestone": {
+      // Та же сцепка, что на сервере: веха схлопывает длительность в день, а
+      // снятый признак её не трогает.
+      const milestone = op.milestone as boolean;
+      const was = state.tasks.find((task) => task.id === id);
+      return patch({ milestone, duration_days: milestone ? 1 : was?.duration_days });
+    }
+    case "move_category":
+      return {
+        ...state,
+        tasks: state.tasks.map((task) =>
+          task.category_id === op.category_id
+            ? { ...task, start_date: addDays(task.start_date, op.days as number) }
+            : task,
+        ),
+      };
     case "set_progress": {
       // Та же сцепка, что на сервере: сто процентов — «готово», спуск ниже
       // ста из «готово» — «в работе».

@@ -41,6 +41,20 @@ const PLAIN_CODES = new Set([
   "calendar_too_few_working_days",
   "progress_out_of_range",
   "unknown_criticality",
+  // Связи. До перетаскивания стрелок эти отказы были почти недостижимы —
+  // список в карточке не показывал ни себя, ни уже связанные задачи. Кружок на
+  // краю полоски не разбирает, куда его тянут, и «кольцо» стало обычным
+  // ответом: человек видит две полоски, а не весь граф.
+  "self_dependency",
+  "dependency_exists",
+  "dependency_cycle",
+  "dependency_not_found",
+  // Вехи и сдвиг категории.
+  "milestone_has_duration",
+  "task_is_milestone",
+  "empty_shift",
+  "category_empty",
+  "date_out_of_range",
   "already_assigned",
   "assignment_not_found",
   "negative_position",

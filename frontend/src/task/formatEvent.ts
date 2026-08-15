@@ -56,6 +56,31 @@ export function formatEvent(
         to: t("common.days", { count: Number(op.to) }),
       });
 
+    case "resize_task": {
+      // Левая грань меняет два поля одним движением, и фраза обязана назвать
+      // оба: «сдвинул начало» умолчало бы о том, что задача заодно стала
+      // длиннее, а «изменил длительность» — о том, что она сдвинулась.
+      const before = asRecord(op.from);
+      const after = asRecord(op.to);
+      return say("resize_task", {
+        from: day(String(before.start_date)),
+        to: day(String(after.start_date)),
+        was: t("common.days", { count: Number(before.duration_days) }),
+        now: t("common.days", { count: Number(after.duration_days) }),
+      });
+    }
+
+    case "move_category":
+      // Знак сдвига решает, какую из двух фраз читать: «на 3 дня позже» и «на
+      // 3 дня раньше» — разные события, и минус перед числом их не различает.
+      return say(Number(op.days) > 0 ? "move_category_late" : "move_category_early", {
+        days: t("common.days", { count: Math.abs(Number(op.days)) }),
+        count: Array.isArray(op.task_ids) ? op.task_ids.length : 0,
+      });
+
+    case "set_milestone":
+      return say(op.to === true ? "set_milestone_on" : "set_milestone_off");
+
     case "set_progress":
       return say("set_progress", { from: Number(op.from), to: Number(op.to) });
 

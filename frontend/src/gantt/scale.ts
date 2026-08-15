@@ -1,5 +1,5 @@
 import type { Calendar, ProjectState } from "../api/projects";
-import { addDays, toISO, toUtc } from "./timescale";
+import { MS_PER_DAY, addDays, toISO, toUtc } from "./timescale";
 
 /** Масштаб ленты: сколько времени приходится на одно деление шкалы. */
 export type Zoom = "day" | "week" | "month";
@@ -97,4 +97,33 @@ export function isWorkingDay(date: string, calendar: Calendar, weekday: number):
   // оказываются воскресенье с понедельником вместо субботы с воскресеньем.
   const mondayFirst = (weekday + 6) % 7;
   return (calendar.working_days & (1 << mondayFirst)) !== 0;
+}
+
+/**
+ * Сколько рабочих дней в отрезке, включая оба конца. Ноль — рабочих дней в
+ * отрезке не нашлось вовсе (неделя праздников) или конец раньше начала.
+ *
+ * Нужно ровно одному жесту — растягиванию полоски за грань. Грань тянут по
+ * шкале, а шкала размечена календарными днями; длительность же задана в
+ * рабочих, и без этого счёта перевод одного в другое сделать нечем.
+ *
+ * Это не перенос серверной арифметики на клиент, а догадка на время жеста —
+ * тот же контракт, что у переноса полоски: клиент показывает, что получится,
+ * сервер считает по-настоящему и присылает дату окончания, по которой полоска
+ * и встанет. Разойтись эти два счёта могут только там, где у вкладки устарел
+ * календарь, — и тогда полоска встанет по ответу сервера, а не по догадке.
+ *
+ * Календарь берётся из состояния проекта, а не собирается здесь: маска, дни
+ * праздников и объявленные рабочие дни приезжают вместе с состоянием ровно
+ * для того, чтобы лента не гадала о них (см. `isWorkingDay`).
+ */
+export function workingDaysBetween(fromISO: string, toISO: string, calendar: Calendar): number {
+  if (toISO < fromISO) return 0;
+  let count = 0;
+  const last = toUtc(toISO);
+  for (let moment = toUtc(fromISO); moment <= last; moment += MS_PER_DAY) {
+    const day = new Date(moment);
+    if (isWorkingDay(day.toISOString().slice(0, 10), calendar, day.getUTCDay())) count += 1;
+  }
+  return count;
 }

@@ -22,13 +22,17 @@
      полосы дней, и правка одного молча ломала другое. */
   --gantt-head: 68px;
   --gantt-month-row: 27px;
-  /* Отступ задачи внутри категории — от левого края колонки, а не поверх
-     собственных полей ячейки (см. .gantt__cell--task). Значение подобрано не
-     произвольно: оно равно тому же отступу, с которым уже начинается название
-     категории — поле колонки (12px) плюс шеврон (13px) плюс зазор между ним и
-     текстом (6px). Разойдись эти числа — имя задачи съедет относительно
-     заголовка своей же категории, как и произошло до этой правки. */
-  --gantt-indent: 31px;
+  /* Поле первой колонки таблицы. Отдельной величиной, потому что по нему
+     встают трое: сама ячейка названия, ручка перестановки строк, что стоит в
+     этом поле, и отступ вложенности ниже. Литерал в трёх местах разъехался бы
+     на первой же правке — ручка уехала бы из-под имени. */
+  --gantt-pad: 12px;
+  /* Отступ задачи внутри категории — от левого края колонки. Значение
+     подобрано не произвольно: оно равно тому же отступу, с которым уже
+     начинается название категории — поле колонки плюс шеврон (13px) плюс
+     зазор между ним и текстом (6px). Разойдись эти числа — имя задачи съедет
+     относительно заголовка своей же категории. */
+  --gantt-indent: calc(var(--gantt-pad) + 19px);
   /* Полоске при строке в 40 пикселей (см. ROW_HEIGHT) остаётся просвет по
      7 сверху и снизу: прежние 28 оставляли 6 — полоски соседних строк почти
      смыкались, и лента читалась сплошной заливкой. */
@@ -526,7 +530,10 @@
   flex: 0 0 var(--gantt-label);
   width: var(--gantt-label);
   height: 100%;
-  padding: 0 12px;
+  /* Полей у самой колонки нет: её ширина — это в точности сумма ширин колонок
+     таблицы (см. layoutWidth), и поле по краям съедало бы у последней из них
+     ровно себя. Отступ от левого края отдан первой ячейке. */
+  padding: 0;
   background: var(--surface);
   border-right: 1px solid var(--border-strong);
   transition: background var(--motion-base) var(--motion-ease);
@@ -550,20 +557,90 @@
   color: var(--text-muted);
 }
 
-/* Единственная ячейка закреплённой колонки — имя: обрезается многоточием
-   без потери смысла, если места всё равно не хватит. */
+/* Ячейка закреплённой таблицы. Ширину задаёт раскладка колонок (разметкой, а
+   не стилем: её тянут за границу в шапке), а здесь — только то, как ячейка
+   ведёт себя, когда содержимое в неё не влезло: обрезается многоточием, а не
+   раздвигает соседей. */
 .gantt__cell {
   display: flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
+  /* Точка привязки: границе колонки в шапке и ручке перетаскивания строки
+     нужно встать по краям ячейки, не занимая места в потоке. */
+  position: relative;
+  padding-right: 8px;
 }
 
+/* Колонка названия тянется, когда таблица шире суммы колонок, — остальные
+   держат свою ширину: пустое место осмысленно отдать длинным именам, а не
+   размазать по числовым столбцам. Поле слева — её же: у колонки поля нет, и
+   без этого имя упиралось бы в край экрана. */
 .gantt__cell--task {
-  flex: 1 1 auto;
-  /* Точка привязки для ручки перетаскивания — см. .gantt__handle: ручка не
-     должна занимать место в потоке и сдвигать имя задачи. */
-  position: relative;
+  flex-grow: 1;
+  padding-left: var(--gantt-pad);
+}
+
+/* Числовые колонки — вправо, как в таблице: так соседние значения
+   сравниваются разрядами, а не первыми буквами. */
+.gantt__cell--duration,
+.gantt__cell--progress {
+  justify-content: flex-end;
+}
+
+/* Значение ячейки. Правится оно или нет, выглядит одинаково: тон значения не
+   должен зависеть от прав смотрящего — иначе у гостя таблица читается как
+   выцветшая, будто числа в ней недостоверны. Возможность правки показывает
+   наведение, а не постоянная рамка. */
+.gantt__cell-value {
+  min-width: 0;
+  padding: 2px 4px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm, 6px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gantt__cell-value--editable {
+  cursor: text;
+}
+
+.gantt__cell-value--editable:hover {
+  border-color: var(--border-strong);
+  background: var(--surface);
+}
+
+/* Поле на месте ячейки: занимает ровно её место, чтобы строка не дёргалась в
+   момент, когда ячейка становится редактируемой. */
+.gantt__cell-input {
+  width: 100%;
+  min-width: 0;
+  padding: 1px 3px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--surface);
+  font: inherit;
+  color: inherit;
+}
+
+/* Граница колонки — узкая полоса на стыке ячеек. Своей ширины не занимает:
+   она лежит поверх стыка, иначе колонка на четыре пикселя не совпадала бы с
+   тем числом, которое человек только что выставил. */
+.gantt__col-grip {
+  position: absolute;
+  top: 0;
+  right: -2px;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.gantt__col-grip:hover,
+.gantt__col-grip:focus-visible {
+  background: var(--accent);
+  outline: none;
 }
 
 .gantt__label-name {
@@ -607,9 +684,16 @@
 
 /* Отступ вложенности — внутри ячейки задачи, а не у всей колонки: иначе
    подсветка строки при наведении и выделении обрезалась бы слева. Считается
-   от края колонки, поэтому из отступа вычитается собственное поле ячейки. */
+   от края колонки: собственного поля у колонки больше нет, и вычитать из
+   отступа нечего. */
 .gantt__row:not(.gantt__row--category) .gantt__cell--task {
-  padding-left: calc(var(--gantt-indent) - 12px);
+  padding-left: var(--gantt-indent);
+}
+
+/* Числа строки категории — того же начертания, что и её имя: это сводка по
+   группе, а не значение отдельной задачи. */
+.gantt__row--category .gantt__cell-value {
+  font-weight: 700;
 }
 
 .gantt__flag {
@@ -650,7 +734,9 @@
    отступ самого текста. */
 .gantt__handle {
   position: absolute;
-  left: 0;
+  /* В поле колонки, слева от имени: ручка не занимает места в потоке и потому
+     не сдвигает его, но и не наезжает на край ленты. */
+  left: var(--gantt-pad);
   top: 50%;
   transform: translateY(-50%);
   width: 16px;
@@ -810,9 +896,28 @@
   position: absolute;
   top: 50%;
   height: 7px;
-  transform: translateY(-50%);
+  /* Сдвиг под пальцем — слагаемое того же `transform`, а не отдельное правило:
+     отдельное стёрло бы центрирование по вертикали, и полоса при переносе
+     прыгала бы к верхнему краю строки. */
+  --span-dx: 0px;
+  transform: translate3d(var(--span-dx), -50%, 0);
   border-radius: 3px;
   box-shadow: inset 0 0 0 1px rgb(0 0 0 / 8%);
+}
+
+/* Полосу категории тащат, чтобы сдвинуть этап целиком. Курсор — тот же, что у
+   полоски задачи: жест и означает то же самое, только разом по многим строкам. */
+.gantt__span.is-draggable {
+  touch-action: none;
+  cursor: grab;
+}
+
+.gantt__span.is-dragging {
+  cursor: grabbing;
+  z-index: 2;
+  /* Обещание браузеру на время жеста — по той же причине, что у полоски
+     задачи: пусть держит полосу на своём слое, а не решает это каждый кадр. */
+  will-change: transform;
 }
 
 .gantt__span::before,
@@ -858,8 +963,14 @@
      тогда, когда сервер сдвинул цепочку зависимостей и едут все полоски
      разом. */
   --bar-dx: 0px;
+  --bar-dw: 0px;
   --bar-lift: 0px;
   transform: translate3d(var(--bar-dx), var(--bar-lift), 0);
+  /* Ширина — по датам плюс то, на сколько её растянули пальцем. Растягивание
+     разметку всё-таки трогает: сделать полоску шире, не меняя ширины, нельзя.
+     Оговорка ограничена одной полоской под пальцем, а не всем слоем строк, —
+     ради этого `--bar-dw` и отделён от общей ширины. */
+  width: calc(var(--bar-w) + var(--bar-dw));
   padding: 0 11px;
   display: flex;
   align-items: center;
@@ -994,6 +1105,10 @@
   left: 0;
   top: 0;
   bottom: 0;
+  /* Граница выполненного: по проценту, а пока её тянут — плюс сдвиг пальца.
+     Ширина здесь не разметка соседей, а заливка внутри полоски: менять её
+     каждый кадр можно, ничего за пределами полоски от этого не пересчитается. */
+  width: calc(var(--progress) + var(--progress-dx, 0px));
   pointer-events: none;
 }
 
@@ -1064,6 +1179,217 @@
   height: 7px;
   background: var(--danger);
   transform: rotate(45deg);
+}
+
+/* --- прямое управление полоской: грани, заливка, связи --- */
+
+/* Грани полоски: невидимые полосы по её краям, за которые тянут сроки.
+   Шире, чем выглядят: попасть в двухпиксельную границу мышью трудно, а
+   пальцем невозможно, поэтому цель — восемь пикселей, а показывает её курсор
+   и светлая черта, проявляющаяся под ним. */
+.gantt__grip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 9px;
+  /* Полоску тащат пальцем, и браузер не должен принимать это за прокрутку. */
+  touch-action: none;
+  cursor: ew-resize;
+  /* Над заливкой прогресса: та лежит поверх фона полоски и иначе перехватывала
+     бы нажатие на левой грани у задачи, сделанной больше чем наполовину. */
+  z-index: 1;
+}
+
+.gantt__grip--start {
+  left: 0;
+}
+
+.gantt__grip--end {
+  right: 0;
+}
+
+/* Черта под курсором — единственный видимый знак грани. Белая в половину
+   силы: полоска бывает и синей, и зелёной, и штрихованной, и своим цветом
+   черта на одной из них потерялась бы. */
+.gantt__grip--start::after,
+.gantt__grip--end::after {
+  content: "";
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  width: 3px;
+  border-radius: 2px;
+  background: rgb(255 255 255 / 78%);
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--motion-ease);
+}
+
+.gantt__grip--start::after {
+  left: 3px;
+}
+
+.gantt__grip--end::after {
+  right: 3px;
+}
+
+.gantt__grip:hover::after {
+  opacity: 1;
+}
+
+/* У запланированной задачи полоска светлая, и белая черта на ней не видна. */
+.gantt__bar[data-status="planned"] .gantt__grip::after {
+  background: var(--gantt-line-planned);
+}
+
+/* Ручка выполненного стоит на границе заливки и едет вместе с ней: под
+   пальцем — за `--progress-dx`, после ответа сервера — за самим процентом. */
+.gantt__grip--progress {
+  left: calc(var(--progress) + var(--progress-dx, 0px));
+  width: 14px;
+  margin-left: -7px;
+  cursor: col-resize;
+  z-index: 2;
+}
+
+.gantt__grip--progress::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border: 2px solid var(--gantt-fill-progress-done);
+  border-radius: 50%;
+  background: #fff;
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--motion-ease);
+}
+
+/* Ручки проявляются на своей строке, а не постоянно: три кружка на каждой из
+   сотни полосок — это рябь, в которой не видно самой диаграммы. */
+.gantt__row:hover .gantt__grip--progress::after,
+.gantt__bar.is-dragging .gantt__grip--progress::after {
+  opacity: 1;
+}
+
+/* Кружки связи — на краях полоски, снаружи её. Проявляются при наведении на
+   строку и остаются видимыми у всех полосок, пока связь тянут: цель броска
+   должна быть видна до того, как до неё довели курсор. */
+.gantt__link-dot {
+  position: absolute;
+  top: 50%;
+  width: 13px;
+  height: 13px;
+  margin-top: -6.5px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  background: var(--surface);
+  opacity: 0;
+  touch-action: none;
+  cursor: crosshair;
+  z-index: 3;
+  transition: opacity var(--motion-fast) var(--motion-ease);
+}
+
+.gantt__link-dot--start {
+  margin-left: -17px;
+}
+
+.gantt__link-dot--end {
+  margin-left: 4px;
+}
+
+.gantt__row:hover .gantt__link-dot,
+.gantt.is-linking .gantt__link-dot {
+  opacity: 1;
+}
+
+.gantt__link-dot:hover {
+  background: var(--accent);
+}
+
+/* Кружков нет там, где пальцем в них всё равно не попасть: на сенсорном
+   экране связь заводится списком в карточке задачи. */
+@media (hover: none) {
+  .gantt__link-dot {
+    display: none;
+  }
+}
+
+/* Слой линии, которую тянут. Поверх полосок — в отличие от слоя стрелок,
+   лежащего под ними: тянущаяся линия обязана быть видна поверх всего, через
+   что её ведут. Событий не принимает: под ней ищут цель броска. */
+.gantt__link-layer {
+  position: absolute;
+  top: 0;
+  left: var(--gantt-label);
+  overflow: visible;
+  pointer-events: none;
+  z-index: 3;
+}
+
+.gantt__link-line {
+  display: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+  stroke-linecap: round;
+}
+
+.gantt.is-linking .gantt__link-line {
+  display: block;
+}
+
+/* Строка, на которую бросят связь. Класс ставится прямо в DOM, мимо состояния
+   React: цель меняется на каждом пересечении строки, и перерисовывать ради
+   этого сотню строк значило бы платить рендером за подсветку. */
+.gantt__row.is-link-target .gantt__lane {
+  background: rgb(83 103 232 / 12%);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+/* Веха — ромб в своём дне. Повёрнутый квадрат внутри полоски, а не сама
+   полоска: её `transform` занят движением под пальцем, и второй поворот на том
+   же узле стёр бы сдвиг. Сама полоска при этом становится прозрачной
+   подложкой шириной в день — по ней и попадают указателем. */
+.gantt__bar--milestone {
+  padding: 0;
+  background: none;
+  border: 0;
+  justify-content: center;
+}
+
+.gantt__bar--milestone::after {
+  /* Накладки просрочки и критичности рисуются контуром по прямоугольнику —
+     вокруг ромба это была бы рамка вокруг пустоты. Их место занимает сам
+     ромб: его цвет и грань всё и говорят. */
+  content: none;
+}
+
+.gantt__diamond {
+  width: 15px;
+  height: 15px;
+  transform: rotate(45deg);
+  border-radius: 2px;
+  background: var(--gantt-fill-progress);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.gantt__bar--milestone[data-status="done"] .gantt__diamond {
+  background: var(--ok);
+}
+
+.gantt__bar--milestone[data-status="planned"] .gantt__diamond {
+  background: var(--gantt-fill-planned);
+  box-shadow:
+    0 0 0 2px var(--surface),
+    inset 0 0 0 1px var(--gantt-line-planned);
+}
+
+.gantt__bar--milestone[data-status="blocked"] .gantt__diamond,
+.gantt__bar--milestone[data-criticality="critical"] .gantt__diamond {
+  background: var(--danger-strong);
 }
 
 /* Бейдж отклонения — справа от полоски, а не поверх неё: поверх он закрывал бы
@@ -1206,23 +1532,13 @@
   height: 18px;
 }
 
-/* Адаптивность ленты. Точки те же, что у остального приложения. Без них
-   правка ухудшила бы то, что чинит: колонка задач выросла с 220 до 300
-   пикселей, и на экране в 520 имени доставалось бы больше места, чем самой
-   ленте. Меры лежат здесь, а не в теме: в теме их медиазапросы не действовали
-   вовсе — медиазапрос не добавляет специфичности, и базовое правило из этого
-   файла перебивало их молча. */
-@media (max-width: 900px) {
-  .gantt {
-    --gantt-label: 240px;
-  }
-}
+/* Адаптивности ленты здесь больше нет, и это не упущение. Ширина закреплённой
+   колонки — сумма ширин показанных колонок таблицы, и разметка ставит её
+   свойством прямо на корне (см. layoutWidth). Медиазапрос такое свойство не
+   перебивает — встроенный стиль сильнее любого правила файла, — и правило,
+   написанное здесь, молча не делало бы ничего.
 
-@media (max-width: 520px) {
-  .gantt {
-    --gantt-label: 180px;
-    /* --gantt-indent здесь больше не сужается: шеврон категории не мельчает
-       на этом брейкпоинте, и своё уменьшение отступа задачи разошлось бы с
-       ним ровно так же, как расходилось до правки на обычном экране. */
-  }
-}
+   Те же точки, 900 и 520 пикселей, живут теперь в раскладке колонок
+   (columns.ts): на узком экране лента открывается одной колонкой имени, и
+   ширина у этой колонки та же, что была здесь. Разница в том, что это
+   умолчание, а не потолок: включить остальные колонки можно и на телефоне. */

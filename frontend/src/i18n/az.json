@@ -7,7 +7,6 @@
     "create": "Yarat",
     "cancel": "Ləğv et",
     "saving": "Saxlanılır…",
-    "saved": "Saxlanıldı",
     "saved": "Yadda saxlanıldı",
     "days": {
       "one": "{count} gün",
@@ -223,7 +222,16 @@
     "public_sharing_disabled": "Açıq keçidlər bu quraşdırmada bağlıdır",
     "comment_author_required": "Şərhi imzalayacaq kimsə yoxdur",
     "slug_empty": "Bundan ünvan alınmır — hərf və ya rəqəm işlədin",
-    "not_published": "Layihə dərc olunmayıb"
+    "not_published": "Layihə dərc olunmayıb",
+    "self_dependency": "Tapşırıq özündən asılı ola bilməz",
+    "dependency_exists": "Belə əlaqə artıq var",
+    "dependency_cycle": "Bu əlaqə dövrə bağlayır: tapşırıqlar bir-birini gözləyərdi",
+    "dependency_not_found": "Belə əlaqə artıq yoxdur",
+    "milestone_has_duration": "Mərhələ düz bir gün çəkir",
+    "task_is_milestone": "Mərhələnin müddəti yoxdur. Əvvəlcə mərhələ nişanını götürün",
+    "empty_shift": "Sıfır günlük sürüşmə heç nəyi dəyişmir",
+    "category_empty": "Bu kateqoriyada tapşırıq yoxdur: sürüşdürüləcək bir şey yoxdur",
+    "date_out_of_range": "Bu sürüşmə tapşırığı dəstəklənən tarix hüdudundan çıxarır"
   },
   "live": {
     "offline": "Serverlə əlaqə yoxdur. Redaktə mümkün deyil",
@@ -357,7 +365,9 @@
       "delete_confirm": "Bəli, sil",
       "save": "Dəyişiklikləri yadda saxla",
       "section_main": "Əsas",
-      "section_links": "Əlaqələr"
+      "section_links": "Əlaqələr",
+      "milestone": "Mərhələ",
+      "milestone_hint": "Şkalada nöqtə: müddəti yoxdur"
     },
     "new": {
       "title": "Yeni tapşırıq",
@@ -378,7 +388,8 @@
       "unlink": "«{name}» ilə əlaqəni sil",
       "assignees": "İcraçılar",
       "submit": "Tapşırıq yarat",
-      "partial": "Tapşırıq artıq yaradılıb — təkrar yalnız qalanını əlavə edəcək."
+      "partial": "Tapşırıq artıq yaradılıb — təkrar yalnız qalanını əlavə edəcək.",
+      "milestone": "Mərhələ"
     }
   },
   "history": {
@@ -442,7 +453,12 @@
         "people": "İcraçılar",
         "links": "Əlaqələr"
       }
-    }
+    },
+    "resize_task": "başlanğıcı {from} → {to}, müddəti {was} → {now} dəyişdi",
+    "move_category_late": "kateqoriyanı {days} gec sürüşdürdü — tapşırıq: {count}",
+    "move_category_early": "kateqoriyanı {days} tez sürüşdürdü — tapşırıq: {count}",
+    "set_milestone_on": "tapşırığı mərhələyə çevirdi",
+    "set_milestone_off": "mərhələni yenidən tapşırığa çevirdi"
   },
   "schedule": {
    "open": "Başlama tarixini təyin et",
@@ -479,25 +495,33 @@
      "calendar": "Təqvim"
     },
     "empty": "Layihədə hələ bir dənə də kateqoriya yoxdur. Kateqoriya yaradın, tapşırıqlar isə onun içində olacaq",
-  "today": "Bu gün",
-  "moved": "Tapşırıq {date} tarixinə keçirildi",
-  "toolbar": {
-    "label": "Layihə vaxt xəttinin idarələri",
-    "scale": "Miqyas: {value}",
-    "day": "Gün",
-    "week": "Həftə",
-    "month": "Ay",
-    "view": "Görünüş"
-  },
-  "view": {
-    "baseline": "Baza planı",
-    "legend": "Leqenda",
-    "summary": "Son tarix xülasəsi",
-    "caption": "Qeyd"
-  },
-  "col": {
-    "task": "Tapşırıq"
-  },
+    "today": "Bu gün",
+    "moved": "Tapşırıq {date} tarixinə keçirildi",
+    "toolbar": {
+      "label": "Layihə vaxt xəttinin idarələri",
+      "scale": "Miqyas: {value}",
+      "day": "Gün",
+      "week": "Həftə",
+      "month": "Ay",
+      "view": "Görünüş",
+      "columns": "Sütunlar"
+    },
+    "view": {
+      "baseline": "Baza planı",
+      "legend": "Leqenda",
+      "summary": "Son tarix xülasəsi",
+      "caption": "Qeyd"
+    },
+    "col": {
+      "task": "Tapşırıq",
+      "start": "Başlanğıc",
+      "end": "Bitmə",
+      "duration": "Müddət",
+      "progress": "Hazır",
+      "assignee": "İcraçı",
+      "edit": "«{name}» üçün {column} dəyiş",
+      "resize": "«{column}» sütununun eni"
+    },
     "reorder": "«{name}» sətrini daşı",
     "deadline": "Son tarix {date}",
     "late": "Son tarixdən gec bitir",
@@ -520,7 +544,20 @@
    "keys": "Shift + ←→ köçür · Esc dayandır · {mod}+Z geri al"
     },
     "toggle_category": "«{name}» kateqoriyasını qatla və ya aç",
-    "caption": "Al qırmızı kəsik — ilkin son tarixdir; «+N gün» yazısı tarixin nə qədər sürüşdüyünü göstərir. Al qırmızı ox — pozulmuş asılılıqdır: tapşırıq blokeri hazır olmamış başlayıb."
+    "caption": "Al qırmızı kəsik — ilkin son tarixdir; «+N gün» yazısı tarixin nə qədər sürüşdüyünü göstərir. Al qırmızı ox — pozulmuş asılılıqdır: tapşırıq blokeri hazır olmamış başlayıb.",
+    "resized": "«{name}» indi {days} çəkir",
+    "progress_set": "«{name}» — {percent}%",
+    "move_category": "«{name}» və bütün tapşırıqlarını sürüşdürmək üçün dartın",
+    "category_moved_late": "«{name}» {days} gec sürüşdü",
+    "category_moved_early": "«{name}» {days} tez sürüşdü",
+    "milestone": {
+      "short": "Mərhələ",
+      "label": "Mərhələ"
+    },
+    "link": {
+      "from": "«{name}» nəyi gözləyir — göstərmək üçün dartın",
+      "to": "«{name}» nəyi bloklayır — göstərmək üçün dartın"
+    }
   },
   "share": {
     "open": "Paylaş",

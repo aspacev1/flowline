@@ -114,7 +114,12 @@ export function useProjectMutation(projectId: string) {
           // Сроки задачи изменились — значит, связанные с ней могли поехать.
           // Отметка ставится после перезапроса: предложение считается по
           // датам, посчитанным сервером, а не по догадке.
-          if (noteMoved && (op.type === "move_task" || op.type === "set_duration")) {
+          if (
+            noteMoved &&
+            (op.type === "move_task" ||
+              op.type === "set_duration" ||
+              op.type === "resize_task")
+          ) {
             noteMoved(op.task_id);
           }
           return revision;
