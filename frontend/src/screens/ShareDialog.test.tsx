@@ -47,17 +47,54 @@ describe("публичная ссылка проекта", () => {
     expect(await screen.findByLabelText("Адрес ссылки")).toHaveValue(URL);
   });
 
-  it("предупреждает, что перевыпуск убивает прежний адрес", async () => {
-    server.use(http.get("/api/projects/p1/share", () => HttpResponse.json(PUBLISHED)));
+  it("перевыпуск спрашивает и объясняет, что убивает прежний адрес", async () => {
+    let rotated = false;
+    server.use(
+      http.get("/api/projects/p1/share", () => HttpResponse.json(PUBLISHED)),
+      http.post("/api/projects/p1/share/rotate", () => {
+        rotated = true;
+        return HttpResponse.json(PUBLISHED);
+      }),
+    );
 
     renderProject();
     await openDialog();
 
+    await userEvent.click(await screen.findByRole("button", { name: "Перевыпустить" }));
+
+    // Первое нажатие ничего не ломает: адрес, уже отправленный клиенту, живёт
+    // ровно до ответа на вопрос.
+    expect(rotated).toBe(false);
     expect(
-      await screen.findByText(
+      screen.getByText(
         "Новая ссылка мгновенно убивает прежнюю — уже отправленный адрес перестанет открываться",
       ),
     ).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Да, перевыпустить" }));
+
+    await waitFor(() => expect(rotated).toBe(true));
+  });
+
+  it("перевыпуск можно передумать, и адрес остаётся прежним", async () => {
+    let rotated = false;
+    server.use(
+      http.get("/api/projects/p1/share", () => HttpResponse.json(PUBLISHED)),
+      http.post("/api/projects/p1/share/rotate", () => {
+        rotated = true;
+        return HttpResponse.json(PUBLISHED);
+      }),
+    );
+
+    renderProject();
+    await openDialog();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Перевыпустить" }));
+    await userEvent.click(screen.getByRole("button", { name: "Отмена" }));
+
+    expect(rotated).toBe(false);
+    expect(screen.getByRole("button", { name: "Перевыпустить" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Адрес ссылки")).toHaveValue(URL);
   });
 
   it("переключатель комментариев уходит на сервер и адрес не меняется", async () => {
@@ -99,6 +136,10 @@ describe("публичная ссылка проекта", () => {
     await openDialog();
 
     await userEvent.click(await screen.findByRole("button", { name: "Закрыть ссылку" }));
+    // Одного нажатия мало: снятие публикации спрашивает так же, как удаление
+    // проекта, — вернуть прежний адрес нельзя.
+    expect(revoked).toBe(false);
+    await userEvent.click(screen.getByRole("button", { name: "Да, закрыть ссылку" }));
 
     expect(await screen.findByRole("button", { name: "Опубликовать" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Адрес ссылки")).not.toBeInTheDocument();
@@ -151,6 +192,7 @@ describe("публичная ссылка проекта", () => {
     await openDialog();
 
     await userEvent.click(await screen.findByRole("button", { name: "Перевыпустить" }));
+    await userEvent.click(screen.getByRole("button", { name: "Да, перевыпустить" }));
 
     await waitFor(() => expect(calls).toEqual(["rotate"]));
   });
@@ -189,6 +231,7 @@ describe("та же ссылка из настроек проекта", () => {
     expect(screen.getByRole("button", { name: "Скопировать" })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Перевыпустить" }));
+    await userEvent.click(screen.getByRole("button", { name: "Да, перевыпустить" }));
 
     await waitFor(() => expect(calls).toEqual(["rotate"]));
   });

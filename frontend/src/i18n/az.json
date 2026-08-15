@@ -466,7 +466,10 @@
     "copied": "Kopyalandı",
     "reissue": "Yenidən ver",
     "reissue_warning": "Yeni keçid veriləndə köhnəsi dərhal ölür — göndərilmiş ünvan açılmayacaq",
+    "reissue_confirm": "Bəli, yenidən ver",
     "revoke": "Keçidi bağla",
+    "revoke_warning": "Keçid göndərilmiş hər kəs üçün layihə bağlanacaq. Yenidən keçid vermək olar — ünvan başqa olacaq",
+    "revoke_confirm": "Bəli, keçidi bağla",
     "comments_enabled": "Şərhlərə icazə ver",
     "disabled": "İctimai keçidlər söndürülüb: quraşdırma və ya təşkilat ayarı"
   },
@@ -519,7 +522,12 @@
     "action": {
       "link": "Yeni keçid",
       "resend": "Yenidən göndər",
-      "revoke": "Geri al"
+      "revoke": "Geri al",
+      "reissue_warning": "Köhnə keçid dərhal ölür: onu almış adam artıq aça bilməyəcək",
+      "link_confirm": "Bəli, yeni keçid",
+      "resend_confirm": "Bəli, yenidən göndər",
+      "revoke_warning": "Dəvət qüvvədən düşür: göndərilmiş keçidlə daxil olmaq mümkün olmayacaq",
+      "revoke_confirm": "Bəli, geri al"
     },
     "issued": {
       "link": "Dəvət keçidi",

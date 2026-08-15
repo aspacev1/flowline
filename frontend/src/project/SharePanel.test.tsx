@@ -47,6 +47,8 @@ describe("публичная ссылка в настройках проекта
     renderSettings();
 
     await userEvent.click(await screen.findByRole("button", { name: "Перевыпустить" }));
+    // Кнопка сперва спрашивает: разосланный адрес умирает мгновенно.
+    await userEvent.click(screen.getByRole("button", { name: "Да, перевыпустить" }));
 
     await waitFor(() => expect(calls).toEqual(["rotate"]));
     expect(await screen.findByLabelText("Адрес ссылки")).toHaveValue(ROTATED);
@@ -115,6 +117,7 @@ describe("публичная ссылка в настройках проекта
     renderSettings();
 
     await userEvent.click(await screen.findByRole("button", { name: "Закрыть ссылку" }));
+    await userEvent.click(screen.getByRole("button", { name: "Да, закрыть ссылку" }));
 
     expect(await screen.findByRole("button", { name: "Опубликовать" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Адрес ссылки")).not.toBeInTheDocument();

@@ -10,6 +10,7 @@ import {
   setShareComments,
   shareQueryKey,
 } from "../api/share";
+import { ConfirmAction } from "../components/ConfirmAction";
 import { useLocale } from "../i18n/LocaleProvider";
 
 /**
@@ -148,31 +149,31 @@ export function ShareControls({
             <label htmlFor="share-comments">{t("share.comments_enabled")}</label>
           </p>
 
-          {/* Предупреждение стоит рядом с кнопкой, а не в подсказке сверху:
-              «перевыпустить» звучит безобидно, а означает, что уже
-              отправленная клиенту ссылка перестанет открываться. */}
-          <p className="muted">{t("share.reissue_warning")}</p>
-
+          {/* Обе кнопки спрашивают, и спрашивают в ответ на нажатие, а не
+              подсказкой сверху: «перевыпустить» звучит как обновление, а
+              означает, что уже отправленный клиенту адрес перестанет
+              открываться. Подсказку, которую читают до того, как решили,
+              не читают вовсе. */}
           <div className="modal__actions">
             <button type="button" onClick={() => void copy()} disabled={busy}>
               {copied ? t("share.copied") : t("share.copy")}
             </button>
-            <button
-              type="button"
+            <ConfirmAction
               className="button--quiet"
-              onClick={() => rotate.mutate()}
+              label={t("share.reissue")}
+              warning={t("share.reissue_warning")}
+              confirm={t("share.reissue_confirm")}
+              onConfirm={() => rotate.mutate()}
               disabled={busy}
-            >
-              {t("share.reissue")}
-            </button>
-            <button
-              type="button"
+            />
+            <ConfirmAction
               className="button--quiet"
-              onClick={() => revoke.mutate()}
+              label={t("share.revoke")}
+              warning={t("share.revoke_warning")}
+              confirm={t("share.revoke_confirm")}
+              onConfirm={() => revoke.mutate()}
               disabled={busy}
-            >
-              {t("share.revoke")}
-            </button>
+            />
           </div>
         </>
       )}

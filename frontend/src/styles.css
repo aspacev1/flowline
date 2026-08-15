@@ -1351,8 +1351,13 @@ input[type="checkbox"] {
 
 .invite__actions {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 4px;
   margin-left: auto;
+  /* Без этого развёрнутое подтверждение — предупреждение и две кнопки —
+     распирало бы строку наружу вместо того, чтобы переноситься внутри неё. */
+  min-width: 0;
 }
 
 /* Действия строки проявляются при наведении и при фокусе внутри неё:
@@ -1366,6 +1371,16 @@ input[type="checkbox"] {
 
 .invite:hover .invite__actions button,
 .invite:focus-within .invite__actions button {
+  opacity: 1;
+}
+
+/* Развёрнутое подтверждение из этого правила выведено: вопрос, на который
+   ждут ответа, не может исчезать, когда мышь ушла в сторону. */
+.invite__actions .plan__confirm {
+  max-width: 100%;
+}
+
+.invite__actions .plan__confirm button {
   opacity: 1;
 }
 

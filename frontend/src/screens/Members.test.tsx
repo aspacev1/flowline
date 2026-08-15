@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
@@ -101,11 +101,13 @@ describe("экран участников", () => {
     expect(await screen.findByRole("button", { name: /отправить ещё раз/i })).toBeInTheDocument();
   });
 
-  it("повторный выпуск показывает новую ссылку", async () => {
+  it("повторный выпуск спрашивает и показывает новую ссылку", async () => {
+    let reissued = false;
     server.use(
       ...membersHandlers(),
-      http.post("/api/org/invitations/i1/reissue", () =>
-        HttpResponse.json({
+      http.post("/api/org/invitations/i1/reissue", () => {
+        reissued = true;
+        return HttpResponse.json({
           id: "i1",
           email: "guest@example.com",
           role: "viewer",
@@ -113,16 +115,55 @@ describe("экран участников", () => {
           url: "http://localhost:8000/invite/новый-токен",
           sent: false,
           mail_error: null,
-        }),
-      ),
+        });
+      }),
     );
 
     renderApp({ route: "/members", locale: "ru" });
-    await userEvent.click(await screen.findByRole("button", { name: /новая ссылка/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /^новая ссылка$/i }));
+
+    // Прежняя ссылка живёт до ответа на вопрос: перевыпуск убивает её, а
+    // «новая ссылка» об этом не говорит ни словом.
+    expect(reissued).toBe(false);
+    expect(screen.getByText(/прежняя ссылка умрёт сразу/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /да, новая ссылка/i }));
 
     expect(await screen.findByLabelText(/ссылка приглашения/i)).toHaveValue(
       "http://localhost:8000/invite/новый-токен",
     );
+  });
+
+  it("отзыв приглашения тоже спрашивает, и от него можно отказаться", async () => {
+    let revoked = false;
+    server.use(
+      ...membersHandlers(),
+      http.delete("/api/org/invitations/i1", () => {
+        revoked = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    renderApp({ route: "/members", locale: "ru" });
+    await userEvent.click(await screen.findByRole("button", { name: /^отозвать$/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^отмена$/i }));
+
+    expect(revoked).toBe(false);
+    expect(screen.getByRole("button", { name: /^отозвать$/i })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /^отозвать$/i }));
+    await userEvent.click(screen.getByRole("button", { name: /да, отозвать/i }));
+
+    await waitFor(() => expect(revoked).toBe(true));
+  });
+
+  it("«отправить ещё раз» предупреждает тем же: это тот же перевыпуск", async () => {
+    server.use(...membersHandlers({ mailEnabled: true }));
+
+    renderApp({ route: "/members", locale: "ru" });
+    await userEvent.click(await screen.findByRole("button", { name: /отправить ещё раз/i }));
+
+    expect(screen.getByText(/прежняя ссылка умрёт сразу/i)).toBeInTheDocument();
   });
 
   it("письмо, которое не ушло, названо прямо, а приглашение остаётся", async () => {
@@ -230,7 +271,8 @@ describe("экран участников", () => {
     );
 
     renderApp({ route: "/members", locale: "ru" });
-    await userEvent.click(await screen.findByRole("button", { name: /новая ссылка/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /^новая ссылка$/i }));
+    await userEvent.click(screen.getByRole("button", { name: /да, новая ссылка/i }));
     await userEvent.click(await screen.findByRole("button", { name: /^скопировать$/i }));
 
     expect(writeText).toHaveBeenCalledWith("http://localhost:8000/invite/токен");
