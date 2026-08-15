@@ -98,6 +98,7 @@ function placeTip({ x, y }: Anchor, height: number): CSSProperties {
 
 export function BarTipProvider({
   names,
+  formatDay,
   children,
 }: {
   /**
@@ -106,6 +107,12 @@ export function BarTipProvider({
    * на публичной странице состав организации не отдаётся вовсе.
    */
   names?: ReadonlyMap<string, string>;
+  /**
+   * Подпись дня вместо короткой даты — для относительного представления:
+   * карточка обязана говорить на языке шкалы за её спиной, «День 8», а не
+   * настоящей датой, которой у плана нет.
+   */
+  formatDay?: (iso: string) => string;
   children: ReactNode;
 }) {
   const [tip, setTip] = useState<Pending | null>(null);
@@ -177,7 +184,7 @@ export function BarTipProvider({
     <BarTipContext.Provider value={api}>
       {children}
       {tip !== null && tip.shown && (
-        <BarTip task={tip.task} anchor={tip.anchor} keys={tip.keys} names={names} />
+        <BarTip task={tip.task} anchor={tip.anchor} keys={tip.keys} names={names} formatDay={formatDay} />
       )}
     </BarTipContext.Provider>
   );
@@ -235,11 +242,13 @@ function BarTip({
   anchor,
   keys,
   names,
+  formatDay,
 }: {
   task: Task;
   anchor: Anchor;
   keys: boolean;
   names?: ReadonlyMap<string, string>;
+  formatDay?: (iso: string) => string;
 }) {
   const { t } = useLocale();
   const node = useRef<HTMLDivElement>(null);
@@ -267,7 +276,8 @@ function BarTip({
 
   // Короткая форма даты, а не полная: карточка шириной 235px, и «12 августа —
   // 14 августа» в её правой колонке переносится на вторую строку.
-  const dates = `${formatShortDate(t, task.start_date)} → ${formatShortDate(t, task.end_date)}`;
+  const day = formatDay ?? ((iso: string) => formatShortDate(t, iso));
+  const dates = `${day(task.start_date)} → ${day(task.end_date)}`;
   const status =
     task.status === "blocked"
       ? `⚠ ${t(`task.status.${task.status}`)}`

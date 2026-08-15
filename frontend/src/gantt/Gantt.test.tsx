@@ -17,6 +17,12 @@ const STATE: ProjectState = {
   plan_approved_at: null,
   plan_version: 0,
   undoable: null,
+  // Календарный режим: заглушки существующих тестов живут настоящими датами.
+  // Относительные проекты собирают своё состояние поверх этого (см. тесты
+  // относительной шкалы).
+  schedule_mode: "calendar" as const,
+  start_date: null,
+
   calendar: { working_days: 31, holidays: ["2026-03-20"], extra_workdays: [] },
   categories: [{ id: "c1", name: "Дизайн", color: "#3b82f6", position: 0 }],
   tasks: [
@@ -441,5 +447,76 @@ describe("прокрутка ленты", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+/**
+ * Относительная шкала: план без дат живёт на оси «Месяц 1 / Неделя 1 / День 1».
+ *
+ * Состояние — поверх календарной заглушки: серверные координаты стоят у эпохи
+ * (2001-01-01, понедельник), как их отдаёт сериализация относительного проекта.
+ */
+const RELATIVE: ProjectState = {
+  ...STATE,
+  schedule_mode: "relative",
+  project_end: "2001-01-12",
+  calendar: { working_days: 31, holidays: [], extra_workdays: [] },
+  tasks: [
+    {
+      ...STATE.tasks[0],
+      start_date: "2001-01-01",
+      end_date: "2001-01-12",
+      start_offset_days: 0,
+      duration_days: 10,
+    },
+  ],
+};
+
+describe("относительная шкала", () => {
+  it("подписывает шапку месяцами и неделями проекта, а не датами", () => {
+    const { container } = draw(RELATIVE);
+
+    expect(screen.getByText("Месяц 1")).toBeInTheDocument();
+    expect(screen.getByText("Неделя 1")).toBeInTheDocument();
+    // Конец проекта — день 12, вторая неделя; окно всё равно не короче
+    // четырёх недель — одной группы «Месяц 1».
+    expect(container.querySelectorAll(".gantt__week")).toHaveLength(4);
+    expect(container.querySelectorAll(".gantt__month")).toHaveLength(1);
+    // Названий настоящих месяцев в шапке нет.
+    expect(screen.queryByText(/март/i)).not.toBeInTheDocument();
+  });
+
+  it("не рисует ни линию сегодня, ни дедлайн: настоящих дат на оси нет", () => {
+    const { container } = draw(RELATIVE);
+
+    expect(container.querySelector(".gantt__today")).toBeNull();
+    expect(container.querySelector(".gantt__deadline")).toBeNull();
+    // Сводка по дедлайну тоже молчит — вместо неё строка-подсказка.
+    expect(container.querySelector(".gantt__summary")).toBeNull();
+    expect(container.querySelector(".gantt__plan-hint")).not.toBeNull();
+  });
+
+  it("называет режим в тулбаре", () => {
+    draw(RELATIVE);
+    expect(screen.getByText("Относительный план")).toBeInTheDocument();
+  });
+
+  it("календарный проект с датой старта умеет показать себя неделями проекта", async () => {
+    const user = userEvent.setup();
+    // Старт — понедельник 2 марта: задача 4–10 марта попадает во «Неделю 1-2».
+    const bound: ProjectState = { ...STATE, start_date: "2026-03-02" };
+    const { container } = draw(bound);
+
+    // По умолчанию — настоящие даты и никакого переключателя у ленты без даты.
+    expect(screen.queryByText("Месяц 1")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Относительный" }));
+
+    expect(screen.getByText("Месяц 1")).toBeInTheDocument();
+    // Линия «сегодня» гаснет и здесь: представление говорит неделями проекта.
+    expect(container.querySelector(".gantt__today")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Календарный" }));
+    expect(screen.queryByText("Месяц 1")).not.toBeInTheDocument();
   });
 });

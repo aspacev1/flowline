@@ -74,6 +74,26 @@
   font-weight: 500;
 }
 
+/* Информационная строка относительного плана — на месте сводки по дедлайну
+   и той же формы: у плана без дат это и есть его сводка. Знак ⓘ — из
+   разметки псевдоэлементом, чтобы не попадать в читалку отдельным словом. */
+.gantt__plan-hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 32px 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: var(--hover);
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.gantt__plan-hint::before {
+  content: "ⓘ";
+  color: var(--text-muted);
+}
+
 .gantt__summary.is-late {
   background: var(--danger-soft);
   color: var(--danger-strong);
@@ -213,6 +233,47 @@
 .gantt__days {
   position: relative;
   height: calc(var(--gantt-head) - var(--gantt-month-row));
+}
+
+/* Относительная шкала: между месяцами и днями — строка недель. Высота шапки
+   та же, что у календарной: полоса дней отдаёт неделям строку дня недели,
+   которой в относительной шкале нет. */
+.gantt__weeks {
+  position: relative;
+  height: var(--gantt-week-row, 16px);
+  border-bottom: 1px solid var(--border);
+}
+
+.gantt__head--relative .gantt__days {
+  height: calc(var(--gantt-head) - var(--gantt-month-row) - var(--gantt-week-row, 16px));
+}
+
+.gantt__week {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 12px;
+  border-left: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.gantt__week-label {
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* Номер дня в относительной шкале стоит один, без строки дня недели, — по
+   центру оставшейся полосы, а не прижатым к верху. */
+.gantt__head--relative .gantt__day {
+  justify-content: center;
+  padding-top: 0;
 }
 
 .gantt__month,

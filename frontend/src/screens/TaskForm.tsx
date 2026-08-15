@@ -13,6 +13,7 @@ import {
 import type { Category, Criticality, Task, TaskStatus } from "../api/projects";
 import { Field } from "../components/Field";
 import { Modal } from "../components/Modal";
+import { dateOfProjectDay } from "../gantt/relative";
 import { useToday } from "../time/useToday";
 import { useLocale } from "../i18n/LocaleProvider";
 import { progressForStatus, statusForProgress } from "../project/optimistic";
@@ -66,7 +67,12 @@ export function TaskForm({
     enabled: false,
   });
   const today = useToday(project.data?.settings?.timezone);
+  // Относительный план: задачу ставят на день проекта, а не на дату — дат у
+  // такого плана ещё нет. Номер дня переводится в координату оси линейной
+  // арифметикой; рабочие дни и конец задачи по-прежнему считает сервер.
+  const relative = project.data?.schedule_mode === "relative";
   const [startDate, setStartDate] = useState(today);
+  const [startDay, setStartDay] = useState("1");
   const [durationDays, setDurationDays] = useState("1");
   const [assignees, setAssignees] = useState<string[]>([]);
   // Две стороны одной и той же связи: «зависит от» — где будущая задача
@@ -111,7 +117,7 @@ export function TaskForm({
           name: name.trim(),
           description: description.trim(),
           internal_note: internalNote.trim(),
-          start_date: startDate,
+          start_date: relative ? dateOfProjectDay(Number(startDay)) : startDate,
           duration_days: Number(durationDays),
           criticality,
           status,
@@ -193,7 +199,7 @@ export function TaskForm({
     criticality !== "normal" ||
     status !== "planned" ||
     progressPct !== "0" ||
-    startDate !== today ||
+    (relative ? startDay !== "1" : startDate !== today) ||
     durationDays !== "1" ||
     assignees.length > 0 ||
     dependsOn.length > 0 ||
@@ -201,9 +207,10 @@ export function TaskForm({
 
   const days = Number(durationDays);
   const pct = Number(progressPct);
+  const day = Number(startDay);
   const valid =
     name.trim() !== "" &&
-    startDate !== "" &&
+    (relative ? Number.isInteger(day) && day >= 1 : startDate !== "") &&
     Number.isInteger(days) &&
     days >= 1 &&
     progressPct !== "" &&
@@ -282,13 +289,25 @@ export function TaskForm({
           </select>
         </p>
 
-        <Field
-          id="task-start"
-          label={t("task.new.start")}
-          type="date"
-          value={startDate}
-          onChange={setStartDate}
-        />
+        {relative ? (
+          // День проекта, с единицы: «поставить на 26-й день», как в
+          // относительной шкале за спиной формы, где дат нет вовсе.
+          <Field
+            id="task-start"
+            label={t("task.new.start_day")}
+            type="number"
+            value={startDay}
+            onChange={setStartDay}
+          />
+        ) : (
+          <Field
+            id="task-start"
+            label={t("task.new.start")}
+            type="date"
+            value={startDate}
+            onChange={setStartDate}
+          />
+        )}
 
         {/* Подпись говорит «рабочих дней», а не «дней»: это разные величины, и
             человек, поставивший 5 в пятницу, должен понимать, почему задача

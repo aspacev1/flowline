@@ -19,6 +19,7 @@ import {
 } from "../project/optimistic";
 import { isShiftCancelled } from "../project/ShiftReason";
 import { useProjectMutation } from "../project/useProjectMutation";
+import { dateOfProjectDay, projectDayNumber, relativeDayLabel } from "../gantt/relative";
 import { formatShortDate } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
 import { Comments } from "./Comments";
@@ -101,6 +102,10 @@ export function TaskPanel({
   // ней: Esc здесь значит «передумал удалять», а не «закрой карточку». Второе
   // унесло бы и вопрос, и задачу, о которой он.
   useEscape(() => setConfirmingDelete(false), confirmingDelete);
+
+  // Относительный план: поля дат карточки говорят днями проекта — дат у
+  // такого плана ещё нет (см. gantt/relative.ts).
+  const relative = state.schedule_mode === "relative";
 
   const send = (op: Op, optimistic: (state: ProjectState) => ProjectState) => {
     setError(null);
@@ -320,17 +325,37 @@ export function TaskPanel({
               }}
             />
 
-            <ValueField
-              id="panel-start"
-              label={t("task.panel.start")}
-              type="date"
-              value={task.start_date}
-              disabled={!canWrite}
-              resetToken={refusals}
-              onCommit={(start_date) =>
-                send({ type: "move_task", task_id: task.id, start_date }, patch({ start_date }))
-              }
-            />
+            {relative ? (
+              // Относительный план: старт правится номером дня проекта — дат
+              // у такого плана нет. Перевод номера в координату оси линейный;
+              // рабочие дни считает сервер, как и всюду.
+              <ValueField
+                id="panel-start"
+                label={t("task.panel.start_day")}
+                type="number"
+                value={String(projectDayNumber(task.start_date))}
+                disabled={!canWrite}
+                resetToken={refusals}
+                onCommit={(value) => {
+                  const day = Number(value);
+                  if (!Number.isInteger(day) || day < 1) return;
+                  const start_date = dateOfProjectDay(day);
+                  send({ type: "move_task", task_id: task.id, start_date }, patch({ start_date }));
+                }}
+              />
+            ) : (
+              <ValueField
+                id="panel-start"
+                label={t("task.panel.start")}
+                type="date"
+                value={task.start_date}
+                disabled={!canWrite}
+                resetToken={refusals}
+                onCommit={(start_date) =>
+                  send({ type: "move_task", task_id: task.id, start_date }, patch({ start_date }))
+                }
+              />
+            )}
 
             <ValueField
               id="panel-duration"
@@ -353,7 +378,9 @@ export function TaskPanel({
               {/* Дата окончания только показывается: её считает сервер по
                   календарю проекта, и поле для правки обещало бы влияние,
                   которого нет. */}
-              <span className="panel__value">{formatShortDate(t, task.end_date)}</span>
+              <span className="panel__value">
+                {relative ? relativeDayLabel(t, task.end_date) : formatShortDate(t, task.end_date)}
+              </span>
             </div>
 
             {/* Единственное поле с ограниченной видимостью. Показывать его
@@ -404,7 +431,7 @@ export function TaskPanel({
 
       {tab === "history" && (
         <div id="panel-tabpanel-history" role="tabpanel" aria-labelledby="panel-tab-history">
-          <History projectId={projectId} taskId={task.id} />
+          <History projectId={projectId} taskId={task.id} relative={relative} />
         </div>
       )}
 
@@ -592,6 +619,7 @@ function Dependencies({
  */
 function Baseline({ task, state }: { task: Task; state: ProjectState }) {
   const { t } = useLocale();
+  const relative = state.schedule_mode === "relative";
 
   if (isBeyondPlan(state, task)) {
     return <p className="panel__baseline muted">{t("plan.beyond_plan_explained")}</p>;
@@ -607,8 +635,8 @@ function Baseline({ task, state }: { task: Task; state: ProjectState }) {
     <p className="panel__baseline">
       <span className="muted">
         {t("gantt.baseline", {
-          from: formatShortDate(t, baseline.start),
-          to: formatShortDate(t, baseline.end),
+          from: relative ? relativeDayLabel(t, baseline.start) : formatShortDate(t, baseline.start),
+          to: relative ? relativeDayLabel(t, baseline.end) : formatShortDate(t, baseline.end),
         })}
       </span>
       {shift !== null && shift !== 0 && (

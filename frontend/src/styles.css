@@ -1664,6 +1664,24 @@ input[type="checkbox"] {
   font-size: 13px;
 }
 
+/* Пояснение под полем формы: тем же голосом, что подсказка у слага. */
+.field__hint {
+  margin: -6px 0 12px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* Рассчитанные границы проекта в окне привязки: строка-итог перед кнопками,
+   заметная, но не тревожная — это обещание, а не предупреждение. */
+.schedule__preview {
+  margin: 16px 0 0;
+  padding: 10px 14px;
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .settings__slug-hint button {
   height: 24px;
   padding: 0 8px;

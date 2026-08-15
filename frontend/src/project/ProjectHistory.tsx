@@ -228,7 +228,7 @@ export function ProjectHistory({
       {entry.undoes_seq !== null && (
         <span className="feed__badge">{t("history.undo_badge")} </span>
       )}
-      {formatEvent(entry.op, locale, entry.names)}
+      {formatEvent(entry.op, locale, entry.names, state.schedule_mode === "relative")}
       {subjectOf(entry) && <span className="feed__subject"> · {subjectOf(entry)}</span>}
     </>
   );

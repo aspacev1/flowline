@@ -19,6 +19,7 @@ import { PlanApproval } from "../project/PlanApproval";
 import { ProjectHead } from "../project/ProjectHead";
 import { ProjectHistory } from "../project/ProjectHistory";
 import { ShiftReasonProvider } from "../project/ShiftReason";
+import { StartDateDialog } from "../project/StartDateDialog";
 import { UndoHotkey } from "../project/UndoHotkey";
 import { TaskPanel } from "../task/TaskPanel";
 import { CategoryForm, suggestColor } from "./CategoryForm";
@@ -43,6 +44,8 @@ export function Project({ tab = "gantt" }: { tab?: "gantt" | "history" } = {}) {
   const reducedMotion = usePrefersReducedMotion();
   const [addingCategory, setAddingCategory] = useState(false);
   const [sharing, setSharing] = useState(false);
+  // Окно привязки плана к дате старта — и переноса уже назначенной даты.
+  const [scheduling, setScheduling] = useState(false);
   // Категория, из строки которой открыли форму задачи. `null` — форма закрыта.
   const [addingTaskIn, setAddingTaskIn] = useState<string | null>(null);
   // Задача, карточка которой открыта. Держится идентификатором, а не самой
@@ -238,6 +241,27 @@ export function Project({ tab = "gantt" }: { tab?: "gantt" | "history" } = {}) {
                     </>
                   ) : undefined
                 }
+                scheduleAction={
+                  canWrite ? (
+                    <button
+                      type="button"
+                      // Первая привязка — главное действие тулбара, как в
+                      // макете; перенос уже назначенной даты — тихая кнопка:
+                      // главного действия у настроенного проекта здесь нет.
+                      className={
+                        query.data.schedule_mode === "relative"
+                          ? "project-toolbar__primary"
+                          : "button--quiet"
+                      }
+                      disabled={offline}
+                      onClick={() => setScheduling(true)}
+                    >
+                      {query.data.schedule_mode === "relative"
+                        ? t("schedule.open")
+                        : t("schedule.change")}
+                    </button>
+                  ) : undefined
+                }
                 onAddTask={editable ? setAddingTaskIn : undefined}
                 onDeleteCategory={editable ? removeCategory : undefined}
                 selectedTaskId={selectedTaskId}
@@ -262,6 +286,14 @@ export function Project({ tab = "gantt" }: { tab?: "gantt" | "history" } = {}) {
             )}
 
             {sharing && <ShareDialog projectId={projectId} onClose={() => setSharing(false)} />}
+
+            {scheduling && (
+              <StartDateDialog
+                projectId={projectId}
+                state={query.data}
+                onClose={() => setScheduling(false)}
+              />
+            )}
 
             {addingCategory && (
               <CategoryForm

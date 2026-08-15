@@ -1,3 +1,4 @@
+import { relativeDayLabel } from "../gantt/relative";
 import { formatShortDate } from "../i18n/dates";
 import { translate } from "../i18n";
 import type { Locale, Params } from "../i18n";
@@ -29,15 +30,22 @@ export function formatEvent(
    * как и была, — запись старого формата не ломает ленту.
    */
   names: Record<string, string> = {},
+  /**
+   * Читать ли даты как дни относительной оси. Журнал хранит координаты, и у
+   * относительного проекта «переносом с 3 января» была бы выдача внутренней
+   * системы координат за настоящую дату.
+   */
+  relative = false,
 ): string {
   const t = (key: string, params?: Params) => translate(locale, key, params);
   const say = (key: string, params?: Params) => t(`history.${key}`, params);
+  const day = (iso: string) => (relative ? relativeDayLabel(t, iso) : formatShortDate(t, iso));
 
   switch (op.type) {
     case "move_task":
       return say("move_task", {
-        from: formatShortDate(t, String(op.from)),
-        to: formatShortDate(t, String(op.to)),
+        from: day(String(op.from)),
+        to: day(String(op.to)),
       });
 
     case "set_duration":

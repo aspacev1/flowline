@@ -22,6 +22,12 @@ const STATE: ProjectState = {
   plan_approved_at: null,
   plan_version: 0,
   undoable: null,
+  // Календарный режим: заглушки существующих тестов живут настоящими датами.
+  // Относительные проекты собирают своё состояние поверх этого (см. тесты
+  // относительной шкалы).
+  schedule_mode: "calendar" as const,
+  start_date: null,
+
   calendar: { working_days: 31, holidays: [], extra_workdays: [] },
   categories: [{ id: "c1", name: "Дизайн", color: "#3b82f6", position: 0 }],
   tasks: [

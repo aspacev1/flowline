@@ -15,7 +15,16 @@ import { formatEvent } from "./formatEvent";
  * Отказ здесь ничего не ломает: журнал — не то, ради чего открыли карточку.
  * Блок просто не рисуется, а поля выше работают как работали.
  */
-export function History({ projectId, taskId }: { projectId: string; taskId: string }) {
+export function History({
+  projectId,
+  taskId,
+  relative = false,
+}: {
+  projectId: string;
+  taskId: string;
+  /** Читать ли даты журнала как дни относительной оси (см. formatEvent). */
+  relative?: boolean;
+}) {
   const { t, locale } = useLocale();
 
   const query = useQuery({
@@ -38,7 +47,7 @@ export function History({ projectId, taskId }: { projectId: string; taskId: stri
             <p className="panel__event-line">
               {/* Имя человека — содержимое, а не чрома: не переводится. */}
               {entry.actor && <span className="panel__event-actor">{entry.actor.name} </span>}
-              {formatEvent(entry.op, locale, entry.names)}
+              {formatEvent(entry.op, locale, entry.names, relative)}
             </p>
             <p className="panel__event-meta">
               <span>{formatShortDate(t, entry.created_at.slice(0, 10))}</span>
