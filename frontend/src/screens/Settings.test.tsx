@@ -251,6 +251,27 @@ describe("настройки проекта", () => {
   });
 });
 
+/**
+ * Профиль, отвечающий на правки, и список ушедших на сервер полей.
+ *
+ * Ставится после `sessionHandlers()` из `beforeEach` и потому перебивает их
+ * общий ответ про профиль: msw предпочитает обработчик, названный позже.
+ */
+function profileFixtures(overrides: Partial<typeof USER> = {}) {
+  const patches: Patch[] = [];
+  let user = { ...USER, ...overrides };
+  server.use(
+    http.get("/api/auth/me", () => HttpResponse.json(user)),
+    http.patch("/api/auth/me", async ({ request }) => {
+      const patch = (await request.json()) as Patch;
+      patches.push(patch);
+      user = { ...user, ...patch };
+      return HttpResponse.json(user);
+    }),
+  );
+  return patches;
+}
+
 describe("профиль", () => {
   beforeEach(() => {
     server.use(...sessionHandlers());
@@ -271,5 +292,25 @@ describe("профиль", () => {
 
     expect(await screen.findByText(USER.email)).toBeInTheDocument();
     expect(screen.queryByLabelText("Почта")).toBeNull();
+  });
+
+  it("часовой пояс уходит в профиль выбором из списка", async () => {
+    const patches = profileFixtures();
+    renderApp({ route: "/settings/profile" });
+
+    await userEvent.selectOptions(await screen.findByLabelText("Часовой пояс"), "Europe/Moscow");
+
+    await waitFor(() => expect(patches).toEqual([{ timezone: "Europe/Moscow" }]));
+  });
+
+  it("«по часам браузера» — это null, а не пустая строка", async () => {
+    // Пустая строка не имя пояса, и сервер отказал бы: `null` здесь означает
+    // «пояс не выбран», то есть возврат к часам машины.
+    const patches = profileFixtures({ timezone: "Europe/Moscow" });
+    renderApp({ route: "/settings/profile" });
+
+    await userEvent.selectOptions(await screen.findByLabelText("Часовой пояс"), "");
+
+    await waitFor(() => expect(patches).toEqual([{ timezone: null }]));
   });
 });

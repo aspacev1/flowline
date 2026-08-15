@@ -10,7 +10,7 @@ from fastapi import (
     Request,
     Response,
 )
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
@@ -38,7 +38,7 @@ from app.invitations import InvitationError, Status, by_token, check_recipient, 
 from app.locales import locale_from_request
 from app.models import Invitation, User
 from app.rate_limit import client_key
-from app.settings_input import check_locale
+from app.settings_input import check_locale, check_timezone
 from app.text import normalize_email
 from app import throttle
 
@@ -69,6 +69,11 @@ class UserOut(BaseModel):
     name: str
     email: str
     locale: str
+    # `null` — «пояс не выбран, спросите браузер». Отдавать вместо него
+    # выведенный пояс нельзя: сервер знает про браузер только то, с какого
+    # адреса пришёл запрос, а по адресу пояс угадывается неверно ровно у тех,
+    # кому эта настройка и нужна, — у уехавших и у сидящих через VPN.
+    timezone: str | None
     # Не дата, а признак: интерфейсу нужно решить, показывать ли полоску
     # «подтвердите адрес», а точное время подтверждения ему не нужно ни для
     # чего — и не стоит того, чтобы разбирать формат даты на клиенте.
@@ -133,6 +138,7 @@ def _to_out(user: User) -> UserOut:
         name=user.name,
         email=user.email,
         locale=user.locale,
+        timezone=user.timezone,
         email_verified=user.email_verified_at is not None,
     )
 
@@ -369,17 +375,28 @@ def resend_verification_route(
 
 
 class ProfileIn(BaseModel):
-    """Уровень 4 настроек: язык интерфейса. Всё.
+    """Уровень 4 настроек: язык интерфейса и часовой пояс.
 
-    Имя рядом с ним не настройка, а свойство человека, но правится оно там же
+    Имя рядом с ними не настройка, а свойство человека, но правится оно там же
     и тем же запросом: заводить ради одного поля второй маршрут значило бы
     делать вид, что это разные экраны.
+
+    `timezone` — единственное поле, у которого `null` что-то значит: «считать
+    сутки по браузеру». Отличить его от «поле не прислали» позволяет
+    `model_fields_set` — тот же приём, что у переопределений проекта, и по той
+    же причине: без него сброс выбора был бы невыразим.
     """
 
     model_config = ConfigDict(extra="forbid")
 
     name: str | None = Field(default=None, min_length=1, max_length=200)
     locale: str | None = None
+    timezone: str | None = None
+
+    @field_validator("timezone")
+    @classmethod
+    def _timezone(cls, value: str | None) -> str | None:
+        return None if value is None else check_timezone(value)
 
 
 @router.patch("/me", response_model=UserOut)
@@ -390,13 +407,17 @@ def update_me(
 
     Язык проверяется по списку поддерживаемых: непроверенное значение легло бы
     в профиль, и интерфейс молча падал бы на язык по умолчанию при каждом
-    входе, не объясняя почему.
+    входе, не объясняя почему. Пояс проверен разбором тела — именем из базы
+    IANA, а не свободной строкой: по нему считаются сутки читателя, и опечатка
+    в нём сдвинула бы «сегодня» на весь срок, пока её не заметят.
     """
     if payload.locale is not None:
         try:
             user.locale = check_locale(payload.locale)
         except ValueError:
             raise HTTPException(status_code=422, detail="unsupported_locale")
+    if "timezone" in payload.model_fields_set:
+        user.timezone = payload.timezone
     if payload.name is not None:
         user.name = payload.name.strip()
     db.flush()

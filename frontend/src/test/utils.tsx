@@ -54,6 +54,9 @@ export const USER = {
   name: "Алексей",
   email: "a@b.c",
   locale: "ru",
+  // Пояс не выбран: сутки считаются по браузеру — состояние, в котором живёт
+  // всякий, кто про эту настройку не вспоминал.
+  timezone: null as string | null,
   email_verified: true,
 };
 

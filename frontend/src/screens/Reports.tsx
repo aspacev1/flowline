@@ -4,8 +4,9 @@ import { errorKey } from "../api/errors";
 import type { ProjectState } from "../api/projects";
 import { formatShortDate } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
-import { daysBetween, toISO } from "../gantt/timescale";
+import { daysBetween } from "../gantt/timescale";
 import { progressOf, statusCounts } from "../project/progress";
+import { useToday } from "../time/useToday";
 import { useProjectStates } from "./portfolio";
 
 /**
@@ -19,7 +20,9 @@ import { useProjectStates } from "./portfolio";
 export function Reports() {
   const { t } = useLocale();
   const { pending, error, states } = useProjectStates();
-  const today = toISO(Date.now());
+  // Одна таблица на все проекты: «просрочено» и «успевает ли к сроку»
+  // считаются по суткам того, кто её читает (см. useToday).
+  const today = useToday();
 
   return (
     <main className="screen">

@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import type { SlugCheck } from "../api/org";
 import { useLocale } from "../i18n/LocaleProvider";
+import { browserTimeZone, timeZoneNames } from "../time/zone";
 
 /**
  * Поля, которые нужны обоим экранам настроек.
@@ -73,6 +74,65 @@ export function WorkingDaysField({
         </span>
       )}
     </fieldset>
+  );
+}
+
+/**
+ * Часовой пояс — выбором из списка, а не строкой.
+ *
+ * Имя из базы IANA («Europe/Moscow») набрать по памяти без опечатки трудно, а
+ * ошибка в нём не видна: сервер откажет, и человек останется гадать, чем
+ * «Europe/Moskva» хуже. Список даёт сам браузер — своя копия базы поясов
+ * состарилась бы вместе с приложением.
+ *
+ * Пустое значение — не «пусто», а отдельный осмысленный выбор: считать сутки
+ * по часам браузера. Он стоит первым и выбран по умолчанию, потому что почти
+ * всегда прав; руками пояс задают те, у кого браузер врёт, — уехавшие и
+ * сидящие через VPN.
+ */
+export function TimeZoneField({
+  id,
+  label,
+  hint,
+  autoLabel,
+  value,
+  onChange,
+  disabled,
+}: {
+  id: string;
+  label: string;
+  hint?: string;
+  /** Подпись выбора «по браузеру» — с поясом, который браузер сообщает. */
+  autoLabel: string;
+  /** `null` — пояс не выбран, сутки считаются по браузеру. */
+  value: string | null;
+  onChange: (zone: string | null) => void;
+  disabled?: boolean;
+}) {
+  // Сохранённый выбор и пояс машины добавляются к списку принудительно:
+  // браузер старее базы IANA не знает про недавно заведённый пояс, и без
+  // этого поле показало бы не то, что записано в профиле.
+  const zones = useMemo(() => timeZoneNames(value, browserTimeZone()), [value]);
+
+  return (
+    <p className="field">
+      <label htmlFor={id}>{label}</label>
+      {hint && <span className="muted">{hint}</span>}
+      <select
+        id={id}
+        name={id}
+        value={value ?? ""}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value === "" ? null : event.target.value)}
+      >
+        <option value="">{autoLabel}</option>
+        {zones.map((zone) => (
+          <option key={zone} value={zone}>
+            {zone}
+          </option>
+        ))}
+      </select>
+    </p>
   );
 }
 

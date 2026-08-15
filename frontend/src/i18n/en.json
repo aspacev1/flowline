@@ -634,7 +634,10 @@
       "delete_confirm": "Yes, delete the project"
     },
     "profile": {
-      "title": "Profile"
+      "title": "Profile",
+      "timezone_hint": "Today is worked out in this zone: the today line on the chart, the plan mark on a task and overdue dates",
+      "timezone_auto": "Follow the browser clock",
+      "timezone_auto_at": "Follow the browser clock ({zone})"
     },
     "llm": {
       "title": "LLM connection",

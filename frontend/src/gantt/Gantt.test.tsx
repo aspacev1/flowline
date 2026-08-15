@@ -117,6 +117,26 @@ describe("диаграмма", () => {
     }
   });
 
+  it("ведёт линию «сегодня» по поясу проекта, а не по UTC", () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    // 02:30 одиннадцатого марта в Баку — это ещё 22:30 десятого по UTC. До
+    // починки лента всю ночь показывала вчерашнее число.
+    vi.setSystemTime(new Date(Date.UTC(2026, 2, 10, 22, 30)));
+    try {
+      const { container } = draw({
+        ...STATE,
+        settings: { shift_threshold_days: 2, timezone: "Asia/Baku" },
+      });
+
+      expect(container.querySelector('.gantt__day[data-day="2026-03-11"]')).toHaveClass("is-today");
+      expect(container.querySelector('.gantt__day[data-day="2026-03-10"]')).not.toHaveClass(
+        "is-today",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("красит задачу, заезжающую за дедлайн", () => {
     draw({ ...STATE, tasks: [{ ...STATE.tasks[0], end_date: "2026-06-05" }] });
     expect(screen.getByRole("img", { name: /Логотип/ })).toHaveClass("is-late");
