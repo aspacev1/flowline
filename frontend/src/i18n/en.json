@@ -464,9 +464,7 @@
     "reissue_warning": "A new link kills the old one instantly — an address you already sent will stop opening",
     "revoke": "Close the link",
     "comments_enabled": "Allow comments",
-    "disabled": "Public links are switched off: by the installation or by the organization",
-    "hidden": "The project is not shared",
-    "comments": "Comments are allowed"
+    "disabled": "Public links are switched off: by the installation or by the organization"
   },
   "comments": {
     "title": "Comments",
