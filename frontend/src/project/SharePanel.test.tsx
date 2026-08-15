@@ -119,4 +119,14 @@ describe("публичная ссылка в настройках проекта
     expect(await screen.findByRole("button", { name: "Опубликовать" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Адрес ссылки")).not.toBeInTheDocument();
   });
+
+  it("опубликованный проект показывает адрес и кнопки управления ссылкой", async () => {
+    server.use(http.get("/api/projects/p1/share", () => HttpResponse.json(PUBLISHED)));
+
+    renderSettings();
+
+    expect(await screen.findByLabelText("Адрес ссылки")).toHaveValue(URL);
+    expect(screen.getByRole("button", { name: "Перевыпустить" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Опубликовать" })).not.toBeInTheDocument();
+  });
 });

@@ -155,9 +155,11 @@ describe("настройки проекта", () => {
     };
     server.use(
       http.get("/api/projects/p1", () => HttpResponse.json(state)),
-      // Панель публичной ссылки живёт на этом же экране: без ответа она
-      // показывает «проект наружу не показан», но запрос всё равно уходит.
-      http.get("/api/projects/p1/share", () => HttpResponse.json(null)),
+      // Панель публичной ссылки живёт на этом же экране. Сервер и тут отвечает
+      // объектом: «не опубликован» — это url: null, а не пустой ответ.
+      http.get("/api/projects/p1/share", () =>
+        HttpResponse.json({ allowed: true, url: null, comments_enabled: false, created_at: null }),
+      ),
       http.patch("/api/projects/p1", async ({ request }) => {
         const patch = (await request.json()) as Patch;
         patches.push(patch);

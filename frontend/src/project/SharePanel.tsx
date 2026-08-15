@@ -15,6 +15,11 @@ import { useLocale } from "../i18n/LocaleProvider";
 /**
  * Публичная ссылка на проект — в настройках проекта.
  *
+ * Сервер всегда отвечает объектом: «не опубликован» — это `url: null`, а не
+ * пустой ответ. Отдельно приходит `allowed` — когда публикация выключена
+ * установкой или организацией, кнопка «опубликовать» не предлагается вовсе:
+ * она кончилась бы отказом.
+ *
  * Перевыпуск и отзыв названы разными кнопками, потому что это разные решения:
  * перевыпуск убивает прежнюю ссылку и даёт новую (её надо разослать заново),
  * отзыв закрывает проект наружу совсем. Одна кнопка «обновить» скрывала бы эту
@@ -26,12 +31,11 @@ export function SharePanel({ projectId }: { projectId: string }) {
   const key = shareQueryKey(projectId);
 
   const query = useQuery({ queryKey: key, queryFn: () => getShare(projectId), retry: false });
-  const write = (next: Share | null) => queryClient.setQueryData(key, next);
-  const share = query.data ?? null;
+  const write = (share: Share) => queryClient.setQueryData(key, share);
 
   const issue = useMutation({ mutationFn: () => issueShare(projectId), onSuccess: write });
-  // Перевыпуск идёт отдельным маршрутом: POST /share на уже опубликованном
-  // проекте отвечает 409 — тем и защищает разосланный адрес от ретрая.
+  // Перевыпуск — отдельный вызов: «создать» и «убить прежний адрес» нельзя
+  // перепутать двойным кликом или ретраем сети.
   const rotate = useMutation({ mutationFn: () => rotateShare(projectId), onSuccess: write });
   const comments = useMutation({
     mutationFn: (enabled: boolean) => setShareComments(projectId, enabled),
@@ -39,17 +43,20 @@ export function SharePanel({ projectId }: { projectId: string }) {
   });
   const revoke = useMutation({
     mutationFn: () => revokeShare(projectId),
-    // Ответ на DELETE пустой, поэтому состояние собирается здесь: ссылки
-    // больше нет, но право публиковать осталось — иначе панель после отзыва
-    // перестала бы отличать «закрыто владельцем» от «запрещено установкой».
-    onSuccess: () => write(share === null ? null : { ...share, url: null, created_at: null }),
+    onSuccess: () =>
+      queryClient.setQueryData<Share>(key, (prev) =>
+        prev === undefined ? prev : { ...prev, url: null, created_at: null },
+      ),
   });
 
-  const failure = issue.error ?? rotate.error ?? comments.error ?? revoke.error;
+  const failure = query.error ?? issue.error ?? rotate.error ?? comments.error ?? revoke.error;
+  const share = query.data;
 
   return (
     <section className="settings__fieldset">
       <h2>{t("share.title")}</h2>
+
+      {query.isPending && <p role="status">{t("common.loading")}</p>}
 
       {failure != null && (
         <p className="error" role="alert">
@@ -59,20 +66,16 @@ export function SharePanel({ projectId }: { projectId: string }) {
 
       {share?.allowed === false && <p className="muted">{t("share.disabled")}</p>}
 
-      {/* «Опубликован» — это наличие адреса, а не наличие ответа: сервер
-          отвечает и на неопубликованный проект, с `url: null`. */}
-      {share === null || share.url === null ? (
+      {share?.allowed && share.url === null && (
         <>
           <p className="muted">{t("share.hidden")}</p>
-          {/* Кнопка, которая кончится отказом, хуже её отсутствия: при
-              запрещённых ссылках причина уже названа словами выше. */}
-          {share?.allowed !== false && (
-            <button type="button" onClick={() => issue.mutate()} disabled={issue.isPending}>
-              {t("share.publish")}
-            </button>
-          )}
+          <button type="button" onClick={() => issue.mutate()} disabled={issue.isPending}>
+            {t("share.publish")}
+          </button>
         </>
-      ) : (
+      )}
+
+      {share?.allowed && share.url !== null && (
         <>
           <p className="field">
             <label htmlFor="share-url">{t("share.url")}</label>
