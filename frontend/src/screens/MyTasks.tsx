@@ -6,7 +6,7 @@ import { useAuth } from "../auth/AuthProvider";
 import { StatusChip } from "../components/StatusChip";
 import { formatShortDate } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
-import { useProjectStates } from "./portfolio";
+import { useProjectStates } from "./projectStates";
 import { useToday } from "../time/useToday";
 
 /**

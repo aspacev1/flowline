@@ -7,7 +7,7 @@ import { useLocale } from "../i18n/LocaleProvider";
 import { daysBetween } from "../gantt/timescale";
 import { progressOf, statusCounts } from "../project/progress";
 import { useToday } from "../time/useToday";
-import { useProjectStates } from "./portfolio";
+import { useProjectStates } from "./projectStates";
 
 /**
  * Отчёты: таблица «как идут проекты» для того, кто отвечает за все сразу.

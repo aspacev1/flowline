@@ -71,6 +71,7 @@
   "nav": {
     "my_tasks": "Tapşırıqlarım",
     "projects": "Layihələr",
+    "portfolio": "Portfel",
     "reports": "Hesabatlar",
     "logout": "Çıxış",
     "org_settings": "Təşkilat",
@@ -228,7 +229,8 @@
       "completed": "Tamamlanıb"
     }
   },
-  "home": {
+  "portfolio": {
+    "title": "Portfel",
     "greeting": "Salam, {name} — layihə portfeli bir baxışda",
     "tasks": {
       "one": "{count} tapşırıq",

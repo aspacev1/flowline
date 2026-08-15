@@ -73,6 +73,7 @@
   "nav": {
     "my_tasks": "Мои задачи",
     "projects": "Проекты",
+    "portfolio": "Портфель",
     "reports": "Отчёты",
     "logout": "Выйти",
     "org_settings": "Организация",
@@ -230,7 +231,8 @@
       "completed": "Завершено"
     }
   },
-  "home": {
+  "portfolio": {
+    "title": "Портфель",
     "greeting": "Здравствуйте, {name} — вот портфель одним взглядом",
     "tasks": {
       "one": "{count} задача",

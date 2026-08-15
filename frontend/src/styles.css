@@ -1859,9 +1859,9 @@ input[type="checkbox"] {
   text-decoration: underline;
 }
 
-/* --- главная: карточки портфеля --- */
+/* --- портфель: карточки проектов --- */
 
-.home-cards {
+.portfolio-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 16px;
@@ -1870,7 +1870,7 @@ input[type="checkbox"] {
   list-style: none;
 }
 
-.home-card {
+.portfolio-card {
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1880,26 +1880,26 @@ input[type="checkbox"] {
   background: var(--surface);
 }
 
-.home-card__name {
+.portfolio-card__name {
   color: var(--text);
   font-size: 17px;
   font-weight: 700;
   text-decoration: none;
 }
 
-.home-card__meta {
+.portfolio-card__meta {
   margin: 0;
   font-size: 13px;
 }
 
-.home-card__progress {
+.portfolio-card__progress {
   display: flex;
   align-items: center;
   gap: 10px;
   margin: 0;
 }
 
-.home-card__bar {
+.portfolio-card__bar {
   flex: 1 1 auto;
   height: 8px;
   border-radius: 999px;
@@ -1907,20 +1907,20 @@ input[type="checkbox"] {
   overflow: hidden;
 }
 
-.home-card__bar i {
+.portfolio-card__bar i {
   display: block;
   height: 100%;
   border-radius: 999px;
   background: var(--accent);
 }
 
-.home-card__pct {
+.portfolio-card__pct {
   font-size: 13px;
   font-weight: 700;
   color: var(--accent);
 }
 
-.home-card__blocked {
+.portfolio-card__blocked {
   margin: 0;
 }
 
