@@ -7,6 +7,7 @@ import { PROJECTS_QUERY_KEY, createProject } from "../api/projects";
 import { useLocale } from "../i18n/LocaleProvider";
 import { Field } from "./Field";
 import { Modal } from "./Modal";
+import { useToast } from "./toast";
 
 /**
  * Два способа завести проект — обычный и через интервью — одной парой кнопок.
@@ -19,6 +20,7 @@ export function CreateProjectActions() {
   const { t } = useLocale();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const showToast = useToast();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
 
@@ -30,6 +32,10 @@ export function CreateProjectActions() {
       // клиентом поля значит держать в кэше запись, которой на сервере нет.
       void queryClient.invalidateQueries({ queryKey: PROJECTS_QUERY_KEY });
       navigate(`/projects/${project.id}`);
+      // Тост переживает переход: он висит на раме приложения, а не на экране
+      // списка. Пустая диаграмма после нажатия одинаково похожа и на новый
+      // проект, и на промах мимо кнопки — название в тосте различает их.
+      showToast({ message: t("projects.created", { name: project.name }) });
     },
   });
 
@@ -55,7 +61,7 @@ export function CreateProjectActions() {
       </Link>
 
       {open && (
-        <Modal title={t("projects.new.title")} onClose={close}>
+        <Modal title={t("projects.new.title")} onClose={close} dirty={name !== ""}>
           <form
             onSubmit={(event) => {
               event.preventDefault();

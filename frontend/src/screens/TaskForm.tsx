@@ -1,13 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { errorKey } from "../api/errors";
 import { MEMBERS_QUERY_KEY, members as fetchMembers } from "../api/org";
-import { CRITICALITY_LEVELS, TASK_STATUSES, applyOp, projectQueryKey } from "../api/projects";
+import {
+  CRITICALITY_LEVELS,
+  TASK_STATUSES,
+  applyOp,
+  getProject,
+  projectQueryKey,
+} from "../api/projects";
 import type { Category, Criticality, Task, TaskStatus } from "../api/projects";
 import { Field } from "../components/Field";
 import { Modal } from "../components/Modal";
-import { toISO } from "../gantt/timescale";
+import { useToday } from "../time/useToday";
 import { useLocale } from "../i18n/LocaleProvider";
 import { progressForStatus, statusForProgress } from "../project/optimistic";
 
@@ -49,7 +55,18 @@ export function TaskForm({
   const [criticality, setCriticality] = useState<Criticality>("normal");
   const [status, setStatus] = useState<TaskStatus>("planned");
   const [progressPct, setProgressPct] = useState("0");
-  const [startDate, setStartDate] = useState(() => toISO(Date.now()));
+  // Пояс проекта — из кэша, без запроса: экран, с которого открыта эта форма,
+  // состояние проекта уже спросил. Сегодня по нему же, что и линия на ленте
+  // за спиной у формы: разойдись они, задача заводилась бы «со вчера».
+  // С этим же значением сравнивают поле даты, чтобы отличить нетронутую форму
+  // от заполненной.
+  const project = useQuery({
+    queryKey: projectQueryKey(projectId),
+    queryFn: () => getProject(projectId),
+    enabled: false,
+  });
+  const today = useToday(project.data?.settings?.timezone);
+  const [startDate, setStartDate] = useState(today);
   const [durationDays, setDurationDays] = useState("1");
   const [assignees, setAssignees] = useState<string[]>([]);
   // Две стороны одной и той же связи: «зависит от» — где будущая задача
@@ -69,45 +86,74 @@ export function TaskForm({
     staleTime: Infinity,
   });
 
+  // Что из формы уже доехало до сервера. Создание — цепочка операций, и
+  // упасть она может на любом звене после первого: задача тогда уже есть, а
+  // форма ещё открыта. Без этой памяти повтор начинал бы цепочку сначала и
+  // заводил вторую задачу — то есть чинил бы сбой дубликатом.
+  //
+  // Ref, а не состояние: мутация читает это в момент запуска, а не в момент
+  // последней отрисовки, и перерисовывать форму по ходу цепочки незачем.
+  const applied = useRef<{
+    taskId: string | null;
+    assignees: Set<string>;
+    dependsOn: Set<string>;
+    blocks: Set<string>;
+  }>({ taskId: null, assignees: new Set(), dependsOn: new Set(), blocks: new Set() });
+
   const create = useMutation({
     mutationFn: async () => {
-      const revision = await applyOp(projectId, {
-        type: "create_task",
-        category_id: categoryId,
-        name: name.trim(),
-        description: description.trim(),
-        internal_note: internalNote.trim(),
-        start_date: startDate,
-        duration_days: Number(durationDays),
-        criticality,
-        status,
-        progress_pct: Number(progressPct),
-      });
+      const done = applied.current;
 
-      // Идентификатор новой задачи известен только из ответа сервера:
-      // назначить исполнителей заранее, одной операцией, публичный контракт
-      // не позволяет — и не должен, иначе клиент назначал бы идентификаторы.
-      const taskId = revision.op?.task_id;
-      if (typeof taskId === "string") {
-        for (const userId of assignees) {
-          await applyOp(projectId, { type: "assign_user", task_id: taskId, user_id: userId });
-        }
-        // Связи — по той же причине и тем же порядком: у связи два конца, и
-        // один из них рождается только этим ответом.
-        for (const otherId of dependsOn) {
-          await applyOp(projectId, {
-            type: "add_dependency",
-            from_task_id: otherId,
-            to_task_id: taskId,
-          });
-        }
-        for (const otherId of blocks) {
-          await applyOp(projectId, {
-            type: "add_dependency",
-            from_task_id: taskId,
-            to_task_id: otherId,
-          });
-        }
+      if (done.taskId === null) {
+        const revision = await applyOp(projectId, {
+          type: "create_task",
+          category_id: categoryId,
+          name: name.trim(),
+          description: description.trim(),
+          internal_note: internalNote.trim(),
+          start_date: startDate,
+          duration_days: Number(durationDays),
+          criticality,
+          status,
+          progress_pct: Number(progressPct),
+        });
+
+        // Идентификатор новой задачи известен только из ответа сервера:
+        // назначить исполнителей заранее, одной операцией, публичный контракт
+        // не позволяет — и не должен, иначе клиент назначал бы идентификаторы.
+        const created = revision.op?.task_id;
+        if (typeof created !== "string") return;
+        done.taskId = created;
+      }
+
+      const taskId = done.taskId;
+      // Каждое звено отмечается сразу после ответа сервера, а не пачкой в
+      // конце: упасть цепочка может посередине, и повтор обязан знать, где
+      // именно, — иначе он повторит уже применённое.
+      for (const userId of assignees) {
+        if (done.assignees.has(userId)) continue;
+        await applyOp(projectId, { type: "assign_user", task_id: taskId, user_id: userId });
+        done.assignees.add(userId);
+      }
+      // Связи — по той же причине и тем же порядком: у связи два конца, и
+      // один из них рождается только ответом на создание.
+      for (const otherId of dependsOn) {
+        if (done.dependsOn.has(otherId)) continue;
+        await applyOp(projectId, {
+          type: "add_dependency",
+          from_task_id: otherId,
+          to_task_id: taskId,
+        });
+        done.dependsOn.add(otherId);
+      }
+      for (const otherId of blocks) {
+        if (done.blocks.has(otherId)) continue;
+        await applyOp(projectId, {
+          type: "add_dependency",
+          from_task_id: taskId,
+          to_task_id: otherId,
+        });
+        done.blocks.add(otherId);
       }
     },
     onSuccess: async () => {
@@ -136,6 +182,23 @@ export function TaskForm({
     }
   };
 
+  // Тронута ли форма — считается по всем полям, а не по одному названию:
+  // человек, выбравший исполнителей и связи, но не дошедший до названия,
+  // теряет от случайного щелчка ровно столько же.
+  const dirty =
+    name !== "" ||
+    description !== "" ||
+    internalNote !== "" ||
+    categoryId !== initialCategoryId ||
+    criticality !== "normal" ||
+    status !== "planned" ||
+    progressPct !== "0" ||
+    startDate !== today ||
+    durationDays !== "1" ||
+    assignees.length > 0 ||
+    dependsOn.length > 0 ||
+    blocks.length > 0;
+
   const days = Number(durationDays);
   const pct = Number(progressPct);
   const valid =
@@ -149,7 +212,7 @@ export function TaskForm({
     pct <= 100;
 
   return (
-    <Modal title={t("task.new.title")} onClose={onClose}>
+    <Modal title={t("task.new.title")} onClose={onClose} dirty={dirty}>
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -304,6 +367,11 @@ export function TaskForm({
         {create.error && (
           <p className="error" role="alert">
             {t(errorKey(create.error))}
+            {/* Кнопка по-прежнему подписана «создать», но создавать уже нечего,
+                и человек вправе знать об этом до того, как нажмёт. Ref читается
+                прямо в отрисовке намеренно: он меняется только внутри цепочки,
+                а строку эту показывает отказ, который сам и перерисовывает. */}
+            {applied.current.taskId !== null && ` ${t("task.new.partial")}`}
           </p>
         )}
 

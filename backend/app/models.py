@@ -85,6 +85,12 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(200))
     name: Mapped[str] = mapped_column(String(200))
     locale: Mapped[str] = mapped_column(String(5), default="az")
+    # Часовой пояс читателя — уровень 4 настроек. Nullable, и `null` здесь не
+    # «пусто», а «спросить у браузера»: пояс человека меняется вместе с ним,
+    # и записанный однажды при заведении аккаунта он врал бы после первой же
+    # поездки. Пояс организации сюда не копируется по той же причине, по
+    # которой проект не копирует её настройки: копия расходится с оригиналом.
+    timezone: Mapped[str | None] = mapped_column(String(64))
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 

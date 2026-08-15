@@ -5,9 +5,16 @@ import { AI_CREDENTIAL_QUERY_KEY, readCredential, saveCredential } from "../api/
 import { errorKey } from "../api/errors";
 import { ORG_QUERY_KEY, checkOrgSlug, organization, updateOrganization } from "../api/org";
 import type { Organization, OrganizationSettings } from "../api/org";
+import { SaveMark, SelectField, TextField, useFieldSaves } from "../components/autosave";
+import { useToast } from "../components/toast";
 import { SUPPORTED_LOCALES } from "../i18n";
 import { useLocale } from "../i18n/LocaleProvider";
-import { DateListField, SlugField, WorkingDaysField } from "../settings/fields";
+import {
+  DateListField,
+  SlugField,
+  WorkingDaysField,
+  parseThresholdDays,
+} from "../settings/fields";
 
 /**
  * Уровень 2 настроек: дефолты, которые наследуют все проекты организации.
@@ -16,6 +23,11 @@ import { DateListField, SlugField, WorkingDaysField } from "../settings/fields";
  * сервер само, когда с ним закончили. Форма с кнопкой обещала бы, что до
  * нажатия ничего не произошло, и тогда пришлось бы объяснять, почему уход со
  * страницы теряет правки.
+ *
+ * Зато каждое поле само и отчитывается: «сохранено» или отказ словами стоят
+ * рядом с ним. Общий баннер вверху страницы для этого не годился — по нему не
+ * понять, какое из десяти полей отвергнуто, а от поля до него ещё надо
+ * доглядеть.
  *
  * Своего `<main>` у экрана нет: он вкладка раздела настроек, и рама его уже
  * дала. Второй `<main>` внутри первого сломал бы переход «к основному
@@ -35,8 +47,12 @@ export function OrgSettings() {
   const save = useMutation({
     mutationFn: (patch: Partial<OrganizationSettings & { name: string; slug: string }>) =>
       updateOrganization(patch),
+    // Обещание «каждое поле уходит на сервер само» подтверждает само поле —
+    // отметкой рядом с ним (см. `SaveMark`), а не тостом поверх страницы: по
+    // тосту не понять, какое из десяти полей доехало, а какое отвергнуто.
     onSuccess: (org: Organization) => queryClient.setQueryData(ORG_QUERY_KEY, org),
   });
+  const saves = useFieldSaves(save.mutateAsync);
 
   if (query.isPending) return <p role="status">{t("common.loading")}</p>;
 
@@ -62,26 +78,15 @@ export function OrgSettings() {
 
       {readOnly && <p className="muted">{t("settings.org.read_only")}</p>}
 
-      {save.error !== null && (
-        <p className="error" role="alert">
-          {t(errorKey(save.error))}
-        </p>
-      )}
-
       <section className="settings">
-        <p className="field">
-          <label htmlFor="org-name">{t("settings.org.name")}</label>
-          <input
-            id="org-name"
-            name="org-name"
-            defaultValue={org.name}
-            disabled={readOnly}
-            onBlur={(event) => {
-              const name = event.target.value.trim();
-              if (name !== "" && name !== org.name) save.mutate({ name });
-            }}
-          />
-        </p>
+        <TextField
+          id="org-name"
+          label={t("settings.org.name")}
+          value={org.name}
+          disabled={readOnly}
+          save={saves.at("org-name")}
+          onCommit={(value) => saves.commitText("org-name", value, (name) => ({ name }))}
+        />
 
         <SlugField
           id="org-slug"
@@ -89,66 +94,56 @@ export function OrgSettings() {
           value={org.slug}
           disabled={readOnly}
           check={checkOrgSlug}
-          onCommit={(slug) => save.mutate({ slug })}
+          save={saves.at("org-slug")}
+          onCommit={(slug) => saves.commit("org-slug", { slug })}
         />
 
-        <p className="field">
-          <label htmlFor="org-locale">{t("settings.org.locale")}</label>
-          <select
-            id="org-locale"
-            name="org-locale"
-            value={settings.default_locale}
-            disabled={readOnly}
-            onChange={(event) => save.mutate({ default_locale: event.target.value })}
-          >
-            {SUPPORTED_LOCALES.map((code) => (
-              <option key={code} value={code}>
-                {code.toUpperCase()}
-              </option>
-            ))}
-          </select>
-        </p>
+        <SelectField
+          id="org-locale"
+          label={t("settings.org.locale")}
+          value={settings.default_locale}
+          disabled={readOnly}
+          options={SUPPORTED_LOCALES.map((code) => ({ value: code, label: code.toUpperCase() }))}
+          save={saves.at("org-locale")}
+          onCommit={(default_locale) => saves.commit("org-locale", { default_locale })}
+        />
 
-        <p className="field">
-          <label htmlFor="org-timezone">{t("settings.timezone")}</label>
-          <input
-            id="org-timezone"
-            name="org-timezone"
-            defaultValue={settings.default_timezone}
-            disabled={readOnly}
-            onBlur={(event) => {
-              const zone = event.target.value.trim();
-              if (zone !== "" && zone !== settings.default_timezone) {
-                save.mutate({ default_timezone: zone });
-              }
-            }}
-          />
-        </p>
+        <TextField
+          id="org-timezone"
+          label={t("settings.timezone")}
+          value={settings.default_timezone}
+          disabled={readOnly}
+          save={saves.at("org-timezone")}
+          onCommit={(value) =>
+            saves.commitText("org-timezone", value, (zone) => ({ default_timezone: zone }))
+          }
+        />
 
         <WorkingDaysField
           value={settings.working_days}
           disabled={readOnly}
-          onChange={(working_days) => save.mutate({ working_days })}
+          save={saves.at("org-working-days")}
+          onChange={(working_days) => saves.commit("org-working-days", { working_days })}
         />
 
-        <p className="field">
-          <label htmlFor="org-threshold">{t("settings.threshold")}</label>
-          <span className="muted">{t("settings.threshold_hint")}</span>
-          <input
-            id="org-threshold"
-            name="org-threshold"
-            type="number"
-            min={0}
-            defaultValue={settings.default_shift_threshold_days}
-            disabled={readOnly}
-            onBlur={(event) => {
-              const days = Number(event.target.value);
-              if (Number.isFinite(days) && days !== settings.default_shift_threshold_days) {
-                save.mutate({ default_shift_threshold_days: days });
-              }
-            }}
-          />
-        </p>
+        <TextField
+          id="org-threshold"
+          label={t("settings.threshold")}
+          hint={t("settings.threshold_hint")}
+          type="number"
+          min={0}
+          value={String(settings.default_shift_threshold_days)}
+          disabled={readOnly}
+          save={saves.at("org-threshold")}
+          onCommit={(value) =>
+            saves.commitNumber(
+              "org-threshold",
+              value,
+              (days) => ({ default_shift_threshold_days: days }),
+              parseThresholdDays,
+            )
+          }
+        />
 
         <DateListField
           id="org-holidays"
@@ -156,7 +151,8 @@ export function OrgSettings() {
           hint={t("settings.org.holidays_hint")}
           value={settings.holiday_calendar}
           disabled={readOnly}
-          onCommit={(holiday_calendar) => save.mutate({ holiday_calendar })}
+          save={saves.at("org-holidays")}
+          onCommit={(holiday_calendar) => saves.commit("org-holidays", { holiday_calendar })}
         />
 
         <p className="field field--inline">
@@ -166,9 +162,12 @@ export function OrgSettings() {
             type="checkbox"
             checked={settings.public_sharing_enabled}
             disabled={readOnly}
-            onChange={(event) => save.mutate({ public_sharing_enabled: event.target.checked })}
+            onChange={(event) =>
+              saves.commit("org-sharing", { public_sharing_enabled: event.target.checked })
+            }
           />
           <label htmlFor="org-sharing">{t("settings.org.public_sharing")}</label>
+          <SaveMark save={saves.at("org-sharing")} />
         </p>
 
         <LlmConnection readOnly={readOnly} />
@@ -180,9 +179,12 @@ export function OrgSettings() {
             type="checkbox"
             checked={settings.default_comments_enabled}
             disabled={readOnly}
-            onChange={(event) => save.mutate({ default_comments_enabled: event.target.checked })}
+            onChange={(event) =>
+              saves.commit("org-comments", { default_comments_enabled: event.target.checked })
+            }
           />
           <label htmlFor="org-comments">{t("settings.org.comments")}</label>
+          <SaveMark save={saves.at("org-comments")} />
         </p>
       </section>
     </>
@@ -199,6 +201,7 @@ export function OrgSettings() {
 function LlmConnection({ readOnly }: { readOnly: boolean }) {
   const { t } = useLocale();
   const queryClient = useQueryClient();
+  const showToast = useToast();
   const [key, setKey] = useState("");
 
   const credential = useQuery({
@@ -212,6 +215,9 @@ function LlmConnection({ readOnly }: { readOnly: boolean }) {
     onSuccess: (result) => {
       queryClient.setQueryData(AI_CREDENTIAL_QUERY_KEY, result);
       setKey("");
+      // Поле ключа очищается при успехе — и без тоста это очищение читается
+      // как «ввод не приняли», ровно наоборот смыслу.
+      showToast({ message: t("common.saved") });
     },
   });
 

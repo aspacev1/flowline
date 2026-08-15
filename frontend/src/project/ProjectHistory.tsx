@@ -7,9 +7,12 @@ import { listPlanApprovals } from "../api/projects";
 import type { PlanApproval, ProjectState } from "../api/projects";
 import { FEED_PAGE, feedQueryKey, listProjectRevisions } from "../api/revisions";
 import type { FeedFilters, RevisionEntry } from "../api/revisions";
+import { modKeyLabel } from "../components/hotkeys";
 import { formatDate, formatTime } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
 import { formatEvent } from "../task/formatEvent";
+import { useTimeZone } from "../time/useToday";
+import { dayIn } from "../time/zone";
 import { useUndo } from "./useUndo";
 
 import "./history.css";
@@ -65,13 +68,6 @@ const EVENT_ICONS: Record<string, readonly [glyph: string, tone: string]> = {
 function eventIcon(entry: RevisionEntry): readonly [string, string] {
   if (entry.undoes_seq !== null) return ["↶", "muted"];
   return EVENT_ICONS[String(entry.op.type)] ?? ["•", "muted"];
-}
-
-/** День записи по часам читателя: лента группируется по местным суткам. */
-function localDay(iso: string): string {
-  const at = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`;
 }
 
 /** Строка ленты: запись журнала или веха согласования плана. */
@@ -146,6 +142,12 @@ export function ProjectHistory({
 
   const undo = useUndo(projectId, state);
 
+  // Лента группируется по суткам читателя, а не по суткам сервера: «Сегодня»
+  // в заголовке дня отвечает на «что было сегодня у меня», и запись, сделанная
+  // в половине первого ночи, обязана попасть под сегодняшний заголовок, а не
+  // под вчерашний.
+  const zone = useTimeZone(state.settings?.timezone);
+
   if (feed.isPending) {
     return <p role="status">{t("common.loading")}</p>;
   }
@@ -175,12 +177,12 @@ export function ProjectHistory({
 
   const days = new Map<string, FeedRow[]>();
   for (const row of rows) {
-    const day = localDay(row.at);
+    const day = dayIn(zone, new Date(row.at));
     days.set(day, [...(days.get(day) ?? []), row]);
   }
 
-  const today = localDay(new Date().toISOString());
-  const yesterday = localDay(new Date(Date.now() - 86_400_000).toISOString());
+  const today = dayIn(zone);
+  const yesterday = dayIn(zone, Date.now() - 86_400_000);
   // «Сегодня» — с датой, а не вместо неё: слово стареет в открытой вкладке,
   // и запись «Сегодня» без числа завтра утром будет ложью.
   const dayLabel = (day: string) =>
@@ -204,12 +206,16 @@ export function ProjectHistory({
     canUndo && state.undoable && !state.undoable.batch_id ? state.undoable.seq : null;
   const undoableBatch = (canUndo && state.undoable?.batch_id) || null;
 
+  // Ctrl/⌘+Z делает ровно то же самое — и сочетание названо прямо на кнопке:
+  // иначе о нём знали бы только те, кто попробовал наугад.
   const undoButton = (label: string) => (
     <button
       type="button"
       className="button--quiet feed__undo"
       onClick={() => undo.mutation.mutate()}
       disabled={undo.mutation.isPending}
+      title={`${label} · ${modKeyLabel()}+Z`}
+      aria-keyshortcuts="Control+Z"
     >
       {label}
     </button>

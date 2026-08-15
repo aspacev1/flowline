@@ -1,7 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import type { SlugCheck } from "../api/org";
+import { SaveMark } from "../components/autosave";
+import type { FieldSave } from "../components/autosave";
 import { useLocale } from "../i18n/LocaleProvider";
+import { browserTimeZone, timeZoneNames } from "../time/zone";
 
 /**
  * Поля, которые нужны обоим экранам настроек.
@@ -22,15 +25,34 @@ export function WorkingDaysField({
   value,
   onChange,
   disabled,
+  save,
 }: {
   value: number;
   onChange: (mask: number) => void;
   disabled?: boolean;
+  save?: FieldSave;
 }) {
   const { t } = useLocale();
+  const [emptied, setEmptied] = useState(false);
+
+  // Неделя без рабочих дней — не настройка, а невозможное состояние: сервер
+  // такую маску не примет, и снятая последняя галочка возвращалась бы обратно
+  // с ответом «проверьте форму», где ни одно поле не названо. Отказ объясняется
+  // здесь же — так же, как список дат объясняет непонятую дату, не отправляя её.
+  const toggle = (day: number, on: boolean) => {
+    const mask = on ? value & ~(1 << day) : value | (1 << day);
+    if (mask === 0) {
+      setEmptied(true);
+      return;
+    }
+    setEmptied(false);
+    onChange(mask);
+  };
 
   return (
     <fieldset className="settings__fieldset">
+      {/* Отметка стоит под днями, а не в подписи: подпись — имя всей группы,
+          и «Сохранено», попавшее в него, читалка прочтёт как часть названия. */}
       <legend>{t("settings.working_days")}</legend>
       <div className="settings__days">
         {[0, 1, 2, 3, 4, 5, 6].map((day) => {
@@ -45,14 +67,79 @@ export function WorkingDaysField({
                 type="checkbox"
                 checked={on}
                 disabled={disabled}
-                onChange={() => onChange(on ? value & ~(1 << day) : value | (1 << day))}
+                onChange={() => toggle(day, on)}
               />
               {label}
             </label>
           );
         })}
       </div>
+      <SaveMark save={save} />
+      {emptied && (
+        <span className="error" role="alert">
+          {t("settings.working_days_empty")}
+        </span>
+      )}
     </fieldset>
+  );
+}
+
+/**
+ * Часовой пояс — выбором из списка, а не строкой.
+ *
+ * Имя из базы IANA («Europe/Moscow») набрать по памяти без опечатки трудно, а
+ * ошибка в нём не видна: сервер откажет, и человек останется гадать, чем
+ * «Europe/Moskva» хуже. Список даёт сам браузер — своя копия базы поясов
+ * состарилась бы вместе с приложением.
+ *
+ * Пустое значение — не «пусто», а отдельный осмысленный выбор: считать сутки
+ * по часам браузера. Он стоит первым и выбран по умолчанию, потому что почти
+ * всегда прав; руками пояс задают те, у кого браузер врёт, — уехавшие и
+ * сидящие через VPN.
+ */
+export function TimeZoneField({
+  id,
+  label,
+  hint,
+  autoLabel,
+  value,
+  onChange,
+  disabled,
+}: {
+  id: string;
+  label: string;
+  hint?: string;
+  /** Подпись выбора «по браузеру» — с поясом, который браузер сообщает. */
+  autoLabel: string;
+  /** `null` — пояс не выбран, сутки считаются по браузеру. */
+  value: string | null;
+  onChange: (zone: string | null) => void;
+  disabled?: boolean;
+}) {
+  // Сохранённый выбор и пояс машины добавляются к списку принудительно:
+  // браузер старее базы IANA не знает про недавно заведённый пояс, и без
+  // этого поле показало бы не то, что записано в профиле.
+  const zones = useMemo(() => timeZoneNames(value, browserTimeZone()), [value]);
+
+  return (
+    <p className="field">
+      <label htmlFor={id}>{label}</label>
+      {hint && <span className="muted">{hint}</span>}
+      <select
+        id={id}
+        name={id}
+        value={value ?? ""}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value === "" ? null : event.target.value)}
+      >
+        <option value="">{autoLabel}</option>
+        {zones.map((zone) => (
+          <option key={zone} value={zone}>
+            {zone}
+          </option>
+        ))}
+      </select>
+    </p>
   );
 }
 
@@ -62,6 +149,26 @@ export function parseDates(text: string): string[] {
     .split(/[\s,;]+/)
     .map((item) => item.trim())
     .filter((item) => item !== "");
+}
+
+/**
+ * Порог сдвига из поля ввода: `null` — «числа здесь нет, отправлять нечего».
+ *
+ * Пустое поле не значит «ноль»: нулевой порог велит объяснять каждый сдвиг, и
+ * человек, стёрший число перед тем как набрать новое, такого не просил. А
+ * `Number` сам по себе именно это и делает — пустую строку превращает в ноль, а
+ * мусор в `NaN`, — поэтому обе проверки стоят здесь, общие для обоих экранов, а
+ * не написаны на каждом порознь.
+ */
+export function parseThresholdDays(text: string): number | null {
+  const value = text.trim();
+  if (value === "") return null;
+  const days = Number(value);
+  // Отрицательный порог — то же самое, что `min={0}` у поля: дней «минус пять»
+  // не бывает, и сервер откажет; отказ, которого можно не показывать, лучше не
+  // показывать.
+  if (!Number.isFinite(days) || days < 0) return null;
+  return days;
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -80,6 +187,7 @@ export function DateListField({
   value,
   onCommit,
   disabled,
+  save,
 }: {
   id: string;
   label: string;
@@ -87,13 +195,20 @@ export function DateListField({
   value: string[];
   onCommit: (dates: string[]) => void;
   disabled?: boolean;
+  save?: FieldSave;
 }) {
   const { t } = useLocale();
   const [text, setText] = useState(value.join("\n"));
+  const [typing, setTyping] = useState(false);
 
   // Сервер нормализует список — сортирует и убирает повторы, — и поле обязано
-  // показать то, что он вернул, а не то, что человек набрал.
-  useEffect(() => setText(value.join("\n")), [value]);
+  // показать то, что он вернул, а не то, что человек набрал. Отсортированный
+  // список нередко равен присланному, поэтому одного `value` для этого мало:
+  // возврат к правде запускает и завершённая отправка.
+  useEffect(() => {
+    setText(value.join("\n"));
+    setTyping(false);
+  }, [value, save?.settled]);
 
   const broken = parseDates(text).filter((item) => !ISO_DATE.test(item));
 
@@ -107,18 +222,24 @@ export function DateListField({
         rows={4}
         value={text}
         disabled={disabled}
-        onChange={(event) => setText(event.target.value)}
+        onChange={(event) => {
+          setText(event.target.value);
+          setTyping(true);
+        }}
         onBlur={() => {
+          setTyping(false);
           if (broken.length > 0) return;
           const dates = parseDates(text);
           // Порядок в списке ничего не значит: это множество дат.
           if (dates.join(",") !== [...value].join(",")) onCommit(dates);
         }}
       />
-      {broken.length > 0 && (
+      {broken.length > 0 ? (
         <span className="error" role="alert">
           {t("settings.bad_dates", { dates: broken.join(", ") })}
         </span>
+      ) : (
+        <SaveMark save={typing ? undefined : save} />
       )}
     </p>
   );
@@ -139,6 +260,7 @@ export function SlugField({
   check,
   onCommit,
   disabled,
+  save,
 }: {
   id: string;
   label: string;
@@ -146,12 +268,19 @@ export function SlugField({
   check: (slug: string) => Promise<SlugCheck>;
   onCommit: (slug: string) => void;
   disabled?: boolean;
+  save?: FieldSave;
 }) {
   const { t } = useLocale();
   const [draft, setDraft] = useState(value);
   const [status, setStatus] = useState<SlugCheck | null>(null);
+  const [typing, setTyping] = useState(false);
 
-  useEffect(() => setDraft(value), [value]);
+  // Сервер приводит слаг к своей форме — «Редизайн 2026» возвращается как
+  // `redizayn-2026`, — и поле обязано показать то, что он вернул.
+  useEffect(() => {
+    setDraft(value);
+    setTyping(false);
+  }, [value, save?.settled]);
 
   useEffect(() => {
     const candidate = draft.trim();
@@ -179,6 +308,7 @@ export function SlugField({
 
   const commit = (slug: string) => {
     setDraft(slug);
+    setTyping(false);
     if (slug !== value) onCommit(slug);
   };
 
@@ -190,7 +320,10 @@ export function SlugField({
         name={id}
         value={draft}
         disabled={disabled}
-        onChange={(event) => setDraft(event.target.value)}
+        onChange={(event) => {
+          setDraft(event.target.value);
+          setTyping(true);
+        }}
         onBlur={() => {
           const candidate = draft.trim();
           if (candidate !== "" && (status === null || status.available)) commit(candidate);
@@ -206,6 +339,9 @@ export function SlugField({
           </button>
         </span>
       )}
+      {/* Занятый слаг уже объяснён подсказкой рядом: вторая строка про то же
+          самое — шум. */}
+      {!(status && !status.available) && <SaveMark save={typing ? undefined : save} />}
     </p>
   );
 }

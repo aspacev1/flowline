@@ -38,7 +38,7 @@
   gap: 10px;
   padding: 8px;
   border-radius: var(--radius);
-  transition: background 20ms ease-in;
+  transition: background var(--motion-fast) var(--motion-ease);
 }
 
 .comment__content {

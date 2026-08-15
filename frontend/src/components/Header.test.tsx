@@ -21,6 +21,54 @@ describe("шапка", () => {
     expect(await screen.findByText("Şəhər Studiyası")).toBeInTheDocument();
   });
 
+  it("ведёт «Проектами» туда же, куда приводит вход", async () => {
+    renderApp({ route: "/projects", locale: "ru" });
+
+    // Вход, приглашение и неизвестный адрес приводят на `/projects` — пункт
+    // колонки обязан вести туда же. Пока он указывал на «/», щелчок по
+    // единственному пункту про проекты открывал другой экран.
+    expect(await screen.findByRole("link", { name: "Проекты" })).toHaveAttribute(
+      "href",
+      "/projects",
+    );
+    // Портфель — соседний пункт со своим именем и своим адресом.
+    expect(screen.getByRole("link", { name: "Портфель" })).toHaveAttribute("href", "/portfolio");
+  });
+
+  it("подсвечивает ровно один раздел — тот, на котором стоит человек", async () => {
+    renderApp({ route: "/portfolio", locale: "ru" });
+
+    const portfolio = await screen.findByRole("link", { name: "Портфель" });
+    expect(portfolio).toHaveClass("is-current");
+    expect(screen.getByRole("link", { name: "Проекты" })).not.toHaveClass("is-current");
+  });
+
+  it("держит «Проекты» подсвеченными и внутри проекта", async () => {
+    server.use(
+      http.get("/api/projects/p1", () =>
+        HttpResponse.json({
+          id: "p1",
+          name: "Редизайн",
+          slug: "redizayn",
+          deadline: null,
+          categories: [],
+          tasks: [],
+        }),
+      ),
+      http.get("/api/projects/:projectId/comments", () => HttpResponse.json([])),
+      http.get("/api/org/members", () => HttpResponse.json([])),
+    );
+
+    renderApp({ route: "/projects/p1", locale: "ru" });
+
+    // Страница проекта — часть раздела «Проекты», и колонка обязана это
+    // показывать: иначе человек стоит на экране, который не подсвечивает ни
+    // один пункт, и по колонке не видно, где он.
+    const projects = await screen.findByRole("link", { name: "Проекты" });
+    expect(projects).toHaveClass("is-current");
+    expect(screen.getByRole("link", { name: "Портфель" })).not.toHaveClass("is-current");
+  });
+
   it("ведёт в настройки одним пунктом, а не тремя шестерёнками подряд", async () => {
     renderApp({ route: "/projects", locale: "ru" });
 
