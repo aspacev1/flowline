@@ -15,8 +15,7 @@ import { Arrows } from "./Arrows";
 import { CategoryRow, TaskRow } from "./Row";
 import { MOTION_MS, usePrefersReducedMotion } from "./motion";
 import { useReorder } from "./useReorder";
-import { DAY_WIDTH, ganttTokens } from "./density";
-import { projectWindow } from "./scale";
+import { DAY_WIDTH, ROW_HEIGHT, projectWindow } from "./scale";
 import type { Zoom } from "./scale";
 import { rememberZoom, storedZoom } from "./scalePreference";
 import { addDays, buildScale, daysBetween } from "./timescale";
@@ -287,15 +286,13 @@ export function Gantt({
       className={`gantt gantt--${zoom}${reorder.active ? " is-reordering" : ""}${
         reducedMotion ? " motion-off" : ""
       }`}
-      // Масштаб и длительность переходов задаются отсюда по одной и той же
-      // причине: обе величины знает не только CSS. Ширину дня и высоту строки
-      // читают расчёты — шкала, стрелки связей, перетаскивание, — а
-      // длительностью код ведёт переезд полоски. Второе такое же число в стилях
-      // однажды разошлось бы с ними, и разошлось бы молча: сетка съезжает с
-      // шапки не сразу, а к правому краю ленты.
+      // Высота строки и длительность переходов задаются отсюда по одной и той
+      // же причине: обе величины знает не только CSS. По высоте строки стрелки
+      // считают вертикальные координаты, по длительности код ведёт переезд
+      // полоски. Второе такое же число в стилях однажды разошлось бы с ними.
       style={
         {
-          ...ganttTokens(zoom),
+          "--gantt-row": `${ROW_HEIGHT}px`,
           "--motion": `${MOTION_MS}ms`,
         } as CSSProperties
       }

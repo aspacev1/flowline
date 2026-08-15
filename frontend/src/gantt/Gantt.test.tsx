@@ -6,7 +6,7 @@ import type { ProjectState } from "../api/projects";
 import type { Locale } from "../i18n";
 import { Providers, renderWithProviders } from "../test/utils";
 import { Gantt } from "./Gantt";
-import { DAY_WIDTH, ROW_HEIGHT, TASK_HEIGHT } from "./density";
+import { DAY_WIDTH } from "./scale";
 
 const STATE: ProjectState = {
   id: "p1",
@@ -83,62 +83,6 @@ describe("диаграмма", () => {
     expect(container.querySelector<HTMLElement>(".gantt__bar")).toHaveStyle({
       left: `${3 * DAY_WIDTH.day}px`,
     });
-  });
-
-  it("отдаёт стилям тот же масштаб, которым считает координаты", () => {
-    const { container } = draw(STATE);
-    const root = container.querySelector<HTMLElement>(".gantt");
-    // Ширина дня и высота строки приходят в CSS отсюда, а не переписаны в
-    // таблицу стилей вторым числом: разойдись они — сетка уедет от шапки, а
-    // стрелки связей от строк, и не сразу, а к правому краю ленты.
-    expect(root?.style.getPropertyValue("--gantt-day-width")).toBe(`${DAY_WIDTH.day}px`);
-    expect(root?.style.getPropertyValue("--gantt-row-height")).toBe(`${ROW_HEIGHT}px`);
-    expect(root?.style.getPropertyValue("--gantt-task-height")).toBe(`${TASK_HEIGHT}px`);
-  });
-
-  it("смена масштаба не трогает высоту строки", async () => {
-    localStorage.clear();
-    const { container } = draw(STATE);
-    const root = container.querySelector<HTMLElement>(".gantt");
-
-    await userEvent.click(screen.getByRole("button", { name: "Масштаб: День" }));
-    await userEvent.click(screen.getByRole("radio", { name: "Месяц" }));
-
-    expect(root?.style.getPropertyValue("--gantt-day-width")).toBe(`${DAY_WIDTH.month}px`);
-    // Масштаб — это ширина деления. Строки в месячном масштабе те же самые:
-    // сжимается время, а не список задач.
-    expect(root?.style.getPropertyValue("--gantt-row-height")).toBe(`${ROW_HEIGHT}px`);
-    expect(root?.style.getPropertyValue("--gantt-task-height")).toBe(`${TASK_HEIGHT}px`);
-  });
-
-  it("метит границу месяца и в шапке, и в сетке", () => {
-    const { container } = draw(STATE);
-    // Первое апреля — граница месяца: линию рисуют оба слоя, иначе она
-    // обрывается под шапкой и читается как дефект отрисовки.
-    expect(container.querySelector('.gantt__day[data-day="2026-04-01"]')).toHaveClass(
-      "is-month-start",
-    );
-    expect(container.querySelector('.gantt__grid-day[data-day="2026-04-01"]')).toHaveClass(
-      "is-month-start",
-    );
-    expect(container.querySelector('.gantt__grid-day[data-day="2026-04-02"]')).not.toHaveClass(
-      "is-month-start",
-    );
-  });
-
-  it("заливает колонку сегодняшнего дня в теле ленты", () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    vi.setSystemTime(new Date(Date.UTC(2026, 2, 11, 9, 0)));
-    try {
-      const { container } = draw(STATE);
-      // Заливка идёт через всю ленту, а не только по шапке: колонка,
-      // обрывающаяся под шапкой, читается как дефект отрисовки.
-      expect(container.querySelector('.gantt__grid-day[data-day="2026-03-11"]')).toHaveClass(
-        "is-today",
-      );
-    } finally {
-      vi.useRealTimers();
-    }
   });
 
   it("заливает выходные и праздники", () => {

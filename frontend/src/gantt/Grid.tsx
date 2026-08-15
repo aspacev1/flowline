@@ -36,21 +36,7 @@ export function Grid({
         <div
           key={day.date}
           data-day={day.date}
-          // Три признака на одной колонке, и порядок между ними разбирает не
-          // разметка, а сила селекторов в стилях: сегодняшний день заливается
-          // поверх выходного — иначе выходной понедельник теряет метку ровно
-          // тогда, когда она нужнее всего.
-          className={[
-            "gantt__grid-day",
-            isWorkingDay(day.date, calendar, day.weekday) ? "" : "is-nonworking",
-            // Первое число месяца — граница месяца: линия вдвое толще обычной.
-            // Ставится здесь же, где рисуется вся сетка, и потому приходится
-            // ровно под такую же границу в шапке.
-            day.dayOfMonth === 1 ? "is-month-start" : "",
-            day.date === today ? "is-today" : "",
-          ]
-            .filter(Boolean)
-            .join(" ")}
+          className={`gantt__grid-day${isWorkingDay(day.date, calendar, day.weekday) ? "" : " is-nonworking"}`}
           style={{ left: day.x, width: scale.dayWidth }}
         />
       ))}

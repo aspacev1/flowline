@@ -1,6 +1,6 @@
 import { fireEvent } from "@testing-library/react";
 
-import { DAY_WIDTH } from "../gantt/density";
+import { DAY_WIDTH } from "../gantt/scale";
 
 /**
  * Жесты указателем.

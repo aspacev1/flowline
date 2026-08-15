@@ -47,17 +47,9 @@ export function Header({
           <div
             key={day.date}
             data-day={day.date}
-            className={[
-              "gantt__day",
-              isWorkingDay(day.date, calendar, day.weekday) ? "" : "is-nonworking",
-              // Та же граница месяца, что и в теле ленты (см. Grid): линия
-              // шапки, не совпавшая с линией сетки, читается как дефект
-              // отрисовки, а не как граница.
-              day.dayOfMonth === 1 ? "is-month-start" : "",
-              day.date === today ? "is-today" : "",
-            ]
-              .filter(Boolean)
-              .join(" ")}
+            className={`gantt__day${isWorkingDay(day.date, calendar, day.weekday) ? "" : " is-nonworking"}${
+              day.date === today ? " is-today" : ""
+            }`}
             style={{ left: day.x, width: scale.dayWidth }}
           >
             {/* День недели над числом, как в макете: мелкая строка сверху,
