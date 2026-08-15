@@ -477,17 +477,10 @@
     "your_name": "Your name",
     "body": "Comment",
     "send": "Send",
-    "closed": "The project owner has closed comments",
-    "disabled": "Comments are off for this link",
-    "field": "Comment",
-    "submit": "Send"
+    "closed": "The project owner has closed comments"
   },
   "public": {
-    "badge": "Public page",
-    "revoked": "This link no longer works",
-    "revoked_hint": "Ask whoever sent it to you for a new one",
-    "guest_name": "Your name",
-    "guest_mark": "{name} (guest)"
+    "badge": "Public page"
   },
   "org": {
     "switch_label": "Organization"
@@ -500,29 +493,6 @@
       "editor": "Editor",
       "viewer": "Viewer",
       "client": "Client"
-    },
-    "emails": "Addresses",
-    "emails_hint": "One per line. Leave empty to issue a link only — whoever opens it accepts it",
-    "role_label": "Role",
-    "projects": "Projects",
-    "invite_and_send": "Invite and send email",
-    "invite_link_only": "Issue a link",
-    "issued": "Issued links",
-    "issued_hint": "The link is visible only now: the server does not remember it, only its hash",
-    "copy": "Copy",
-    "sent": "Email sent",
-    "mail_failed": "The email did not go out — copy the link",
-    "by_link": "By link (to the bearer)",
-    "people": "People",
-    "invitations": "Invitations",
-    "no_invitations": "No invitations yet",
-    "reissue": "Issue a new link",
-    "revoke": "Revoke",
-    "status": {
-      "pending": "pending",
-      "accepted": "accepted",
-      "revoked": "revoked",
-      "expired": "expired"
     }
   },
   "invite": {
@@ -570,10 +540,7 @@
       "wrong_account": "The invitation was issued to {email}. Sign out and sign in with that address",
       "logout": "Sign out",
       "go_home": "To projects"
-    },
-    "bearer": "This invitation is not tied to an address: whoever opens the link accepts it",
-    "sign_in_first": "Sign in or register to accept — then come back to this link",
-    "another_account": "This invitation is addressed to {email}. You are signed in as someone else — sign out and back in"
+    }
   },
   "plan": {
     "approve": "Approve plan",
@@ -649,24 +616,6 @@
       "key_set": "A key is set. Leave empty to keep it",
       "key_missing": "No key yet",
       "save": "Save the connection"
-    },
-    "link": "Settings",
-    "title": "Project settings",
-    "back": "Back to the chart",
-    "share": {
-      "title": "Public link",
-      "address": "Page address",
-      "copy": "Copy",
-      "copied": "Copied",
-      "published": "Public link",
-      "comments": "Comments on the public page"
-    },
-    "slug": {
-      "title": "Project address",
-      "field": "Address inside the link",
-      "taken": "Taken. Free:",
-      "save": "Save the address",
-      "warning": "Changing the address stops the old one from opening — you will have to send the link again."
     }
   },
   "ai": {
