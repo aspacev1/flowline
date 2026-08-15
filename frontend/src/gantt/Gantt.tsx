@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 
 import { TASK_STATUSES } from "../api/projects";
@@ -17,7 +17,7 @@ import { useReorder } from "./useReorder";
 import { DAY_WIDTH, ROW_HEIGHT, projectWindow } from "./scale";
 import type { Zoom } from "./scale";
 import { rememberZoom, storedZoom } from "./scalePreference";
-import { buildScale, daysBetween, toISO } from "./timescale";
+import { addDays, buildScale, daysBetween, toISO } from "./timescale";
 
 import "./gantt.css";
 
@@ -28,6 +28,18 @@ type ViewFlags = {
   summary: boolean;
   caption: boolean;
 };
+
+/**
+ * Точка, за которую лента держится при пересборке шкалы.
+ *
+ * Дата, а не пиксель: пиксельное смещение осмысленно только внутри той шкалы,
+ * в которой его измерили. Один и тот же `scrollLeft` в дневном масштабе
+ * показывает март, а в месячном — уже август, поэтому запоминается день в
+ * центре видимой области. Доля дня хранится рядом, чтобы возврат не подтягивал
+ * ленту к границе дня на каждой пересборке шкалы: без неё каждое обновление
+ * состояния сдвигало бы ленту на полделения.
+ */
+type Focus = { date: string; fraction: number };
 
 /**
  * Порядок строк — по позиции, а при равенстве по идентификатору.
@@ -127,23 +139,72 @@ export function Gantt({
   const today = toISO(Date.now());
   // Зависимость — границы окна, а не само состояние: после каждого изменения
   // сервер присылает новый объект состояния, и шкала, привязанная к его
-  // тождеству, пересобиралась бы всякий раз. Ниже она сама — зависимость
-  // прокрутки к сегодняшнему дню, и лента прыгала бы к сегодня после каждой
-  // правки, унося с экрана ту задачу, которую только что двигали.
+  // тождеству, пересобиралась бы всякий раз — вместе со всеми делениями и
+  // месяцами, которые от правки одной задачи не изменились.
   const { from, to } = projectWindow(state);
   const dayWidth = DAY_WIDTH[zoom];
   const scale = useMemo(() => buildScale({ from, to, dayWidth }), [dayWidth, from, to]);
 
   const formatDay = (iso: string) => formatDate(t, iso);
 
-  // Прокрутка к сегодняшнему дню при открытии: проект длиной в квартал иначе
-  // открывается на своём начале, то есть на том, что уже сделано.
-  useEffect(() => {
+  // Куда лента смотрит сейчас и для какого проекта её уже показали.
+  //
+  // Прокрутка к сегодняшнему дню — приветствие при открытии проекта, а не
+  // ответ на каждую пересборку шкалы. Шкала пересобирается и от смены
+  // масштаба, и от правки задачи, раздвинувшей окно проекта, и привязанная к
+  // ней прокрутка отбирала бы у человека март, на который он смотрел, всякий
+  // раз, когда он трогает ленту.
+  const shownFor = useRef<string | null>(null);
+  const focus = useRef<Focus | null>(null);
+
+  /**
+   * Запомнить день в центре видимой области — в мерках текущей шкалы.
+   *
+   * Обёрнуто, чтобы не пересоздаваться на каждой перерисовке: иначе прокрутка
+   * ниже, которой эта функция нужна, срабатывала бы от любого чужого
+   * изменения — от наведения на полоску до свёртки категории.
+   */
+  const rememberFocus = useCallback(() => {
     const element = scroller.current;
     if (!element) return;
-    if (today < scale.from || today > scale.to) return;
-    element.scrollLeft = Math.max(0, scale.xOf(today) - scale.dayWidth * 3);
-  }, [scale, today]);
+    const center = (element.scrollLeft + element.clientWidth / 2) / scale.dayWidth;
+    const index = Math.floor(center);
+    focus.current = { date: addDays(scale.from, index), fraction: center - index };
+  }, [scale]);
+
+  // Слой ниже — единственное место, где лента прокручивается сама.
+  //
+  // Раскладка уже посчитана, но кадр ещё не показан: `useEffect` здесь дал бы
+  // видимый прыжок с прежнего места на новое.
+  useLayoutEffect(() => {
+    const element = scroller.current;
+    if (!element) return;
+
+    // Первый показ проекта: проект длиной в квартал иначе открывается на своём
+    // начале, то есть на том, что уже сделано. Дальше — только возврат к
+    // запомненному дню.
+    if (shownFor.current !== projectId) {
+      shownFor.current = projectId;
+      // Сегодняшнего дня в окне может и не быть — у проекта, целиком
+      // спланированного на прошлую весну. Тогда лента остаётся на своём начале:
+      // прокручивать её некуда.
+      if (today >= scale.from && today <= scale.to) {
+        element.scrollLeft = Math.max(0, scale.xOf(today) - scale.dayWidth * 3);
+      }
+      // Смена проекта заодно возвращает его масштаб (эффект выше), и шкала
+      // пересоберётся ещё раз. Без этой отметки лента осталась бы на пикселе,
+      // отмеренном по прежнему масштабу.
+      rememberFocus();
+      return;
+    }
+
+    const held = focus.current;
+    if (!held) return;
+    element.scrollLeft = Math.max(
+      0,
+      scale.xOf(held.date) + held.fraction * scale.dayWidth - element.clientWidth / 2,
+    );
+  }, [projectId, rememberFocus, scale, today]);
 
   const categories = byPosition(state.categories);
   const tasksByCategory = new Map<string, Task[]>();
@@ -253,7 +314,7 @@ export function Gantt({
         <p className="empty gantt__empty">{t("gantt.empty")}</p>
       ) : (
         <>
-        <div className="gantt__scroll" ref={scroller}>
+        <div className="gantt__scroll" ref={scroller} onScroll={rememberFocus}>
           <div className="gantt__canvas">
             <div className="gantt__head-row">
               <div className="gantt__label gantt__corner">
