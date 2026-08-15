@@ -28,7 +28,7 @@ from app.ai.schemas import (
     parse,
 )
 from app.config import get_settings
-from app.models import AiSession, Organization, Project, Task, User
+from app.models import AiSession, Organization, Project, ScheduleMode, Task, User
 from app.mutations import CreateCategory, CreateTask, apply_op
 from app.projects import create_project
 
@@ -272,6 +272,10 @@ def apply_draft(
 
     draft = parse(Draft, session.draft)
     project = create_project(db, org_id=session.org_id, name=name)
+    # Черновик AI — план с настоящими датами: модель раскладывает задачи от
+    # сегодняшнего дня. Такой проект рождается календарным, а не относительным:
+    # относительная ось — для планов, у которых даты ещё не назначены.
+    project.schedule_mode = ScheduleMode.CALENDAR
     batch_id = uuid.uuid4()
 
     for index, category in enumerate(draft.categories):

@@ -15,7 +15,17 @@ from sqlalchemy.orm import Session as DbSession
 
 from app.calendar import end_date
 from app.comments import author_names
-from app.models import Category, Comment, Dependency, Organization, Project, Task, TaskAssignee
+from app.models import (
+    Category,
+    Comment,
+    Dependency,
+    Organization,
+    Project,
+    ScheduleMode,
+    Task,
+    TaskAssignee,
+)
+from app.schedule import RELATIVE_EPOCH, offset_of, relative_calendar
 from app.settings_resolution import project_calendar, resolve_shift_threshold, resolve_timezone
 
 
@@ -43,7 +53,11 @@ def project_state(
     Поднимает `CalendarError`, если рабочих дней в календаре не осталось:
     решение, каким кодом это назвать, принимает маршрут.
     """
-    calendar = project_calendar(project, org)
+    # Относительный план живёт на оси без настоящих дат, и календарь у него —
+    # одна недельная маска: праздники и объявленные рабочие дни лягут на план
+    # при привязке к дате старта (см. app.schedule).
+    relative = project.schedule_mode == ScheduleMode.RELATIVE
+    calendar = relative_calendar(project, org) if relative else project_calendar(project, org)
 
     # Позиции могут совпадать в одном крайнем случае (строка, восстановленная
     # отменой на позицию, которую с тех пор занял другой ряд), поэтому id —
@@ -98,6 +112,11 @@ def project_state(
             project.plan_approved_at.isoformat() if project.plan_approved_at else None
         ),
         "plan_version": project.plan_version,
+        # Режим расписания и назначенный старт. По ним интерфейс выбирает
+        # шкалу — «Месяц 1 / Неделя 1» или настоящие месяцы — и знает, какую
+        # кнопку показать: «Назначить дату старта» или «Изменить».
+        "schedule_mode": project.schedule_mode,
+        "start_date": project.start_date.isoformat() if project.start_date else None,
         # То, что отменит кнопка «Отменить», — вместе с состоянием, а не
         # отдельным запросом: кнопка обязана быть неактивной сразу, а не
         # оживать через кадр после отрисовки.
@@ -140,6 +159,17 @@ def project_state(
                 "name": t.name,
                 "description": t.description,
                 "start_date": t.start_date.isoformat(),
+                # Смещение от начала проекта в рабочих днях — модель задачи
+                # относительного плана, выведенная из координаты. Считает
+                # сервер: клиент рабочие дни не пересчитывает нигде. None — у
+                # календарного проекта и у координаты, ушедшей раньше начала
+                # оси (по проводу такое положение допустимо, смещения у него
+                # нет).
+                "start_offset_days": (
+                    offset_of(t.start_date, RELATIVE_EPOCH, calendar)
+                    if relative and t.start_date >= RELATIVE_EPOCH
+                    else None
+                ),
                 "duration_days": t.duration_days,
                 "end_date": task_end.isoformat(),
                 "criticality": t.criticality,
