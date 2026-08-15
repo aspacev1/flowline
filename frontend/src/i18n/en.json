@@ -600,6 +600,7 @@
     "threshold": "Shift threshold, days",
     "threshold_hint": "A change that moves further than this from the approved plan needs a reason",
     "working_days": "Working days",
+    "working_days_empty": "At least one day of the week has to stay a working day",
     "inherit": "Inherit from the organization ({value})",
     "slug_taken": "That address is taken. A free one:",
     "bad_dates": "Dates must look like YYYY-MM-DD: {dates}",

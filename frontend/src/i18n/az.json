@@ -600,6 +600,7 @@
     "threshold": "Sürüşmə həddi, gün",
     "threshold_hint": "Təsdiqlənmiş plandan bundan çox kənara çıxan dəyişiklik səbəb tələb edir",
     "working_days": "İş günləri",
+    "working_days_empty": "Həftədə ən azı bir gün iş günü qalmalı",
     "inherit": "Təşkilatdan miras al ({value})",
     "slug_taken": "Bu ünvan tutulub. Boş variant:",
     "bad_dates": "Tarix formatı İİİİ-AA-GG olmalıdır: {dates}",
