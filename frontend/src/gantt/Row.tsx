@@ -67,6 +67,13 @@ export function CategoryRow({
       className={`gantt__row gantt__row--category ${reorder?.markFor("category", category.id) ?? ""}`.trimEnd()}
       // Заголовок категории — тоже цель броска: перенести задачу в другую
       // категорию иначе можно было бы только через список в карточке.
+      //
+      // Чем строка приходится броску, сказано прямо в разметке: пальцем
+      // события до неё не доходят вовсе, и ручка ищет её попаданием в точку —
+      // по найденному элементу узнать строку больше не по чему (см. `targetAt`
+      // в useReorder).
+      data-drop-kind="category"
+      data-drop-id={category.id}
       onPointerMove={() => reorder?.over({ kind: "category", id: category.id, half: "bottom" })}
       onPointerUp={() => reorder?.drop()}
     >
@@ -206,7 +213,15 @@ export function TaskRow({
       className={`gantt__row${selected ? " is-selected" : ""} ${
         reorder?.markFor("task", task.id) ?? ""
       }`.trimEnd()}
-      onPointerMove={(event) => reorder?.over({ kind: "task", id: task.id, half: halfOf(event) })}
+      data-drop-kind="task"
+      data-drop-id={task.id}
+      onPointerMove={(event) =>
+        reorder?.over({
+          kind: "task",
+          id: task.id,
+          half: halfOf(event.currentTarget, event.clientY),
+        })
+      }
       onPointerUp={() => reorder?.drop()}
     >
       <div className="gantt__label">
@@ -226,12 +241,10 @@ export function TaskRow({
                   className="gantt__handle"
                   aria-hidden="true"
                   title={handleLabel}
-                  onPointerDown={(event) => {
-                    // Без этого нажатие уводит фокус и начинает выделение текста
-                    // вместо перетаскивания.
-                    event.preventDefault();
-                    reorder.start(task.id);
-                  }}
+                  // Весь жест — на ручке, а не только его начало: пальцем
+                  // указатель захвачен ею до самого броска, и строки под
+                  // пальцем событий не получают (см. useReorder).
+                  {...reorder.handleProps(task.id)}
                 >
                   ⠿
                 </span>

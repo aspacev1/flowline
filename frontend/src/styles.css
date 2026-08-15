@@ -90,12 +90,30 @@
      строку, обязаны совпасть по высоте, иначе строка «пляшет». */
   --control: 32px;
 
-  /* Появление всплывающих слоёв. Шкала и её правила — в разделе «движение
-     всплывающих слоёв» ниже; здесь только величины, чтобы их можно было
-     переопределить темой вместе с остальными мерами. */
-  --motion-layer: 120ms;
-  --motion-layer-lg: 180ms;
+  /* Движение. Две длительности на весь продукт и одна кривая — как и у цвета,
+     значение выбирается здесь, а не по месту. Прежде в коде жили четыре
+     режима (20, 120, 140 и 180 мс) в четырёх подсистемах, и переходы,
+     одинаковые по смыслу, шли с разной скоростью: подсветка строки списка —
+     за 20 мс, подсветка строки ленты — за 180.
+       Быстрая — отклик на курсор: смена фона, проявление кнопки строки.
+       Базовая — смена состояния или положения: переключатель, выезд карточки,
+     переезд полоски на ленте. Ей нужно время, чтобы глаз проследил путь.
+     Кривая одна на оба случая: ease тормозит к концу, и движение выглядит
+     доведённым до места. Прежний ease-in на переходах наведения делал ровно
+     обратное — начинал вяло и обрывался на полном ходу. */
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-ease: ease;
+
+  /* Появление всплывающих слоёв — та же пара длительностей, названная по месту
+     применения: правила шкалы в разделе «движение всплывающих слоёв» ниже.
+     Величины берутся из продуктовых токенов, а не задаются заново, иначе тема,
+     переопределившая скорость, разошлась бы со слоями. Кривая здесь своя:
+     у входа ease-out гасит движение к концу, и слой встаёт, а не влетает. */
+  --motion-layer: var(--motion-fast);
+  --motion-layer-lg: var(--motion-base);
   --motion-layer-ease: ease-out;
+
   --font:
     ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, "Apple Color Emoji",
     Arial, sans-serif;
@@ -157,7 +175,12 @@
    действует сразу, ещё до первого кадра разметки, и покрывает всё подряд.
    Класс ставит разметка, спросив ту же настройку, — он нужен там, где от неё
    зависит не только оформление. Правила одинаковы, и порядок между ними
-   значения не имеет. */
+   значения не имеет.
+
+   Свести их в один блок нельзя: условие медиа-запроса не выражается
+   селектором, поэтому объявления приходится держать в двух копиях. Копии уже
+   однажды разошлись — из класса выпал scroll-behavior. Меняя одно правило,
+   меняйте второе. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -173,6 +196,7 @@
 .motion-off *::after {
   transition: none !important;
   animation: none !important;
+  scroll-behavior: auto !important;
 }
 
 /* --- движение всплывающих слоёв ---
@@ -395,7 +419,7 @@ button.sidebar__workspace:hover {
   color: var(--text-muted);
   font-weight: 500;
   text-decoration: none;
-  transition: background 20ms ease-in;
+  transition: background var(--motion-fast) var(--motion-ease);
 }
 
 .sidebar__link:hover {
@@ -826,7 +850,7 @@ button {
   background: var(--accent);
   color: var(--accent-text);
   box-shadow: var(--shadow-sm);
-  transition: background 20ms ease-in;
+  transition: background var(--motion-fast) var(--motion-ease);
 }
 
 button:hover {
@@ -1202,7 +1226,7 @@ input[type="checkbox"] {
   border-radius: 999px;
   background: rgb(var(--ink) / 30%);
   box-shadow: none;
-  transition: background 180ms ease;
+  transition: background var(--motion-base) var(--motion-ease);
 }
 
 .switch__handle:hover {
@@ -1221,7 +1245,7 @@ input[type="checkbox"] {
   border-radius: 50%;
   background: #ffffff;
   box-shadow: var(--shadow-sm);
-  transition: transform 180ms ease;
+  transition: transform var(--motion-base) var(--motion-ease);
 }
 
 .switch__handle[aria-checked="true"] .switch__dot {
@@ -1280,7 +1304,7 @@ input[type="checkbox"] {
   padding: 10px 8px;
   border-bottom: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  transition: background 20ms ease-in;
+  transition: background var(--motion-fast) var(--motion-ease);
 }
 
 .projects li:hover,
@@ -1337,7 +1361,7 @@ input[type="checkbox"] {
    не влияет на доступное дерево. */
 .invite__actions button {
   opacity: 0;
-  transition: opacity 20ms ease-in;
+  transition: opacity var(--motion-fast) var(--motion-ease);
 }
 
 .invite:hover .invite__actions button,

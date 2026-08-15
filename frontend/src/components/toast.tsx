@@ -14,12 +14,21 @@ import type { ReactNode } from "react";
 
 type Toast = {
   message: string;
-  /** Подпись действия. Без неё тост — только подтверждение. */
-  actionLabel?: string;
-  onAction?: () => void;
+  /**
+   * Действие целиком, узлом. Без него тост — только подтверждение.
+   *
+   * Узел, а не пара «подпись и обработчик»: действие живёт те шесть секунд,
+   * что висит тост, и за это время может умереть — отменять становится нечего
+   * или уже не то. Знает об этом тот, кто действие предложил, а не тост; тост
+   * же, храня обработчик, показывал бы живую кнопку до последней секунды и
+   * узнавал правду только от сервера, уже нажатой.
+   */
+  action?: ReactNode;
 };
 
 const ToastContext = createContext<(toast: Toast) => void>(() => {});
+/** Спрятать тост. Нужен действию: нажатое, оно само решает, что показывать дальше. */
+const DismissContext = createContext<() => void>(() => {});
 
 /** Сколько тост висит. Достаточно, чтобы прочитать и успеть нажать «Отменить». */
 const TOAST_MS = 6000;
@@ -40,6 +49,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     timer.current = setTimeout(() => setToast(null), TOAST_MS);
   }, []);
 
+  const dismiss = useCallback(() => {
+    if (timer.current !== null) clearTimeout(timer.current);
+    setToast(null);
+  }, []);
+
   useEffect(
     () => () => {
       if (timer.current !== null) clearTimeout(timer.current);
@@ -49,34 +63,28 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   return (
     <ToastContext.Provider value={show}>
-      {children}
-      {toast && (
-        <div className="toast" role="status" key={toast.id}>
-          <span className="toast__check" aria-hidden="true">
-            ✓
-          </span>
-          <span className="toast__message">{toast.message}</span>
-          {toast.actionLabel && toast.onAction && (
-            <button
-              type="button"
-              className="toast__action"
-              onClick={() => {
-                // Сначала спрятать, потом действовать: отмена сама покажет
-                // результат на ленте, а висящий тост предлагал бы отменить то,
-                // что уже отменено.
-                setToast(null);
-                toast.onAction?.();
-              }}
-            >
-              {toast.actionLabel}
-            </button>
-          )}
-        </div>
-      )}
+      <DismissContext.Provider value={dismiss}>
+        {children}
+        {toast && (
+          // Ключ по тосту: следующее сообщение — новый узел, и появление
+          // проигрывается заново, а не подменяет текст в уже висящей плашке.
+          <div className="toast" role="status" key={toast.id}>
+            <span className="toast__check" aria-hidden="true">
+              ✓
+            </span>
+            <span className="toast__message">{toast.message}</span>
+            {toast.action}
+          </div>
+        )}
+      </DismissContext.Provider>
     </ToastContext.Provider>
   );
 }
 
 export function useToast() {
   return useContext(ToastContext);
+}
+
+export function useDismissToast() {
+  return useContext(DismissContext);
 }
