@@ -36,7 +36,6 @@
   /* Разделитель строк светлее рамок ленты: на полусотне строк линия в полную
      силу рисует решётку, в которой не видно самих строк. */
   --gantt-row-line: #edf0f4;
-  --motion: 180ms;
 
   /* Заливки полосок. Живут здесь, а не в теме: это четыре значения одного
      свойства ленты, и в общей палитре продукта им соответствия нет — синий
@@ -425,7 +424,7 @@
   align-items: center;
   height: var(--gantt-row);
   border-bottom: 1px solid var(--gantt-row-line);
-  transition: background var(--motion) ease;
+  transition: background var(--motion-base) var(--motion-ease);
 }
 
 /* Строка подсвечивается целиком при наведении: так видно, какой задаче
@@ -469,7 +468,7 @@
   padding: 0 12px;
   background: var(--surface);
   border-right: 1px solid var(--border-strong);
-  transition: background var(--motion) ease;
+  transition: background var(--motion-base) var(--motion-ease);
 }
 
 /* Шапка колонки задач — того же тона, что и шапка шкалы, но чуть светлее:
@@ -625,6 +624,17 @@
   opacity: 1;
 }
 
+/* Там, где наведения не бывает, — планшет, телефон — ручка видна всегда.
+   Иначе она невидима ровно там, где по ней и нужно попасть пальцем: показать
+   её нечем, а прозрачная она всё равно ловит нажатия — то есть работает, но
+   только вслепую. Частокол из точек, ради которого её прячут на настольном
+   экране, там же и остаётся. */
+@media (hover: none) {
+  .gantt__handle {
+    opacity: 1;
+  }
+}
+
 .gantt.is-reordering .gantt__handle {
   cursor: grabbing;
 }
@@ -635,7 +645,7 @@
 .gantt__row.drop-before .gantt__lane,
 .gantt__row.drop-after .gantt__label,
 .gantt__row.drop-after .gantt__lane {
-  transition: box-shadow var(--motion) ease;
+  transition: box-shadow var(--motion-base) var(--motion-ease);
 }
 
 /* Линия вставки. Тень внутрь, а не рамка: рамка добавила бы строке высоту, и
@@ -676,11 +686,11 @@
      собственное объявление стирает его целиком и тень с рамкой на фокусе
      появляются мгновенно. */
   transition:
-    opacity var(--motion-fast) ease,
-    background-color var(--motion-fast) ease,
-    border-color var(--motion-fast) ease,
-    box-shadow var(--motion-fast) ease,
-    color var(--motion-fast) ease;
+    opacity var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
 }
 
 .gantt__row:hover .gantt__add,
@@ -708,11 +718,11 @@
   line-height: 1;
   opacity: 0;
   transition:
-    opacity var(--motion-fast) ease,
-    background-color var(--motion-fast) ease,
-    border-color var(--motion-fast) ease,
-    box-shadow var(--motion-fast) ease,
-    color var(--motion-fast) ease;
+    opacity var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
 }
 
 .gantt__row:hover .gantt__remove,
@@ -728,7 +738,7 @@
 .gantt__lane {
   position: relative;
   height: 100%;
-  transition: background var(--motion) ease;
+  transition: background var(--motion-base) var(--motion-ease);
 }
 
 /* Сводная полоса категории: тонкая линия с засечками-стрелками по краям, как
@@ -799,11 +809,11 @@
      вдвое короче и общим токеном продукта: полоска всё-таки кнопка, и щёлкать
      подъёмом там, где соседние кнопки проявляются плавно, ей не с чего. */
   transition:
-    left var(--motion) ease,
-    width var(--motion) ease,
-    opacity var(--motion) ease,
-    transform var(--motion-fast) ease,
-    filter var(--motion-fast) ease;
+    left var(--motion-base) var(--motion-ease),
+    width var(--motion-base) var(--motion-ease),
+    opacity var(--motion-base) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease),
+    filter var(--motion-fast) var(--motion-ease);
 }
 
 /* Под курсором полоска светлеет и приподнимается — но не меняет ни цвет, ни

@@ -113,8 +113,8 @@
   background: var(--surface);
   box-shadow: var(--shadow-sm);
   transition:
-    border-color var(--motion-fast) ease,
-    box-shadow var(--motion-fast) ease;
+    border-color var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease);
 }
 
 .feed__card:hover {

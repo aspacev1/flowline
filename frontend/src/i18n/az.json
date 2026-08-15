@@ -342,7 +342,8 @@
       "add_link_to": "«{label}» siyahısına əlavə et",
       "unlink": "«{name}» ilə əlaqəni sil",
       "assignees": "İcraçılar",
-      "submit": "Tapşırıq yarat"
+      "submit": "Tapşırıq yarat",
+      "partial": "Tapşırıq artıq yaradılıb — təkrar yalnız qalanını əlavə edəcək."
     }
   },
   "history": {
@@ -599,6 +600,7 @@
     "threshold": "Sürüşmə həddi, gün",
     "threshold_hint": "Təsdiqlənmiş plandan bundan çox kənara çıxan dəyişiklik səbəb tələb edir",
     "working_days": "İş günləri",
+    "working_days_empty": "Həftədə ən azı bir gün iş günü qalmalı",
     "inherit": "Təşkilatdan miras al ({value})",
     "slug_taken": "Bu ünvan tutulub. Boş variant:",
     "bad_dates": "Tarix formatı İİİİ-AA-GG olmalıdır: {dates}",
