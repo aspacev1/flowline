@@ -11,7 +11,7 @@ ondelete=CASCADE — удаление пользователя уносит ег
 по владельцу.
 
 Revision ID: c9d2f6b8a154
-Revises: b7c4e1f0a9d3
+Revises: c1a7d2f4e8b9
 Create Date: 2026-08-15 10:00:00.000000
 
 """
@@ -23,7 +23,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'c9d2f6b8a154'
-down_revision: Union[str, Sequence[str], None] = 'b7c4e1f0a9d3'
+down_revision: Union[str, Sequence[str], None] = 'c1a7d2f4e8b9'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
