@@ -236,6 +236,28 @@ class EmailVerification(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class PasswordReset(Base):
+    """Одноразовая ссылка восстановления пароля.
+
+    Та же дисциплина, что у EmailVerification: наружу уходит открытый токен,
+    в базе лежит его хеш. Таблица отдельная, а не общая с подтверждением:
+    ссылка восстановления — это вход в аккаунт, и жить она должна заметно
+    короче, а ошибка в общем коде не должна превращать письмо «подтвердите
+    адрес» в ключ от чужого пароля.
+    """
+
+    __tablename__ = "password_resets"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    # Ищется по владельцу на каждой повторной просьбе и при погашении.
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    token_hash: Mapped[str] = mapped_column(String(128), unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Project(Base):
     __tablename__ = "projects"
     __table_args__ = (UniqueConstraint("org_id", "slug"),)

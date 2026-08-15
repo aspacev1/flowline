@@ -80,6 +80,10 @@ export function Login() {
       </form>
 
       <p className="muted">
+        <Link to="/forgot-password">{t("auth.login.link_forgot")}</Link>
+      </p>
+
+      <p className="muted">
         {t("auth.login.no_account")}{" "}
         {/* Состояние едет и на регистрацию: у пришедшего по ссылке чаще всего
             ещё нет аккаунта, и терять адрес на шаг позже — та же потеря. */}

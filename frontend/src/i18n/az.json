@@ -97,7 +97,8 @@
     "field": {
       "name": "Ad",
       "email": "E-poçt",
-      "password": "Parol"
+      "password": "Parol",
+      "new_password": "Yeni parol"
     },
     "register": {
       "title": "Qeydiyyat",
@@ -109,7 +110,22 @@
       "title": "Giriş",
       "submit": "Daxil ol",
       "no_account": "Hesabınız yoxdur?",
-      "link_register": "Qeydiyyatdan keçin"
+      "link_register": "Qeydiyyatdan keçin",
+      "link_forgot": "Parolu unutmusunuz?"
+    },
+    "forgot": {
+      "title": "Parolun bərpası",
+      "intro": "E-poçt ünvanınızı yazın, yeni parol təyin etmək üçün keçid göndərək.",
+      "submit": "Məktubu göndər",
+      "sent": "Bu ünvan qeydiyyatdadırsa, məktub artıq yoldadır — poçtunuzu yoxlayın",
+      "link_login": "Girişə qayıt"
+    },
+    "reset": {
+      "title": "Yeni parol",
+      "submit": "Parolu yadda saxla",
+      "done": "Parol dəyişdirildi — yenisi ilə daxil olun",
+      "link_login": "Daxil ol",
+      "link_again": "Yeni keçid istə"
     },
     "verify": {
       "title": "Ünvanın təsdiqi",

@@ -66,6 +66,9 @@ class Settings(BaseSettings):
     login_rate_limit_per_ip: int = 30
     login_rate_limit_per_account: int = 10
     signup_rate_limit_per_ip: int = 10
+    # Просьбы о восстановлении пароля считаются по IP и все подряд: каждая —
+    # это письмо на произвольный адрес, введённый в форму без входа.
+    password_reset_rate_limit_per_ip: int = 10
     auth_rate_window_seconds: int = 900
 
     # Пределы AI: запросов к модели в минуту и токенов в сутки — на

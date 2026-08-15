@@ -268,6 +268,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/password/forgot": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Forgot Password Route
+         * @description Просьба о письме для восстановления пароля. Куки не требует.
+         *
+         *     Ответ одинаковый для любого адреса — 204: есть ли такой аккаунт, форма
+         *     не сообщает. Иначе она была бы справочником «кто здесь зарегистрирован»,
+         *     тем самым, который authenticate() прячет ценой холостого хеширования.
+         *     По той же причине пауза между повторами не отвечает 429: молчаливый 204
+         *     и есть ответ. Предел по IP один на все адреса — каждая просьба, чей бы
+         *     адрес в ней ни стоял, превращается в письмо с нашего отправителя.
+         */
+        post: operations["forgot_password_route_api_auth_password_forgot_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/password/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reset Password Route
+         * @description Погашение ссылки из письма: новый пароль вместо забытого.
+         *
+         *     Куки не требует по той же причине, что и подтверждение адреса: ссылку
+         *     открывают там, куда пришла почта. Сессию не открывает: пароль только что
+         *     задан, и вход им — секундное дело, а вот все прежние сессии умирают
+         *     внутри redeem_token — восстановлением пользуются как раз тогда, когда
+         *     пароль, похоже, утёк.
+         */
+        post: operations["reset_password_route_api_auth_password_reset_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/register": {
         parameters: {
             query?: never;
@@ -1109,6 +1162,14 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** ForgotPasswordIn */
+        ForgotPasswordIn: {
+            /**
+             * Email
+             * Format: email
+             */
+            email: string;
+        };
         /** GuestCommentIn */
         GuestCommentIn: {
             /** Body */
@@ -1735,6 +1796,13 @@ export interface components {
              * @default false
              */
             deliver: boolean;
+        };
+        /** ResetPasswordIn */
+        ResetPasswordIn: {
+            /** New Password */
+            new_password: string;
+            /** Token */
+            token: string;
         };
         /** SessionsClosedOut */
         SessionsClosedOut: {
@@ -2389,6 +2457,68 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["PasswordIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    forgot_password_route_api_auth_password_forgot_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForgotPasswordIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reset_password_route_api_auth_password_reset_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetPasswordIn"];
             };
         };
         responses: {

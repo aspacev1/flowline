@@ -92,3 +92,23 @@ export function verifyEmail(token: string): Promise<void> {
 export function resendVerification(): Promise<{ sent: boolean }> {
   return request<{ sent: boolean }>("/api/auth/verify-email/resend", { method: "POST" });
 }
+
+/**
+ * Просьба о письме для восстановления пароля. Ответ одинаковый для любого
+ * адреса: есть ли такой аккаунт, сервер не сообщает — и экран не должен
+ * обещать письмо, а только «если адрес зарегистрирован».
+ */
+export function requestPasswordReset(email: string): Promise<void> {
+  return request<void>("/api/auth/password/forgot", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+/** Погашение ссылки из письма: новый пароль вместо забытого. Куки не требует. */
+export function resetPassword(input: { token: string; new_password: string }): Promise<void> {
+  return request<void>("/api/auth/password/reset", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}

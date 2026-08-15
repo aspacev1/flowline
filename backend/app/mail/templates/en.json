@@ -3,6 +3,10 @@
     "subject": "Planora: confirm your email address",
     "body": "Hello, {name}!\n\nOpen this link to confirm your email address:\n\n{link}\n\nThe link works for {hours} hours. If you did not sign up for Planora, ignore this letter."
   },
+  "reset_password": {
+    "subject": "Planora: reset your password",
+    "body": "Hello, {name}!\n\nOpen this link to set a new password:\n\n{link}\n\nThe link works for {hours} hours. If you did not ask to reset your password, ignore this letter — your password stays as it was."
+  },
   "invitation": {
     "subject": "Invitation to {org}",
     "body": "{inviter} invites you to the organization “{org}” on Planora.\nYour role: {role}.\n\nJoin using this link:\n{link}\n\nThe link is valid until {expires}.\n"

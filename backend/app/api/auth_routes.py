@@ -11,6 +11,7 @@ from fastapi import (
     Response,
 )
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session as DbSession
 
@@ -37,6 +38,7 @@ from app.email_verification import (
 from app.invitations import InvitationError, Status, by_token, check_recipient, status_of
 from app.locales import locale_from_request
 from app.models import Invitation, User
+from app import password_reset
 from app.rate_limit import client_key
 from app.settings_input import check_locale, check_timezone
 from app.text import normalize_email
@@ -328,6 +330,73 @@ def change_password_route(
     except ValueError:
         raise HTTPException(status_code=403, detail="bad_credentials")
     close_other_sessions(db, user, keep_raw_token=planora_session)
+
+
+class ForgotPasswordIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr
+
+
+class ResetPasswordIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: str = Field(min_length=1, max_length=200)
+    new_password: str = Field(min_length=8, max_length=200)
+
+
+@router.post("/password/forgot", status_code=204)
+def forgot_password_route(
+    payload: ForgotPasswordIn,
+    request: Request,
+    background: BackgroundTasks,
+    db: DbSession = Depends(get_db),
+):
+    """Просьба о письме для восстановления пароля. Куки не требует.
+
+    Ответ одинаковый для любого адреса — 204: есть ли такой аккаунт, форма
+    не сообщает. Иначе она была бы справочником «кто здесь зарегистрирован»,
+    тем самым, который authenticate() прячет ценой холостого хеширования.
+    По той же причине пауза между повторами не отвечает 429: молчаливый 204
+    и есть ответ. Предел по IP один на все адреса — каждая просьба, чей бы
+    адрес в ней ни стоял, превращается в письмо с нашего отправителя.
+    """
+    settings = get_settings()
+    if not throttle.hit(
+        db,
+        f"password-reset:ip:{client_key(request)}",
+        limit=settings.password_reset_rate_limit_per_ip,
+        window_seconds=settings.auth_rate_window_seconds,
+    ):
+        raise HTTPException(status_code=429, detail="too_many_requests")
+
+    user = db.scalar(
+        select(User).where(User.email == normalize_email(str(payload.email)))
+    )
+    if user is None or password_reset.sent_recently(db, user):
+        return
+
+    # Письмо — после ответа, тем же порядком, что и при регистрации: SMTP
+    # думает до десяти секунд, и время ответа не должно выдавать, ушло ли
+    # письмо вообще. Коммит — до постановки задачи (см. register_route).
+    db.commit()
+    background.add_task(password_reset.send_reset, db, user)
+
+
+@router.post("/password/reset", status_code=204)
+def reset_password_route(payload: ResetPasswordIn, db: DbSession = Depends(get_db)):
+    """Погашение ссылки из письма: новый пароль вместо забытого.
+
+    Куки не требует по той же причине, что и подтверждение адреса: ссылку
+    открывают там, куда пришла почта. Сессию не открывает: пароль только что
+    задан, и вход им — секундное дело, а вот все прежние сессии умирают
+    внутри redeem_token — восстановлением пользуются как раз тогда, когда
+    пароль, похоже, утёк.
+    """
+    try:
+        password_reset.redeem_token(db, payload.token, new_password=payload.new_password)
+    except password_reset.ResetError as exc:
+        raise HTTPException(status_code=400, detail=exc.code)
 
 
 class SessionsClosedOut(BaseModel):
