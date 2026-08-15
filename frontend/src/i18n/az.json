@@ -466,9 +466,7 @@
     "reissue_warning": "Yeni keçid veriləndə köhnəsi dərhal ölür — göndərilmiş ünvan açılmayacaq",
     "revoke": "Keçidi bağla",
     "comments_enabled": "Şərhlərə icazə ver",
-    "disabled": "İctimai keçidlər söndürülüb: quraşdırma və ya təşkilat ayarı",
-    "hidden": "Layihə bayıra açıq deyil",
-    "comments": "Şərhlərə icazə verilir"
+    "disabled": "İctimai keçidlər söndürülüb: quraşdırma və ya təşkilat ayarı"
   },
   "comments": {
     "title": "Şərhlər",
