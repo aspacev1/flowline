@@ -15,7 +15,7 @@ describe("плотность ленты", () => {
     expect(GANTT_DENSITY).toEqual({
       dayWidth: { day: 72, week: 44, month: 22 },
       rowHeight: 50,
-      taskHeight: 40,
+      taskHeight: 30,
       summaryHeight: 11,
       monthHeaderHeight: 36,
       calendarHeaderHeight: 76,
@@ -27,9 +27,13 @@ describe("плотность ленты", () => {
   });
 
   it("оставляет полоске равный просвет сверху и снизу", () => {
-    // Полоска стоит по центру строки, и просвет — это остаток. Пять и пять:
-    // меньше, и полоски соседних строк смыкаются в сплошную заливку.
-    expect((ROW_HEIGHT - TASK_HEIGHT) / 2).toBe(5);
+    // Полоска стоит по центру строки, и просвет — это остаток. Десять и
+    // десять: просветом лента и читается рядом полосок, а не закрашенным
+    // полем, поэтому он проверяется наравне с самой полоской.
+    expect((ROW_HEIGHT - TASK_HEIGHT) / 2).toBe(10);
+    // Полоска занимает две трети строки. Пропорция названа отдельно от чисел:
+    // менять их можно, брусом в четыре пятых строки полоска быть не должна.
+    expect(TASK_HEIGHT / ROW_HEIGHT).toBeLessThanOrEqual(0.7);
   });
 
   it("вмещает три недели в области около 930 пикселей", () => {
@@ -57,7 +61,7 @@ describe("плотность ленты", () => {
       const { "--gantt-day-width": _, ...rest } = ganttTokens(zoom) as Record<string, string>;
       expect(rest).toEqual({
         "--gantt-row-height": "50px",
-        "--gantt-task-height": "40px",
+        "--gantt-task-height": "30px",
         "--gantt-summary-height": "11px",
         "--gantt-month-height": "36px",
         "--gantt-days-height": "76px",
