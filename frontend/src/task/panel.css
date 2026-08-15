@@ -18,7 +18,7 @@
 }
 
 .panel {
-  animation: panel-in 180ms ease;
+  animation: panel-in var(--motion-base) var(--motion-ease);
   flex: 0 0 360px;
   align-self: flex-start;
   max-height: 100%;

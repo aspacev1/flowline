@@ -89,6 +89,22 @@
   /* Высота всех органов управления одна: кнопка, поле и список, стоящие в
      строку, обязаны совпасть по высоте, иначе строка «пляшет». */
   --control: 32px;
+
+  /* Движение. Две длительности на весь продукт и одна кривая — как и у цвета,
+     значение выбирается здесь, а не по месту. Прежде в коде жили четыре
+     режима (20, 120, 140 и 180 мс) в четырёх подсистемах, и переходы,
+     одинаковые по смыслу, шли с разной скоростью: подсветка строки списка —
+     за 20 мс, подсветка строки ленты — за 180.
+       Быстрая — отклик на курсор: смена фона, проявление кнопки строки.
+       Базовая — смена состояния или положения: переключатель, выезд карточки,
+     переезд полоски на ленте. Ей нужно время, чтобы глаз проследил путь.
+     Кривая одна на оба случая: ease тормозит к концу, и движение выглядит
+     доведённым до места. Прежний ease-in на переходах наведения делал ровно
+     обратное — начинал вяло и обрывался на полном ходу. */
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-ease: ease;
+
   --font:
     ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, "Apple Color Emoji",
     Arial, sans-serif;
@@ -341,7 +357,7 @@ button.sidebar__workspace:hover {
   color: var(--text-muted);
   font-weight: 500;
   text-decoration: none;
-  transition: background 20ms ease-in;
+  transition: background var(--motion-fast) var(--motion-ease);
 }
 
 .sidebar__link:hover {
@@ -772,7 +788,7 @@ button {
   background: var(--accent);
   color: var(--accent-text);
   box-shadow: var(--shadow-sm);
-  transition: background 20ms ease-in;
+  transition: background var(--motion-fast) var(--motion-ease);
 }
 
 button:hover {
@@ -1148,7 +1164,7 @@ input[type="checkbox"] {
   border-radius: 999px;
   background: rgb(var(--ink) / 30%);
   box-shadow: none;
-  transition: background 180ms ease;
+  transition: background var(--motion-base) var(--motion-ease);
 }
 
 .switch__handle:hover {
@@ -1167,7 +1183,7 @@ input[type="checkbox"] {
   border-radius: 50%;
   background: #ffffff;
   box-shadow: var(--shadow-sm);
-  transition: transform 180ms ease;
+  transition: transform var(--motion-base) var(--motion-ease);
 }
 
 .switch__handle[aria-checked="true"] .switch__dot {
@@ -1226,7 +1242,7 @@ input[type="checkbox"] {
   padding: 10px 8px;
   border-bottom: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  transition: background 20ms ease-in;
+  transition: background var(--motion-fast) var(--motion-ease);
 }
 
 .projects li:hover,
@@ -1283,7 +1299,7 @@ input[type="checkbox"] {
    не влияет на доступное дерево. */
 .invite__actions button {
   opacity: 0;
-  transition: opacity 20ms ease-in;
+  transition: opacity var(--motion-fast) var(--motion-ease);
 }
 
 .invite:hover .invite__actions button,
@@ -1349,7 +1365,7 @@ input[type="checkbox"] {
   /* Тень вместо рамки: окно висит над страницей, и рамка вокруг него
      нарисовала бы вторую границу поверх той, что уже дала тень. */
   box-shadow: var(--shadow-md);
-  animation: modal-in 120ms ease-out;
+  animation: modal-in var(--motion-fast) var(--motion-ease);
 }
 
 .modal__title {
