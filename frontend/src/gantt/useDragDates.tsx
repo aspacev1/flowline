@@ -14,6 +14,7 @@ import { useAskShiftReason } from "../project/ShiftReason";
 import { useProjectMutation } from "../project/useProjectMutation";
 import { UndoMove } from "./UndoMove";
 import { addDays } from "./timescale";
+import type { BarMotion } from "./useBarMotion";
 import type { Scale } from "./timescale";
 
 /**
@@ -27,18 +28,26 @@ import type { Scale } from "./timescale";
  *
  * Смещение переводится в дни через шкалу, а не делением на ширину дня: шкала
  * знает, где кончается день, и знает это в одном месте.
+ *
+ * Саму полоску жест не двигает — он только называет сдвиг, а двигает
+ * `useBarMotion`, записывая его прямо в узел. Раньше сдвиг лежал в состоянии
+ * React, и каждое движение указателя перерисовывало строку целиком; на сотне
+ * задач это десятки перерисовок в секунду ради одного числа, которое дальше
+ * стиля никуда не идёт.
  */
 export function useDragDates({
   projectId,
   task,
   scale,
   enabled,
+  motion,
 }: {
   projectId: string;
   task: Task;
   scale: Scale;
   /** Гость полоски не двигает. */
   enabled: boolean;
+  motion: BarMotion;
 }) {
   const { apply } = useProjectMutation(projectId);
   const { t } = useLocale();
@@ -50,25 +59,10 @@ export function useDragDates({
   // Было ли движение. Живёт в ref, а не в состоянии: значение читается в
   // обработчике клика сразу после отпускания, и перерисовка тут не нужна.
   const dragged = useRef(false);
-  /** Сдвиг под пальцем в пикселях. `null` — полоску сейчас не тащат. */
-  const [drag, setDrag] = useState<number | null>(null);
-  /**
-   * Дата, на которую полоску бросили, пока перенос не завершился.
-   *
-   * Полоска стоит там, куда её отпустили, а не там, где ей полагается по
-   * нынешним датам. Причина спрашивается до всякого показа — так требует
-   * правило раздела 5, — и без этой задержки полоска успевала бы вернуться на
-   * исходное место ещё до вопроса. Движение назад до вопроса читается как «не
-   * получилось», хотя не решено ещё ничего; после ответа полоска ехала бы
-   * второй раз, и один жест выглядел бы как две неудачи подряд.
-   *
-   * Хранится датой, а не пикселями: пока идёт вопрос, оптимистичное состояние
-   * может встать на место — и тогда разница обращается в ноль сама, без кадра,
-   * в котором сдвиг посчитан дважды.
-   */
-  const [held, setHeld] = useState<string | null>(null);
-
-  const offset = drag ?? (held === null ? 0 : scale.xOf(held) - scale.xOf(task.start_date));
+  // А это, наоборот, состояние: от него зависит вид полоски — она поднимается
+  // над соседями и меняет курсор. Меняется оно ровно дважды за жест, на первом
+  // настоящем движении и на отпускании, а не на каждом событии указателя.
+  const [dragging, setDragging] = useState(false);
 
   /**
    * День, на который попадёт начало полоски, сдвинутой на `dx` пикселей.
@@ -121,12 +115,18 @@ export function useDragDates({
    *   ей место там. Клавиатура не держит ничего — там полоска и не двигалась,
    *   а поехавшая до ответа на вопрос о причине означала бы сдвиг, которого
    *   ещё не было.
+   *
+   *   Держит сам слой движения: сдвиг уже записан в узел, и «подождать» здесь
+   *   значит не снимать его до ответа. Второе состояние с той же датой считало
+   *   бы этот сдвиг ещё раз — и полоска на кадр уезжала бы вдвое.
    */
   const move = (startDate: string, hold = false) => {
     // Ноль дней — ничего не отправляем: жест, вернувший полоску на место, не
     // изменение и не должен оставлять запись в истории.
-    if (startDate === task.start_date) return;
-    if (hold) setHeld(startDate);
+    if (startDate === task.start_date) {
+      if (hold) motion.settle();
+      return;
+    }
     apply(
       { type: "move_task", task_id: task.id, start_date: startDate },
       (state) => patchTask(state, task.id, { start_date: startDate }),
@@ -159,17 +159,17 @@ export function useDragDates({
         },
       )
       .finally(() => {
-        // Отпускается только собственный захват: пока шёл вопрос о причине,
-        // ту же полоску могли бросить ещё раз, и держит её теперь та дата.
-        if (hold) setHeld((current) => (current === startDate ? null : current));
+        // Перенос решён — сдвиг можно снимать. Подтверждённый снял уже слой
+        // разметки: новый `left` пришёл с датами, и `settle` увидит ноль.
+        // Отказанный снимается здесь, и полоска едет назад — после ответа, а
+        // не до него.
+        if (hold) motion.settle();
       });
   };
 
   return {
-    /** Сдвиг полоски в пикселях относительно её нынешних дат. */
-    offset,
-    /** Полоска под пальцем прямо сейчас — но не тогда, когда её уже бросили. */
-    dragging: drag !== null && drag !== 0,
+    /** Идёт ли жест прямо сейчас. */
+    dragging,
     handlers: {
       onPointerDown(event: PointerEvent<HTMLElement>) {
         if (!enabled || event.button !== 0) return;
@@ -187,23 +187,30 @@ export function useDragDates({
         // Порог в пару пикселей: дрожание руки при щелчке не должно
         // превращать щелчок в перетаскивание и закрывать карточку, которую
         // человек как раз открывал.
-        if (Math.abs(dx) > 2) dragged.current = true;
-        setDrag(dx);
+        if (Math.abs(dx) > 2 && !dragged.current) {
+          dragged.current = true;
+          setDragging(true);
+        }
+        motion.hold(dx);
       },
 
       onPointerUp(event: PointerEvent<HTMLElement>) {
         const start = from.current;
         if (start === null || start.pointerId !== event.pointerId) return;
         from.current = null;
-        // Пиксели пальца уступают место дате броска: полоска встаёт по сетке
-        // дней там же, где её отпустили, и дальше держится за неё.
-        setDrag(null);
+        setDragging(false);
+        // Полоска ждёт ровно там, где её отпустили, — сдвиг снимет `settle`,
+        // когда перенос решится, и она доедет до своего дня уже с ответом.
+        // Снятый прямо сейчас, он вернул бы её на место ещё до вопроса о
+        // причине — то есть ответил бы «не получилось» раньше, чем спросили.
+        motion.release(true);
         move(dateAfter(event.clientX - start.x), true);
       },
 
       onPointerCancel() {
         from.current = null;
-        setDrag(null);
+        setDragging(false);
+        motion.release();
       },
 
       onClickCapture(event: MouseEvent<HTMLElement>) {

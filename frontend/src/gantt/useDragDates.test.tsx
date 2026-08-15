@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -32,6 +32,24 @@ describe("перетаскивание дат", () => {
     drag(bar, { fromX: 100, toX: 100 + 12 }); // меньше половины дня
 
     expect(sent).toHaveLength(0);
+  });
+
+  it("поднимает полоску над соседями на время жеста, но не от дрожания руки", async () => {
+    renderProject();
+    const bar = await screen.findByRole("button", { name: /Логотип/ });
+
+    fireEvent.pointerDown(bar, { pointerId: 1, button: 0, clientX: 100 });
+    fireEvent.pointerMove(bar, { pointerId: 1, clientX: 102 });
+    // Два пикселя — это ещё щелчок. Признак жеста меняет вид полоски, и
+    // включать его на дрожании руки значит мигать им на каждом открытии
+    // карточки.
+    expect(bar).not.toHaveClass("is-dragging");
+
+    fireEvent.pointerMove(bar, { pointerId: 1, clientX: 160 });
+    expect(bar).toHaveClass("is-dragging");
+
+    fireEvent.pointerUp(bar, { pointerId: 1, clientX: 160 });
+    expect(bar).not.toHaveClass("is-dragging");
   });
 
   it("не открывает карточку по окончании перетаскивания", async () => {
@@ -71,7 +89,10 @@ describe("перетаскивание дат", () => {
 
     await screen.findByRole("dialog");
     expect(sent).toHaveLength(0);
-    expect(Number.parseFloat(bar.style.left)).toBe(before + 7 * DAY_WIDTH.day);
+    // Место по датам не менялось: полоску держит сдвиг, а не `left` — двигают
+    // её только через `transform` (см. useBarMotion).
+    expect(Number.parseFloat(bar.style.left)).toBe(before);
+    expect(bar.style.getPropertyValue("--bar-dx")).toBe(`${7 * DAY_WIDTH.day}px`);
   });
 
   it("возвращает полоску, когда причину объяснять отказались", async () => {
