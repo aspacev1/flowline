@@ -13,6 +13,7 @@ import { patchTask } from "../project/optimistic";
 import { useAskShiftReason } from "../project/ShiftReason";
 import { useProjectMutation } from "../project/useProjectMutation";
 import { addDays } from "./timescale";
+import type { BarMotion } from "./useBarMotion";
 import type { Scale } from "./timescale";
 
 /**
@@ -26,18 +27,26 @@ import type { Scale } from "./timescale";
  *
  * Смещение переводится в дни через шкалу, а не делением на ширину дня: шкала
  * знает, где кончается день, и знает это в одном месте.
+ *
+ * Саму полоску жест не двигает — он только называет сдвиг, а двигает
+ * `useBarMotion`, записывая его прямо в узел. Раньше сдвиг лежал в состоянии
+ * React, и каждое движение указателя перерисовывало строку целиком; на сотне
+ * задач это десятки перерисовок в секунду ради одного числа, которое дальше
+ * стиля никуда не идёт.
  */
 export function useDragDates({
   projectId,
   task,
   scale,
   enabled,
+  motion,
 }: {
   projectId: string;
   task: Task;
   scale: Scale;
   /** Гость полоски не двигает. */
   enabled: boolean;
+  motion: BarMotion;
 }) {
   const { apply } = useProjectMutation(projectId);
   const { t } = useLocale();
@@ -49,7 +58,10 @@ export function useDragDates({
   // Было ли движение. Живёт в ref, а не в состоянии: значение читается в
   // обработчике клика сразу после отпускания, и перерисовка тут не нужна.
   const dragged = useRef(false);
-  const [offset, setOffset] = useState(0);
+  // А это, наоборот, состояние: от него зависит вид полоски — она поднимается
+  // над соседями и меняет курсор. Меняется оно ровно дважды за жест, на первом
+  // настоящем движении и на отпускании, а не на каждом событии указателя.
+  const [dragging, setDragging] = useState(false);
 
   /**
    * День, на который попадёт начало полоски, сдвинутой на `dx` пикселей.
@@ -119,8 +131,8 @@ export function useDragDates({
   };
 
   return {
-    /** Сдвиг полоски в пикселях, пока её тащат. */
-    offset,
+    /** Идёт ли жест прямо сейчас. */
+    dragging,
     handlers: {
       onPointerDown(event: PointerEvent<HTMLElement>) {
         if (!enabled || event.button !== 0) return;
@@ -138,21 +150,29 @@ export function useDragDates({
         // Порог в пару пикселей: дрожание руки при щелчке не должно
         // превращать щелчок в перетаскивание и закрывать карточку, которую
         // человек как раз открывал.
-        if (Math.abs(dx) > 2) dragged.current = true;
-        setOffset(dx);
+        if (Math.abs(dx) > 2 && !dragged.current) {
+          dragged.current = true;
+          setDragging(true);
+        }
+        motion.hold(dx);
       },
 
       onPointerUp(event: PointerEvent<HTMLElement>) {
         const start = from.current;
         if (start === null || start.pointerId !== event.pointerId) return;
         from.current = null;
-        setOffset(0);
+        setDragging(false);
+        // Сначала отпускаем полоску, потом отправляем перенос: `release`
+        // оставляет сдвиг до следующего кадра как раз затем, чтобы приехавший
+        // из `move` новый `left` успел стать концом переезда, а не его началом.
+        motion.release();
         move(dateAfter(event.clientX - start.x));
       },
 
       onPointerCancel() {
         from.current = null;
-        setOffset(0);
+        setDragging(false);
+        motion.release();
       },
 
       onClickCapture(event: MouseEvent<HTMLElement>) {

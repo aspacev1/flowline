@@ -1,8 +1,9 @@
-import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
+import type { CSSProperties, HTMLAttributes, ReactNode, RefCallback } from "react";
 
 import type { Category, Task } from "../api/projects";
 import { baselineOf, endShiftDays } from "../project/baseline";
 import { useBarTip } from "./BarTip";
+import { useBarMotion } from "./useBarMotion";
 import { useDragDates } from "./useDragDates";
 import { halfOf } from "./useReorder";
 import type { Reorder } from "./useReorder";
@@ -196,7 +197,19 @@ export function TaskRow({
   /** Рисовать ли призрак и засечку базового плана — флажок меню «Вид». */
   showBaseline?: boolean;
 }) {
-  const { offset, handlers } = useDragDates({ projectId, task, scale, enabled: canWrite });
+  // Место полоски по датам. Считается здесь, а не в разметке ниже, потому что
+  // его знать нужно двоим: самой разметке и слою движения — тот сравнивает его
+  // с местом на прошлом рендере и по разнице показывает переезд.
+  const left = scale.xOf(task.start_date);
+  const width = scale.widthOf(task.start_date, task.end_date);
+  const motion = useBarMotion({ left, scaleKey: scale.key });
+  const { dragging, handlers } = useDragDates({
+    projectId,
+    task,
+    scale,
+    enabled: canWrite,
+    motion,
+  });
   const tip = useBarTip(task);
   const baseline = baselineOf(task);
   const shift = endShiftDays(task);
@@ -325,18 +338,20 @@ export function TaskRow({
             нажимаемая. Тогда это картинка с подписью, а не орган управления. */}
         <Bar
           interactive={Boolean(onSelect) || canWrite}
+          barRef={motion.ref}
           className={`gantt__bar${late ? " is-late" : ""}${canWrite ? " is-draggable" : ""}${
-            offset === 0 ? "" : " is-dragging"
+            dragging ? " is-dragging" : ""
           }`}
           data-criticality={task.criticality}
           data-status={task.status}
           style={
             {
-              // Пока полоску тащат, она стоит там, где палец, — а не там, где
-              // ей полагается по датам. Сами даты меняются только по ответу
-              // сервера.
-              left: scale.xOf(task.start_date) + offset,
-              width: scale.widthOf(task.start_date, task.end_date),
+              // Место по датам, и только по ним: `left` и `width` выставляются
+              // на рендер и дальше не меняются никем. И сдвиг под пальцем, и
+              // переезд после ответа сервера идут через `transform` — см.
+              // useBarMotion, там же и о том, почему не через эти два.
+              left,
+              width,
               "--progress": `${task.progress_pct}%`,
             } as CSSProperties
           }
@@ -417,11 +432,23 @@ export function TaskRow({
 function Bar({
   interactive,
   children,
+  barRef,
   ...rest
-}: { interactive: boolean; children: ReactNode } & HTMLAttributes<HTMLElement>) {
+}: {
+  interactive: boolean;
+  children: ReactNode;
+  /**
+   * Ссылка на узел полоски для слоя движения.
+   *
+   * Отдельным пропсом, а не `ref`: `Bar` рисует то кнопку, то `div`, и `ref`
+   * пришлось бы объявлять сразу для обоих — а он всё равно нужен не самому
+   * `Bar`, а тому, кто в этот узел пишет.
+   */
+  barRef?: RefCallback<HTMLElement>;
+} & HTMLAttributes<HTMLElement>) {
   if (interactive) {
     return (
-      <button type="button" {...rest}>
+      <button type="button" ref={barRef} {...rest}>
         {children}
       </button>
     );
@@ -433,7 +460,7 @@ function Bar({
   void onClick;
   void expanded;
   return (
-    <div role="img" {...plain}>
+    <div role="img" ref={barRef} {...plain}>
       {children}
     </div>
   );

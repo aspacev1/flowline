@@ -12,7 +12,7 @@ import { Grid } from "./Grid";
 import { Header } from "./Header";
 import { Arrows } from "./Arrows";
 import { CategoryRow, TaskRow } from "./Row";
-import { usePrefersReducedMotion } from "./motion";
+import { MOTION_MS, usePrefersReducedMotion } from "./motion";
 import { useReorder } from "./useReorder";
 import { DAY_WIDTH, ROW_HEIGHT, projectWindow } from "./scale";
 import type { Zoom } from "./scale";
@@ -195,10 +195,16 @@ export function Gantt({
       className={`gantt gantt--${zoom}${reorder.active ? " is-reordering" : ""}${
         reducedMotion ? " motion-off" : ""
       }`}
-      // Высота строки задаётся отсюда: стрелки считают по ней вертикальные
-      // координаты, и второе такое же число в стилях однажды разошлось бы с
-      // этим.
-      style={{ "--gantt-row": `${ROW_HEIGHT}px` } as CSSProperties}
+      // Высота строки и длительность переходов задаются отсюда по одной и той
+      // же причине: обе величины знает не только CSS. По высоте строки стрелки
+      // считают вертикальные координаты, по длительности код ведёт переезд
+      // полоски. Второе такое же число в стилях однажды разошлось бы с ними.
+      style={
+        {
+          "--gantt-row": `${ROW_HEIGHT}px`,
+          "--motion": `${MOTION_MS}ms`,
+        } as CSSProperties
+      }
     >
       {/* Тулбар видит и читатель: масштаб и состав слоёв — способы смотреть,
           а не менять, и прятать их от гостя не за что. */}
