@@ -12,6 +12,13 @@
     },
     "days_short": "{count} gün"
   },
+  "modal": {
+    "discard": {
+      "question": "Pəncərə bağlansın? Daxil edilənlər itəcək.",
+      "keep": "Davam et",
+      "close": "Saxlamadan bağla"
+    }
+  },
   "calendar": {
     "date": "{day} {month}",
     "date_short": "{day} {month}",

@@ -1450,6 +1450,23 @@ input[type="checkbox"] {
   letter-spacing: -0.01em;
 }
 
+/* Вопрос о потере введённого: подложка отделяет его от полей формы, к которым
+   он относится, но не уводит взгляд со дна окна, где человек только что был. */
+.modal__confirm {
+  margin-top: var(--gap);
+  padding: 12px;
+  border-radius: var(--radius);
+  background: var(--bg-subtle);
+}
+
+.modal__confirm p {
+  margin: 0;
+}
+
+.modal__confirm .modal__actions {
+  margin-top: 12px;
+}
+
 /* Главное действие слева, отказ рядом: в окне читают сверху вниз и слева
    направо, и кнопка, ради которой окно открыли, стоит первой на этом пути. */
 .modal__actions {

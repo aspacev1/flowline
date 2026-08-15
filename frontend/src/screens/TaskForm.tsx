@@ -58,6 +58,8 @@ export function TaskForm({
   // Пояс проекта — из кэша, без запроса: экран, с которого открыта эта форма,
   // состояние проекта уже спросил. Сегодня по нему же, что и линия на ленте
   // за спиной у формы: разойдись они, задача заводилась бы «со вчера».
+  // С этим же значением сравнивают поле даты, чтобы отличить нетронутую форму
+  // от заполненной.
   const project = useQuery({
     queryKey: projectQueryKey(projectId),
     queryFn: () => getProject(projectId),
@@ -180,6 +182,23 @@ export function TaskForm({
     }
   };
 
+  // Тронута ли форма — считается по всем полям, а не по одному названию:
+  // человек, выбравший исполнителей и связи, но не дошедший до названия,
+  // теряет от случайного щелчка ровно столько же.
+  const dirty =
+    name !== "" ||
+    description !== "" ||
+    internalNote !== "" ||
+    categoryId !== initialCategoryId ||
+    criticality !== "normal" ||
+    status !== "planned" ||
+    progressPct !== "0" ||
+    startDate !== today ||
+    durationDays !== "1" ||
+    assignees.length > 0 ||
+    dependsOn.length > 0 ||
+    blocks.length > 0;
+
   const days = Number(durationDays);
   const pct = Number(progressPct);
   const valid =
@@ -193,7 +212,7 @@ export function TaskForm({
     pct <= 100;
 
   return (
-    <Modal title={t("task.new.title")} onClose={onClose}>
+    <Modal title={t("task.new.title")} onClose={onClose} dirty={dirty}>
       <form
         onSubmit={(event) => {
           event.preventDefault();

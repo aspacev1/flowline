@@ -14,6 +14,13 @@
     },
     "days_short": "{count} дн."
   },
+  "modal": {
+    "discard": {
+      "question": "Закрыть окно? Введённое не сохранится.",
+      "keep": "Продолжить",
+      "close": "Закрыть без сохранения"
+    }
+  },
   "calendar": {
     "date": "{day} {month}",
     "date_short": "{day} {month}",

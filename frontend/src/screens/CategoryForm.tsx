@@ -75,7 +75,13 @@ export function CategoryForm({
   const trimmed = name.trim();
 
   return (
-    <Modal title={t("category.new.title")} onClose={onClose}>
+    <Modal
+      title={t("category.new.title")}
+      onClose={onClose}
+      // Цвет тоже считается введённым: подобранный вручную из десяти кружков,
+      // он пропадает от промаха мимо окна так же, как название.
+      dirty={name !== "" || color !== suggested}
+    >
       <form
         onSubmit={(event) => {
           event.preventDefault();

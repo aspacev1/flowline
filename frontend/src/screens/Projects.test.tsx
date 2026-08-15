@@ -158,6 +158,82 @@ describe("модальное окно", () => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
+
+  it("с введённым в форме спрашивает, прежде чем закрыться по Esc", async () => {
+    server.use(...sessionHandlers(), http.get("/api/projects", () => HttpResponse.json([])));
+
+    renderApp({ route: "/projects", locale: "ru" });
+    await userEvent.click(await screen.findByRole("button", { name: /создать проект/i }));
+    await userEvent.type(screen.getByLabelText(/название/i), "Редизайн");
+
+    await userEvent.keyboard("{Escape}");
+
+    // Окно на месте, набранное в нём — тоже.
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByLabelText(/название/i)).toHaveValue("Редизайн");
+    expect(screen.getByText(/введённое не сохранится/i)).toBeInTheDocument();
+  });
+
+  it("«продолжить» возвращает к форме, а второй Esc её не теряет", async () => {
+    server.use(...sessionHandlers(), http.get("/api/projects", () => HttpResponse.json([])));
+
+    renderApp({ route: "/projects", locale: "ru" });
+    await userEvent.click(await screen.findByRole("button", { name: /создать проект/i }));
+    await userEvent.type(screen.getByLabelText(/название/i), "Редизайн");
+    await userEvent.keyboard("{Escape}");
+
+    // Esc поверх вопроса — ответ «продолжить»: привычные два Esc подряд не
+    // должны приводить ровно к той потере, ради которой вопрос и задан.
+    await userEvent.keyboard("{Escape}");
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.queryByText(/введённое не сохранится/i)).not.toBeInTheDocument();
+    // Фокус вернулся туда, где человека прервали.
+    expect(screen.getByLabelText(/название/i)).toHaveFocus();
+  });
+
+  it("закрывает окно, когда потерю введённого подтвердили", async () => {
+    server.use(...sessionHandlers(), http.get("/api/projects", () => HttpResponse.json([])));
+
+    renderApp({ route: "/projects", locale: "ru" });
+    const opener = await screen.findByRole("button", { name: /создать проект/i });
+    await userEvent.click(opener);
+    await userEvent.type(screen.getByLabelText(/название/i), "Редизайн");
+    await userEvent.keyboard("{Escape}");
+
+    await userEvent.click(screen.getByRole("button", { name: /закрыть без сохранения/i }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(opener).toHaveFocus();
+  });
+
+  it("с введённым в форме не закрывается от клика мимо окна", async () => {
+    server.use(...sessionHandlers(), http.get("/api/projects", () => HttpResponse.json([])));
+
+    renderApp({ route: "/projects", locale: "ru" });
+    await userEvent.click(await screen.findByRole("button", { name: /создать проект/i }));
+    await userEvent.type(screen.getByLabelText(/название/i), "Редизайн");
+
+    // Промах мимо селекта на два десятка пикселей — это тот же клик по фону.
+    await userEvent.click(screen.getByTestId("modal-backdrop"));
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByLabelText(/название/i)).toHaveValue("Редизайн");
+  });
+
+  it("«Отмена» самой формы закрывает окно без вопроса", async () => {
+    server.use(...sessionHandlers(), http.get("/api/projects", () => HttpResponse.json([])));
+
+    renderApp({ route: "/projects", locale: "ru" });
+    await userEvent.click(await screen.findByRole("button", { name: /создать проект/i }));
+    await userEvent.type(screen.getByLabelText(/название/i), "Редизайн");
+
+    // До кнопки целятся, а по фону промахиваются: спрашивать здесь значило бы
+    // требовать два подтверждения на одно осознанное действие.
+    await userEvent.click(screen.getByRole("button", { name: /отмена/i }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
 });
 
 describe("данные организации", () => {

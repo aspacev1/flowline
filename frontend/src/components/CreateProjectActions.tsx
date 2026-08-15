@@ -55,7 +55,7 @@ export function CreateProjectActions() {
       </Link>
 
       {open && (
-        <Modal title={t("projects.new.title")} onClose={close}>
+        <Modal title={t("projects.new.title")} onClose={close} dirty={name !== ""}>
           <form
             onSubmit={(event) => {
               event.preventDefault();
