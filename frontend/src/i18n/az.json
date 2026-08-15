@@ -167,6 +167,7 @@
     "mail_disabled": "Bu quraşdırmada poçt söndürülüb",
     "offline": "Serverlə əlaqə yoxdur: dəyişiklik göndərilmədi",
     "nothing_to_undo": "Geri alınacaq bir şey yoxdur",
+    "undo_conflict": "Layihə dəyişdi — geri alma səhv addımı götürərdi",
     "batch_not_found": "Paket tapılmadı",
     "reason_required": "Bu sürüşmə üçün səbəb lazımdır",
     "slug_taken": "Bu ünvan artıq tutulub",
@@ -593,7 +594,8 @@
     "save": "Yadda saxla"
   },
   "undo": {
-    "action": "Geri al"
+    "action": "Geri al",
+    "stale": "Layihə dəyişdi: bu köçürməni artıq geri almaq olmaz"
   },
   "settings": {
     "timezone": "Saat qurşağı",

@@ -12,6 +12,7 @@ import { useLocale } from "../i18n/LocaleProvider";
 import { patchTask } from "../project/optimistic";
 import { useAskShiftReason } from "../project/ShiftReason";
 import { useProjectMutation } from "../project/useProjectMutation";
+import { UndoMove } from "./UndoMove";
 import { addDays } from "./timescale";
 import type { Scale } from "./timescale";
 
@@ -62,14 +63,18 @@ export function useDragDates({
     scale.dateAt(scale.xOf(task.start_date) + dx + scale.dayWidth / 2);
 
   /**
-   * Отмена из тоста. Отменяется последняя операция проекта — на момент показа
-   * тоста это и есть перенос; сам путь тот же, что у кнопки «Отменить»:
-   * отмена подчиняется тому же порогу объяснений, что и любой сдвиг.
+   * Отмена из тоста. Отменяется именно тот перенос, о котором тост говорит:
+   * его номер назвал сервер, применяя операцию, и он же уходит обратно в
+   * `expected_seq`. «Последнее изменение проекта» здесь не годится — за шесть
+   * секунд, что висит тост, последним успевает стать чужое.
+   *
+   * Сам путь тот же, что у кнопки «Отменить» в ленте истории: отмена
+   * подчиняется тому же порогу объяснений, что и любой сдвиг.
    */
-  const undoMove = async () => {
+  const undoMove = async (seq: number) => {
     try {
       try {
-        await undoLast(projectId);
+        await undoLast(projectId, { seq });
       } catch (refusal) {
         if (!(refusal instanceof ApiError) || refusal.code !== "reason_required" || !askReason) {
           throw refusal;
@@ -82,7 +87,7 @@ export function useDragDates({
           thresholdDays: refusal.hints.thresholdDays ?? 0,
         });
         if (reason === null) return;
-        await undoLast(projectId, reason);
+        await undoLast(projectId, { seq, reason });
       }
       await queryClient.invalidateQueries({ queryKey: projectQueryKey(projectId) });
     } catch (error) {
@@ -100,13 +105,20 @@ export function useDragDates({
       { type: "move_task", task_id: task.id, start_date: startDate },
       (state) => patchTask(state, task.id, { start_date: startDate }),
     ).then(
-      () => {
+      (revision) => {
         // Тост с отменой — после подтверждения сервером, как в макете:
         // перенос применяется сразу, а лёгкий путь назад лежит под рукой.
+        // Номер ревизии — из ответа сервера: он и делает кнопку обещанием
+        // вернуть этот перенос, а не «что там сейчас сверху журнала».
         showToast({
           message: t("gantt.moved", { date: formatShortDate(t, startDate) }),
-          actionLabel: t("undo.action"),
-          onAction: () => void undoMove(),
+          action: (
+            <UndoMove
+              projectId={projectId}
+              seq={revision.seq}
+              onUndo={() => void undoMove(revision.seq)}
+            />
+          ),
         });
       },
       () => {
