@@ -8,16 +8,22 @@ import { StatusChip } from "../components/StatusChip";
 import { formatShortDate } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
 import { progressOf, statusCounts } from "../project/progress";
-import { useProjectStates } from "./portfolio";
+import { useProjectStates } from "./projectStates";
 
 /**
- * Главная: портфель проектов одним взглядом.
+ * «Портфель»: все проекты одним взглядом.
  *
  * Не дубль списка проектов: тот отвечает «куда пойти», этот — «как дела».
  * Карточка несёт готовность, счётчик заблокированного и срок — три вещи,
  * ради которых человек открывает проекты по одному.
+ *
+ * Раздел зовётся «Портфель», а не «Проекты», и живёт по своему адресу: пока
+ * два экрана носили одно имя и одинаковый заголовок, щелчок по «Проектам»
+ * уводил не туда, куда приводил вход, и человек не мог понять, на котором из
+ * них он стоит. Имя здесь — не украшение, а единственное, чем эти два экрана
+ * различимы снаружи.
  */
-export function Home() {
+export function Portfolio() {
   const { t } = useLocale();
   const { user } = useAuth();
   const { pending, error, states } = useProjectStates();
@@ -25,14 +31,11 @@ export function Home() {
   return (
     <main className="screen">
       <div className="screen__head">
-        {/* Заголовок раздела повторяет пункт колонки, по которому сюда
-            попадают: пункт зовётся «Проекты», и страница обязана называться
-            так же, иначе щелчок выглядит промахом. */}
-        <h1>{t("projects.title")}</h1>
+        <h1>{t("portfolio.title")}</h1>
         <CreateProjectActions />
       </div>
 
-      {user && <p className="muted">{t("home.greeting", { name: user.name })}</p>}
+      {user && <p className="muted">{t("portfolio.greeting", { name: user.name })}</p>}
 
       {pending && <p role="status">{t("common.loading")}</p>}
 
@@ -42,7 +45,7 @@ export function Home() {
         </p>
       )}
 
-      {!pending && states.length === 0 && (
+      {!pending && error === null && states.length === 0 && (
         <div className="empty">
           <p className="empty__title">{t("projects.empty.title")}</p>
           <p className="muted">{t("projects.empty.hint")}</p>
@@ -50,9 +53,9 @@ export function Home() {
       )}
 
       {states.length > 0 && (
-        <ul className="home-cards">
+        <ul className="portfolio-cards">
           {states.map((state) => (
-            <HomeCard key={state.id} state={state} />
+            <PortfolioCard key={state.id} state={state} />
           ))}
         </ul>
       )}
@@ -60,41 +63,43 @@ export function Home() {
   );
 }
 
-function HomeCard({ state }: { state: ProjectState }) {
+function PortfolioCard({ state }: { state: ProjectState }) {
   const { t } = useLocale();
   const progress = progressOf(state.tasks);
   const counts = statusCounts(state.tasks);
 
   return (
-    <li className="home-card">
+    <li className="portfolio-card">
       {/* Название проекта — содержимое пользователя: не переводится. */}
-      <Link to={`/projects/${state.id}`} className="home-card__name">
+      <Link to={`/projects/${state.id}`} className="portfolio-card__name">
         {state.name}
       </Link>
 
-      <p className="home-card__meta muted">
-        {t("home.tasks", { count: state.tasks.length })}
-        {state.deadline && <> · {t("gantt.deadline", { date: formatShortDate(t, state.deadline) })}</>}
+      <p className="portfolio-card__meta muted">
+        {t("portfolio.tasks", { count: state.tasks.length })}
+        {state.deadline && (
+          <> · {t("gantt.deadline", { date: formatShortDate(t, state.deadline) })}</>
+        )}
       </p>
 
       {progress !== null && (
         <p
-          className="home-card__progress"
+          className="portfolio-card__progress"
           role="img"
-          aria-label={t("home.progress", { pct: progress })}
+          aria-label={t("portfolio.progress", { pct: progress })}
         >
-          <span className="home-card__bar">
+          <span className="portfolio-card__bar">
             <i style={{ width: `${progress}%` }} />
           </span>
-          <span className="home-card__pct">{progress}%</span>
+          <span className="portfolio-card__pct">{progress}%</span>
         </p>
       )}
 
       {/* Заблокированное — единственный статус, вынесенный на карточку:
           остальные читаются из прогресса, а блокировка требует действия. */}
       {counts.blocked > 0 && (
-        <p className="home-card__blocked">
-          <StatusChip status="blocked" label={t("home.blocked", { count: counts.blocked })} />
+        <p className="portfolio-card__blocked">
+          <StatusChip status="blocked" label={t("portfolio.blocked", { count: counts.blocked })} />
         </p>
       )}
     </li>

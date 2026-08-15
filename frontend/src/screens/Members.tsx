@@ -12,6 +12,7 @@ import {
 import type { Invitation, Issued } from "../api/invitations";
 import { MEMBERS_QUERY_KEY, ORG_QUERY_KEY, members, organization } from "../api/org";
 import { PROJECTS_QUERY_KEY, listProjects } from "../api/projects";
+import { ConfirmAction } from "../components/ConfirmAction";
 import { Modal } from "../components/Modal";
 import { useLocale } from "../i18n/LocaleProvider";
 
@@ -266,20 +267,38 @@ function InvitationRow({
       </span>
 
       {/* Отозвать и выпустить заново можно только неиспользованное: принятое
-          приглашение — это уже членство, и снимают его другим действием. */}
+          приглашение — это уже членство, и снимают его другим действием.
+
+          Спрашивают все три: и «Новая ссылка», и «Отправить ещё раз» — это
+          один и тот же перевыпуск, убивающий прежний токен, и вторая подпись
+          скрывает это сильнее первой. Человек, нажавший «отправить ещё раз»
+          в уверенности, что повторяет письмо, ломает ссылку, отправленную
+          вчера. */}
       {pending && (
         <span className="invite__actions">
-          <button type="button" className="button--quiet" onClick={() => reissue.mutate(false)}>
-            {t("invite.action.link")}
-          </button>
+          <ConfirmAction
+            className="button--quiet"
+            label={t("invite.action.link")}
+            warning={t("invite.action.reissue_warning")}
+            confirm={t("invite.action.link_confirm")}
+            onConfirm={() => reissue.mutate(false)}
+          />
           {mailEnabled && invitation.email && (
-            <button type="button" className="button--quiet" onClick={() => reissue.mutate(true)}>
-              {t("invite.action.resend")}
-            </button>
+            <ConfirmAction
+              className="button--quiet"
+              label={t("invite.action.resend")}
+              warning={t("invite.action.reissue_warning")}
+              confirm={t("invite.action.resend_confirm")}
+              onConfirm={() => reissue.mutate(true)}
+            />
           )}
-          <button type="button" className="button--quiet" onClick={() => revoke.mutate()}>
-            {t("invite.action.revoke")}
-          </button>
+          <ConfirmAction
+            className="button--quiet"
+            label={t("invite.action.revoke")}
+            warning={t("invite.action.revoke_warning")}
+            confirm={t("invite.action.revoke_confirm")}
+            onConfirm={() => revoke.mutate()}
+          />
         </span>
       )}
 

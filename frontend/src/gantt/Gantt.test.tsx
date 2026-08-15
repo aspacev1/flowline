@@ -1,10 +1,10 @@
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ProjectState } from "../api/projects";
 import type { Locale } from "../i18n";
-import { renderWithProviders } from "../test/utils";
+import { Providers, renderWithProviders } from "../test/utils";
 import { Gantt } from "./Gantt";
 import { DAY_WIDTH } from "./scale";
 
@@ -112,6 +112,26 @@ describe("диаграмма", () => {
       const day = container.querySelector('.gantt__day[data-day="2026-03-11"]');
       expect(day).toHaveClass("is-today");
       expect(day?.querySelector(".gantt__day-today")).toHaveTextContent("Сегодня");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("ведёт линию «сегодня» по поясу проекта, а не по UTC", () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    // 02:30 одиннадцатого марта в Баку — это ещё 22:30 десятого по UTC. До
+    // починки лента всю ночь показывала вчерашнее число.
+    vi.setSystemTime(new Date(Date.UTC(2026, 2, 10, 22, 30)));
+    try {
+      const { container } = draw({
+        ...STATE,
+        settings: { shift_threshold_days: 2, timezone: "Asia/Baku" },
+      });
+
+      expect(container.querySelector('.gantt__day[data-day="2026-03-11"]')).toHaveClass("is-today");
+      expect(container.querySelector('.gantt__day[data-day="2026-03-10"]')).not.toHaveClass(
+        "is-today",
+      );
     } finally {
       vi.useRealTimers();
     }
@@ -303,5 +323,123 @@ describe("диаграмма", () => {
     await userEvent.click(screen.getByText("Логотип"));
 
     expect(onSelectTask).toHaveBeenCalledWith("t1");
+  });
+});
+
+/**
+ * Прокрутка ленты по горизонтали.
+ *
+ * Сама лента прокручивается ровно дважды: к сегодняшнему дню, когда проект
+ * открыли, и обратно к тому дню, на который человек смотрел, когда шкала
+ * пересобралась под ним. Всё остальное время положение принадлежит человеку, и
+ * тесты ниже проверяют именно это — что лента его не отбирает.
+ *
+ * Положение читается в пикселях: в jsdom нет раскладки, `clientWidth` равен
+ * нулю, и середина видимой области совпадает с её левым краем. Для расчётов
+ * это ничего не меняет — они те же, что в браузере, просто с нулевой шириной.
+ */
+describe("прокрутка ленты", () => {
+  const scrollerOf = (container: HTMLElement) =>
+    container.querySelector<HTMLElement>(".gantt__scroll") as HTMLElement;
+
+  /** Поставить ленту на день так, как это сделал бы человек колесом мыши. */
+  const scrollTo = (element: HTMLElement, x: number) => {
+    element.scrollLeft = x;
+    fireEvent.scroll(element);
+  };
+
+  beforeEach(() => {
+    // Масштаб живёт в localStorage и переживает тест — соседний тест мог
+    // оставить здесь «неделю», а расчёты ниже написаны в дневном масштабе.
+    localStorage.clear();
+  });
+
+  it("открывает проект на сегодняшнем дне", () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(Date.UTC(2026, 2, 11, 9, 0)));
+    try {
+      const { container } = renderWithProviders(<Gantt projectId="s1" state={STATE} />, {
+        locale: "ru",
+      });
+      // 11 марта — десятый день от начала окна, и лента встаёт так, чтобы
+      // слева осталось три дня прошлого: сегодня у самого края экрана читается
+      // как край проекта.
+      expect(scrollerOf(container).scrollLeft).toBe((10 - 3) * DAY_WIDTH.day);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("смена масштаба оставляет на экране тот же день", async () => {
+    // Без подмены времени: окно ленты стоит на датах задачи, а не на
+    // сегодняшнем дне, и все числа ниже от «сегодня» не зависят.
+    const { container } = renderWithProviders(<Gantt projectId="s2" state={STATE} />, {
+      locale: "ru",
+    });
+    const scroller = scrollerOf(container);
+    // 25 марта — двадцать четвёртый день от начала окна.
+    scrollTo(scroller, 24 * DAY_WIDTH.day);
+
+    await userEvent.click(screen.getByRole("button", { name: "Масштаб: День" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Месяц" }));
+
+    // Тот же день, новая мерка. Раньше здесь оставалось прежнее число
+    // пикселей, и лента уезжала на полгода вперёд.
+    expect(scroller.scrollLeft).toBe(24 * DAY_WIDTH.month);
+  });
+
+  it("правка задачи не возвращает ленту к сегодняшнему дню", () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(Date.UTC(2026, 2, 11, 9, 0)));
+    try {
+      const { container, rerender } = renderWithProviders(
+        <Gantt projectId="s3" state={STATE} />,
+        { locale: "ru" },
+      );
+      const scroller = scrollerOf(container);
+      scrollTo(scroller, 24 * DAY_WIDTH.day);
+
+      // Ответ сервера на правку задачи: другой объект состояния и окно,
+      // растянутое до июля. Шкала пересобирается — человек по-прежнему
+      // смотрит на конец марта.
+      rerender(
+        <Providers locale="ru">
+          <Gantt
+            projectId="s3"
+            state={{ ...STATE, tasks: [{ ...STATE.tasks[0], end_date: "2026-07-10" }] }}
+          />
+        </Providers>,
+      );
+
+      expect(scroller.scrollLeft).toBe(24 * DAY_WIDTH.day);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("другой проект снова открывается на сегодняшнем дне", () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.setSystemTime(new Date(Date.UTC(2026, 2, 11, 9, 0)));
+    try {
+      const { container, rerender } = renderWithProviders(
+        <Gantt projectId="s4" state={STATE} />,
+        { locale: "ru" },
+      );
+      const scroller = scrollerOf(container);
+      scrollTo(scroller, 24 * DAY_WIDTH.day);
+
+      // Экран проекта не размонтирует ленту при переходе — меняется только
+      // `projectId`. Новый проект человек ещё не листал, и его лента
+      // здоровается тем же, чем и первая.
+      rerender(
+        <Providers locale="ru">
+          <Gantt projectId="s5" state={STATE} />
+        </Providers>,
+      );
+
+      expect(scroller.scrollLeft).toBe((10 - 3) * DAY_WIDTH.day);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
