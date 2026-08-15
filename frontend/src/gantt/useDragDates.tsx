@@ -399,9 +399,17 @@ export function useDragDates({
   const gripHandlers = (grip: BarGrip) => ({
     onPointerDown(event: PointerEvent<HTMLElement>) {
       if (!enabled || event.button !== 0) return;
-      // Грань внутри полоски, и без этого нажатие на неё дошло бы до полоски
-      // тоже: жест начался бы дважды, и второй перезаписал бы первый.
-      event.stopPropagation();
+      if (grip !== "move") {
+        // Грань внутри полоски, и без этого нажатие на неё дошло бы до полоски
+        // тоже: жест начался бы дважды, и второй перезаписал бы первый.
+        event.stopPropagation();
+        // Ручка — не кнопка, а `span` внутри полоски, и нажатие на неё браузер
+        // считает началом выделения текста: живая проверка показала жест,
+        // который вместо растягивания полоски подсвечивал названия соседних
+        // задач. Самой полоске (`move`) это не нужно и вредно — она кнопка, и
+        // отмена умолчания отняла бы у неё фокус по щелчку.
+        event.preventDefault();
+      }
       const bar = event.currentTarget.closest<HTMLElement>(".gantt__bar") ?? event.currentTarget;
       from.current = {
         pointerId: event.pointerId,

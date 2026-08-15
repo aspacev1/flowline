@@ -93,6 +93,24 @@ describe("грани полоски", () => {
     expect(sent.map((one) => one.op.type)).not.toContain("move_task");
   });
 
+  it("нажатие на грань не начинает выделение текста", async () => {
+    renderProject();
+    const logo = await bar(/Логотип/);
+
+    // fireEvent отдаёт false, когда обработчик отменил умолчание. Проверка не
+    // формальная: ручка — `span` внутри полоски, и без отмены браузер считает
+    // нажатие на неё началом выделения. Живая проверка показала жест, который
+    // вместо растягивания полоски подсвечивал названия соседних задач и не
+    // отправлял ничего вовсе.
+    const allowed = fireEvent.pointerDown(grip(logo, "end"), {
+      pointerId: 1,
+      button: 0,
+      clientX: 300,
+    });
+
+    expect(allowed).toBe(false);
+  });
+
   it("гость граней не получает", async () => {
     renderProject(STATE, { canWrite: false });
     const logo = await screen.findByRole("button", { name: /Логотип/ });
