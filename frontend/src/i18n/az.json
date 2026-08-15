@@ -458,7 +458,8 @@
       "late": "Son tarix pozulub · +N gün"
     },
     "tip": {
-      "more": "{name} +{count}"
+      "more": "{name} +{count}",
+   "keys": "Shift + ←→ köçür · Esc dayandır · {mod}+Z geri al"
     },
     "toggle_category": "«{name}» kateqoriyasını qatla və ya aç",
     "caption": "Al qırmızı kəsik — ilkin son tarixdir; «+N gün» yazısı tarixin nə qədər sürüşdüyünü göstərir. Al qırmızı ox — pozulmuş asılılıqdır: tapşırıq blokeri hazır olmamış başlayıb."
@@ -577,6 +578,8 @@
   },
   "undo": {
     "action": "Geri al",
+    "done": "Dəyişiklik geri alındı",
+    "nothing": "Geri alınacaq bir şey yoxdur",
     "stale": "Layihə dəyişdi: bu köçürməni artıq geri almaq olmaz"
   },
   "settings": {

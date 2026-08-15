@@ -19,6 +19,7 @@ import { PlanApproval } from "../project/PlanApproval";
 import { ProjectHead } from "../project/ProjectHead";
 import { ProjectHistory } from "../project/ProjectHistory";
 import { ShiftReasonProvider } from "../project/ShiftReason";
+import { UndoHotkey } from "../project/UndoHotkey";
 import { TaskPanel } from "../task/TaskPanel";
 import { CategoryForm, suggestColor } from "./CategoryForm";
 import { ShareDialog } from "./ShareDialog";
@@ -120,6 +121,11 @@ export function Project({ tab = "gantt" }: { tab?: "gantt" | "history" } = {}) {
       <DependencyNudgeProvider>
         <LiveProvider live={live}>
           <main className="screen screen--wide">
+            {/* Ctrl/⌘+Z — на обеих вкладках сразу, а не внутри ленты или
+                истории: отменяется последнее изменение проекта, и от того,
+                какая вкладка открыта, оно не зависит. */}
+            <UndoHotkey projectId={projectId} state={query.data} enabled={editable} />
+
             <ProjectHead
               state={query.data}
               showPlan

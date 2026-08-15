@@ -11,6 +11,7 @@ import {
 import type { CSSProperties, FocusEvent, PointerEvent, ReactNode } from "react";
 
 import type { Task } from "../api/projects";
+import { modKeyLabel } from "../components/hotkeys";
 import { formatShortDate } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
 
@@ -33,8 +34,10 @@ type BarTipApi = {
   /**
    * Навести. Карточка не появляется сразу: `immediate` нужен там, где ждать
    * нечего, — при переходе фокуса с клавиатуры.
+   *
+   * `keys` — показывать ли строку сочетаний: она про то, чего гость не может.
    */
-  show: (task: Task, anchor: Anchor, immediate?: boolean) => void;
+  show: (task: Task, anchor: Anchor, keys: boolean, immediate?: boolean) => void;
   /** Двигать за курсором — но только ту карточку, которая уже назначена. */
   track: (anchor: Anchor) => void;
   hide: () => void;
@@ -48,7 +51,7 @@ type BarTipApi = {
  * Назначенная карточка. `shown` отделяет назначенную от показанной: пока
  * выдержка не вышла, задача и точка уже известны, а на экране ничего нет.
  */
-type Pending = { task: Task; anchor: Anchor; shown: boolean };
+type Pending = { task: Task; anchor: Anchor; keys: boolean; shown: boolean };
 
 const BarTipContext = createContext<BarTipApi | null>(null);
 
@@ -119,10 +122,10 @@ export function BarTipProvider({
       timer.current = undefined;
     };
     return {
-      show: (task, anchor, immediate = false) => {
+      show: (task, anchor, keys, immediate = false) => {
         if (pressed.current) return;
         forget();
-        setTip({ task, anchor, shown: immediate });
+        setTip({ task, anchor, keys, shown: immediate });
         if (immediate) return;
         timer.current = setTimeout(() => {
           timer.current = undefined;
@@ -173,7 +176,9 @@ export function BarTipProvider({
   return (
     <BarTipContext.Provider value={api}>
       {children}
-      {tip !== null && tip.shown && <BarTip task={tip.task} anchor={tip.anchor} names={names} />}
+      {tip !== null && tip.shown && (
+        <BarTip task={tip.task} anchor={tip.anchor} keys={tip.keys} names={names} />
+      )}
     </BarTipContext.Provider>
   );
 }
@@ -184,8 +189,12 @@ export function BarTipProvider({
  * Возвращаются готовым набором, а не по одному: полоска и без того несёт на
  * себе перетаскивание, и разбирать, какое событие чьё, в разметке не надо.
  * Вне провайдера все они молчат — диаграмма рисуется и там, где карточки нет.
+ *
+ * `keys` — право двигать полоску: строка сочетаний показывается только тому,
+ * кому есть что ими сделать. Читателю и гостю она обещала бы работу, которую
+ * сервер отклонит.
  */
-export function useBarTip(task: Task) {
+export function useBarTip(task: Task, keys = false) {
   const api = useContext(BarTipContext);
   const cursor = useCallback(
     (event: PointerEvent<HTMLElement>): Anchor => ({ x: event.clientX, y: event.clientY }),
@@ -194,7 +203,7 @@ export function useBarTip(task: Task) {
 
   return useMemo(
     () => ({
-      onPointerEnter: (event: PointerEvent<HTMLElement>) => api?.show(task, cursor(event)),
+      onPointerEnter: (event: PointerEvent<HTMLElement>) => api?.show(task, cursor(event), keys),
       onPointerMove: (event: PointerEvent<HTMLElement>) => api?.track(cursor(event)),
       onPointerLeave: () => api?.hide(),
       onPointerDown: () => api?.press(),
@@ -206,11 +215,11 @@ export function useBarTip(task: Task) {
       // дороге к соседней.
       onFocus: (event: FocusEvent<HTMLElement>) => {
         const box = event.currentTarget.getBoundingClientRect();
-        api?.show(task, { x: box.left, y: box.bottom }, true);
+        api?.show(task, { x: box.left, y: box.bottom }, keys, true);
       },
       onBlur: () => api?.hide(),
     }),
-    [api, cursor, task],
+    [api, cursor, keys, task],
   );
 }
 
@@ -224,10 +233,12 @@ export function useBarTip(task: Task) {
 function BarTip({
   task,
   anchor,
+  keys,
   names,
 }: {
   task: Task;
   anchor: Anchor;
+  keys: boolean;
   names?: ReadonlyMap<string, string>;
 }) {
   const { t } = useLocale();
@@ -244,11 +255,15 @@ function BarTip({
    * мерить её заново на каждом движении курсора значило бы столько же раз
    * пересчитывать разметку страницы. Нулевую высоту не берём: столько узел
    * показывает, пока разметки нет вовсе, — тогда честнее запас.
+   *
+   * Строка сочетаний в зависимостях по той же причине, что и текст: она
+   * прибавляет карточке две строки, и без пересчёта карточка у нижнего края
+   * экрана перекрывала бы ими собственную полоску.
    */
   useLayoutEffect(() => {
     const measured = node.current?.offsetHeight ?? 0;
     if (measured > 0) setHeight(measured);
-  }, [task, names, t]);
+  }, [task, names, keys, t]);
 
   // Короткая форма даты, а не полная: карточка шириной 235px, и «12 августа —
   // 14 августа» в её правой колонке переносится на вторую строку.
@@ -277,6 +292,12 @@ function BarTip({
             он читался бы приглушённой подписью к пустоте. */}
         <b className={people === null ? "gantt__tip-alone" : undefined}>{task.progress_pct}%</b>
       </div>
+      {/* Сочетания клавиш — здесь, а не в отдельной справке: карточка и так
+          висит над той самой полоской, к которой они относятся, и это
+          единственное место, где человек читает про задачу, ничего не открыв.
+          Скрыта от чтения с экрана вместе со всей карточкой — тому, кто читает
+          с экрана, о том же говорит `aria-keyshortcuts` полоски. */}
+      {keys && <div className="gantt__tip-keys">{t("gantt.tip.keys", { mod: modKeyLabel() })}</div>}
     </div>
   );
 }

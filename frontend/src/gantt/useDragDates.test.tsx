@@ -138,6 +138,50 @@ describe("перетаскивание дат", () => {
     );
   });
 
+  it("Esc прерывает начатое перетаскивание", async () => {
+    const sent = captureMutations();
+    renderProject();
+    const bar = await screen.findByRole("button", { name: /Логотип/ });
+    const before = bar.style.left;
+
+    fireEvent.pointerDown(bar, { pointerId: 1, button: 0, clientX: 100 });
+    fireEvent.pointerMove(bar, { pointerId: 1, clientX: 100 + 3 * DAY_WIDTH.day });
+    // Полоска ушла за курсором сдвигом, а не местом по датам (см. useBarMotion).
+    expect(bar.style.getPropertyValue("--bar-dx")).toBe(`${3 * DAY_WIDTH.day}px`);
+
+    await userEvent.keyboard("{Escape}");
+
+    // Полоска дома, и отпускание после Esc уже ничего не отправляет: жест
+    // прерван, а не приостановлен.
+    expect(bar.style.getPropertyValue("--bar-dx")).toBe("0px");
+    expect(bar.style.left).toBe(before);
+    fireEvent.pointerUp(bar, { pointerId: 1, clientX: 100 + 3 * DAY_WIDTH.day });
+    fireEvent.click(bar, { clientX: 100 + 3 * DAY_WIDTH.day });
+
+    expect(sent).toHaveLength(0);
+    // И карточку прерванный жест не открывает: Esc означает «ничего не
+    // делать», а не «открыть задачу».
+    expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
+  });
+
+  it("называет сочетание сдвига прямо на полоске", async () => {
+    // Возможность, о которой знает только исходник, всё равно что её нет:
+    // стрелки со Shift двигали задачу и раньше, но не были названы нигде.
+    renderProject();
+    const bar = await screen.findByRole("button", { name: /Логотип/ });
+
+    expect(bar).toHaveAttribute("aria-keyshortcuts", "Shift+ArrowLeft Shift+ArrowRight");
+  });
+
+  it("читателю сочетания не обещает", async () => {
+    renderProject(STATE, { canWrite: false });
+    const bar = await screen.findByRole("button", { name: /Логотип/ });
+
+    // Стрелки у читателя ничего не двигают, и объявленное сочетание отправило
+    // бы его нажимать клавиши, которые молчат.
+    expect(bar).not.toHaveAttribute("aria-keyshortcuts");
+  });
+
   it("подтверждённый перенос показывает тост с отменой", async () => {
     // Отмена из тоста бьёт в тот же /undo, что и кнопка в шапке: тост — это
     // короткий путь к ней, а не второй механизм отмены. Номер ревизии в теле

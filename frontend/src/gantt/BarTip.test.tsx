@@ -52,12 +52,20 @@ const NAMES = new Map([
  * картинка, и половина проверок ниже (фокус с клавиатуры) на картинке
  * невозможна в принципе.
  */
-function draw(options: { state?: ProjectState; names?: ReadonlyMap<string, string> } = {}) {
+function draw(
+  options: {
+    state?: ProjectState;
+    names?: ReadonlyMap<string, string>;
+    /** Право двигать полоску: от него зависит строка сочетаний в карточке. */
+    canWrite?: boolean;
+  } = {},
+) {
   return renderWithProviders(
     <Gantt
       projectId="p1"
       state={options.state ?? STATE}
       assigneeNames={options.names}
+      canWrite={options.canWrite}
       onSelectTask={() => {}}
     />,
     { locale: "ru" },
@@ -182,6 +190,39 @@ describe("карточка наведения на полоску", () => {
 
     fireEvent.blur(bar());
     expect(screen.queryByTestId("bar-tip")).not.toBeInTheDocument();
+  });
+
+  it("называет сочетания клавиш тому, кто может двигать полоску", async () => {
+    // Карточка наведения — единственное место, где человек читает про задачу,
+    // ничего не открыв: подсказка про клавиши живёт здесь, а не в справке,
+    // которую никто не ищет.
+    draw({ canWrite: true });
+
+    const tip = await hoverBar();
+
+    expect(tip).toHaveTextContent("Shift + ←→");
+    expect(tip).toHaveTextContent("Esc");
+    // Модификатор зовётся так, как он зовётся в этой системе: «Ctrl» на Маке
+    // назвал бы клавишу, которая там ничего не отменяет.
+    expect(tip).toHaveTextContent(/(Ctrl|⌘)\+Z/);
+  });
+
+  it("читателю сочетаний не обещает", async () => {
+    draw();
+
+    // Двигать полоску читатель не может, и клавиши обещали бы ему работу,
+    // которую сервер отклонит.
+    expect(await hoverBar()).not.toHaveTextContent("Shift");
+  });
+
+  it("скрыта от чтения с экрана: полоска называет то же самое сама", async () => {
+    draw();
+
+    expect(await hoverBar()).toHaveAttribute("aria-hidden", "true");
+    // Нативной подсказки у полоски нет: браузерная всплывала бы поверх этой
+    // карточки и говорила бы то же самое вторым окном.
+    expect(bar()).not.toHaveAttribute("title");
+    expect(bar()).toHaveAccessibleName("Логотип, 4 марта — 10 марта");
   });
 
   it("под курсором не появляется сразу", async () => {

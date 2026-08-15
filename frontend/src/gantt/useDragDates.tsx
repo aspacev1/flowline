@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent, PointerEvent } from "react";
 
 import { ApiError } from "../api/client";
@@ -34,6 +34,10 @@ import type { Scale } from "./timescale";
  * React, и каждое движение указателя перерисовывало строку целиком; на сотне
  * задач это десятки перерисовок в секунду ради одного числа, которое дальше
  * стиля никуда не идёт.
+ *
+ * Начатый жест прерывается по Esc: передумать посреди перетаскивания — обычное
+ * дело, и единственным выходом иначе было бы дотащить полоску обратно на глаз,
+ * то есть попасть точно в тот же день, откуда её взяли.
  */
 export function useDragDates({
   projectId,
@@ -55,13 +59,23 @@ export function useDragDates({
   const askReason = useAskShiftReason();
   const queryClient = useQueryClient();
 
-  const from = useRef<{ pointerId: number; x: number } | null>(null);
+  const from = useRef<{ pointerId: number; x: number; bar: HTMLElement } | null>(null);
   // Было ли движение. Живёт в ref, а не в состоянии: значение читается в
   // обработчике клика сразу после отпускания, и перерисовка тут не нужна.
   const dragged = useRef(false);
-  // А это, наоборот, состояние: от него зависит вид полоски — она поднимается
-  // над соседями и меняет курсор. Меняется оно ровно дважды за жест, на первом
-  // настоящем движении и на отпускании, а не на каждом событии указателя.
+  // Два состояния, потому что вопроса два, и отвечают на них в разное время.
+  //
+  // `started` — палец на полоске: с этого мгновения жест можно передумать, и
+  // слушатель Esc заводится здесь. Ref для него не годится — слушатель ставится
+  // в эффекте, и ref его не разбудит.
+  //
+  // `dragging` — полоску действительно тащат: она поднимается над соседями и
+  // меняет курсор. Это уже после порога в пару пикселей, иначе вид полоски
+  // мигал бы на каждом открытии карточки.
+  //
+  // Сам сдвиг в состояние не попадает ни в каком виде: его пишет слой движения
+  // прямо в узел.
+  const [started, setStarted] = useState(false);
   const [dragging, setDragging] = useState(false);
 
   /**
@@ -108,6 +122,52 @@ export function useDragDates({
       showToast({ message: t(errorKey(error)) });
     }
   };
+
+  /**
+   * Прервать начатый жест, ничего не отправив.
+   *
+   * Полоска возвращается туда, откуда её потащили: пока жест идёт, дат он не
+   * менял — их меняет только отпускание. Возврат мгновенный, а не переездом:
+   * Esc отменяет жест, а не доводит его до конца, и ехать полоске неоткуда —
+   * её место по датам всё это время не менялось, менялся только сдвиг.
+   */
+  const cancel = useCallback(() => {
+    const start = from.current;
+    from.current = null;
+    motion.hold(0);
+    motion.release();
+    setStarted(false);
+    setDragging(false);
+    // Захват снимается руками: иначе полоска до конца жеста продолжает
+    // получать события указателя, и отпускание прилетело бы уже прерванному
+    // перетаскиванию.
+    if (start && start.bar.hasPointerCapture?.(start.pointerId)) {
+      start.bar.releasePointerCapture?.(start.pointerId);
+    }
+    // Клик, который браузер пришлёт вслед за отпусканием, гасится тем же
+    // признаком, что и после обычного перетаскивания: Esc означает «ничего не
+    // делать», а не «открыть карточку».
+    dragged.current = true;
+    // Кроме слоя движения, живых зависимостей нет: внутри только ref-ы да
+    // функции состояния, а сам слой ссылку не меняет. Постоянная ссылка нужна
+    // эффекту ниже — иначе он переподписывался бы на каждой отрисовке.
+  }, [motion]);
+
+  // Esc прерывает начатое перетаскивание — как везде, где жест можно начать и
+  // передумать. Слушатель на окне, а не на полоске: захват указателя держит
+  // события мыши, но не клавиатуры, и фокус во время жеста может оказаться где
+  // угодно — на полоске, если браузер отдал его нажатию, и на теле документа,
+  // если не отдал.
+  useEffect(() => {
+    if (!started) return;
+    function onKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      cancel();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [cancel, started]);
 
   /**
    * @param hold Держать ли полоску там, куда её бросили, пока перенос идёт.
@@ -173,8 +233,12 @@ export function useDragDates({
     handlers: {
       onPointerDown(event: PointerEvent<HTMLElement>) {
         if (!enabled || event.button !== 0) return;
-        from.current = { pointerId: event.pointerId, x: event.clientX };
+        from.current = { pointerId: event.pointerId, x: event.clientX, bar: event.currentTarget };
         dragged.current = false;
+        // Жест начат — с этого мгновения его можно передумать по Esc. Вид
+        // полоски при этом не меняется: щелчок начинается точно так же, и
+        // подъём над соседями мигал бы на каждом открытии карточки.
+        setStarted(true);
         // jsdom этого метода не знает, да и браузер откажет на устаревшем
         // указателе. Захват — улучшение жеста, а не его условие.
         event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -198,6 +262,7 @@ export function useDragDates({
         const start = from.current;
         if (start === null || start.pointerId !== event.pointerId) return;
         from.current = null;
+        setStarted(false);
         setDragging(false);
         // Полоска ждёт ровно там, где её отпустили, — сдвиг снимет `settle`,
         // когда перенос решится, и она доедет до своего дня уже с ответом.
@@ -208,9 +273,7 @@ export function useDragDates({
       },
 
       onPointerCancel() {
-        from.current = null;
-        setDragging(false);
-        motion.release();
+        cancel();
       },
 
       onClickCapture(event: MouseEvent<HTMLElement>) {
@@ -229,6 +292,10 @@ export function useDragDates({
         // обязан иметь способ сдвинуть задачу. Shift — чтобы стрелки остались
         // за прокруткой ленты: без него нельзя было бы просто посмотреть, что
         // справа, не сдвинув при этом сроки.
+        //
+        // Сочетание названо вслух в двух местах — в `aria-keyshortcuts`
+        // полоски и в строке подсказки карточки наведения (Row, BarTip):
+        // возможность, о которой знает только исходник, всё равно что её нет.
         if (!enabled || !event.shiftKey) return;
         const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
         if (step === 0) return;
