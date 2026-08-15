@@ -36,7 +36,6 @@
   /* Разделитель строк светлее рамок ленты: на полусотне строк линия в полную
      силу рисует решётку, в которой не видно самих строк. */
   --gantt-row-line: #edf0f4;
-  --motion: 180ms;
 
   /* Заливки полосок. Живут здесь, а не в теме: это четыре значения одного
      свойства ленты, и в общей палитре продукта им соответствия нет — синий
@@ -425,7 +424,7 @@
   align-items: center;
   height: var(--gantt-row);
   border-bottom: 1px solid var(--gantt-row-line);
-  transition: background var(--motion) ease;
+  transition: background var(--motion-base) var(--motion-ease);
 }
 
 /* Строка подсвечивается целиком при наведении: так видно, какой задаче
@@ -469,7 +468,7 @@
   padding: 0 12px;
   background: var(--surface);
   border-right: 1px solid var(--border-strong);
-  transition: background var(--motion) ease;
+  transition: background var(--motion-base) var(--motion-ease);
 }
 
 /* Шапка колонки задач — того же тона, что и шапка шкалы, но чуть светлее:
@@ -603,6 +602,14 @@
   line-height: 1;
   cursor: grab;
   opacity: 0;
+  /* Проявляется вместе с плюсом и крестиком и с той же скоростью: три кнопки
+     одной строки, и разная длительность превратила бы одно появление в три. */
+  transition:
+    opacity var(--motion-fast) ease,
+    background-color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    box-shadow var(--motion-fast) ease,
+    color var(--motion-fast) ease;
   /* Строку тащат пальцем: без этого браузер принимает жест за прокрутку. */
   touch-action: none;
 }
@@ -617,6 +624,17 @@
   opacity: 1;
 }
 
+/* Там, где наведения не бывает, — планшет, телефон — ручка видна всегда.
+   Иначе она невидима ровно там, где по ней и нужно попасть пальцем: показать
+   её нечем, а прозрачная она всё равно ловит нажатия — то есть работает, но
+   только вслепую. Частокол из точек, ради которого её прячут на настольном
+   экране, там же и остаётся. */
+@media (hover: none) {
+  .gantt__handle {
+    opacity: 1;
+  }
+}
+
 .gantt.is-reordering .gantt__handle {
   cursor: grabbing;
 }
@@ -627,7 +645,7 @@
 .gantt__row.drop-before .gantt__lane,
 .gantt__row.drop-after .gantt__label,
 .gantt__row.drop-after .gantt__lane {
-  transition: box-shadow var(--motion) ease;
+  transition: box-shadow var(--motion-base) var(--motion-ease);
 }
 
 /* Линия вставки. Тень внутрь, а не рамка: рамка добавила бы строке высоту, и
@@ -661,9 +679,18 @@
   font-size: 16px;
   line-height: 1;
   opacity: 0;
+  /* Появление — тем же временем, что и любой другой отклик на наведение
+     (см. `--motion-fast`). Прежние 20мс не «быстрее», а незаметны: глаз читает
+     их как включение лампочки, и кнопка возникала рывком там, где строка под
+     ней подсвечивалась плавно. Список повторяет переход базовой кнопки, иначе
+     собственное объявление стирает его целиком и тень с рамкой на фокусе
+     появляются мгновенно. */
   transition:
-    opacity 20ms ease-in,
-    background 20ms ease-in;
+    opacity var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
 }
 
 .gantt__row:hover .gantt__add,
@@ -676,7 +703,9 @@
   color: var(--text);
 }
 
-/* Крестик удаления пустой категории — сосед плюса и молчит вместе с ним. */
+/* Крестик удаления пустой категории — сосед плюса и молчит вместе с ним, той
+   же скоростью: пара кнопок на одной строке, разойдись у них длительность —
+   они бы проявлялись порознь. */
 .gantt__remove {
   flex: 0 0 auto;
   width: 20px;
@@ -689,8 +718,11 @@
   line-height: 1;
   opacity: 0;
   transition:
-    opacity 20ms ease-in,
-    background 20ms ease-in;
+    opacity var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
 }
 
 .gantt__row:hover .gantt__remove,
@@ -706,7 +738,7 @@
 .gantt__lane {
   position: relative;
   height: 100%;
-  transition: background var(--motion) ease;
+  transition: background var(--motion-base) var(--motion-ease);
 }
 
 /* Сводная полоса категории: тонкая линия с засечками-стрелками по краям, как
@@ -771,12 +803,17 @@
   font-weight: 700;
   text-align: left;
   box-shadow: none;
-  /* Сдвиг после подтверждения сервером — переездом, а не прыжком: иначе
-     непонятно, та же это полоска встала на новое место или другая. */
+  /* Две скорости, потому что здесь два разных события. Сдвиг после
+     подтверждения сервером — переездом, а не прыжком: иначе непонятно, та же
+     это полоска встала на новое место или другая. Отклик на наведение —
+     вдвое короче и общим токеном продукта: полоска всё-таки кнопка, и щёлкать
+     подъёмом там, где соседние кнопки проявляются плавно, ей не с чего. */
   transition:
-    left var(--motion) ease,
-    width var(--motion) ease,
-    opacity var(--motion) ease;
+    left var(--motion-base) var(--motion-ease),
+    width var(--motion-base) var(--motion-ease),
+    opacity var(--motion-base) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease),
+    filter var(--motion-fast) var(--motion-ease);
 }
 
 /* Под курсором полоска светлеет и приподнимается — но не меняет ни цвет, ни
@@ -790,7 +827,9 @@
 
 /* Полоска под пальцем — единственное, что не анимируется никогда: она обязана
    идти за курсором без задержки, иначе жест ощущается вязким, будто интерфейс
-   не успевает. */
+   не успевает. Обнуление — списком целиком, а не вычитанием отдельных свойств:
+   любое, что добавят в переход выше, обязано отключаться и здесь, и `none`
+   делает это само. */
 .gantt__bar.is-dragging {
   transition: none;
   cursor: grabbing;
@@ -995,9 +1034,15 @@
    то есть трёх приёмов там, где хватает одного.
 
    Координаты — окна, а не ленты: `fixed` не даёт полосе прокрутки обрезать
-   карточку у правого края, куда она чаще всего и попадает. Собственного
-   правила «меньше движения» здесь нет: переходы гасит общее правило в
-   styles.css, и второе такое же однажды разошлось бы с ним. */
+   карточку у правого края, куда она чаще всего и попадает. За прокруткой она
+   при этом не едет и потому на ней гаснет — этим занят сам узел (см. BarTip).
+   Собственного правила «меньше движения» здесь нет: переходы и появление
+   гасит общее правило в styles.css, и второе такое же однажды разошлось бы с
+   ним.
+
+   Появляется проявлением, без движения, — по общей шкале всплывающих слоёв
+   (см. styles.css). Двигаться ей некуда: она и так стоит там, где курсор, и
+   идёт за ним дальше, так что подъезд к точке спорил бы с этим ходом. */
 .gantt__tip {
   position: fixed;
   z-index: 200;
@@ -1009,6 +1054,11 @@
   font-size: 11px;
   line-height: 1.35;
   box-shadow: 0 12px 36px rgb(16 24 40 / 13%);
+  /* Появление — проявлением, а не подстановкой: карточку показывает выдержка
+     наведения, и возникшая после неё в готовом виде плашка читается как чужой
+     щелчок в ленте. Гаснет она без проявления — уходит вместе с курсором, и
+     провожать её человек уже не смотрит. */
+  animation: layer-fade var(--motion-layer) var(--motion-layer-ease);
   /* Карточка идёт за курсором и ничего не ловит: клик обязан достаться
      полоске под ней, иначе наведение отнимало бы у ленты перетаскивание. */
   pointer-events: none;

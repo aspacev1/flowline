@@ -16,7 +16,12 @@ import type { ProjectState } from "../api/projects";
 import { useCanWrite, useOrgRole } from "../auth/permissions";
 import { useLocale } from "../i18n/LocaleProvider";
 import { SharePanel } from "../project/SharePanel";
-import { DateListField, SlugField, WorkingDaysField } from "../settings/fields";
+import {
+  DateListField,
+  SlugField,
+  WorkingDaysField,
+  parseThresholdDays,
+} from "../settings/fields";
 
 /**
  * Уровень 3 настроек: слаг, целевая дата и переопределения организации.
@@ -178,7 +183,12 @@ export function ProjectSettings() {
           }
           disabled={readOnly}
           onInherit={() => save.mutate({ shift_threshold_days: null })}
-          onOverride={(value) => save.mutate({ shift_threshold_days: Number(value) })}
+          onOverride={(value) => {
+            // Пустое поле — не «порог ноль»: пока числа нет, переопределение
+            // остаётся прежним, а не превращается в «объяснять каждый сдвиг».
+            const days = parseThresholdDays(value);
+            if (days !== null) save.mutate({ shift_threshold_days: days });
+          }}
           render={(value, onCommit, disabled) => (
             <input
               id="project-threshold"

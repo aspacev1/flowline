@@ -4,6 +4,7 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import type { Task } from "../api/projects";
 import { useLocale } from "../i18n/LocaleProvider";
 import { baselineOf } from "../project/baseline";
+import { useToday } from "../time/useToday";
 
 /**
  * Модуль прогресса — над полями, а не строка среди них.
@@ -50,11 +51,14 @@ function clamp(pct: number): number {
 export function TaskProgress({
   task,
   canWrite,
+  timeZone,
   resetToken,
   onCommit,
 }: {
   task: Task;
   canWrite: boolean;
+  /** Пояс проекта: в нём же посчитаны его сроки (см. useToday). */
+  timeZone?: string;
   /** Меняется, когда сервер отказал: поле обязано вернуться к правде. */
   resetToken: unknown;
   onCommit: (pct: number) => void;
@@ -62,7 +66,10 @@ export function TaskProgress({
   const { t } = useLocale();
   const pct = clamp(task.progress_pct);
   const step = dayStep(task.duration_days);
-  const expected = expectedToday(task, new Date().toISOString().slice(0, 10));
+  // Засечка плана стоит на «сколько должно быть сегодня», и «сегодня» здесь
+  // то же, что на ленте: по UTC засечка ночью показывала вчерашнюю норму, то
+  // есть объявляла отставанием то, чего ещё не должно быть сделано.
+  const expected = expectedToday(task, useToday(timeZone));
 
   // Черновик на время перетаскивания: полоса следует за курсором, а операция
   // уходит одна — при отпускании. Слать по движению значило бы писать в
@@ -72,7 +79,14 @@ export function TaskProgress({
   // «День отмечен» живёт до закрытия карточки: гашёная кнопка защищает от
   // двойного тапа сейчас, а не ведёт учёт по календарю — учёт виден в
   // журнале, на вкладке «История».
+  //
+  // Отметка ставится до ответа сервера — как и всё в карточке, — и по отказу
+  // обязана вернуться к правде вместе с полями: прогресс не записан, значит
+  // день не отмечен, и главная дневная кнопка не имеет права остаться
+  // погасшей. Зависимость одна, `resetToken`: успех меняет `pct`, но гасить
+  // кнопку на весь заход — это и есть её работа.
   const [markedDay, setMarkedDay] = useState(false);
+  useEffect(() => setMarkedDay(false), [resetToken]);
 
   // Число — то же поле, что и раньше: черновик, отправка при изменении,
   // возврат к правде по отказу сервера (см. fields.tsx про resetToken).
