@@ -475,17 +475,10 @@
     "your_name": "Adınız",
     "body": "Şərh",
     "send": "Göndər",
-    "closed": "Layihənin sahibi şərhləri bağlayıb",
-    "disabled": "Bu keçiddə şərhlər bağlıdır",
-    "field": "Şərh",
-    "submit": "Göndər"
+    "closed": "Layihənin sahibi şərhləri bağlayıb"
   },
   "public": {
-    "badge": "İctimai səhifə",
-    "revoked": "Bu keçid artıq işləmir",
-    "revoked_hint": "Keçidi sizə göndərəndən yenisini istəyin",
-    "guest_name": "Adınız",
-    "guest_mark": "{name} (qonaq)"
+    "badge": "İctimai səhifə"
   },
   "org": {
     "switch_label": "Təşkilat"
@@ -498,29 +491,6 @@
       "editor": "Redaktor",
       "viewer": "İzləyici",
       "client": "Müştəri"
-    },
-    "emails": "Ünvanlar",
-    "emails_hint": "Hər sətirdə bir ünvan. Boş buraxsanız — sadəcə keçid çıxarılacaq, onu kim açsa, o da qəbul edəcək",
-    "role_label": "Rol",
-    "projects": "Layihələr",
-    "invite_and_send": "Dəvət et və məktub göndər",
-    "invite_link_only": "Keçid çıxar",
-    "issued": "Çıxarılmış keçidlər",
-    "issued_hint": "Keçid yalnız indi görünür: server onu yadda saxlamır, bazada yalnız hash var",
-    "copy": "Kopyala",
-    "sent": "Məktub göndərildi",
-    "mail_failed": "Məktub getmədi — keçidi kopyalayın",
-    "by_link": "Keçidlə (təqdim edənə)",
-    "people": "İştirakçılar",
-    "invitations": "Dəvətlər",
-    "no_invitations": "Hələ dəvət yoxdur",
-    "reissue": "Keçidi yenidən çıxar",
-    "revoke": "Ləğv et",
-    "status": {
-      "pending": "gözləyir",
-      "accepted": "qəbul edilib",
-      "revoked": "ləğv edilib",
-      "expired": "vaxtı keçib"
     }
   },
   "invite": {
@@ -568,10 +538,7 @@
       "wrong_account": "Dəvət {email} ünvanına yazılıb. Çıxın və həmin ünvanla daxil olun",
       "logout": "Çıx",
       "go_home": "Layihələrə"
-    },
-    "bearer": "Bu dəvət ünvana bağlı deyil: kim keçidi açsa, o da qəbul edir",
-    "sign_in_first": "Qəbul etmək üçün daxil olun və ya qeydiyyatdan keçin — sonra bu keçidə qayıdın",
-    "another_account": "Dəvət {email} ünvanına ünvanlanıb. Başqa hesabla girmisiniz — çıxın və düzgün hesabla daxil olun"
+    }
   },
   "plan": {
     "approve": "Planı təsdiqlə",
@@ -642,24 +609,6 @@
       "key_set": "Açar təyin edilib. Boş buraxsanız — dəyişmir",
       "key_missing": "Açar hələ yoxdur",
       "save": "Qoşulmanı saxla"
-    },
-    "link": "Tənzimləmələr",
-    "title": "Layihə tənzimləmələri",
-    "back": "Diaqrama qayıt",
-    "share": {
-      "title": "Public keçid",
-      "address": "Səhifə ünvanı",
-      "copy": "Kopyala",
-      "copied": "Kopyalandı",
-      "published": "Public keçid",
-      "comments": "Public səhifədə şərhlər"
-    },
-    "slug": {
-      "title": "Layihə ünvanı",
-      "field": "Keçiddəki ünvan",
-      "taken": "Tutulub. Boş variant:",
-      "save": "Ünvanı saxla",
-      "warning": "Ünvan dəyişəndən sonra köhnə ünvan açılmayacaq — keçidi yenidən göndərmək lazım gələcək."
     }
   },
   "ai": {
