@@ -51,12 +51,20 @@ const NAMES = new Map([
  * картинка, и половина проверок ниже (фокус с клавиатуры) на картинке
  * невозможна в принципе.
  */
-function draw(options: { state?: ProjectState; names?: ReadonlyMap<string, string> } = {}) {
+function draw(
+  options: {
+    state?: ProjectState;
+    names?: ReadonlyMap<string, string>;
+    /** Право двигать полоску: от него зависит строка сочетаний в карточке. */
+    canWrite?: boolean;
+  } = {},
+) {
   return renderWithProviders(
     <Gantt
       projectId="p1"
       state={options.state ?? STATE}
       assigneeNames={options.names}
+      canWrite={options.canWrite}
       onSelectTask={() => {}}
     />,
     { locale: "ru" },
@@ -177,6 +185,32 @@ describe("карточка наведения на полоску", () => {
 
     fireEvent.blur(bar());
     expect(screen.queryByTestId("bar-tip")).not.toBeInTheDocument();
+  });
+
+  it("называет сочетания клавиш тому, кто может двигать полоску", async () => {
+    // Карточка наведения — единственное место, где человек читает про задачу,
+    // ничего не открыв: подсказка про клавиши живёт здесь, а не в справке,
+    // которую никто не ищет.
+    draw({ canWrite: true });
+
+    await userEvent.hover(bar());
+
+    const tip = screen.getByTestId("bar-tip");
+    expect(tip).toHaveTextContent("Shift + ←→");
+    expect(tip).toHaveTextContent("Esc");
+    // Модификатор зовётся так, как он зовётся в этой системе: «Ctrl» на Маке
+    // назвал бы клавишу, которая там ничего не отменяет.
+    expect(tip).toHaveTextContent(/(Ctrl|⌘)\+Z/);
+  });
+
+  it("читателю сочетаний не обещает", async () => {
+    draw();
+
+    await userEvent.hover(bar());
+
+    // Двигать полоску читатель не может, и клавиши обещали бы ему работу,
+    // которую сервер отклонит.
+    expect(screen.getByTestId("bar-tip")).not.toHaveTextContent("Shift");
   });
 
   it("скрыта от чтения с экрана: полоска называет то же самое сама", async () => {

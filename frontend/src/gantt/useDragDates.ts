@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { KeyboardEvent, MouseEvent, PointerEvent } from "react";
 
 import { ApiError } from "../api/client";
@@ -26,6 +26,10 @@ import type { Scale } from "./timescale";
  *
  * Смещение переводится в дни через шкалу, а не делением на ширину дня: шкала
  * знает, где кончается день, и знает это в одном месте.
+ *
+ * Начатый жест прерывается по Esc: передумать посреди перетаскивания — обычное
+ * дело, и единственным выходом иначе было бы дотащить полоску обратно на глаз,
+ * то есть попасть точно в тот же день, откуда её взяли.
  */
 export function useDragDates({
   projectId,
@@ -45,11 +49,16 @@ export function useDragDates({
   const askReason = useAskShiftReason();
   const queryClient = useQueryClient();
 
-  const from = useRef<{ pointerId: number; x: number } | null>(null);
+  const from = useRef<{ pointerId: number; x: number; bar: HTMLElement } | null>(null);
   // Было ли движение. Живёт в ref, а не в состоянии: значение читается в
   // обработчике клика сразу после отпускания, и перерисовка тут не нужна.
   const dragged = useRef(false);
   const [offset, setOffset] = useState(0);
+  // Идёт ли жест — в состоянии, в отличие от `from`: от него зависит, слушаем
+  // ли мы Esc, а слушатель ставится в эффекте, и ref его не разбудит. Ноль в
+  // `offset` для этого не годится: между нажатием и первым движением жест уже
+  // идёт, а смещения ещё нет.
+  const [dragging, setDragging] = useState(false);
 
   /**
    * День, на который попадёт начало полоски, сдвинутой на `dx` пикселей.
@@ -92,6 +101,48 @@ export function useDragDates({
     }
   };
 
+  /**
+   * Прервать начатый жест, ничего не отправив.
+   *
+   * Полоска возвращается туда, откуда её потащили: пока жест идёт, дат он не
+   * менял — их меняет только отпускание.
+   */
+  const cancel = useCallback(() => {
+    const start = from.current;
+    from.current = null;
+    setOffset(0);
+    setDragging(false);
+    // Захват снимается руками: иначе полоска до конца жеста продолжает
+    // получать события указателя, и отпускание прилетело бы уже прерванному
+    // перетаскиванию.
+    if (start && start.bar.hasPointerCapture?.(start.pointerId)) {
+      start.bar.releasePointerCapture?.(start.pointerId);
+    }
+    // Клик, который браузер пришлёт вслед за отпусканием, гасится тем же
+    // признаком, что и после обычного перетаскивания: Esc означает «ничего не
+    // делать», а не «открыть карточку».
+    dragged.current = true;
+    // Ни одной живой зависимости: внутри только ref-ы и функции состояния.
+    // Постоянная ссылка нужна эффекту ниже — иначе он переподписывался бы на
+    // каждой отрисовке, то есть на каждом пикселе движения.
+  }, []);
+
+  // Esc прерывает начатое перетаскивание — как везде, где жест можно начать и
+  // передумать. Слушатель на окне, а не на полоске: захват указателя держит
+  // события мыши, но не клавиатуры, и фокус во время жеста может оказаться где
+  // угодно — на полоске, если браузер отдал его нажатию, и на теле документа,
+  // если не отдал.
+  useEffect(() => {
+    if (!dragging) return;
+    function onKeyDown(event: globalThis.KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      cancel();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [cancel, dragging]);
+
   const move = (startDate: string) => {
     // Ноль дней — ничего не отправляем: жест, вернувший полоску на место, не
     // изменение и не должен оставлять запись в истории.
@@ -124,8 +175,9 @@ export function useDragDates({
     handlers: {
       onPointerDown(event: PointerEvent<HTMLElement>) {
         if (!enabled || event.button !== 0) return;
-        from.current = { pointerId: event.pointerId, x: event.clientX };
+        from.current = { pointerId: event.pointerId, x: event.clientX, bar: event.currentTarget };
         dragged.current = false;
+        setDragging(true);
         // jsdom этого метода не знает, да и браузер откажет на устаревшем
         // указателе. Захват — улучшение жеста, а не его условие.
         event.currentTarget.setPointerCapture?.(event.pointerId);
@@ -147,12 +199,12 @@ export function useDragDates({
         if (start === null || start.pointerId !== event.pointerId) return;
         from.current = null;
         setOffset(0);
+        setDragging(false);
         move(dateAfter(event.clientX - start.x));
       },
 
       onPointerCancel() {
-        from.current = null;
-        setOffset(0);
+        cancel();
       },
 
       onClickCapture(event: MouseEvent<HTMLElement>) {
@@ -171,6 +223,10 @@ export function useDragDates({
         // обязан иметь способ сдвинуть задачу. Shift — чтобы стрелки остались
         // за прокруткой ленты: без него нельзя было бы просто посмотреть, что
         // справа, не сдвинув при этом сроки.
+        //
+        // Сочетание названо вслух в двух местах — в `aria-keyshortcuts`
+        // полоски и в строке подсказки карточки наведения (Row, BarTip):
+        // возможность, о которой знает только исходник, всё равно что её нет.
         if (!enabled || !event.shiftKey) return;
         const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
         if (step === 0) return;

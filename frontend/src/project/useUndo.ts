@@ -17,6 +17,9 @@ import { thresholdOf } from "./baseline";
  *
  * Пачку отменяет целиком: применение AI — это десятки операций с общим
  * `batch_id`, и отменять их по одной значило бы тридцать нажатий подряд.
+ *
+ * Ctrl/⌘+Z (`UndoHotkey`) зовёт отсюда же: горячая клавиша — второй путь к
+ * той же кнопке, а не второй способ отменять.
  */
 export function useUndo(projectId: string, state: ProjectState) {
   const queryClient = useQueryClient();
@@ -26,11 +29,15 @@ export function useUndo(projectId: string, state: ProjectState) {
   const undoable = state.undoable;
 
   const mutation = useMutation({
-    mutationFn: async () => {
-      if (!undoable) return;
+    // Возвращает, случилась ли отмена на самом деле: отменять было нечего или
+    // человек закрыл окно с причиной — это успех запроса и не-событие для
+    // того, кто ждёт подтверждения. Без этого признака горячая клавиша
+    // рапортовала бы «отменено» там, где не отменено ничего.
+    mutationFn: async (): Promise<boolean> => {
+      if (!undoable) return false;
       if (undoable.batch_id) {
         await undoBatch(projectId, undoable.batch_id);
-        return;
+        return true;
       }
       try {
         await undoLast(projectId);
@@ -47,9 +54,10 @@ export function useUndo(projectId: string, state: ProjectState) {
           deviationDays: refusal.hints.deviationDays ?? 0,
           thresholdDays: refusal.hints.thresholdDays ?? thresholdOf(state),
         });
-        if (reason === null) return;
+        if (reason === null) return false;
         await undoLast(projectId, reason);
       }
+      return true;
     },
     onSuccess: async () => {
       setError(null);

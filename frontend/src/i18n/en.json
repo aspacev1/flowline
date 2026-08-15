@@ -447,7 +447,8 @@
       "late": "Deadline missed · +N days"
     },
     "tip": {
-      "more": "{name} +{count}"
+      "more": "{name} +{count}",
+   "keys": "Shift + ←→ move · Esc cancel · {mod}+Z undo"
     },
     "toggle_category": "Collapse or expand “{name}”",
     "caption": "The magenta tick is the original deadline; the “+N d” label shows how far the date slipped. A magenta arrow is a violated dependency: the task started before its blocker was done."
@@ -592,7 +593,9 @@
     "save": "Save"
   },
   "undo": {
-    "action": "Undo"
+    "action": "Undo",
+    "done": "Change undone",
+    "nothing": "Nothing to undo"
   },
   "settings": {
     "timezone": "Time zone",

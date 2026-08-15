@@ -197,7 +197,7 @@ export function TaskRow({
   showBaseline?: boolean;
 }) {
   const { offset, handlers } = useDragDates({ projectId, task, scale, enabled: canWrite });
-  const tip = useBarTip(task);
+  const tip = useBarTip(task, canWrite);
   const baseline = baselineOf(task);
   const shift = endShiftDays(task);
 
@@ -374,6 +374,11 @@ export function TaskRow({
           // наведения через секунду вылезала бы вторая, браузерная, и об одном
           // и том же говорили бы два разных окна.
           aria-label={`${task.name}, ${title}`}
+          // Сочетания названы вслух: сдвинуть задачу с клавиатуры можно было и
+          // раньше, но узнать об этом — только из исходников. Читателю здесь
+          // пусто: стрелки у него ничего не двигают, и обещать их значило бы
+          // отправить его нажимать клавиши, которые молчат.
+          aria-keyshortcuts={canWrite ? "Shift+ArrowLeft Shift+ArrowRight" : undefined}
           aria-expanded={onSelect ? selected : undefined}
           onClick={() => onSelect?.(task.id)}
         >

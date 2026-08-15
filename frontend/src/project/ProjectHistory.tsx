@@ -7,6 +7,7 @@ import { listPlanApprovals } from "../api/projects";
 import type { PlanApproval, ProjectState } from "../api/projects";
 import { FEED_PAGE, feedQueryKey, listProjectRevisions } from "../api/revisions";
 import type { FeedFilters, RevisionEntry } from "../api/revisions";
+import { modKeyLabel } from "../components/hotkeys";
 import { formatDate, formatTime } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
 import { formatEvent } from "../task/formatEvent";
@@ -204,12 +205,16 @@ export function ProjectHistory({
     canUndo && state.undoable && !state.undoable.batch_id ? state.undoable.seq : null;
   const undoableBatch = (canUndo && state.undoable?.batch_id) || null;
 
+  // Ctrl/⌘+Z делает ровно то же самое — и сочетание названо прямо на кнопке:
+  // иначе о нём знали бы только те, кто попробовал наугад.
   const undoButton = (label: string) => (
     <button
       type="button"
       className="button--quiet feed__undo"
       onClick={() => undo.mutation.mutate()}
       disabled={undo.mutation.isPending}
+      title={`${label} · ${modKeyLabel()}+Z`}
+      aria-keyshortcuts="Control+Z"
     >
       {label}
     </button>

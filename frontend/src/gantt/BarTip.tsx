@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState } fro
 import type { CSSProperties, FocusEvent, PointerEvent, ReactNode } from "react";
 
 import type { Task } from "../api/projects";
+import { modKeyLabel } from "../components/hotkeys";
 import { formatShortDate } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
 
@@ -21,7 +22,8 @@ import { useLocale } from "../i18n/LocaleProvider";
 type Anchor = { x: number; y: number };
 
 type BarTipApi = {
-  show: (task: Task, anchor: Anchor) => void;
+  /** `keys` — показывать ли строку сочетаний: она про то, чего гость не может. */
+  show: (task: Task, anchor: Anchor, keys: boolean) => void;
   /** Двигать за курсором — но только ту карточку, которая уже видна. */
   track: (anchor: Anchor) => void;
   hide: () => void;
@@ -44,13 +46,20 @@ const TIP_WIDTH = 235;
  * есть показать карточку не на месте и переставить её следующим кадром. Запас
  * взят с избытком — ошибка в большую сторону лишь раньше переворачивает
  * карточку, ошибка в меньшую оставила бы её за обрезом экрана.
+ *
+ * Строка сочетаний прибавляет к высоте свои две строки текста: без поправки
+ * карточка у нижнего края экрана переворачивалась бы позже, чем нужно, и
+ * подсказка оказывалась бы за обрезом — то есть пропадала бы ровно то, ради
+ * чего её и добавили.
  */
 const TIP_HEIGHT = 96;
+const TIP_KEYS_HEIGHT = 44;
 
 /** Карточка не выходит за край экрана: у края она переворачивается на другую сторону. */
-function placeTip({ x, y }: Anchor): CSSProperties {
+function placeTip({ x, y }: Anchor, keys: boolean): CSSProperties {
+  const height = TIP_HEIGHT + (keys ? TIP_KEYS_HEIGHT : 0);
   const left = x + GAP + TIP_WIDTH > window.innerWidth ? x - GAP - TIP_WIDTH : x + GAP;
-  const top = y + GAP + TIP_HEIGHT > window.innerHeight ? y - GAP - TIP_HEIGHT : y + GAP;
+  const top = y + GAP + height > window.innerHeight ? y - GAP - height : y + GAP;
   return { left: Math.max(GAP, left), top: Math.max(GAP, top) };
 }
 
@@ -66,16 +75,16 @@ export function BarTipProvider({
   names?: ReadonlyMap<string, string>;
   children: ReactNode;
 }) {
-  const [tip, setTip] = useState<{ task: Task; anchor: Anchor } | null>(null);
+  const [tip, setTip] = useState<{ task: Task; anchor: Anchor; keys: boolean } | null>(null);
   // Идёт ли жест. В ref, а не в состоянии: значение читается в обработчиках
   // указателя и на отрисовку не влияет.
   const pressed = useRef(false);
 
   const api = useMemo<BarTipApi>(
     () => ({
-      show: (task, anchor) => {
+      show: (task, anchor, keys) => {
         if (pressed.current) return;
-        setTip({ task, anchor });
+        setTip({ task, anchor, keys });
       },
       // Наведение показывает, движение только переставляет: иначе карточка
       // возвращалась бы прямо под пальцем сразу после перетаскивания — а
@@ -96,7 +105,7 @@ export function BarTipProvider({
   return (
     <BarTipContext.Provider value={api}>
       {children}
-      {tip && <BarTip task={tip.task} anchor={tip.anchor} names={names} />}
+      {tip && <BarTip task={tip.task} anchor={tip.anchor} keys={tip.keys} names={names} />}
     </BarTipContext.Provider>
   );
 }
@@ -107,8 +116,12 @@ export function BarTipProvider({
  * Возвращаются готовым набором, а не по одному: полоска и без того несёт на
  * себе перетаскивание, и разбирать, какое событие чьё, в разметке не надо.
  * Вне провайдера все они молчат — диаграмма рисуется и там, где карточки нет.
+ *
+ * `keys` — право двигать полоску: строка сочетаний показывается только тому,
+ * кому есть что ими сделать. Читателю и гостю она обещала бы работу, которую
+ * сервер отклонит.
  */
-export function useBarTip(task: Task) {
+export function useBarTip(task: Task, keys = false) {
   const api = useContext(BarTipContext);
   const cursor = useCallback(
     (event: PointerEvent<HTMLElement>): Anchor => ({ x: event.clientX, y: event.clientY }),
@@ -117,7 +130,7 @@ export function useBarTip(task: Task) {
 
   return useMemo(
     () => ({
-      onPointerEnter: (event: PointerEvent<HTMLElement>) => api?.show(task, cursor(event)),
+      onPointerEnter: (event: PointerEvent<HTMLElement>) => api?.show(task, cursor(event), keys),
       onPointerMove: (event: PointerEvent<HTMLElement>) => api?.track(cursor(event)),
       onPointerLeave: () => api?.hide(),
       onPointerDown: () => api?.press(),
@@ -127,11 +140,11 @@ export function useBarTip(task: Task) {
       // курсором означало бы точку, которой на экране никто не видит.
       onFocus: (event: FocusEvent<HTMLElement>) => {
         const box = event.currentTarget.getBoundingClientRect();
-        api?.show(task, { x: box.left, y: box.bottom });
+        api?.show(task, { x: box.left, y: box.bottom }, keys);
       },
       onBlur: () => api?.hide(),
     }),
-    [api, cursor, task],
+    [api, cursor, keys, task],
   );
 }
 
@@ -145,10 +158,12 @@ export function useBarTip(task: Task) {
 function BarTip({
   task,
   anchor,
+  keys,
   names,
 }: {
   task: Task;
   anchor: Anchor;
+  keys: boolean;
   names?: ReadonlyMap<string, string>;
 }) {
   const { t } = useLocale();
@@ -163,7 +178,12 @@ function BarTip({
   const people = assigneeText(task, t, names);
 
   return (
-    <div className="gantt__tip" style={placeTip(anchor)} data-testid="bar-tip" aria-hidden="true">
+    <div
+      className="gantt__tip"
+      style={placeTip(anchor, keys)}
+      data-testid="bar-tip"
+      aria-hidden="true"
+    >
       {/* Название — содержимое пользователя: не переводится. */}
       <strong className="gantt__tip-name">{task.name}</strong>
       <div className="gantt__tip-grid">
@@ -174,6 +194,14 @@ function BarTip({
             он читался бы приглушённой подписью к пустоте. */}
         <b className={people === null ? "gantt__tip-alone" : undefined}>{task.progress_pct}%</b>
       </div>
+      {/* Сочетания клавиш — здесь, а не в отдельной справке: карточка и так
+          висит над той самой полоской, к которой они относятся, и это
+          единственное место, где человек читает про задачу, ничего не открыв.
+          Скрыта от чтения с экрана вместе со всей карточкой — тому, кто читает
+          с экрана, о том же говорит `aria-keyshortcuts` полоски. */}
+      {keys && (
+        <div className="gantt__tip-keys">{t("gantt.tip.keys", { mod: modKeyLabel() })}</div>
+      )}
     </div>
   );
 }
