@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { errorKey } from "../api/errors";
@@ -14,6 +13,7 @@ import {
 } from "../api/projects";
 import type { ProjectState } from "../api/projects";
 import { useCanWrite, useOrgRole } from "../auth/permissions";
+import { ConfirmAction } from "../components/ConfirmAction";
 import { useLocale } from "../i18n/LocaleProvider";
 import { SharePanel } from "../project/SharePanel";
 import { DateListField, SlugField, WorkingDaysField } from "../settings/fields";
@@ -38,7 +38,6 @@ export function ProjectSettings() {
   // всё равно сервер — здесь лишь не предлагается действие, которое кончится
   // отказом.
   const isOwner = useOrgRole() === "owner";
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const query = useQuery({
     queryKey: projectQueryKey(projectId),
@@ -246,33 +245,14 @@ export function ProjectSettings() {
                 {t(errorKey(remove.error))}
               </p>
             )}
-            {confirmingDelete ? (
-              <span className="plan__confirm">
-                <span className="muted">{t("settings.project.delete_warning")}</span>
-                <button
-                  type="button"
-                  onClick={() => remove.mutate()}
-                  disabled={remove.isPending}
-                >
-                  {t("settings.project.delete_confirm")}
-                </button>
-                <button
-                  type="button"
-                  className="button--quiet"
-                  onClick={() => setConfirmingDelete(false)}
-                >
-                  {t("common.cancel")}
-                </button>
-              </span>
-            ) : (
-              <button
-                type="button"
-                className="button--quiet button--alert"
-                onClick={() => setConfirmingDelete(true)}
-              >
-                {t("settings.project.delete")}
-              </button>
-            )}
+            <ConfirmAction
+              className="button--quiet button--alert"
+              label={t("settings.project.delete")}
+              warning={t("settings.project.delete_warning")}
+              confirm={t("settings.project.delete_confirm")}
+              onConfirm={() => remove.mutate()}
+              disabled={remove.isPending}
+            />
           </div>
         )}
       </section>

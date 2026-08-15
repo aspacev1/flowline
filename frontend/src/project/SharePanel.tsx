@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { errorKey } from "../api/errors";
-import { getShare, issueShare, revokeShare, setShareComments } from "../api/share";
+import { getShare, issueShare, revokeShare, rotateShare, setShareComments } from "../api/share";
 import type { Share } from "../api/share";
+import { ConfirmAction } from "../components/ConfirmAction";
 import { useLocale } from "../i18n/LocaleProvider";
 
 const shareQueryKey = (projectId: string) => ["project", projectId, "share"] as const;
@@ -24,6 +25,10 @@ export function SharePanel({ projectId }: { projectId: string }) {
   const write = (share: Share | null) => queryClient.setQueryData(key, share);
 
   const issue = useMutation({ mutationFn: () => issueShare(projectId), onSuccess: write });
+  // Перевыпуск ходит своим маршрутом, а не повторяет выпуск: на уже
+  // опубликованном проекте POST /share отвечает 409 — сервер не превращает
+  // повтор запроса в тихое убийство разосланной ссылки.
+  const rotate = useMutation({ mutationFn: () => rotateShare(projectId), onSuccess: write });
   const comments = useMutation({
     mutationFn: (enabled: boolean) => setShareComments(projectId, enabled),
     onSuccess: write,
@@ -33,7 +38,7 @@ export function SharePanel({ projectId }: { projectId: string }) {
     onSuccess: () => write(null),
   });
 
-  const failure = issue.error ?? comments.error ?? revoke.error;
+  const failure = issue.error ?? rotate.error ?? comments.error ?? revoke.error;
   const share = query.data ?? null;
 
   return (
@@ -71,25 +76,27 @@ export function SharePanel({ projectId }: { projectId: string }) {
             <label htmlFor="share-comments">{t("share.comments")}</label>
           </p>
 
+          {/* Обе кнопки спрашивают: «перевыпустить» звучит как обновление, а
+              означает, что адрес, уже отправленный клиенту, перестанет
+              открываться, — и сказать это надо в ответ на нажатие, а не
+              подсказкой, которую читают до того, как решили. */}
           <div className="modal__actions">
-            <button
-              type="button"
+            <ConfirmAction
               className="button--quiet"
-              onClick={() => issue.mutate()}
-              disabled={issue.isPending}
-            >
-              {/* Прежняя ссылка умирает мгновенно — об этом сказано в самой
-                  подписи, а не в подсказке где-то рядом. */}
-              {t("share.reissue")}
-            </button>
-            <button
-              type="button"
+              label={t("share.reissue")}
+              warning={t("share.reissue_warning")}
+              confirm={t("share.reissue_confirm")}
+              onConfirm={() => rotate.mutate()}
+              disabled={rotate.isPending}
+            />
+            <ConfirmAction
               className="button--quiet"
-              onClick={() => revoke.mutate()}
+              label={t("share.revoke")}
+              warning={t("share.revoke_warning")}
+              confirm={t("share.revoke_confirm")}
+              onConfirm={() => revoke.mutate()}
               disabled={revoke.isPending}
-            >
-              {t("share.revoke")}
-            </button>
+            />
           </div>
         </>
       )}

@@ -462,7 +462,10 @@
     "copied": "Copied",
     "reissue": "Reissue",
     "reissue_warning": "A new link kills the old one instantly — an address you already sent will stop opening",
+    "reissue_confirm": "Yes, reissue",
     "revoke": "Close the link",
+    "revoke_warning": "The project stops opening for everyone the link was sent to. You can publish it again — the address will be a different one",
+    "revoke_confirm": "Yes, close the link",
     "comments_enabled": "Allow comments",
     "disabled": "Public links are switched off: by the installation or by the organization",
     "hidden": "The project is not shared",
@@ -547,7 +550,12 @@
     "action": {
       "link": "New link",
       "resend": "Send again",
-      "revoke": "Revoke"
+      "revoke": "Revoke",
+      "reissue_warning": "The old link dies at once: whoever already received it will not be able to open it",
+      "link_confirm": "Yes, new link",
+      "resend_confirm": "Yes, send again",
+      "revoke_warning": "The invitation stops working: the link you sent will no longer let anyone in",
+      "revoke_confirm": "Yes, revoke"
     },
     "issued": {
       "link": "Invitation link",
