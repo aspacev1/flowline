@@ -12,6 +12,7 @@ import {
 import type { Invitation, Issued } from "../api/invitations";
 import { MEMBERS_QUERY_KEY, ORG_QUERY_KEY, members, organization } from "../api/org";
 import { PROJECTS_QUERY_KEY, listProjects } from "../api/projects";
+import { ConfirmAction } from "../components/ConfirmAction";
 import { Modal } from "../components/Modal";
 import { useToast } from "../components/toast";
 import { useLocale } from "../i18n/LocaleProvider";
@@ -80,6 +81,14 @@ function IssuedList({ issued }: { issued: Issued[] }) {
   );
 }
 
+/**
+ * Приглашение — вместе с окном, в котором оно живёт.
+ *
+ * Окно рисует сама форма, а не экран вокруг неё: тронуты ли поля, знают только
+ * они, а окну этот ответ нужен, чтобы не терять набранное от промаха мимо.
+ * Снаружи такой признак пришлось бы гонять обратным вызовом — то есть держать
+ * состояние формы в двух местах сразу.
+ */
 function InviteForm({ onClose }: { onClose: () => void }) {
   const { t } = useLocale();
   const queryClient = useQueryClient();
@@ -110,105 +119,111 @@ function InviteForm({ onClose }: { onClose: () => void }) {
 
   if (create.data) {
     return (
-      <>
+      <Modal title={t("invite.title")} onClose={onClose}>
         <IssuedList issued={create.data} />
         <div className="modal__actions">
           <button type="button" onClick={onClose}>
             {t("invite.issued.done")}
           </button>
         </div>
-      </>
+      </Modal>
     );
   }
 
+  // Роль и проекты считаются наравне с адресами: список проектов клиента
+  // отмечают галочками по одной, и промах мимо окна снимает их все разом.
+  const dirty = raw !== "" || role !== "viewer" || projectIds.length > 0 || !deliver;
+
   return (
-    <form
-      onSubmit={(event) => {
-        event.preventDefault();
-        create.mutate({
-          emails,
-          role,
-          project_ids: role === "client" ? projectIds : [],
-          // Без настроенной почты отправлять нечем — и спрашивать не о чем.
-          deliver: mailEnabled && deliver,
-        });
-      }}
-    >
-      <p className="field">
-        <label htmlFor="invite-emails">{t("invite.emails")}</label>
-        <textarea
-          id="invite-emails"
-          rows={3}
-          value={raw}
-          onChange={(event) => setRaw(event.target.value)}
-        />
-      </p>
-      {/* Приглашение без адреса — не забывчивость, а второй способ доставки, и
-          назван он словами: такая ссылка достаётся предъявителю. */}
-      <p className="muted">
-        {emails.length === 0 ? t("invite.link_only_hint") : t("invite.emails_hint")}
-      </p>
-
-      <p className="field">
-        <label htmlFor="invite-role">{t("invite.role")}</label>
-        <select id="invite-role" value={role} onChange={(event) => setRole(event.target.value)}>
-          {ROLES.map((name) => (
-            <option key={name} value={name}>
-              {t(`members.role.${name}`)}
-            </option>
-          ))}
-        </select>
-      </p>
-
-      {role === "client" && (
-        <fieldset className="fieldset">
-          <legend>{t("invite.projects")}</legend>
-          <p className="muted">{t("invite.projects_hint")}</p>
-          {projects.data?.map((project) => (
-            <label key={project.id} className="checkbox">
-              <input
-                type="checkbox"
-                checked={projectIds.includes(project.id)}
-                onChange={(event) =>
-                  setProjectIds((chosen) =>
-                    event.target.checked
-                      ? [...chosen, project.id]
-                      : chosen.filter((id) => id !== project.id),
-                  )
-                }
-              />
-              {project.name}
-            </label>
-          ))}
-        </fieldset>
-      )}
-
-      {mailEnabled && emails.length > 0 && (
-        <label className="checkbox">
-          <input
-            type="checkbox"
-            checked={deliver}
-            onChange={(event) => setDeliver(event.target.checked)}
+    <Modal title={t("invite.title")} onClose={onClose} dirty={dirty}>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          create.mutate({
+            emails,
+            role,
+            project_ids: role === "client" ? projectIds : [],
+            // Без настроенной почты отправлять нечем — и спрашивать не о чем.
+            deliver: mailEnabled && deliver,
+          });
+        }}
+      >
+        <p className="field">
+          <label htmlFor="invite-emails">{t("invite.emails")}</label>
+          <textarea
+            id="invite-emails"
+            rows={3}
+            value={raw}
+            onChange={(event) => setRaw(event.target.value)}
           />
-          {t("invite.deliver")}
-        </label>
-      )}
-
-      {create.error && (
-        <p className="error" role="alert">
-          {t(errorKey(create.error))}
         </p>
-      )}
+        {/* Приглашение без адреса — не забывчивость, а второй способ доставки, и
+            назван он словами: такая ссылка достаётся предъявителю. */}
+        <p className="muted">
+          {emails.length === 0 ? t("invite.link_only_hint") : t("invite.emails_hint")}
+        </p>
 
-      <div className="modal__actions">
-        <button type="submit" disabled={create.isPending}>
-          {t("invite.submit")}
-        </button>
-        <button type="button" className="button--quiet" onClick={onClose}>
-          {t("common.cancel")}
-        </button>
-      </div>
-    </form>
+        <p className="field">
+          <label htmlFor="invite-role">{t("invite.role")}</label>
+          <select id="invite-role" value={role} onChange={(event) => setRole(event.target.value)}>
+            {ROLES.map((name) => (
+              <option key={name} value={name}>
+                {t(`members.role.${name}`)}
+              </option>
+            ))}
+          </select>
+        </p>
+
+        {role === "client" && (
+          <fieldset className="fieldset">
+            <legend>{t("invite.projects")}</legend>
+            <p className="muted">{t("invite.projects_hint")}</p>
+            {projects.data?.map((project) => (
+              <label key={project.id} className="checkbox">
+                <input
+                  type="checkbox"
+                  checked={projectIds.includes(project.id)}
+                  onChange={(event) =>
+                    setProjectIds((chosen) =>
+                      event.target.checked
+                        ? [...chosen, project.id]
+                        : chosen.filter((id) => id !== project.id),
+                    )
+                  }
+                />
+                {project.name}
+              </label>
+            ))}
+          </fieldset>
+        )}
+
+        {mailEnabled && emails.length > 0 && (
+          <label className="checkbox">
+            <input
+              type="checkbox"
+              checked={deliver}
+              onChange={(event) => setDeliver(event.target.checked)}
+            />
+            {t("invite.deliver")}
+          </label>
+        )}
+
+        {create.error && (
+          <p className="error" role="alert">
+            {t(errorKey(create.error))}
+          </p>
+        )}
+
+        <div className="modal__actions">
+          <button type="submit" disabled={create.isPending}>
+            {t("invite.submit")}
+          </button>
+          <button type="button" className="button--quiet" onClick={onClose}>
+            {t("common.cancel")}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -258,20 +273,38 @@ function InvitationRow({
       </span>
 
       {/* Отозвать и выпустить заново можно только неиспользованное: принятое
-          приглашение — это уже членство, и снимают его другим действием. */}
+          приглашение — это уже членство, и снимают его другим действием.
+
+          Спрашивают все три: и «Новая ссылка», и «Отправить ещё раз» — это
+          один и тот же перевыпуск, убивающий прежний токен, и вторая подпись
+          скрывает это сильнее первой. Человек, нажавший «отправить ещё раз»
+          в уверенности, что повторяет письмо, ломает ссылку, отправленную
+          вчера. */}
       {pending && (
         <span className="invite__actions">
-          <button type="button" className="button--quiet" onClick={() => reissue.mutate(false)}>
-            {t("invite.action.link")}
-          </button>
+          <ConfirmAction
+            className="button--quiet"
+            label={t("invite.action.link")}
+            warning={t("invite.action.reissue_warning")}
+            confirm={t("invite.action.link_confirm")}
+            onConfirm={() => reissue.mutate(false)}
+          />
           {mailEnabled && invitation.email && (
-            <button type="button" className="button--quiet" onClick={() => reissue.mutate(true)}>
-              {t("invite.action.resend")}
-            </button>
+            <ConfirmAction
+              className="button--quiet"
+              label={t("invite.action.resend")}
+              warning={t("invite.action.reissue_warning")}
+              confirm={t("invite.action.resend_confirm")}
+              onConfirm={() => reissue.mutate(true)}
+            />
           )}
-          <button type="button" className="button--quiet" onClick={() => revoke.mutate()}>
-            {t("invite.action.revoke")}
-          </button>
+          <ConfirmAction
+            className="button--quiet"
+            label={t("invite.action.revoke")}
+            warning={t("invite.action.revoke_warning")}
+            confirm={t("invite.action.revoke_confirm")}
+            onConfirm={() => revoke.mutate()}
+          />
         </span>
       )}
 
@@ -353,11 +386,7 @@ export function Members() {
         </section>
       )}
 
-      {open && (
-        <Modal title={t("invite.title")} onClose={() => setOpen(false)}>
-          <InviteForm onClose={() => setOpen(false)} />
-        </Modal>
-      )}
+      {open && <InviteForm onClose={() => setOpen(false)} />}
     </>
   );
 }

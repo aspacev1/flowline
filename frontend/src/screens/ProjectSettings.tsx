@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { errorKey } from "../api/errors";
@@ -14,10 +13,16 @@ import {
 } from "../api/projects";
 import type { ProjectState } from "../api/projects";
 import { useCanWrite, useOrgRole } from "../auth/permissions";
+import { ConfirmAction } from "../components/ConfirmAction";
 import { useToast } from "../components/toast";
 import { useLocale } from "../i18n/LocaleProvider";
 import { SharePanel } from "../project/SharePanel";
-import { DateListField, SlugField, WorkingDaysField } from "../settings/fields";
+import {
+  DateListField,
+  SlugField,
+  WorkingDaysField,
+  parseThresholdDays,
+} from "../settings/fields";
 
 /**
  * Уровень 3 настроек: слаг, целевая дата и переопределения организации.
@@ -40,7 +45,6 @@ export function ProjectSettings() {
   // всё равно сервер — здесь лишь не предлагается действие, которое кончится
   // отказом.
   const isOwner = useOrgRole() === "owner";
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const query = useQuery({
     queryKey: projectQueryKey(projectId),
@@ -194,7 +198,12 @@ export function ProjectSettings() {
           }
           disabled={readOnly}
           onInherit={() => save.mutate({ shift_threshold_days: null })}
-          onOverride={(value) => save.mutate({ shift_threshold_days: Number(value) })}
+          onOverride={(value) => {
+            // Пустое поле — не «порог ноль»: пока числа нет, переопределение
+            // остаётся прежним, а не превращается в «объяснять каждый сдвиг».
+            const days = parseThresholdDays(value);
+            if (days !== null) save.mutate({ shift_threshold_days: days });
+          }}
           render={(value, onCommit, disabled) => (
             <input
               id="project-threshold"
@@ -262,33 +271,14 @@ export function ProjectSettings() {
                 {t(errorKey(remove.error))}
               </p>
             )}
-            {confirmingDelete ? (
-              <span className="plan__confirm">
-                <span className="muted">{t("settings.project.delete_warning")}</span>
-                <button
-                  type="button"
-                  onClick={() => remove.mutate(state.name)}
-                  disabled={remove.isPending}
-                >
-                  {t("settings.project.delete_confirm")}
-                </button>
-                <button
-                  type="button"
-                  className="button--quiet"
-                  onClick={() => setConfirmingDelete(false)}
-                >
-                  {t("common.cancel")}
-                </button>
-              </span>
-            ) : (
-              <button
-                type="button"
-                className="button--quiet button--alert"
-                onClick={() => setConfirmingDelete(true)}
-              >
-                {t("settings.project.delete")}
-              </button>
-            )}
+            <ConfirmAction
+              className="button--quiet button--alert"
+              label={t("settings.project.delete")}
+              warning={t("settings.project.delete_warning")}
+              confirm={t("settings.project.delete_confirm")}
+              onConfirm={() => remove.mutate(state.name)}
+              disabled={remove.isPending}
+            />
           </div>
         )}
       </section>

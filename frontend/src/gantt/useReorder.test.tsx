@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { drag } from "../test/pointer";
 import {
@@ -58,6 +58,34 @@ function dragRow(
   fireEvent.pointerUp(target, { pointerId: 2, clientX: 10, clientY: 24 });
 }
 
+/**
+ * Тот же жест пальцем.
+ *
+ * Разница не в названии события, а в том, кому оно приходит: указатель после
+ * нажатия захвачен ручкой, и движение с отпусканием достаются ей одной —
+ * строка под пальцем не получает ничего. Поэтому здесь всё шлётся на ручку, а
+ * строку выдаёт попадание в точку, которого у jsdom нет и которое
+ * подставляется на время теста.
+ */
+function touchDragRow(
+  name: string,
+  { over, half, isCategory }: { over: string; half?: "top" | "bottom"; isCategory?: boolean },
+) {
+  const handle = rowHandle(name)!;
+  const target = isCategory ? rowOf(over) : withHeight(rowOf(over));
+  document.elementFromPoint = () => target;
+  const at = { pointerId: 3, clientX: 10, clientY: half === "top" ? 8 : 24 };
+  fireEvent.pointerDown(handle, { ...at, button: 0 });
+  fireEvent.pointerMove(handle, at);
+  return { handle, at, target };
+}
+
+afterEach(() => {
+  // Подстановка попаданий — на один тест: она стоит на документе и утекла бы в
+  // соседние, где строки под точкой быть не должно.
+  Reflect.deleteProperty(document, "elementFromPoint");
+});
+
 describe("перестановка строк", () => {
   it("перетаскивание за левую колонку меняет порядок, а не даты", async () => {
     const sent = captureMutations();
@@ -91,6 +119,46 @@ describe("перестановка строк", () => {
 
     hoverRowWhileDragging("Третья", { over: "Первая", half: "bottom" });
     expect(rowOf("Первая")).toHaveClass("drop-after");
+  });
+
+  it("пальцем строка переставляется так же, как мышью", async () => {
+    const sent = captureMutations();
+    renderProject(THREE_TASKS);
+    await screen.findByRole("button", { name: /Третья/ });
+
+    const { handle, at } = touchDragRow("Третья", { over: "Первая", half: "top" });
+    expect(rowOf("Первая")).toHaveClass("drop-before");
+    fireEvent.pointerUp(handle, at);
+
+    await waitFor(() => expect(sent[0].op).toMatchObject({ type: "reorder_task", position: 0 }));
+  });
+
+  it("пальцем задача переносится в другую категорию", async () => {
+    const sent = captureMutations();
+    renderProject(TWO_CATEGORIES);
+    await screen.findByRole("button", { name: /Логотип/ });
+
+    const { handle, at } = touchDragRow("Логотип", { over: "Разработка", isCategory: true });
+    fireEvent.pointerUp(handle, at);
+
+    await waitFor(() =>
+      expect(sent[0].op).toMatchObject({ type: "reorder_task", category_id: "c2" }),
+    );
+  });
+
+  it("палец мимо строк гасит линию вставки, и бросок ничего не делает", async () => {
+    const sent = captureMutations();
+    renderProject(THREE_TASKS);
+    await screen.findByRole("button", { name: /Третья/ });
+
+    const { handle, at } = touchDragRow("Третья", { over: "Первая", half: "top" });
+    // Палец ушёл за строки — над шапкой ленты цели броска нет.
+    document.elementFromPoint = () => null;
+    fireEvent.pointerMove(handle, at);
+    expect(rowOf("Первая")).not.toHaveClass("drop-before");
+
+    fireEvent.pointerUp(handle, at);
+    expect(sent).toHaveLength(0);
   });
 
   it("перетаскивание полоски не меняет порядок", async () => {

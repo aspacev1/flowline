@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { STATE, projectFixtures, renderProject } from "../test/project";
 import { server } from "../test/server";
 import { ORG, USER, renderApp, sessionHandlers } from "../test/utils";
+import { ToastProvider, useToast } from "./toast";
 
 /**
  * Тост как общее правило, а не как особенность перетаскивания.
@@ -94,6 +95,8 @@ describe("подтверждения тихих операций", () => {
     renderProject(undefined, { route: "/projects/p1/settings" });
 
     await userEvent.click(await screen.findByRole("button", { name: "Закрыть ссылку" }));
+    // Кнопка сперва спрашивает: отзыв гасит уже разосланный адрес.
+    await userEvent.click(screen.getByRole("button", { name: "Да, закрыть ссылку" }));
 
     expect(await screen.findByText("Публичная ссылка закрыта")).toBeInTheDocument();
   });
@@ -157,6 +160,7 @@ describe("подтверждения на экранах организации"
     renderApp({ route: "/settings/members", locale: "ru" });
 
     await userEvent.click(await screen.findByRole("button", { name: "Отозвать" }));
+    await userEvent.click(screen.getByRole("button", { name: "Да, отозвать" }));
 
     expect(await screen.findByText("Приглашение отозвано")).toBeInTheDocument();
   });
@@ -226,5 +230,43 @@ describe("тон тоста", () => {
 
     await waitFor(() => expect(toast()).toHaveTextContent("✓"));
     expect(toast()).not.toHaveClass("toast--error");
+  });
+});
+
+/** Две кнопки, каждая со своим тостом: смену тоста иначе не воспроизвести. */
+function Harness() {
+  const toast = useToast();
+  return (
+    <>
+      <button type="button" onClick={() => toast({ message: "Задача перенесена" })}>
+        Первый
+      </button>
+      <button type="button" onClick={() => toast({ message: "Задача возвращена" })}>
+        Второй
+      </button>
+    </>
+  );
+}
+
+describe("тост", () => {
+  it("появляется заново, когда один тост сменяет другой", async () => {
+    const user = userEvent.setup();
+    render(
+      <ToastProvider>
+        <Harness />
+      </ToastProvider>,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Первый" }));
+    const first = screen.getByRole("status");
+
+    await user.click(screen.getByRole("button", { name: "Второй" }));
+    const second = screen.getByRole("status");
+
+    expect(second).toHaveTextContent("Задача возвращена");
+    // Узел именно новый, а не переписанный: появление тоста нарисовано
+    // анимацией, а она играет один раз на узел — сменив только текст, второй
+    // тост возник бы срезом там, где первый выехал.
+    expect(second).not.toBe(first);
   });
 });
