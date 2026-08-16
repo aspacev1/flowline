@@ -1,10 +1,12 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { drag } from "../test/pointer";
 import {
   STATE,
   TWO_TASKS,
+  WITH_CRITICAL_PATH,
   WITH_MILESTONE,
   captureMutations,
   projectFixtures,
@@ -328,11 +330,28 @@ describe("колонки таблицы", () => {
     expect(sent[0].op).toMatchObject({ type: "move_task", start_date: "2026-03-09" });
   });
 
-  it("не даёт править окончание: его считает сервер", async () => {
+  it("правит окончание длительностью: саму дату считает сервер", async () => {
+    const sent = captureMutations();
     renderProject();
     const row = (await screen.findByText("Логотип")).closest(".gantt__row") as HTMLElement;
 
     fireEvent.click(within(row).getByText("10 марта"));
+    const input = within(row).getByLabelText(/Окончание/);
+    // Задача идёт с 4 марта; конец 12-го — это семь рабочих дней (7-е и 8-е
+    // выходные). Записать дату окончания напрямую нельзя, и ячейка переводит
+    // названный день в длительность тем же счётом, что и правая грань.
+    fireEvent.change(input, { target: { value: "2026-03-12" } });
+    fireEvent.blur(input);
+
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0].op).toMatchObject({ type: "set_duration", duration_days: 7 });
+  });
+
+  it("окончание вехи не правится: длительности у неё нет", async () => {
+    renderProject(WITH_MILESTONE);
+    const row = (await screen.findByText("Сдача")).closest(".gantt__row") as HTMLElement;
+
+    fireEvent.click(within(row).getAllByText("16 марта")[1]);
 
     expect(within(row).queryByLabelText(/Окончание/)).not.toBeInTheDocument();
   });
@@ -344,5 +363,88 @@ describe("колонки таблицы", () => {
     fireEvent.click(within(row).getByText("4 марта"));
 
     expect(within(row).queryByLabelText(/Начало/)).not.toBeInTheDocument();
+  });
+});
+
+describe("критический путь", () => {
+  it("по умолчанию не рисуется: слой включают в «Виде»", async () => {
+    const { container } = renderProject(WITH_CRITICAL_PATH);
+    await bar(/Логотип/);
+
+    expect(container.querySelector(".gantt")).not.toHaveClass("show-critical");
+  });
+
+  it("включённый помечает задачи без запаса и не трогает остальные", async () => {
+    renderProject(WITH_CRITICAL_PATH);
+    await bar(/Логотип/);
+
+    await userEvent.click(screen.getByRole("button", { name: "Вид" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "Критический путь" }));
+
+    expect(await bar(/Логотип/)).toHaveAttribute("data-critical");
+    expect(await bar(/Макет/)).toHaveAttribute("data-critical");
+    expect(await bar(/Сбоку/)).not.toHaveAttribute("data-critical");
+  });
+
+  it("звено между двумя критическими задачами — тоже критическое", async () => {
+    const { container } = renderProject(WITH_CRITICAL_PATH);
+    await bar(/Логотип/);
+
+    expect(container.querySelector("svg.arrows polyline")).toHaveClass("is-critical");
+  });
+});
+
+describe("клавиатура", () => {
+  it("Alt со стрелкой растягивает конец задачи", async () => {
+    const sent = captureMutations();
+    renderProject();
+    const logo = await bar(/Логотип/);
+
+    logo.focus();
+    await userEvent.keyboard("{Alt>}{ArrowRight}{/Alt}");
+
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0].op).toMatchObject({ type: "set_duration", duration_days: 6 });
+  });
+
+  it("Shift с Alt двигает начало, не трогая конца", async () => {
+    const sent = captureMutations();
+    renderProject();
+    const logo = await bar(/Логотип/);
+
+    logo.focus();
+    await userEvent.keyboard("{Shift>}{Alt>}{ArrowLeft}{/Alt}{/Shift}");
+
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0].op).toMatchObject({
+      type: "resize_task",
+      start_date: "2026-03-03",
+      duration_days: 6,
+    });
+  });
+
+  it("не даёт укоротить задачу короче дня", async () => {
+    const sent = captureMutations();
+    renderProject({
+      ...STATE,
+      tasks: [{ ...STATE.tasks[0], duration_days: 1, end_date: "2026-03-04" }],
+    });
+    const logo = await bar(/Логотип/);
+
+    logo.focus();
+    await userEvent.keyboard("{Alt>}{ArrowLeft}{/Alt}");
+
+    expect(sent).toHaveLength(0);
+  });
+
+  it("у вехи граней нет и с клавиатуры", async () => {
+    const sent = captureMutations();
+    renderProject(WITH_MILESTONE);
+    const milestone = await bar(/Сдача/);
+
+    milestone.focus();
+    await userEvent.keyboard("{Alt>}{ArrowRight}{/Alt}");
+
+    expect(sent).toHaveLength(0);
   });
 });

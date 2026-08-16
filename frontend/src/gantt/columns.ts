@@ -125,9 +125,19 @@ export function storedLayout(projectId: string): ColumnLayout | null {
     const { shown, widths } = parsed as { shown?: unknown; widths?: unknown };
     if (!Array.isArray(shown)) return null;
 
-    // Порядок задаёт код, а не хранилище: колонки идут в объявленном порядке,
-    // и запись из будущей версии не должна уметь переставить их местами.
-    const visible = COLUMN_KEYS.filter((key) => key === "task" || shown.includes(key));
+    // Порядок читается из хранилища: колонки переставляют местами за
+    // заголовок, и порядок — такой же выбор человека, как их набор. Проверять
+    // его всё равно надо: в записи от будущей версии может лежать незнакомое
+    // имя, повтор или пропущенное имя колонки.
+    const seen = new Set<ColumnKey>();
+    const visible = shown.filter((key): key is ColumnKey => {
+      if (!isColumnKey(key) || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+    // Имя задачи всегда первое и всегда есть: строка без него — строка, по
+    // которой нельзя понять, о чём она.
+    const ordered: ColumnKey[] = ["task", ...visible.filter((key) => key !== "task")];
     const sizes = { ...DEFAULT_WIDTH };
     if (typeof widths === "object" && widths !== null) {
       for (const [key, value] of Object.entries(widths)) {
@@ -136,7 +146,7 @@ export function storedLayout(projectId: string): ColumnLayout | null {
         }
       }
     }
-    return { shown: visible, widths: sizes };
+    return { shown: ordered, widths: sizes };
   } catch {
     return null;
   }
@@ -152,4 +162,45 @@ export function rememberLayout(projectId: string, layout: ColumnLayout): void {
 
 export function clampWidth(width: number): number {
   return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, Math.round(width)));
+}
+
+/**
+ * Колонка включена или выключена.
+ *
+ * Включённая встаёт не в конец, а на своё место по объявленному порядку — но
+ * только среди тех, которых человек не переставлял: порядок принадлежит ему,
+ * и колонка, случайно выключенная и включённая обратно, не должна перетасовать
+ * то, что он выстроил. Поэтому вставка ищет первую показанную колонку, которая
+ * по объявленному порядку идёт после включаемой, и встаёт перед ней.
+ */
+export function toggleColumn(shown: ColumnKey[], column: ColumnKey): ColumnKey[] {
+  if (column === "task") return shown;
+  if (shown.includes(column)) return shown.filter((key) => key !== column);
+
+  const natural = COLUMN_KEYS.indexOf(column);
+  const at = shown.findIndex((key) => COLUMN_KEYS.indexOf(key) > natural);
+  return at === -1
+    ? [...shown, column]
+    : [...shown.slice(0, at), column, ...shown.slice(at)];
+}
+
+/**
+ * Колонка, перенесённая на место другой.
+ *
+ * Имя задачи с первого места не уходит и на него никого не пускает: это
+ * единственная колонка, по которой строка опознаётся, и вторая за ней читалась
+ * бы как заголовок строки. Поэтому и бросок на неё, и бросок её самой просто
+ * ничего не меняют — молча, без объяснений: объяснять нечего, человек тянул
+ * колонку и увидел, что она не тянется.
+ */
+export function reorderColumns(
+  shown: ColumnKey[],
+  moved: ColumnKey,
+  before: ColumnKey,
+): ColumnKey[] {
+  if (moved === "task" || before === "task" || moved === before) return shown;
+  const rest = shown.filter((key) => key !== moved);
+  const at = rest.indexOf(before);
+  if (at === -1) return shown;
+  return [...rest.slice(0, at), moved, ...rest.slice(at)];
 }

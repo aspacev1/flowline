@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   COLUMN_KEYS,
+  reorderColumns,
+  toggleColumn,
   DEFAULT_WIDTH,
   MAX_WIDTH,
   MIN_WIDTH,
@@ -40,6 +42,45 @@ describe("раскладка колонок", () => {
   });
 });
 
+describe("порядок и набор колонок", () => {
+  it("переставляет колонку на место соседней", () => {
+    expect(reorderColumns(["task", "start", "end", "duration"], "duration", "start")).toEqual([
+      "task",
+      "duration",
+      "start",
+      "end",
+    ]);
+  });
+
+  it("имя задачи с первого места не уходит и на него никого не пускает", () => {
+    const shown: ("task" | "start" | "end")[] = ["task", "start", "end"];
+    expect(reorderColumns(shown, "task", "end")).toEqual(shown);
+    expect(reorderColumns(shown, "end", "task")).toEqual(shown);
+  });
+
+  it("бросок колонки на саму себя ничего не меняет", () => {
+    const shown: ("task" | "start" | "end")[] = ["task", "start", "end"];
+    expect(reorderColumns(shown, "start", "start")).toEqual(shown);
+  });
+
+  it("включённая колонка встаёт на своё место по объявленному порядку", () => {
+    expect(toggleColumn(["task", "start", "assignee"], "end")).toEqual([
+      "task",
+      "start",
+      "end",
+      "assignee",
+    ]);
+  });
+
+  it("выключенная колонка исчезает, не тронув порядка остальных", () => {
+    expect(toggleColumn(["task", "duration", "start"], "duration")).toEqual(["task", "start"]);
+  });
+
+  it("имя задачи не выключается", () => {
+    expect(toggleColumn(["task", "start"], "task")).toEqual(["task", "start"]);
+  });
+});
+
 describe("память раскладки", () => {
   it("возвращает то, что положили", () => {
     const layout = { shown: ["task" as const, "duration" as const], widths: { ...DEFAULT_WIDTH } };
@@ -48,15 +89,33 @@ describe("память раскладки", () => {
     expect(storedLayout("p1")).toEqual(layout);
   });
 
-  it("порядок колонок задаёт код, а не хранилище", () => {
-    // Запись будущей версии могла бы переставить колонки местами; читаться она
-    // обязана в объявленном порядке.
+  it("возвращает порядок таким, каким его выставили", () => {
+    // Порядок принадлежит человеку: колонки переставляют за заголовок, и
+    // прочитанное обязано вернуть их в том же порядке, а не в объявленном.
     localStorage.setItem(
       "planora.gantt_columns.p2",
       JSON.stringify({ shown: ["end", "start"], widths: {} }),
     );
 
-    expect(storedLayout("p2")?.shown).toEqual(["task", "start", "end"]);
+    expect(storedLayout("p2")?.shown).toEqual(["task", "end", "start"]);
+  });
+
+  it("имя задачи в прочитанной раскладке всегда первое и всегда есть", () => {
+    localStorage.setItem(
+      "planora.gantt_columns.p7",
+      JSON.stringify({ shown: ["end", "task", "start"], widths: {} }),
+    );
+
+    expect(storedLayout("p7")?.shown).toEqual(["task", "end", "start"]);
+  });
+
+  it("повтор в записи не двоит колонку", () => {
+    localStorage.setItem(
+      "planora.gantt_columns.p8",
+      JSON.stringify({ shown: ["start", "start", "end"], widths: {} }),
+    );
+
+    expect(storedLayout("p8")?.shown).toEqual(["task", "start", "end"]);
   });
 
   it("кривая запись — это «показать по умолчанию», а не колонка-призрак", () => {

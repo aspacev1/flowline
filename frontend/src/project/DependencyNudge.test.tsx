@@ -115,6 +115,20 @@ describe("предложение подвинуть связанную зада�
     expect(screen.queryByRole("button", { name: /Подвинуть/ })).toBeNull();
   });
 
+  it("молчит, когда даты двигает автоперенос", async () => {
+    // Предложение сделать сделанное читается как сбой: человек жмёт
+    // «Подвинуть», ничего не происходит, и виноватой выглядит кнопка.
+    const auto = { ...WITH_DEPENDENCY, auto_schedule: true };
+    const sent = movingServer(auto);
+    renderProject(auto);
+    const bar = await screen.findByRole("button", { name: /Логотип/ });
+
+    dragDays(bar, 5);
+
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(screen.queryByRole("button", { name: /Подвинуть/ })).toBeNull();
+  });
+
   it("молчит, когда связей нет вовсе", async () => {
     const sent = movingServer({ ...WITH_DEPENDENCY, dependencies: [] });
     renderProject(WITH_DEPENDENCY);

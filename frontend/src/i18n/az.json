@@ -510,7 +510,8 @@
       "baseline": "Baza planı",
       "legend": "Leqenda",
       "summary": "Son tarix xülasəsi",
-      "caption": "Qeyd"
+      "caption": "Qeyd",
+      "critical": "Kritik yol"
     },
     "col": {
       "task": "Tapşırıq",
@@ -520,7 +521,8 @@
       "progress": "Hazır",
       "assignee": "İcraçı",
       "edit": "«{name}» üçün {column} dəyiş",
-      "resize": "«{column}» sütununun eni"
+      "resize": "«{column}» sütununun eni",
+      "reorder": "«{column}» sütununu daşımaq üçün dartın"
     },
     "reorder": "«{name}» sətrini daşı",
     "deadline": "Son tarix {date}",
@@ -537,7 +539,8 @@
     "nudge_dismiss": "Təklifi bağla",
     "legend": {
       "blocker": "Bloker",
-      "late": "Son tarix pozulub · +N gün"
+      "late": "Son tarix pozulub · +N gün",
+      "critical": "Kritik yol"
     },
     "tip": {
       "more": "{name} +{count}",
@@ -557,6 +560,10 @@
     "link": {
       "from": "«{name}» nəyi gözləyir — göstərmək üçün dartın",
       "to": "«{name}» nəyi bloklayır — göstərmək üçün dartın"
+    },
+    "auto_schedule": {
+      "label": "Əlaqələr üzrə avtomatik sürüşmə",
+      "hint": "Tapşırıq gözlədiyi iş bitməmiş başlamır. Yalnız irəli sürüşdürür — saxladığınız ehtiyat qalır."
     }
   },
   "share": {

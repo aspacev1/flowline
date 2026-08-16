@@ -1043,6 +1043,17 @@
         "additionalProperties": false,
         "description": "Уровень 3: настройки проекта.\n\nТри величины здесь допускают `null`, и `null` означает «наследовать от\nорганизации», а не «пусто». Отличить «прислали null» от «не прислали\nвовсе» позволяет `model_fields_set`: без этого сброс переопределения был\nбы невыразим — любой запрос без поля стирал бы его.",
         "properties": {
+          "auto_schedule": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Schedule"
+          },
           "deadline": {
             "anyOf": [
               {

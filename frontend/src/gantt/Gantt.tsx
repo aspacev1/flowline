@@ -18,7 +18,14 @@ import type { CellLabels, DayFormat } from "./Row";
 import { MOTION_MS, usePrefersReducedMotion } from "./motion";
 import { useLinkDrag } from "./useLinkDrag";
 import { useReorder } from "./useReorder";
-import { COLUMN_KEYS, OPTIONAL_COLUMNS, defaultLayout, layoutWidth } from "./columns";
+import {
+  COLUMN_KEYS,
+  OPTIONAL_COLUMNS,
+  defaultLayout,
+  layoutWidth,
+  reorderColumns,
+  toggleColumn,
+} from "./columns";
 import type { ColumnKey, ColumnLayout } from "./columns";
 import { rememberLayout, storedLayout } from "./columns";
 import { DAY_WIDTH, ROW_HEIGHT, projectWindow } from "./scale";
@@ -35,6 +42,7 @@ type ViewFlags = {
   legend: boolean;
   summary: boolean;
   caption: boolean;
+  critical: boolean;
 };
 
 /**
@@ -142,18 +150,12 @@ export function Gantt({
     setLayoutState(next);
     rememberLayout(projectId, next);
   };
-  const toggleColumn = (column: ColumnKey) =>
-    setLayout({
-      ...layout,
-      // Порядок задаёт объявленный список, а не порядок включения: колонка,
-      // выключенная и включённая обратно, обязана вернуться на своё место, а
-      // не встать в конец.
-      shown: COLUMN_KEYS.filter(
-        (key) => (layout.shown.includes(key) && key !== column) || (key === column && !layout.shown.includes(key)),
-      ),
-    });
+  const switchColumn = (column: ColumnKey) =>
+    setLayout({ ...layout, shown: toggleColumn(layout.shown, column) });
   const resizeColumn = (column: ColumnKey, width: number) =>
     setLayout({ ...layout, widths: { ...layout.widths, [column]: width } });
+  const moveColumn = (moved: ColumnKey, before: ColumnKey) =>
+    setLayout({ ...layout, shown: reorderColumns(layout.shown, moved, before) });
 
   // Необязательные слои. Базовый план и сводка по дедлайну видны сразу:
   // первый — язык отклонений, вторая — единственная цифра, которая
@@ -164,6 +166,10 @@ export function Gantt({
     legend: false,
     summary: true,
     caption: false,
+    // Критический путь ждёт, пока его попросят: он красит полоски третьим
+    // способом поверх статуса и просрочки, и включённый всегда превращал бы
+    // ленту в карту цепочек там, где спрашивают всего лишь «что когда».
+    critical: false,
   });
   const toggleView = (flag: keyof ViewFlags) =>
     setView((current) => ({ ...current, [flag]: !current[flag] }));
@@ -332,7 +338,7 @@ export function Gantt({
     <div
       className={`gantt gantt--${zoom}${reorder.active ? " is-reordering" : ""}${
         link.active ? " is-linking" : ""
-      }${reducedMotion ? " motion-off" : ""}`}
+      }${view.critical ? " show-critical" : ""}${reducedMotion ? " motion-off" : ""}`}
       // Высота строки, ширина закреплённой колонки и длительность переходов
       // задаются отсюда по одной и той же причине: все три величины знает не
       // только CSS. По высоте строки стрелки считают вертикальные координаты,
@@ -421,7 +427,7 @@ export function Gantt({
                 <input
                   type="checkbox"
                   checked={layout.shown.includes(column)}
-                  onChange={() => toggleColumn(column)}
+                  onChange={() => switchColumn(column)}
                 />
                 {cellLabels.columns[column]}
               </label>
@@ -435,6 +441,7 @@ export function Gantt({
             {(
               [
                 ["baseline", t("gantt.view.baseline")],
+                ["critical", t("gantt.view.critical")],
                 ["legend", t("gantt.view.legend")],
                 ["summary", t("gantt.view.summary")],
                 ["caption", t("gantt.view.caption")],
@@ -470,7 +477,9 @@ export function Gantt({
                   layout={layout}
                   labels={cellLabels.columns}
                   onResize={resizeColumn}
+                  onReorder={moveColumn}
                   resizeLabel={(column) => t("gantt.col.resize", { column })}
+                  reorderLabel={(column) => t("gantt.col.reorder", { column })}
                 />
               </div>
               {relativeView ? (
@@ -635,6 +644,10 @@ function Legend() {
       <span className="gantt__legend-item">
         <i className="gantt__swatch" data-overlay="critical" aria-hidden="true" />
         {t("gantt.legend.blocker")}
+      </span>
+      <span className="gantt__legend-item">
+        <i className="gantt__swatch gantt__swatch--critical" aria-hidden="true" />
+        {t("gantt.legend.critical")}
       </span>
       <span className="gantt__legend-item">
         <i className="gantt__swatch gantt__swatch--line gantt__swatch--deadline" aria-hidden="true" />

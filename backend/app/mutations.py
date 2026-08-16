@@ -23,8 +23,9 @@ from app.models import (
     TaskStatus,
     User,
 )
+from app.cascade import apply_dates, push_successors
 from app.plans import deviation_days
-from app.settings_resolution import resolve_shift_threshold
+from app.settings_resolution import project_calendar, resolve_shift_threshold
 
 
 class MutationError(Exception):
@@ -132,16 +133,35 @@ class CreateTask(BaseModel):
     comments: list[dict] = Field(default_factory=list)
 
 
+
+# --- поле восстановления автопереноса ------------------------------------------
+#
+# Операции, меняющие сроки, при включённом автопереносе двигают не только свою
+# задачу, но и её последователей (см. app/cascade.py). Отмена обязана вернуть
+# всех, а не одну, и вернуть точно — поэтому прямая операция записывает в
+# журнал карту сдвинутых, а обратная получает её обратно этим полем и
+# раскладывает даты дословно, ничего не пересчитывая.
+#
+# Тот же приём, что у SetProgress.status: связка отрабатывает в прямой
+# операции, а обратная берёт готовое. Пересчитать автоперенос при отмене
+# нельзя в принципе — «подвинуть на самое раннее» необратимо: перенос вперёд
+# помнит, откуда пришёл, а вычисление этого не помнит.
+#
+# По проводу поле не принимается: клиент, приславший карту дат, разложил бы
+# план в обход всякой проверки.
+
 class MoveTask(BaseModel):
     type: Literal["move_task"] = "move_task"
     task_id: uuid.UUID
     start_date: date
+    cascade: dict[uuid.UUID, date] | None = None
 
 
 class SetDuration(BaseModel):
     type: Literal["set_duration"] = "set_duration"
     task_id: uuid.UUID
     duration_days: int
+    cascade: dict[uuid.UUID, date] | None = None
 
 
 class ResizeTask(BaseModel):
@@ -162,6 +182,7 @@ class ResizeTask(BaseModel):
     task_id: uuid.UUID
     start_date: date
     duration_days: int
+    cascade: dict[uuid.UUID, date] | None = None
 
 
 class SetMilestone(BaseModel):
@@ -198,6 +219,7 @@ class MoveCategory(BaseModel):
     type: Literal["move_category"] = "move_category"
     category_id: uuid.UUID
     days: int
+    cascade: dict[uuid.UUID, date] | None = None
 
 
 class DeleteTask(BaseModel):
@@ -286,12 +308,19 @@ class AddDependency(BaseModel):
     type: Literal["add_dependency"] = "add_dependency"
     from_task_id: uuid.UUID
     to_task_id: uuid.UUID
+    # Новая связь двигает последователя ровно так же, как перенос
+    # предшественника: она и означает «эта работа ждёт ту».
+    cascade: dict[uuid.UUID, date] | None = None
 
 
 class RemoveDependency(BaseModel):
     type: Literal["remove_dependency"] = "remove_dependency"
     from_task_id: uuid.UUID
     to_task_id: uuid.UUID
+    # Обратная к add_dependency: снятая связь возвращает последователей туда,
+    # откуда их подвинуло её появление. Сама по себе снятая связь не двигает
+    # ничего — автоперенос назад не тянет (см. app/cascade.py).
+    cascade: dict[uuid.UUID, date] | None = None
 
 
 class AssignUser(BaseModel):
@@ -720,6 +749,57 @@ def _restore_task_links(db: DbSession, project: Project, task: Task, op: CreateT
     db.flush()
 
 
+def _cascade(
+    db: DbSession,
+    project: Project,
+    seeds: set[uuid.UUID],
+    given: dict[uuid.UUID, date] | None,
+) -> tuple[dict, dict]:
+    """Автоперенос по связям — и две карты дат для журнала.
+
+    Возвращает пару «в прямую операцию, в обратную»: куда последователи встали
+    и откуда пришли. Обе уже приведены к виду, в каком лежат в журнале, —
+    строки, а не объекты.
+
+    `given` — карта из журнала: значит, идёт отмена, и раскладывать даты надо
+    дословно. Пересчитывать автоперенос здесь нельзя в принципе: «подвинуть на
+    самое раннее» необратимо — перенос вперёд помнит, откуда пришёл, а
+    вычисление этого не помнит.
+    """
+    if given is not None:
+        was = apply_dates(db, project, given)
+        return _dates_out(given), _dates_out(was)
+
+    if not project.auto_schedule:
+        return {}, {}
+
+    org = db.get(Organization, project.org_id)
+    cal = project_calendar(project, org)
+    was = push_successors(db, project, cal, seeds)
+    # Прямая операция несёт новые даты, обратная — прежние. Новые берутся у
+    # самих задач, а не пересчитываются вторым проходом: их только что и
+    # расставил перенос.
+    moved = {
+        task.id: task.start_date
+        for task in db.scalars(select(Task).where(Task.id.in_(was))).all()
+    } if was else {}
+    return _dates_out(moved), _dates_out(was)
+
+
+def _dates_out(dates: dict[uuid.UUID, date]) -> dict[str, str]:
+    """Карта дат в том виде, в каком она лежит в журнале."""
+    return {str(task_id): moment.isoformat() for task_id, moment in dates.items()}
+
+
+def _with_cascade(payload: dict, cascade: dict) -> dict:
+    """Карта сдвинутых — в запись журнала, и только если кого-то сдвинуло.
+
+    Пустое поле не пишется: запись `"cascade": {}` у каждой второй операции
+    засоряла бы журнал следом того, чего не происходило.
+    """
+    return payload | {"cascade": cascade} if cascade else payload
+
+
 def _swap(payload: dict) -> dict:
     """Обратная операция отличается от прямой только местами from и to.
 
@@ -859,11 +939,18 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
         previous = task.start_date
         task.start_date = op.start_date
         db.flush()
+        moved, back = _cascade(db, project, {task.id}, op.cascade)
         return (
-            {"type": "move_task", "task_id": str(task.id), "from": previous.isoformat(),
-             "to": op.start_date.isoformat()},
-            {"type": "move_task", "task_id": str(task.id), "from": op.start_date.isoformat(),
-             "to": previous.isoformat()},
+            _with_cascade(
+                {"type": "move_task", "task_id": str(task.id), "from": previous.isoformat(),
+                 "to": op.start_date.isoformat()},
+                moved,
+            ),
+            _with_cascade(
+                {"type": "move_task", "task_id": str(task.id), "from": op.start_date.isoformat(),
+                 "to": previous.isoformat()},
+                back,
+            ),
         )
 
     if isinstance(op, ResizeTask):
@@ -894,7 +981,8 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
         task.start_date = op.start_date
         task.duration_days = op.duration_days
         db.flush()
-        return forward, _swap(forward)
+        moved, back = _cascade(db, project, {task.id}, op.cascade)
+        return _with_cascade(forward, moved), _with_cascade(_swap(forward), back)
 
     if isinstance(op, MoveCategory):
         if op.days == 0:
@@ -921,22 +1009,33 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
                 )
             task.start_date = moved
         db.flush()
+        # Последователи вне категории — тоже последователи: этап уехал, и
+        # работа, ждущая его задач, обязана уехать с ним. Задачи самой
+        # категории при этом уже подвинуты, и автоперенос их не трогает — они
+        # и есть исходные точки обхода.
+        pushed, back = _cascade(db, project, {task.id for task in tasks}, op.cascade)
         return (
-            {
-                "type": "move_category",
-                "category_id": str(category.id),
-                "days": op.days,
-                # Задачи названы поимённо, а не только числом дней: история
-                # обязана показать, что именно уехало, а карточка отмены —
-                # сказать, сколько строк вернётся.
-                "task_ids": [str(task.id) for task in tasks],
-            },
-            {
-                "type": "move_category",
-                "category_id": str(category.id),
-                "days": -op.days,
-                "task_ids": [str(task.id) for task in tasks],
-            },
+            _with_cascade(
+                {
+                    "type": "move_category",
+                    "category_id": str(category.id),
+                    "days": op.days,
+                    # Задачи названы поимённо, а не только числом дней: история
+                    # обязана показать, что именно уехало, а карточка отмены —
+                    # сказать, сколько строк вернётся.
+                    "task_ids": [str(task.id) for task in tasks],
+                },
+                pushed,
+            ),
+            _with_cascade(
+                {
+                    "type": "move_category",
+                    "category_id": str(category.id),
+                    "days": -op.days,
+                    "task_ids": [str(task.id) for task in tasks],
+                },
+                back,
+            ),
         )
 
     if isinstance(op, SetMilestone):
@@ -980,11 +1079,18 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
         previous = task.duration_days
         task.duration_days = op.duration_days
         db.flush()
+        moved, back = _cascade(db, project, {task.id}, op.cascade)
         return (
-            {"type": "set_duration", "task_id": str(task.id), "from": previous,
-             "to": op.duration_days},
-            {"type": "set_duration", "task_id": str(task.id), "from": op.duration_days,
-             "to": previous},
+            _with_cascade(
+                {"type": "set_duration", "task_id": str(task.id), "from": previous,
+                 "to": op.duration_days},
+                moved,
+            ),
+            _with_cascade(
+                {"type": "set_duration", "task_id": str(task.id), "from": op.duration_days,
+                 "to": previous},
+                back,
+            ),
         )
 
     if isinstance(op, SetTaskFields):
@@ -1186,7 +1292,15 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
         )
         db.flush()
         ends = {"from_task_id": str(op.from_task_id), "to_task_id": str(op.to_task_id)}
-        return {"type": "add_dependency", **ends}, {"type": "remove_dependency", **ends}
+        # Новая связь двигает последователя ровно так же, как перенос
+        # предшественника: она и означает «эта работа ждёт ту». Исходная точка
+        # обхода — предшественник: сам он не двигается, а вот всё, что от него
+        # теперь зависит, обязано встать после него.
+        moved, back = _cascade(db, project, {op.from_task_id}, op.cascade)
+        return (
+            _with_cascade({"type": "add_dependency", **ends}, moved),
+            _with_cascade({"type": "remove_dependency", **ends}, back),
+        )
 
     if isinstance(op, RemoveDependency):
         _require_task(db, project, op.from_task_id)
@@ -1197,7 +1311,15 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
         db.delete(dependency)
         db.flush()
         ends = {"from_task_id": str(op.from_task_id), "to_task_id": str(op.to_task_id)}
-        return {"type": "remove_dependency", **ends}, {"type": "add_dependency", **ends}
+        # Снятие связи само по себе не двигает ничего: автоперенос назад не
+        # тянет (см. app/cascade.py). Карта дат сюда приходит только как поле
+        # восстановления — когда эта операция обратна add_dependency и обязана
+        # вернуть последователей туда, откуда их подвинула новая связь.
+        moved, back = _cascade(db, project, set(), op.cascade)
+        return (
+            _with_cascade({"type": "remove_dependency", **ends}, moved),
+            _with_cascade({"type": "add_dependency", **ends}, back),
+        )
 
     if isinstance(op, ReorderTask):
         if op.position < 0:
@@ -1358,6 +1480,21 @@ def _guard_shift_threshold(db: DbSession, project: Project, op, reason: str | No
     привилегированное действие: если возврат к прежнему значению уводит задачу
     от базового плана дальше порога, объяснение нужно ровно так же, как при
     любом другом способе туда попасть.
+
+    Задачи, подвинутые автопереносом, здесь не считаются, и это решение, а не
+    упущение. Порог спрашивает «объясните, что вы делаете», а автоперенос —
+    не то, что человек делает, а следствие связей, которые он расставил
+    раньше: он двигает одну задачу, и цепочка едет за ней по правилу, которое
+    он сам и включил. Спрашивать причину ещё раз за каждое звено цепочки
+    значило бы задать один и тот же вопрос столько раз, сколько связей.
+    Отклонение самих звеньев при этом не скрывается: бейдж на полоске и
+    признак «план разошёлся с согласованным» считаются по датам и показывают
+    их, кто бы эти даты ни подвинул.
+
+    Проверка идёт до применения, а прямой расчёт переноса — во время, поэтому
+    посчитать здесь будущую цепочку нечем, не повторив весь расчёт вторым
+    проходом. Это второй довод к тому же решению, но не первый: будь расчёт
+    бесплатным, ответ остался бы тем же.
     """
     if reason:
         return

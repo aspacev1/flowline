@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import type { KeyboardEvent, ReactNode } from "react";
+import type { KeyboardEvent, PointerEvent, ReactNode } from "react";
 
 import type { Task } from "../api/projects";
 import type { ColumnKey, ColumnLayout } from "./columns";
-import { MIN_WIDTH, clampWidth } from "./columns";
+import { COLUMN_KEYS, MIN_WIDTH, clampWidth } from "./columns";
 
 /**
  * Ячейки закреплённой таблицы — левой части ленты.
@@ -124,6 +124,9 @@ export function Cell({
   return (
     <span
       className={`gantt__cell gantt__cell--${column}`}
+      // Имя колонки — в разметке: перенос ищет цель попаданием в точку, и
+      // узнать по найденному элементу, что это за колонка, больше не по чему.
+      data-column={column}
       style={{ flex: `0 0 ${layout.widths[column]}px`, width: layout.widths[column] }}
     >
       {children}
@@ -142,19 +145,37 @@ export function HeadCells({
   layout,
   labels,
   onResize,
+  onReorder,
   resizeLabel,
+  reorderLabel,
 }: {
   layout: ColumnLayout;
   labels: Record<ColumnKey, string>;
   /** `undefined` — ширины не меняются (у ленты нет памяти, например в тесте). */
   onResize?: (column: ColumnKey, width: number) => void;
+  /** `undefined` — колонки не переставляются. */
+  onReorder?: (moved: ColumnKey, before: ColumnKey) => void;
   resizeLabel: (column: string) => string;
+  reorderLabel?: (column: string) => string;
 }) {
+  const drag = useColumnDrag(onReorder);
+
   return (
     <>
       {layout.shown.map((column) => (
         <Cell key={column} column={column} layout={layout}>
-          <span className="gantt__corner-label">{labels[column]}</span>
+          <span
+            className={`gantt__corner-label${
+              onReorder && column !== "task" ? " gantt__corner-label--movable" : ""
+            }`}
+            // Имя колонки — и подпись, и ручка переноса: отдельная ручка на
+            // заголовок шириной в семьдесят пикселей отняла бы у подписи
+            // столько места, что от неё осталось бы многоточие.
+            title={onReorder && column !== "task" ? reorderLabel?.(labels[column]) : undefined}
+            {...(onReorder && column !== "task" ? drag.handleProps(column) : {})}
+          >
+            {labels[column]}
+          </span>
           {onResize && (
             <ColumnGrip
               width={layout.widths[column]}
@@ -166,6 +187,78 @@ export function HeadCells({
       ))}
     </>
   );
+}
+
+/**
+ * Перенос колонки за её заголовок.
+ *
+ * Колонку роняют на соседнюю, и она встаёт перед ней. Цель ищется попаданием
+ * в точку, а не адресатом события, по той же причине, что и у перестановки
+ * строк: пальцем указатель после нажатия захвачен заголовком, с которого начали,
+ * и соседние о движении не узнают (см. `targetAt` в useReorder).
+ *
+ * Подсветка цели идёт классом прямо в DOM, мимо состояния React: цель меняется
+ * на каждом пересечении границы, а перерисовка шапки тянет за собой всю ленту.
+ */
+function useColumnDrag(onReorder?: (moved: ColumnKey, before: ColumnKey) => void) {
+  const from = useRef<{ pointerId: number; column: ColumnKey } | null>(null);
+  const hovered = useRef<HTMLElement | null>(null);
+
+  const markTarget = (element: HTMLElement | null) => {
+    if (hovered.current === element) return;
+    hovered.current?.classList.remove(COLUMN_TARGET_CLASS);
+    element?.classList.add(COLUMN_TARGET_CLASS);
+    hovered.current = element;
+  };
+
+  const cellAt = (clientX: number, clientY: number): HTMLElement | null => {
+    const under = document.elementFromPoint?.(clientX, clientY) ?? null;
+    const cell = under?.closest<HTMLElement>("[data-column]") ?? null;
+    // Своя же колонка целью не подсвечивается: бросок на себя ничего не
+    // меняет, и обещать перестановку там, где её не будет, не за чем. Имя
+    // задачи целью не бывает вовсе — оно всегда первое.
+    const key = cell?.dataset.column;
+    if (key === undefined || key === "task" || key === from.current?.column) return null;
+    return cell;
+  };
+
+  const finish = () => {
+    from.current = null;
+    markTarget(null);
+  };
+
+  return {
+    handleProps(column: ColumnKey) {
+      return {
+        onPointerDown(event: PointerEvent<HTMLElement>) {
+          if (event.button !== 0) return;
+          // Без этого нажатие начинает выделение текста заголовка вместо
+          // переноса — то же, что и у граней полоски.
+          event.preventDefault();
+          from.current = { pointerId: event.pointerId, column };
+          event.currentTarget.setPointerCapture?.(event.pointerId);
+        },
+        onPointerMove(event: PointerEvent<HTMLElement>) {
+          if (from.current?.pointerId !== event.pointerId) return;
+          markTarget(cellAt(event.clientX, event.clientY));
+        },
+        onPointerUp(event: PointerEvent<HTMLElement>) {
+          const start = from.current;
+          if (start?.pointerId !== event.pointerId) return;
+          const target = cellAt(event.clientX, event.clientY)?.dataset.column;
+          finish();
+          if (isColumnKey(target)) onReorder?.(start.column, target);
+        },
+        onPointerCancel: finish,
+      };
+    },
+  };
+}
+
+const COLUMN_TARGET_CLASS = "is-column-target";
+
+function isColumnKey(value: string | undefined): value is ColumnKey {
+  return value !== undefined && (COLUMN_KEYS as readonly string[]).includes(value);
 }
 
 /**
@@ -198,6 +291,9 @@ function ColumnGrip({
       onPointerDown={(event) => {
         if (event.button !== 0) return;
         event.preventDefault();
+        // Граница лежит в том же заголовке, за который колонку переносят: без
+        // этого одно нажатие начинало бы оба жеста разом.
+        event.stopPropagation();
         from.current = { pointerId: event.pointerId, x: event.clientX, width };
         event.currentTarget.setPointerCapture?.(event.pointerId);
       }}
