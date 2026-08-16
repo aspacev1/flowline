@@ -4,8 +4,8 @@ import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 
 import { server } from "../test/server";
-import { renderApp, sessionHandlers } from "../test/utils";
-import { CATEGORY_COLORS, suggestColor } from "./CategoryForm";
+import { renderApp, renderWithProviders, sessionHandlers } from "../test/utils";
+import { CATEGORY_COLORS, CategoryForm, suggestColor } from "./CategoryForm";
 
 const STATE = {
   id: "p1",
@@ -55,7 +55,9 @@ describe("создание категории", () => {
                 ...STATE,
                 categories: [
                   ...STATE.categories,
-                  { id: "c2", name: "Аналитика", color: "#a855f7", position: 1 },
+                  // Сервер вернул то, что ему прислали: название категории
+                  // уходит прописным.
+                  { id: "c2", name: "АНАЛИТИКА", color: "#a855f7", position: 1 },
                 ],
               },
         );
@@ -74,7 +76,7 @@ describe("создание категории", () => {
         {
           op: {
             type: "create_category",
-            name: "Аналитика",
+            name: "АНАЛИТИКА",
             color: expect.stringMatching(/^#[0-9a-f]{6}$/i),
           },
         },
@@ -84,7 +86,66 @@ describe("создание категории", () => {
     // Состояние перезапрашивается, а не дописывается в кэш руками: позицию и
     // идентификатор назначил сервер, и придуманные клиентом разошлись бы с
     // ними в самом неудобном месте.
-    expect(await screen.findByText("Аналитика")).toBeInTheDocument();
+    expect(await screen.findByText("АНАЛИТИКА")).toBeInTheDocument();
+  });
+
+  it("заводит категорию прописными, как её ни набери", async () => {
+    // Заголовок группы в ленте набран одинаково у всех категорий: разнобой
+    // регистров читался бы как строки разной природы.
+    const sent: { op: { name?: string } }[] = [];
+    server.use(
+      ...sessionHandlers(),
+      http.get("/api/projects/p1", () => HttpResponse.json(STATE)),
+      http.post("/api/projects/p1/mutations", async ({ request }) => {
+        sent.push((await request.json()) as { op: { name?: string } });
+        return HttpResponse.json({ seq: 2, op: {}, inverse: {} }, { status: 201 });
+      }),
+    );
+
+    renderApp({ route: "/projects/p1", locale: "ru" });
+    await createCategoryNamed("  аналитика и Отчёты  ");
+
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0].op.name).toBe("АНАЛИТИКА И ОТЧЁТЫ");
+  });
+
+  it("показывает набираемое название прописными, не переписывая набранное", async () => {
+    server.use(
+      ...sessionHandlers(),
+      http.get("/api/projects/p1", () => HttpResponse.json(STATE)),
+    );
+
+    renderApp({ route: "/projects/p1", locale: "ru" });
+    await userEvent.click(await screen.findByRole("button", { name: /категория/i }));
+    await userEvent.type(screen.getByLabelText(/название/i), "аналитика");
+
+    // Регистр поднимает браузер при выводе, а значение остаётся набранным:
+    // переписывать его на каждом символе значило бы уводить курсор в конец
+    // строки при всякой правке в середине.
+    const field = screen.getByLabelText(/название/i);
+    expect(field.closest("p")).toHaveClass("field--upper");
+    expect(field).toHaveValue("аналитика");
+  });
+
+  it("поднимает регистр по языку, а не инвариантно", async () => {
+    // Азербайджанское «i» поднимается в «İ»: инвариантный toUpperCase дал бы
+    // «I» — другую букву алфавита, то есть другое слово.
+    const sent: { op: { name?: string } }[] = [];
+    server.use(
+      http.post("/api/projects/p1/mutations", async ({ request }) => {
+        sent.push((await request.json()) as { op: { name?: string } });
+        return HttpResponse.json({ seq: 2, op: {}, inverse: {} }, { status: 201 });
+      }),
+    );
+
+    renderWithProviders(<CategoryForm projectId="p1" suggested="#3b82f6" onClose={() => {}} />, {
+      locale: "az",
+    });
+    await userEvent.type(screen.getByLabelText("Ad"), "işlər");
+    await userEvent.click(screen.getByRole("button", { name: /^yarat$/i }));
+
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0].op.name).toBe("İŞLƏR");
   });
 
   it("не шлёт в операции полей, которых нет в публичном контракте", async () => {
