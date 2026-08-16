@@ -24,7 +24,6 @@ import { UndoHotkey } from "../project/UndoHotkey";
 import { TaskPanel } from "../task/TaskPanel";
 import { CategoryForm, suggestColor } from "./CategoryForm";
 import { ShareDialog } from "./ShareDialog";
-import { TaskForm } from "./TaskForm";
 
 /**
  * Экран одного проекта.
@@ -46,7 +45,12 @@ export function Project({ tab = "gantt" }: { tab?: "gantt" | "history" } = {}) {
   const [sharing, setSharing] = useState(false);
   // Окно привязки плана к дате старта — и переноса уже назначенной даты.
   const [scheduling, setScheduling] = useState(false);
-  // Категория, из строки которой открыли форму задачи. `null` — форма закрыта.
+  // Категория, в конце которой открыта строка новой задачи. `null` — закрыта.
+  //
+  // Задачу заводят прямо в ленте, а не в окне: план пишут списком, и окно
+  // между строками означало бы открыть, заполнить и закрыть его столько раз,
+  // сколько в плане дел. Спрашивается одно имя, остальное правится в карточке
+  // (см. NewTaskRow).
   const [addingTaskIn, setAddingTaskIn] = useState<string | null>(null);
   // Задача, карточка которой открыта. Держится идентификатором, а не самой
   // задачей: после каждого изменения состояние приходит с сервера заново, и
@@ -218,8 +222,10 @@ export function Project({ tab = "gantt" }: { tab?: "gantt" | "history" } = {}) {
                       {/* Сначала категория, потом задача — в порядке, в каком
                           проект и заполняют: задачу некуда класть, пока нет ни
                           одной категории, и кнопка задачи до первой категории
-                          не показывается — форма с пустым списком категорий
-                          обещала бы действие, которое не может состояться. */}
+                          не показывается — строке ввода негде было бы
+                          открыться. Дальше она открывается в первой категории:
+                          положить задачу в любую другую — тот же «плюс» на её
+                          строке, а перенести написанную можно ручкой. */}
                       <button
                         type="button"
                         className="button--quiet"
@@ -263,6 +269,8 @@ export function Project({ tab = "gantt" }: { tab?: "gantt" | "history" } = {}) {
                   ) : undefined
                 }
                 onAddTask={editable ? setAddingTaskIn : undefined}
+                newTaskIn={addingTaskIn}
+                onCloseNewTask={() => setAddingTaskIn(null)}
                 onDeleteCategory={editable ? removeCategory : undefined}
                 selectedTaskId={selectedTaskId}
                 // Повторный щелчок по той же полоске закрывает карточку: люди
@@ -300,16 +308,6 @@ export function Project({ tab = "gantt" }: { tab?: "gantt" | "history" } = {}) {
                 projectId={projectId}
                 suggested={suggestColor(query.data.categories.length)}
                 onClose={() => setAddingCategory(false)}
-              />
-            )}
-
-            {addingTaskIn !== null && (
-              <TaskForm
-                projectId={projectId}
-                categories={query.data.categories}
-                tasks={query.data.tasks}
-                initialCategoryId={addingTaskIn}
-                onClose={() => setAddingTaskIn(null)}
               />
             )}
           </main>

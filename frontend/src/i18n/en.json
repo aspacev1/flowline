@@ -370,26 +370,9 @@
       "milestone_hint": "A point on the timeline: no duration"
     },
     "new": {
-      "title": "New task",
-      "name": "Name",
-      "description": "Description",
-      "status": "Status",
-      "category": "Category",
-      "criticality": "Criticality",
-      "start": "Start date",
-      "start_day": "Start, project day",
-      "duration": "Duration, working days",
-      "progress": "Done, %",
-      "internal_note": "Internal note",
-      "depends_on": "Depends on",
-      "blocks": "Blocks",
-      "add_link": "Add a link…",
-      "add_link_to": "Add to “{label}”",
-      "unlink": "Remove the link with “{name}”",
-      "assignees": "Assignees",
-      "submit": "Create task",
-      "partial": "The task itself is already created — retrying will only add what is left.",
-      "milestone": "Milestone"
+      "placeholder": "Task name, then Enter",
+      "aria": "New task in “{category}”",
+      "creating": "Creating…"
     }
   },
   "history": {
