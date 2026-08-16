@@ -510,7 +510,8 @@
       "baseline": "Baseline plan",
       "legend": "Legend",
       "summary": "Deadline summary",
-      "caption": "Footnote"
+      "caption": "Footnote",
+      "critical": "Critical path"
     },
     "col": {
       "task": "Task",
@@ -520,7 +521,8 @@
       "progress": "Done",
       "assignee": "Assignee",
       "edit": "Change {column} for “{name}”",
-      "resize": "Resize the {column} column"
+      "resize": "Resize the {column} column",
+      "reorder": "Drag to move the {column} column"
     },
     "reorder": "Reorder “{name}”",
     "deadline": "Deadline {date}",
@@ -537,7 +539,8 @@
     "nudge_dismiss": "Dismiss the suggestion",
     "legend": {
       "blocker": "Blocker",
-      "late": "Deadline missed · +N days"
+      "late": "Deadline missed · +N days",
+      "critical": "Critical path"
     },
     "tip": {
       "more": "{name} +{count}",
@@ -557,6 +560,10 @@
     "link": {
       "from": "Drag to pick what “{name}” waits for",
       "to": "Drag to pick what waits for “{name}”"
+    },
+    "auto_schedule": {
+      "label": "Auto-schedule by links",
+      "hint": "A task will not start before the one it waits for has finished. Only pushes later — slack you left stays."
     }
   },
   "share": {

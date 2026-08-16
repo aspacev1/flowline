@@ -1485,6 +1485,8 @@ export interface components {
          *     бы невыразим — любой запрос без поля стирал бы его.
          */
         ProjectSettingsIn: {
+            /** Auto Schedule */
+            auto_schedule?: boolean | null;
             /** Deadline */
             deadline?: string | null;
             /** Holidays Extra */

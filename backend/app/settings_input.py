@@ -168,6 +168,11 @@ class ProjectSettingsIn(SettingsInput):
     shift_threshold_days: int | None = None
     holidays_extra: list | None = None
     workdays_extra: list | None = None
+    # Автоперенос по связям. `null` для него не значит «наследовать»: у
+    # организации такой настройки нет вовсе, и в NULLABLE_PROJECT_FIELDS он не
+    # входит — присланный `null` просто игнорируется, как и у всякого поля вне
+    # этого списка.
+    auto_schedule: bool | None = None
 
     @field_validator("timezone")
     @classmethod

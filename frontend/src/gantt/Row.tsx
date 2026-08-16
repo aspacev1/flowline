@@ -9,6 +9,7 @@ import { useBarTip } from "./BarTip";
 import { Cell, EditableCell, rollUp } from "./Cells";
 import type { ColumnKey, ColumnLayout } from "./columns";
 import { dateOfProjectDay, projectDayNumber } from "./relative";
+import { workingDaysBetween } from "./scale";
 import { useBarMotion } from "./useBarMotion";
 import { useDragCategory } from "./useDragCategory";
 import { useDragDates } from "./useDragDates";
@@ -339,6 +340,15 @@ export function TaskRow({
         patchTask(state, task.id, { start_date: start }),
       ).catch(() => {});
     },
+    end: (value: string) => {
+      const finish = format.relative ? dateOfProjectDay(Number(value), format.anchor) : value;
+      if (finish < task.start_date) return;
+      const duration_days = Math.max(1, workingDaysBetween(task.start_date, finish, calendar));
+      if (duration_days === task.duration_days) return;
+      void apply({ type: "set_duration", task_id: task.id, duration_days }, (state) =>
+        patchTask(state, task.id, { duration_days }),
+      ).catch(() => {});
+    },
     duration: (value: string) => {
       const duration_days = Number(value);
       if (!Number.isInteger(duration_days) || duration_days < 1) return;
@@ -394,9 +404,29 @@ export function TaskRow({
                 onCommit={edit.start}
               />
             ),
-            // Дата окончания — показ и только: её считает сервер по календарю
-            // проекта, и поле для правки обещало бы влияние, которого нет.
-            end: <span className="gantt__cell-value">{format.label(task.end_date)}</span>,
+            // Дата окончания правится не собой, а длительностью: сервер
+            // считает её по рабочему календарю, и записать её напрямую нельзя
+            // — но «эта задача кончается такого-то числа» человек говорит
+            // именно так. Ячейка переводит названный день в число рабочих
+            // дней ровно тем же счётом, каким это делает правая грань полоски,
+            // и шлёт ту же операцию. Сервер пересчитает конец сам и пришлёт
+            // свой — если календарь у вкладки устарел, ячейка встанет по его
+            // ответу, а не по догадке.
+            end: (
+              <EditableCell
+                type={format.relative ? "number" : "date"}
+                value={
+                  format.relative
+                    ? String(projectDayNumber(task.end_date, format.anchor))
+                    : task.end_date
+                }
+                display={format.label(task.end_date)}
+                disabled={!canWrite || task.milestone}
+                min={format.relative ? 1 : undefined}
+                label={cellLabels.edit(cellLabels.columns.end, task.name)}
+                onCommit={edit.end}
+              />
+            ),
             duration: (
               <EditableCell
                 type="number"
@@ -555,6 +585,9 @@ export function TaskRow({
           }${canWrite ? " is-draggable" : ""}${dragging !== null ? " is-dragging" : ""}`}
           data-criticality={task.criticality}
           data-status={task.status}
+          // Признак, а не класс: критичность — свойство расчёта, и рисуется
+          // она только когда слой включён (см. `.gantt.show-critical`).
+          data-critical={task.critical ? "" : undefined}
           data-testid={`bar-${task.id}`}
           style={
             {
@@ -606,7 +639,16 @@ export function TaskRow({
           // раньше, но узнать об этом — только из исходников. Читателю здесь
           // пусто: стрелки у него ничего не двигают, и обещать их значило бы
           // отправить его нажимать клавиши, которые молчат.
-          aria-keyshortcuts={canWrite ? "Shift+ArrowLeft Shift+ArrowRight" : undefined}
+          aria-keyshortcuts={
+            canWrite
+              ? task.milestone
+                // У вехи граней нет: тянуть нечего, и обещать сочетание,
+                // которое молчит, значило бы отправить человека нажимать
+                // клавиши впустую.
+                ? "Shift+ArrowLeft Shift+ArrowRight"
+                : "Shift+ArrowLeft Shift+ArrowRight Alt+ArrowLeft Alt+ArrowRight Shift+Alt+ArrowLeft Shift+Alt+ArrowRight"
+              : undefined
+          }
           aria-expanded={onSelect ? selected : undefined}
           onClick={() => onSelect?.(task.id)}
         >

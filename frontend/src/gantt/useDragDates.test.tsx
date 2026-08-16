@@ -164,13 +164,17 @@ describe("перетаскивание дат", () => {
     expect(screen.queryByRole("complementary")).not.toBeInTheDocument();
   });
 
-  it("называет сочетание сдвига прямо на полоске", async () => {
-    // Возможность, о которой знает только исходник, всё равно что её нет:
-    // стрелки со Shift двигали задачу и раньше, но не были названы нигде.
+  it("называет все три сочетания прямо на полоске", async () => {
+    // Возможность, о которой знает только исходник, всё равно что её нет.
+    // Сочетаний три, потому что и жестов у полоски три: перенос, правая грань
+    // и левая.
     renderProject();
     const bar = await screen.findByRole("button", { name: /Логотип/ });
 
-    expect(bar).toHaveAttribute("aria-keyshortcuts", "Shift+ArrowLeft Shift+ArrowRight");
+    expect(bar).toHaveAttribute(
+      "aria-keyshortcuts",
+      "Shift+ArrowLeft Shift+ArrowRight Alt+ArrowLeft Alt+ArrowRight Shift+Alt+ArrowLeft Shift+Alt+ArrowRight",
+    );
   });
 
   it("читателю сочетания не обещает", async () => {

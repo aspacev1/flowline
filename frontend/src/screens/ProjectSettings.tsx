@@ -16,6 +16,7 @@ import { useCanWrite, useOrgRole } from "../auth/permissions";
 import { SaveMark, TextField, ValueField, useFieldSaves } from "../components/autosave";
 import type { FieldSave } from "../components/autosave";
 import { ConfirmAction } from "../components/ConfirmAction";
+import { Switch } from "../components/Switch";
 import { useToast } from "../components/toast";
 import { useLocale } from "../i18n/LocaleProvider";
 import { SharePanel } from "../project/SharePanel";
@@ -251,6 +252,24 @@ export function ProjectSettings() {
           save={saves.at("project-holidays")}
           onCommit={(holidays_extra) => saves.commit("project-holidays", { holidays_extra })}
         />
+
+        {/* Автоперенос — рубильник, а не переопределение: у организации такой
+            настройки нет вовсе, наследовать нечего. Стоит рядом с календарём,
+            потому что отвечает на тот же вопрос — по каким правилам считаются
+            даты, — а не «какие они». */}
+        <p className="field">
+          <Switch
+            id="project-auto-schedule"
+            label={t("gantt.auto_schedule.label")}
+            checked={state.auto_schedule === true}
+            disabled={readOnly}
+            onChange={(auto_schedule) =>
+              saves.commit("project-auto-schedule", { auto_schedule })
+            }
+          />
+          <span className="muted">{t("gantt.auto_schedule.hint")}</span>
+          <SaveMark save={saves.at("project-auto-schedule")} />
+        </p>
 
         <DateListField
           id="project-workdays"

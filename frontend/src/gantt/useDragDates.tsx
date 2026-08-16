@@ -490,17 +490,72 @@ export function useDragDates({
 
       onKeyDown(event: KeyboardEvent<HTMLElement>) {
         // Полоска объявлена кнопкой, и человек, работающий с клавиатуры,
-        // обязан иметь способ сдвинуть задачу. Shift — чтобы стрелки остались
-        // за прокруткой ленты: без него нельзя было бы просто посмотреть, что
-        // справа, не сдвинув при этом сроки.
+        // обязан иметь способ сделать всё то же, что указателем. Стрелки под
+        // модификаторами, а голые оставлены прокрутке ленты: без этого нельзя
+        // было бы просто посмотреть, что справа, не сдвинув при этом сроки.
         //
-        // Сочетание названо вслух в двух местах — в `aria-keyshortcuts`
+        //   Shift        — перенести задачу (обе даты)
+        //   Alt          — растянуть конец (длительность)
+        //   Shift + Alt  — двинуть начало, конец на месте
+        //
+        // Три сочетания вместо одного — потому что жестов у полоски стало
+        // три, и «то же самое есть в карточке» перестаёт быть ответом, когда
+        // указателем это делается одним движением, а с клавиатуры — открытием
+        // карточки, поиском поля и возвратом.
+        //
+        // Сочетания названы вслух в двух местах — в `aria-keyshortcuts`
         // полоски и в строке подсказки карточки наведения (Row, BarTip):
         // возможность, о которой знает только исходник, всё равно что её нет.
-        if (!enabled || !event.shiftKey) return;
+        if (!enabled) return;
         const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
         if (step === 0) return;
+
+        // Веха длительности не имеет: её грани не тянутся ни указателем, ни с
+        // клавиатуры. Переносить её при этом можно.
+        const resizes = event.altKey && !task.milestone;
+        if (!event.shiftKey && !resizes) return;
+        // Alt + стрелка у браузера занят переходом по истории. Отмена
+        // умолчания здесь обязательна, иначе сочетание уводит со страницы.
         event.preventDefault();
+
+        if (resizes && event.shiftKey) {
+          // Левая грань: начало едет, конец стоит, значит длительность растёт
+          // ровно на столько, на сколько уехало начало.
+          const start = addDays(task.start_date, step);
+          const duration = Math.max(1, workingDaysBetween(start, task.end_date, calendar));
+          commit({
+            op: {
+              type: "resize_task",
+              task_id: task.id,
+              start_date: start,
+              duration_days: duration,
+            },
+            optimistic: (state) =>
+              patchTask(state, task.id, { start_date: start, duration_days: duration }),
+            toast: t("gantt.resized", {
+              name: task.name,
+              days: t("common.days", { count: duration }),
+            }),
+          });
+          return;
+        }
+
+        if (resizes) {
+          // Правая грань: шаг здесь считается в рабочих днях напрямую — это и
+          // есть единица длительности, и переводить её через дату незачем.
+          const duration = task.duration_days + step;
+          if (duration < 1) return;
+          commit({
+            op: { type: "set_duration", task_id: task.id, duration_days: duration },
+            optimistic: (state) => patchTask(state, task.id, { duration_days: duration }),
+            toast: t("gantt.resized", {
+              name: task.name,
+              days: t("common.days", { count: duration }),
+            }),
+          });
+          return;
+        }
+
         const start = addDays(task.start_date, step);
         commit({
           op: { type: "move_task", task_id: task.id, start_date: start },

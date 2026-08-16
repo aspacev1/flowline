@@ -20,6 +20,20 @@ import type { Scale } from "./timescale";
 /** Отступ, на который стрелка отходит от полоски, прежде чем повернуть. */
 const ELBOW = 8;
 
+/**
+ * Признаки связи одной строкой.
+ *
+ * Нарушение идёт первым и в цвете побеждает: критический путь — это «здесь
+ * держится срок», а нарушенная связь — «здесь уже сломано», и второе важнее.
+ * Стиль критического пути при этом действует только при включённом слое (см.
+ * `.gantt.show-critical`), так что на выключенном классы просто ничего не
+ * значат.
+ */
+function classOf(violated: boolean, critical: boolean): string | undefined {
+  const names = [violated && "is-violated", critical && "is-critical"].filter(Boolean);
+  return names.length > 0 ? names.join(" ") : undefined;
+}
+
 export function Arrows({
   scale,
   tasks,
@@ -68,6 +82,10 @@ export function Arrows({
         // Нарушенная связь: приёмник начат, пока источник ещё не кончился.
         // Конец отрезка включительный, поэтому совпадение дат — тоже нахлёст.
         violated: to.start_date <= from.end_date,
+        // Звено критического пути: обе задачи без запаса. Признак связи, а не
+        // задачи: критическими бывают и две несвязанные цепочки, и стрелка
+        // между ними принадлежала бы обеим, не будучи звеном ни одной.
+        critical: from.critical && to.critical,
       };
     })
     .filter((line) => line !== null);
@@ -84,8 +102,11 @@ export function Arrows({
       focusable="false"
     >
       {lines.map((line) => (
-        <g key={line.key} className={line.violated ? "is-violated" : undefined}>
-          <polyline points={line.points} className={line.violated ? "is-violated" : undefined} />
+        <g
+          key={line.key}
+          className={classOf(line.violated, line.critical)}
+        >
+          <polyline points={line.points} className={classOf(line.violated, line.critical)} />
           {/* Наконечник — сплошной треугольник остриём в начало полоски:
               линия без него не говорит, кто кого ждёт. Входит всегда
               горизонтально слева — ломаная кончается этим же направлением. */}

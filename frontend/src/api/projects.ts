@@ -71,6 +71,14 @@ export type Task = {
    * полно, и вехой они не становятся.
    */
   milestone: boolean;
+  /**
+   * Задача без запаса: сдвинь её на день — на день уедет весь проект.
+   *
+   * Считает сервер и присылает вместе с состоянием: запас меряется рабочими
+   * днями, а рабочий календарь — свойство проекта, и второй его расчёт здесь
+   * разошёлся бы с первым на первом же празднике.
+   */
+  critical: boolean;
   criticality: Criticality;
   status: TaskStatus;
   progress_pct: number;
@@ -118,6 +126,13 @@ export type ProjectState = {
   schedule_mode: ScheduleMode;
   /** Назначенная дата старта; `null`, пока план относительный. */
   start_date: string | null;
+  /**
+   * Автоперенос по связям: последователь не начинается раньше, чем кончился
+   * его предшественник. Выключен по умолчанию — до него связь не двигала
+   * ничего вовсе. При включённом лента не предлагает подвинуть задачу руками
+   * (см. DependencyNudge): предложение сделать сделанное читается как сбой.
+   */
+  auto_schedule?: boolean;
   /** `null` — план ещё черновик: правки свободны, ничего не спрашивается. */
   plan_approved_at: string | null;
   plan_version: number;
@@ -266,6 +281,11 @@ export function updateProject(
     shift_threshold_days: number | null;
     holidays_extra: string[];
     workdays_extra: string[];
+    /**
+     * Автоперенос по связям. `null` для него не значение: у организации такой
+     * настройки нет, наследовать нечего — только да или нет.
+     */
+    auto_schedule: boolean;
   }>,
 ): Promise<ProjectState> {
   return request<ProjectState>(`/api/projects/${projectId}`, {

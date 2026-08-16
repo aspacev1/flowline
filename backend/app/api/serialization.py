@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session as DbSession
 
 from app.calendar import end_date
 from app.comments import author_names
+from app.critical import critical_tasks
 from app.models import (
     Category,
     Comment,
@@ -90,6 +91,17 @@ def project_state(
     ).all()
 
     ends = [end_date(t.start_date, t.duration_days, calendar) for t in tasks]
+    # Критический путь — вместе с состоянием, а не отдельным запросом: он
+    # рисуется на тех же полосках, и второй поход к серверу означал бы
+    # диаграмму, которая дорисовывается через кадр после появления. Считает
+    # сервер: запас меряется рабочими днями, а календарь — свойство проекта
+    # (см. app/critical.py).
+    critical = critical_tasks(
+        {t.id: t.start_date for t in tasks},
+        {t.id: finish for t, finish in zip(tasks, ends)},
+        dependencies,
+        calendar,
+    )
     # Конец базового плана считает сервер по тому же календарю, что и текущий:
     # призрак под полоской обязан стоять там же, где стояла бы настоящая
     # полоска с теми датами, а клиент календарной арифметики не повторяет.
@@ -117,6 +129,11 @@ def project_state(
         # кнопку показать: «Назначить дату старта» или «Изменить».
         "schedule_mode": project.schedule_mode,
         "start_date": project.start_date.isoformat() if project.start_date else None,
+        # Автоперенос по связям: включён ли он на этом проекте. Интерфейсу
+        # нужен не только рубильник в настройках — при включённом переносе он
+        # не предлагает подвинуть задачу вручную (см. DependencyNudge):
+        # предложение сделать то, что уже сделано, читается как сбой.
+        "auto_schedule": project.auto_schedule,
         # То, что отменит кнопка «Отменить», — вместе с состоянием, а не
         # отдельным запросом: кнопка обязана быть неактивной сразу, а не
         # оживать через кадр после отрисовки.
@@ -176,6 +193,10 @@ def project_state(
                 # не вывод из «длительность равна одному дню»: однодневных
                 # задач полно, и вехой они не становятся.
                 "milestone": t.milestone,
+                # Задача без запаса: сдвинь её на день — на день уедет весь
+                # проект. Считанное значение, а не хранимое: оно выводится из
+                # дат и связей и разошлось бы с ними на первой же правке.
+                "critical": t.id in critical,
                 "criticality": t.criticality,
                 "progress_pct": t.progress_pct,
                 # Статус не секретнее прогресса: публичная страница показывает

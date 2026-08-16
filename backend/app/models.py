@@ -318,6 +318,15 @@ class Project(Base):
 
     holidays_extra: Mapped[list] = mapped_column(JSON, default=list)
     workdays_extra: Mapped[list] = mapped_column(JSON, default=list)
+    # Автоперенос по связям: последователь не начинается раньше, чем кончился
+    # его предшественник. Выключен по умолчанию — до него связь не двигала
+    # ничего вовсе, и включённый он меняет смысл каждой связи в проекте разом
+    # (см. app/cascade.py). Свойство проекта, а не организации: в одном
+    # проекте план ведут по цепочке, в соседнем — руками, и общая настройка
+    # заставила бы выбирать одно на всех.
+    auto_schedule: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default=text("false")
+    )
 
 
 class ProjectAccess(Base):

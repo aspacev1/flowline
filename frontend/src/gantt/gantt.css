@@ -170,6 +170,14 @@
   box-shadow: inset 3px 0 0 var(--danger-strong);
 }
 
+/* Критический путь — обводкой снаружи, ровно как на полоске: легенда,
+   нарисованная другим приёмом, расшифровывала бы саму себя. */
+.gantt__swatch--critical {
+  background: var(--gantt-fill-planned);
+  outline: 2px solid var(--danger-strong);
+  outline-offset: 1px;
+}
+
 /* Вертикали дедлайна и «сегодня» — образец линии, а не плашка. */
 .gantt__swatch--line {
   width: 2px;
@@ -546,6 +554,25 @@
   align-items: flex-end;
   padding-bottom: 12px;
   background: #f9fafc;
+}
+
+/* Колонка, на место которой встанет перенесённая. Класс ставится прямо в DOM,
+   мимо состояния React: цель меняется на каждом пересечении границы, а
+   перерисовка шапки тянет за собой всю ленту. */
+.gantt__cell.is-column-target {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+/* Заголовок, за который колонку переносят. Курсор — единственный постоянный
+   знак: подчёркивание или рамка на каждом заголовке рисовали бы в шапке
+   решётку, которой в макете нет. */
+.gantt__corner-label--movable {
+  cursor: grab;
+  touch-action: none;
+}
+
+.gantt__corner-label--movable:hover {
+  color: var(--text);
 }
 
 /* Заголовок левой колонки — мелкий капс вразрядку, как заголовок свойства. */
@@ -1300,7 +1327,12 @@
   margin-left: 4px;
 }
 
+/* Кружки проявляются на строке под курсором — и на строке, полоска которой
+   в фокусе. Второе не про мышь: на сенсорном экране наведения нет вовсе, а
+   касание полоски её фокусирует, и это единственный способ показать кружки
+   пальцу, не выводя их постоянно на каждой из сотни строк. */
 .gantt__row:hover .gantt__link-dot,
+.gantt__row:focus-within .gantt__link-dot,
 .gantt.is-linking .gantt__link-dot {
   opacity: 1;
 }
@@ -1309,11 +1341,16 @@
   background: var(--accent);
 }
 
-/* Кружков нет там, где пальцем в них всё равно не попасть: на сенсорном
-   экране связь заводится списком в карточке задачи. */
-@media (hover: none) {
-  .gantt__link-dot {
-    display: none;
+/* Пальцем в тринадцать пикселей не попасть. Сам кружок не растёт — на ленте
+   он метка, а не кнопка, — растёт его цель: прозрачное поле вокруг, вдвое
+   больше видимого круга. */
+@media (pointer: coarse) {
+  .gantt__link-dot::after {
+    content: "";
+    position: absolute;
+    /* Половина разницы между целью в 44 пикселя (рекомендуемый минимум для
+       касания) и видимыми тринадцатью — по каждой стороне. */
+    inset: -15px;
   }
 }
 
@@ -1390,6 +1427,42 @@
 .gantt__bar--milestone[data-status="blocked"] .gantt__diamond,
 .gantt__bar--milestone[data-criticality="critical"] .gantt__diamond {
   background: var(--danger-strong);
+}
+
+/* Критический путь: цепочка задач, у которых нет запаса. Показывается только
+   когда его попросили в меню «Вид» — он красит полоски третьим способом поверх
+   статуса и просрочки, и включённый всегда превращал бы ленту в карту цепочек
+   там, где спрашивают всего лишь «что когда».
+
+   Обводка снаружи полоски (`outline`), а не внутри (`box-shadow: inset`):
+   внутренние накладки уже заняты просрочкой и критичностью задачи, и четвёртая
+   легла бы поверх них. Снаружи она читается как обвод по цепочке — тем, чем и
+   является. */
+.gantt.show-critical .gantt__bar[data-critical] {
+  outline: 2px solid var(--danger-strong);
+  outline-offset: 1px;
+}
+
+/* Ромб вехи обводится по своей форме, а не по прямоугольнику вокруг него:
+   рамка вокруг пустоты читалась бы как дефект отрисовки. */
+.gantt.show-critical .gantt__bar--milestone[data-critical] {
+  outline: none;
+}
+
+.gantt.show-critical .gantt__bar--milestone[data-critical] .gantt__diamond {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px var(--danger-strong);
+}
+
+/* Стрелки внутри цепочки — тем же цветом: путь читается как путь, а не как
+   набор одинаково обведённых полосок. */
+.gantt.show-critical .arrows polyline.is-critical {
+  stroke: var(--danger-strong);
+}
+
+.gantt.show-critical .arrows g.is-critical path {
+  fill: var(--danger-strong);
 }
 
 /* Бейдж отклонения — справа от полоски, а не поверх неё: поверх он закрывал бы

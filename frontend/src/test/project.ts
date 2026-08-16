@@ -53,6 +53,7 @@ export const STATE: ProjectState = {
       end_date: "2026-03-10",
       duration_days: 5,
       milestone: false,
+      critical: false,
       criticality: "high",
       status: "in_progress",
       progress_pct: 40,
@@ -167,6 +168,33 @@ export const WITH_MILESTONE: ProjectState = {
       progress_pct: 0,
     },
   ],
+};
+
+/** Цепочка из двух задач и одинокая третья: критический путь держат первые две. */
+export const WITH_CRITICAL_PATH: ProjectState = {
+  ...STATE,
+  tasks: [
+    { ...STATE.tasks[0], critical: true },
+    {
+      ...STATE.tasks[0],
+      id: "t2",
+      name: "Макет",
+      position: 1,
+      start_date: "2026-03-11",
+      end_date: "2026-03-17",
+      critical: true,
+    },
+    {
+      ...STATE.tasks[0],
+      id: "t3",
+      name: "Сбоку",
+      position: 2,
+      start_date: "2026-03-04",
+      end_date: "2026-03-05",
+      critical: false,
+    },
+  ],
+  dependencies: [{ from_task_id: "t1", to_task_id: "t2" }],
 };
 
 /** Две задачи со стрелкой между ними. */
