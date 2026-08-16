@@ -54,7 +54,7 @@ export function CategoryForm({
   suggested: string;
   onClose: () => void;
 }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [color, setColor] = useState(suggested);
@@ -74,6 +74,21 @@ export function CategoryForm({
 
   const trimmed = name.trim();
 
+  // Категория заводится с названием прописными. В ленте её строка — заголовок
+  // группы, а не запись в ней: набранное вразнобой («Дизайн», «аналитика»,
+  // «СБОРКА») читается как строки разной природы, хотя это одно и то же.
+  //
+  // Регистр поднимается здесь, при создании, а не в каждом месте вывода:
+  // название у категории одно, и показывают его не только в ленте — ещё в
+  // карточке задачи, в ленте событий, в публичной ссылке. Красить каждое
+  // место по отдельности значит однажды забыть место.
+  //
+  // Регистр — по языку страницы, а не инвариантный: азербайджанское «i»
+  // поднимается в «İ», и инвариантный toUpperCase дал бы «I» — другую букву
+  // алфавита. Тем же языком (`lang` документа ставит LocaleProvider) поднимает
+  // регистр и браузер в самом поле, так что набранное и отправленное совпадают.
+  const upper = trimmed.toLocaleUpperCase(locale);
+
   return (
     <Modal
       title={t("category.new.title")}
@@ -85,10 +100,21 @@ export function CategoryForm({
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          create.mutate({ name: trimmed, color });
+          create.mutate({ name: upper, color });
         }}
       >
-        <Field id="category-name" label={t("category.new.name")} value={name} onChange={setName} />
+        {/* Поле показывает значение прописными — тем же, чем оно уйдёт на
+            сервер: человек видит будущий заголовок группы, а не догадывается
+            о нём. Само значение при этом остаётся набранным как есть —
+            переписывать его на каждом символе значило бы уводить курсор в
+            конец строки при всякой правке в середине. */}
+        <Field
+          id="category-name"
+          className="field--upper"
+          label={t("category.new.name")}
+          value={name}
+          onChange={setName}
+        />
 
         {/* Набор переключателей, а не список: выбран ровно один цвет, и
             стрелки клавиатуры обязаны ходить по нему сами — это поведение

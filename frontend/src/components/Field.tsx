@@ -8,6 +8,8 @@ type FieldProps = {
   required?: boolean;
   /** Значение задано не человеком — например, адрес, к которому привязано приглашение. */
   readOnly?: boolean;
+  /** Оформление поля, заданное местом применения, — например, показ значения прописными. */
+  className?: string;
 };
 
 /**
@@ -23,9 +25,10 @@ export function Field({
   autoComplete,
   required,
   readOnly,
+  className,
 }: FieldProps) {
   return (
-    <p className="field">
+    <p className={`field ${className ?? ""}`.trimEnd()}>
       <label htmlFor={id}>{label}</label>
       <input
         id={id}
