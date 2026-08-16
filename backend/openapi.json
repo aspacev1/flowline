@@ -1149,6 +1149,224 @@
         "title": "ProjectSettingsIn",
         "type": "object"
       },
+      "ProposalCategoryIn": {
+        "properties": {
+          "name": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ProposalCategoryIn",
+        "type": "object"
+      },
+      "ProposalCommentIn": {
+        "properties": {
+          "body": {
+            "minLength": 1,
+            "title": "Body",
+            "type": "string"
+          }
+        },
+        "required": [
+          "body"
+        ],
+        "title": "ProposalCommentIn",
+        "type": "object"
+      },
+      "ProposalSettingsIn": {
+        "description": "Настройки сметы. Каждое поле — по желанию: правится то, что прислано.",
+        "properties": {
+          "currency": {
+            "anyOf": [
+              {
+                "maxLength": 3,
+                "minLength": 3,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "effort_unit": {
+            "anyOf": [
+              {
+                "enum": [
+                  "days",
+                  "hours"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effort Unit"
+          },
+          "hours_per_day": {
+            "anyOf": [
+              {
+                "maximum": 24.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours Per Day"
+          },
+          "tax_rate_pct": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Rate Pct"
+          }
+        },
+        "title": "ProposalSettingsIn",
+        "type": "object"
+      },
+      "ProposalTaskIn": {
+        "properties": {
+          "name": {
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ProposalTaskIn",
+        "type": "object"
+      },
+      "ProposalTaskPatch": {
+        "description": "Правка строки: присланные поля меняются, остальные не трогаются.\n\nПотолки чисел повторяют ширину колонок Numeric: значение шире уехало бы\nв базу ошибкой усечения — пятисоткой вместо честного отказа.",
+        "properties": {
+          "assumptions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assumptions"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "details": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details"
+          },
+          "effort": {
+            "anyOf": [
+              {
+                "maximum": 999999.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effort"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 300,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "maximum": 9999999999.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate"
+          },
+          "risks": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Risks"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          }
+        },
+        "title": "ProposalTaskPatch",
+        "type": "object"
+      },
       "PublicAddDependency": {
         "additionalProperties": false,
         "properties": {
@@ -4958,6 +5176,748 @@
         "summary": "Restore Plan Version Route",
         "tags": [
           "projects"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/proposal": {
+      "get": {
+        "description": "Предложение целиком: настройки, разделы, строки со счётчиками реплик.\n\nИтоги (сумма, налог, всего) считает клиент: это произведение и сумма уже\nприсланных чисел, и сервер, пересказывающий их, был бы вторым местом с\nтой же арифметикой.",
+        "operationId": "get_project_proposal_api_projects__project_id__proposal_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "planora_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Planora Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Project Proposal",
+        "tags": [
+          "proposal"
+        ]
+      },
+      "patch": {
+        "operationId": "update_proposal_settings_api_projects__project_id__proposal_patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "planora_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Planora Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposalSettingsIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Proposal Settings",
+        "tags": [
+          "proposal"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/proposal/categories": {
+      "post": {
+        "operationId": "create_proposal_category_api_projects__project_id__proposal_categories_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "planora_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Planora Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposalCategoryIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Proposal Category",
+        "tags": [
+          "proposal"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/proposal/categories/{category_id}": {
+      "delete": {
+        "description": "Удаляет раздел вместе со строками: смета — черновик, и правило плана\n«сначала вынеси задачи» здесь было бы ритуалом без выгоды.",
+        "operationId": "delete_proposal_category_api_projects__project_id__proposal_categories__category_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "category_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Category Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "planora_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Planora Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Proposal Category",
+        "tags": [
+          "proposal"
+        ]
+      },
+      "patch": {
+        "operationId": "rename_proposal_category_api_projects__project_id__proposal_categories__category_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "category_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Category Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "planora_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Planora Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposalCategoryIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rename Proposal Category",
+        "tags": [
+          "proposal"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/proposal/categories/{category_id}/tasks": {
+      "post": {
+        "operationId": "create_proposal_task_api_projects__project_id__proposal_categories__category_id__tasks_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "category_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Category Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "planora_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Planora Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposalTaskIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Proposal Task",
+        "tags": [
+          "proposal"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/proposal/push-to-plan": {
+      "post": {
+        "description": "Переносит смету в план: раздел — категорией, строка — задачей.\n\nПачка ревизий с общим batch_id: в истории перенос читается одной записью\nи снимается одной отменой. Задачи встают на старт плана — раскладку по\nоси человек делает сам.",
+        "operationId": "push_proposal_to_plan_api_projects__project_id__proposal_push_to_plan_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "planora_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Planora Session"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Push Proposal To Plan",
+        "tags": [
+          "proposal"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/proposal/tasks/{task_id}": {
+      "delete": {
+        "operationId": "delete_proposal_task_api_projects__project_id__proposal_tasks__task_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "planora_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Planora Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Proposal Task",
+        "tags": [
+          "proposal"
+        ]
+      },
+      "patch": {
+        "operationId": "update_proposal_task_api_projects__project_id__proposal_tasks__task_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "planora_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Planora Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposalTaskPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Proposal Task",
+        "tags": [
+          "proposal"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/proposal/tasks/{task_id}/comments": {
+      "get": {
+        "operationId": "list_proposal_task_comments_api_projects__project_id__proposal_tasks__task_id__comments_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "planora_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Planora Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Proposal Task Comments",
+        "tags": [
+          "proposal"
+        ]
+      },
+      "post": {
+        "operationId": "create_proposal_task_comment_api_projects__project_id__proposal_tasks__task_id__comments_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "task_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Task Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "planora_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Planora Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposalCommentIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Proposal Task Comment",
+        "tags": [
+          "proposal"
         ]
       }
     },

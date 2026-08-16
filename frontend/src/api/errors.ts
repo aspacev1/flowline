@@ -33,6 +33,11 @@ const PLAIN_CODES = new Set([
   // отсутствующий перевод, и человек прочитал бы `task_limit_reached`.
   "category_not_found",
   "task_not_found",
+  // Смета. Три отказа, как у плана: чужая или несуществующая сущность и
+  // пустое предложение, которому нечего переносить в план.
+  "proposal_category_not_found",
+  "proposal_task_not_found",
+  "proposal_empty",
   "task_limit_reached",
   "duration_too_short",
   "category_not_empty",

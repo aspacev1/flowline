@@ -19,6 +19,7 @@ import { deleteCategory } from "../project/optimistic";
 import { useProjectMutation } from "../project/useProjectMutation";
 import { PlanApproval } from "../project/PlanApproval";
 import { ProjectHead } from "../project/ProjectHead";
+import { Proposal } from "../proposal/Proposal";
 import { ProjectHistory } from "../project/ProjectHistory";
 import { ShiftReasonProvider } from "../project/ShiftReason";
 import { StartDateDialog } from "../project/StartDateDialog";
@@ -36,7 +37,9 @@ import { ShareDialog } from "./ShareDialog";
  * означает и несуществующий проект, и чужой: интерфейс не знает разницы и не
  * притворяется, что знает.
  */
-export function Project({ tab = "gantt" }: { tab?: "gantt" | "history" } = {}) {
+export function Project({
+  tab = "gantt",
+}: { tab?: "gantt" | "history" | "proposal" } = {}) {
   const { t } = useLocale();
   const { projectId = "" } = useParams();
   const canWrite = useCanWrite();
@@ -220,6 +223,11 @@ export function Project({ tab = "gantt" }: { tab?: "gantt" | "history" } = {}) {
             {/* Вкладки — в адресе, а не в состоянии экрана: на историю
                 ссылаются в переписке, и ссылка обязана открывать её сразу. */}
             <nav className="tabs" aria-label={t("history.tabs_label")}>
+              {/* Предложение — раньше ленты: смета пишется до плана, и
+                  порядок вкладок повторяет порядок работы. */}
+              <NavLink to={`/projects/${projectId}/proposal`} className={tabClass}>
+                {t("history.tab_proposal")}
+              </NavLink>
               <NavLink to={`/projects/${projectId}`} end className={tabClass}>
                 {t("history.tab_gantt")}
               </NavLink>
@@ -231,6 +239,8 @@ export function Project({ tab = "gantt" }: { tab?: "gantt" | "history" } = {}) {
             {tab === "history" && (
               <ProjectHistory projectId={projectId} state={query.data} canUndo={editable} />
             )}
+
+            {tab === "proposal" && <Proposal projectId={projectId} canWrite={editable} />}
 
             {/* Предложение подвинуть связанную задачу — над лентой, а не поверх
                 неё: оно ненавязчивое и не должно закрывать то, что человек только

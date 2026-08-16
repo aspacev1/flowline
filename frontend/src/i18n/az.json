@@ -231,7 +231,10 @@
     "task_is_milestone": "Mərhələnin müddəti yoxdur. Əvvəlcə mərhələ nişanını götürün",
     "empty_shift": "Sıfır günlük sürüşmə heç nəyi dəyişmir",
     "category_empty": "Bu kateqoriyada tapşırıq yoxdur: sürüşdürüləcək bir şey yoxdur",
-    "date_out_of_range": "Bu sürüşmə tapşırığı dəstəklənən tarix hüdudundan çıxarır"
+    "date_out_of_range": "Bu sürüşmə tapşırığı dəstəklənən tarix hüdudundan çıxarır",
+    "proposal_empty": "Təklifdə plana keçiriləcək tapşırıq yoxdur",
+    "proposal_category_not_found": "Bu təklifdə belə bölmə yoxdur",
+    "proposal_task_not_found": "Bu təklifdə belə tapşırıq yoxdur"
   },
   "live": {
     "offline": "Serverlə əlaqə yoxdur. Redaktə mümkün deyil",
@@ -406,6 +409,7 @@
     "rename_category": "kateqoriyanın adını «{from}» → «{to}» dəyişdi",
     "set_category_color": "kateqoriyanın rəngini dəyişdi",
     "tabs_label": "Layihə bölmələri",
+    "tab_proposal": "Təklif",
     "tab_gantt": "Diaqram",
     "tab_history": "Tarixçə",
     "feed_empty": "Hələ dəyişiklik yoxdur",
@@ -444,38 +448,38 @@
     "set_milestone_off": "mərhələni yenidən tapşırığa çevirdi"
   },
   "schedule": {
-   "open": "Başlama tarixini təyin et",
-   "change": "Başlama tarixini dəyiş",
-   "title": "Başlama tarixinin təyini",
-   "change_title": "Başlama tarixinin köçürülməsi",
-   "start": "Başlama tarixi",
-   "week_label": "İş həftəsi",
-   "week": {
-    "keep": "Layihə ayarlarındakı kimi",
-    "mon_fri": "B.e–Cümə (5/2)",
-    "mon_sat": "B.e–Şənbə (6/1)",
-    "all": "Təqvim günləri (istirahət günsüz)"
-   },
-   "holidays_note": "İstirahət və bayram günləri təşkilatın və layihənin ayarlarından götürülür — tarixlər onlara görə hesablanır.",
-   "tasks_legend": "Tapşırıqlar",
-   "tasks_shift": "Bütün tapşırıqları startla birlikdə sürüşdür",
-   "tasks_keep": "Tapşırıq tarixlərini olduğu kimi saxla",
-   "preview": "Layihə müddəti: {from} — {to}",
-   "preview_empty": "Layihənin startı: {from}. Hələ tapşırıq yoxdur.",
-   "apply": "Tarixləri tətbiq et"
+    "open": "Başlama tarixini təyin et",
+    "change": "Başlama tarixini dəyiş",
+    "title": "Başlama tarixinin təyini",
+    "change_title": "Başlama tarixinin köçürülməsi",
+    "start": "Başlama tarixi",
+    "week_label": "İş həftəsi",
+    "week": {
+      "keep": "Layihə ayarlarındakı kimi",
+      "mon_fri": "B.e–Cümə (5/2)",
+      "mon_sat": "B.e–Şənbə (6/1)",
+      "all": "Təqvim günləri (istirahət günsüz)"
+    },
+    "holidays_note": "İstirahət və bayram günləri təşkilatın və layihənin ayarlarından götürülür — tarixlər onlara görə hesablanır.",
+    "tasks_legend": "Tapşırıqlar",
+    "tasks_shift": "Bütün tapşırıqları startla birlikdə sürüşdür",
+    "tasks_keep": "Tapşırıq tarixlərini olduğu kimi saxla",
+    "preview": "Layihə müddəti: {from} — {to}",
+    "preview_empty": "Layihənin startı: {from}. Hələ tapşırıq yoxdur.",
+    "apply": "Tarixləri tətbiq et"
   },
   "gantt": {
     "relative": {
-     "badge": "Nisbi plan",
-     "hint": "Cədvəli indi planlaşdırın. Başlama tarixini layihə təsdiqlənəndə təyin edərsiniz.",
-     "month": "Ay {number}",
-     "week": "Həftə {number}",
-     "day": "Gün {number}"
+      "badge": "Nisbi plan",
+      "hint": "Cədvəli indi planlaşdırın. Başlama tarixini layihə təsdiqlənəndə təyin edərsiniz.",
+      "month": "Ay {number}",
+      "week": "Həftə {number}",
+      "day": "Gün {number}"
     },
     "mode": {
-     "label": "Şkala görünüşü",
-     "relative": "Nisbi",
-     "calendar": "Təqvim"
+      "label": "Şkala görünüşü",
+      "relative": "Nisbi",
+      "calendar": "Təqvim"
     },
     "empty": "Layihədə hələ bir dənə də kateqoriya yoxdur. Kateqoriya yaradın, tapşırıqlar isə onun içində olacaq",
     "today": "Bu gün",
@@ -527,7 +531,7 @@
     },
     "tip": {
       "more": "{name} +{count}",
-   "keys": "Shift + ←→ köçür · Esc dayandır · {mod}+Z geri al"
+      "keys": "Shift + ←→ köçür · Esc dayandır · {mod}+Z geri al"
     },
     "toggle_category": "«{name}» kateqoriyasını qatla və ya aç",
     "insert_before": "«{name}» tapşırığından əvvəl tapşırıq əlavə et",
@@ -763,6 +767,64 @@
       "drop": "Sil",
       "project_name": "Layihənin adı",
       "apply": "Layihəyə tətbiq et"
+    }
+  },
+  "proposal": {
+    "empty": "Hələ bölmə yoxdur — birincisini aşağıda əlavə edin",
+    "settings": {
+      "unit": "Qiymətləndirmə vahidi",
+      "unit_days": "Günlər",
+      "unit_hours": "Saatlar",
+      "hours_per_day": "Gündə saat",
+      "tax_rate": "Vergi, %",
+      "currency": "Valyuta",
+      "currency_invalid": "Üç hərfli kod, məsələn USD"
+    },
+    "columns": {
+      "task": "Tapşırıq",
+      "description": "Təsvir",
+      "role": "Rol",
+      "effort_days": "Həcm, gün",
+      "effort_hours": "Həcm, saat",
+      "rate": "Tarif",
+      "price": "Qiymət"
+    },
+    "category": {
+      "add": "Bölmə əlavə et",
+      "name": "Bölmənin adı",
+      "empty": "Bu bölmədə hələ tapşırıq yoxdur",
+      "delete": "Bölməni sil",
+      "delete_warning": "«{name}» bölməsi bütün tapşırıqları ilə birlikdə silinəcək",
+      "delete_confirm": "Bölməni sil"
+    },
+    "task": {
+      "add": "Tapşırıq əlavə et",
+      "name": "Yeni tapşırığın adı",
+      "panel_aria": "Smeta sətri: {name}",
+      "role": "Məsul rol",
+      "description": "Təsvir",
+      "details": "Ətraflı təsvir",
+      "notes": "Qeydlər",
+      "risks": "Risklər",
+      "assumptions": "Fərziyyələr",
+      "delete": "Tapşırığı sil",
+      "delete_warning": "«{name}» tapşırığı müzakirəsi ilə birlikdə silinəcək",
+      "delete_confirm": "Tapşırığı sil"
+    },
+    "summary": {
+      "title": "Təklifin yekunu",
+      "total_days": "Cəmi gün",
+      "total_hours": "Cəmi saat",
+      "subtotal": "Vergisiz məbləğ",
+      "tax": "Vergi ({rate}%)",
+      "total": "Yekun"
+    },
+    "push": {
+      "action": "Plana əlavə et",
+      "done": {
+        "one": "{count} tapşırıq plana əlavə olundu",
+        "other": "{count} tapşırıq plana əlavə olundu"
+      }
     }
   }
 }

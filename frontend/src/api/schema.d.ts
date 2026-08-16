@@ -921,6 +921,147 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project_id}/proposal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Project Proposal
+         * @description Предложение целиком: настройки, разделы, строки со счётчиками реплик.
+         *
+         *     Итоги (сумма, налог, всего) считает клиент: это произведение и сумма уже
+         *     присланных чисел, и сервер, пересказывающий их, был бы вторым местом с
+         *     той же арифметикой.
+         */
+        get: operations["get_project_proposal_api_projects__project_id__proposal_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Proposal Settings */
+        patch: operations["update_proposal_settings_api_projects__project_id__proposal_patch"];
+        trace?: never;
+    };
+    "/api/projects/{project_id}/proposal/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Proposal Category */
+        post: operations["create_proposal_category_api_projects__project_id__proposal_categories_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/proposal/categories/{category_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Proposal Category
+         * @description Удаляет раздел вместе со строками: смета — черновик, и правило плана
+         *     «сначала вынеси задачи» здесь было бы ритуалом без выгоды.
+         */
+        delete: operations["delete_proposal_category_api_projects__project_id__proposal_categories__category_id__delete"];
+        options?: never;
+        head?: never;
+        /** Rename Proposal Category */
+        patch: operations["rename_proposal_category_api_projects__project_id__proposal_categories__category_id__patch"];
+        trace?: never;
+    };
+    "/api/projects/{project_id}/proposal/categories/{category_id}/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Proposal Task */
+        post: operations["create_proposal_task_api_projects__project_id__proposal_categories__category_id__tasks_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/proposal/push-to-plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Push Proposal To Plan
+         * @description Переносит смету в план: раздел — категорией, строка — задачей.
+         *
+         *     Пачка ревизий с общим batch_id: в истории перенос читается одной записью
+         *     и снимается одной отменой. Задачи встают на старт плана — раскладку по
+         *     оси человек делает сам.
+         */
+        post: operations["push_proposal_to_plan_api_projects__project_id__proposal_push_to_plan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/proposal/tasks/{task_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Proposal Task */
+        delete: operations["delete_proposal_task_api_projects__project_id__proposal_tasks__task_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Proposal Task */
+        patch: operations["update_proposal_task_api_projects__project_id__proposal_tasks__task_id__patch"];
+        trace?: never;
+    };
+    "/api/projects/{project_id}/proposal/tasks/{task_id}/comments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Proposal Task Comments */
+        get: operations["list_proposal_task_comments_api_projects__project_id__proposal_tasks__task_id__comments_get"];
+        put?: never;
+        /** Create Proposal Task Comment */
+        post: operations["create_proposal_task_comment_api_projects__project_id__proposal_tasks__task_id__comments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{project_id}/revisions": {
         parameters: {
             query?: never;
@@ -1553,6 +1694,62 @@ export interface components {
             workdays_extra?: unknown[] | null;
             /** Working Days */
             working_days?: number | null;
+        };
+        /** ProposalCategoryIn */
+        ProposalCategoryIn: {
+            /** Name */
+            name: string;
+        };
+        /** ProposalCommentIn */
+        ProposalCommentIn: {
+            /** Body */
+            body: string;
+        };
+        /**
+         * ProposalSettingsIn
+         * @description Настройки сметы. Каждое поле — по желанию: правится то, что прислано.
+         */
+        ProposalSettingsIn: {
+            /** Currency */
+            currency?: string | null;
+            /** Effort Unit */
+            effort_unit?: ("days" | "hours") | null;
+            /** Hours Per Day */
+            hours_per_day?: number | null;
+            /** Tax Rate Pct */
+            tax_rate_pct?: number | null;
+        };
+        /** ProposalTaskIn */
+        ProposalTaskIn: {
+            /** Name */
+            name: string;
+        };
+        /**
+         * ProposalTaskPatch
+         * @description Правка строки: присланные поля меняются, остальные не трогаются.
+         *
+         *     Потолки чисел повторяют ширину колонок Numeric: значение шире уехало бы
+         *     в базу ошибкой усечения — пятисоткой вместо честного отказа.
+         */
+        ProposalTaskPatch: {
+            /** Assumptions */
+            assumptions?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Details */
+            details?: string | null;
+            /** Effort */
+            effort?: number | null;
+            /** Name */
+            name?: string | null;
+            /** Notes */
+            notes?: string | null;
+            /** Rate */
+            rate?: number | null;
+            /** Risks */
+            risks?: string | null;
+            /** Role */
+            role?: string | null;
         };
         /** PublicAddDependency */
         PublicAddDependency: {
@@ -3742,6 +3939,396 @@ export interface operations {
             };
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_project_proposal_api_projects__project_id__proposal_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_proposal_settings_api_projects__project_id__proposal_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProposalSettingsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_proposal_category_api_projects__project_id__proposal_categories_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProposalCategoryIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_proposal_category_api_projects__project_id__proposal_categories__category_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category_id: string;
+                project_id: string;
+            };
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rename_proposal_category_api_projects__project_id__proposal_categories__category_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category_id: string;
+                project_id: string;
+            };
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProposalCategoryIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_proposal_task_api_projects__project_id__proposal_categories__category_id__tasks_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category_id: string;
+                project_id: string;
+            };
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProposalTaskIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    push_proposal_to_plan_api_projects__project_id__proposal_push_to_plan_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_proposal_task_api_projects__project_id__proposal_tasks__task_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: string;
+                project_id: string;
+            };
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_proposal_task_api_projects__project_id__proposal_tasks__task_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: string;
+                project_id: string;
+            };
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProposalTaskPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_proposal_task_comments_api_projects__project_id__proposal_tasks__task_id__comments_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: string;
+                project_id: string;
+            };
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_proposal_task_comment_api_projects__project_id__proposal_tasks__task_id__comments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                task_id: string;
+                project_id: string;
+            };
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProposalCommentIn"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             201: {

@@ -1,5 +1,6 @@
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 from enum import StrEnum
 
 from sqlalchemy import (
@@ -11,6 +12,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -70,6 +72,23 @@ class ScheduleMode(StrEnum):
 
 
 SCHEDULE_MODES: tuple[str, ...] = tuple(mode.value for mode in ScheduleMode)
+
+
+class EffortUnit(StrEnum):
+    """В чём оценивается трудоёмкость предложения: в днях или в часах.
+
+    Свойство предложения целиком, а не каждой строки: смета, где одна строка
+    в днях, а соседняя в часах, не складывается в один итог без вопроса
+    «а что тут написано» на каждой строке.
+    """
+
+    DAYS = "days"
+    HOURS = "hours"
+
+
+# Тем же приёмом, что CRITICALITY_LEVELS: список для CHECK выводится из enum,
+# а не выписывается второй раз руками.
+EFFORT_UNITS: tuple[str, ...] = tuple(unit.value for unit in EffortUnit)
 
 
 def _uuid_pk() -> Mapped[uuid.UUID]:
@@ -730,3 +749,140 @@ class Revision(Base):
     # ссылки нулевой — ревизии не удаляются.
     undoes_seq: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Proposal(Base):
+    """Коммерческое предложение проекта: настройки сметы.
+
+    Одна строка на проект, и заводится она лениво — первым изменением, а не
+    созданием проекта: у большинства проектов предложения нет, и пустая
+    строка на каждый из них была бы записью ради записи. Чтение без строки
+    отдаёт значения по умолчанию (см. app.proposals).
+
+    Ставка и налог живут здесь, а не в организации: предложение составляется
+    под конкретного клиента, и в соседних проектах и валюта, и налог свои.
+    """
+
+    __tablename__ = "proposals"
+    __table_args__ = (
+        # Тот же принцип, что у schedule_mode: инвариант держит база, а не
+        # только слой приложения.
+        CheckConstraint(
+            "effort_unit IN (" + ", ".join(f"'{unit}'" for unit in EFFORT_UNITS) + ")",
+            name="ck_proposals_effort_unit",
+        ),
+        CheckConstraint("hours_per_day >= 1", name="ck_proposals_hours_per_day"),
+        CheckConstraint("tax_rate_pct >= 0", name="ck_proposals_tax_rate_pct"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    # unique: предложение у проекта одно. Второе — это другой проект, а не
+    # вторая строка здесь.
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), unique=True
+    )
+    effort_unit: Mapped[str] = mapped_column(
+        Text, default=EffortUnit.DAYS, server_default=text("'days'")
+    )
+    # Сколько часов считать рабочим днём при переносе почасовой сметы в план:
+    # у плана длительности в днях, и без этого числа их не из чего получить.
+    hours_per_day: Mapped[int] = mapped_column(Integer, default=8, server_default=text("8"))
+    # Numeric, а не Float: налог — деньги, и 18% обязаны оставаться ровно
+    # восемнадцатью, а не 17.999999.
+    tax_rate_pct: Mapped[Decimal] = mapped_column(
+        Numeric(5, 2), default=Decimal("0"), server_default=text("0")
+    )
+    # Код ISO 4217. Хранится, а не выводится из языка: язык интерфейса и
+    # валюта сделки — независимые вещи.
+    currency: Mapped[str] = mapped_column(String(3), default="USD", server_default=text("'USD'"))
+
+
+class ProposalCategory(Base):
+    """Раздел предложения: группа работ со своими строками.
+
+    Своя таблица, а не Category плана: раздел сметы живёт до плана и без
+    плана, а категория диаграммы несёт цвет и участвует в порядке ленты —
+    смешение двух жизней в одной таблице означало бы, что черновик сметы
+    виден на диаграмме.
+    """
+
+    __tablename__ = "proposal_categories"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    proposal_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("proposals.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(200))
+    position: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class ProposalTask(Base):
+    """Строка сметы: работа, роль, трудоёмкость и ставка.
+
+    Цена не хранится намеренно: она равна effort × rate, и хранимая копия
+    разъехалась бы с сомножителями первой же правкой. Считают её оба конца
+    заново — клиент для экрана, сервер нигде не пересказывает.
+    """
+
+    __tablename__ = "proposal_tasks"
+    __table_args__ = (
+        CheckConstraint("effort >= 0", name="ck_proposal_tasks_effort"),
+        CheckConstraint("rate >= 0", name="ck_proposal_tasks_rate"),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    # Обе ссылки сразу: раздел — для порядка на экране, предложение — чтобы
+    # строки проекта читались одним запросом, без прохода по разделам.
+    proposal_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("proposals.id", ondelete="CASCADE"), index=True
+    )
+    category_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("proposal_categories.id", ondelete="CASCADE"), index=True
+    )
+    name: Mapped[str] = mapped_column(String(300))
+    # Короткое описание — колонка таблицы; подробное — карточка строки.
+    description: Mapped[str] = mapped_column(Text, default="")
+    details: Mapped[str] = mapped_column(Text, default="")
+    # Роль исполнителя словами («дизайнер», «senior backend»), а не ссылка на
+    # участника: смету пишут до того, как известно, кто именно будет делать.
+    role: Mapped[str] = mapped_column(String(120), default="")
+    # Трудоёмкость в единицах предложения (см. Proposal.effort_unit). Numeric:
+    # полдня — это 0.5, а не 0.5000000000000001.
+    effort: Mapped[Decimal] = mapped_column(
+        Numeric(8, 2), default=Decimal("0"), server_default=text("0")
+    )
+    # Ставка за единицу трудоёмкости, в валюте предложения.
+    rate: Mapped[Decimal] = mapped_column(
+        Numeric(12, 2), default=Decimal("0"), server_default=text("0")
+    )
+    notes: Mapped[str] = mapped_column(Text, default="")
+    risks: Mapped[str] = mapped_column(Text, default="")
+    assumptions: Mapped[str] = mapped_column(Text, default="")
+    position: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class ProposalComment(Base):
+    """Реплика к строке сметы.
+
+    Своя таблица, а не Comment проекта: та жёстко связана с задачами плана
+    (task_id ведёт в tasks) и с публичной страницей, а обсуждение сметы —
+    внутренний разговор участников, гостям оно не отдаётся вовсе. Поэтому и
+    автор здесь обязателен: гостя, подписанного именем, не бывает.
+    """
+
+    __tablename__ = "proposal_comments"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    proposal_task_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("proposal_tasks.id", ondelete="CASCADE"), index=True
+    )
+    # CASCADE, как у Comment: реплика без автора не подписана никем.
+    author_user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE")
+    )
+    body: Mapped[str] = mapped_column(Text)
+    # clock_timestamp по той же причине, что у Comment: порядок разговора
+    # держится на метке, и две реплики одной транзакции неразличимы по now().
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.clock_timestamp()
+    )
