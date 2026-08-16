@@ -101,6 +101,7 @@ export function CategoryRow({
   reorder,
   canWrite = false,
   moveLabel,
+  reorderLabel,
   open = true,
   onToggle,
   toggleLabel,
@@ -123,6 +124,8 @@ export function CategoryRow({
   /** Может ли этот человек двигать категорию целиком. */
   canWrite?: boolean;
   moveLabel?: string;
+  /** Подпись ручки перестановки этапов. */
+  reorderLabel?: string;
   /** Развёрнута ли категория: свёрнутая прячет свои строки задач. */
   open?: boolean;
   onToggle?: () => void;
@@ -149,7 +152,16 @@ export function CategoryRow({
       // в useReorder).
       data-drop-kind="category"
       data-drop-id={category.id}
-      onPointerMove={() => reorder?.over({ kind: "category", id: category.id, half: "bottom" })}
+      // Половина строки названа настоящая, а не всегда нижняя: задаче она не
+      // нужна вовсе (бросок на заголовок кладёт её в конец этапа), но
+      // категория именно ею и выбирает, встать до этого этапа или после.
+      onPointerMove={(event) =>
+        reorder?.over({
+          kind: "category",
+          id: category.id,
+          half: halfOf(event.currentTarget, event.clientY),
+        })
+      }
       onPointerUp={() => reorder?.drop()}
     >
       <div className="gantt__label">
@@ -162,6 +174,30 @@ export function CategoryRow({
           }}
           task={
             <>
+              {reorder?.enabled && (
+                // Этапы переставляют тем же жестом, что и задачи: ручка,
+                // ведущая себя по-разному на заголовке и на строке под ним,
+                // была бы двумя вещами, выглядящими как одна.
+                //
+                // Стоит левее шеврона — в поле, которое колонка держит под
+                // ручки (см. --gantt-pad в gantt.css): у задачи ручка занимает
+                // столбец шеврона, у категории он занят самим шевроном, и
+                // единственное место, где они не наезжают друг на друга, — на
+                // ступеньку левее. Заодно это читается как вложенность: этап
+                // берут за край, задачу — изнутри него.
+                //
+                // Не кнопка и скрыта от чтения с экрана — как и у задачи, и по
+                // той же причине: перестановка строк с клавиатуры в этот план
+                // не входит (см. TaskRow ниже).
+                <span
+                  className="gantt__handle gantt__handle--category"
+                  aria-hidden="true"
+                  title={reorderLabel}
+                  {...reorder.handleProps("category", category.id)}
+                >
+                  ⠿
+                </span>
+              )}
               {onToggle && (
                 // Шеврон — кнопка сворачивания, как в макете: свёрнутая категория
                 // остаётся строкой с полосой охвата, её задачи прячутся.
@@ -560,7 +596,7 @@ export function TaskRow({
                   // Весь жест — на ручке, а не только его начало: пальцем
                   // указатель захвачен ею до самого броска, и строки под
                   // пальцем событий не получают (см. useReorder).
-                  {...reorder.handleProps(task.id)}
+                  {...reorder.handleProps("task", task.id)}
                 >
                   ⠿
                 </span>

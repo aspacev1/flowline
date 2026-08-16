@@ -27,6 +27,11 @@ function rowHandle(name: string): HTMLElement | null {
   return rowOf(name).querySelector(".gantt__handle");
 }
 
+/** Призрак под курсором: имя того, что сейчас в руке. */
+function ghost(): HTMLElement | null {
+  return document.querySelector(".gantt__drag-ghost");
+}
+
 /**
  * Высота строки, которой у jsdom нет.
  *
@@ -42,18 +47,15 @@ function withHeight(row: HTMLElement): HTMLElement {
 
 function hoverRowWhileDragging(
   name: string,
-  { over, half, isCategory }: { over: string; half?: "top" | "bottom"; isCategory?: boolean },
+  { over, half }: { over: string; half?: "top" | "bottom" },
 ): HTMLElement {
   fireEvent.pointerDown(rowHandle(name)!, { pointerId: 2, button: 0, clientX: 10, clientY: 10 });
-  const target = isCategory ? rowOf(over) : withHeight(rowOf(over));
+  const target = withHeight(rowOf(over));
   fireEvent.pointerMove(target, { pointerId: 2, clientX: 10, clientY: half === "top" ? 8 : 24 });
   return target;
 }
 
-function dragRow(
-  name: string,
-  options: { over: string; half?: "top" | "bottom"; isCategory?: boolean },
-) {
+function dragRow(name: string, options: { over: string; half?: "top" | "bottom" }) {
   const target = hoverRowWhileDragging(name, options);
   fireEvent.pointerUp(target, { pointerId: 2, clientX: 10, clientY: 24 });
 }
@@ -67,12 +69,9 @@ function dragRow(
  * строку выдаёт попадание в точку, которого у jsdom нет и которое
  * подставляется на время теста.
  */
-function touchDragRow(
-  name: string,
-  { over, half, isCategory }: { over: string; half?: "top" | "bottom"; isCategory?: boolean },
-) {
+function touchDragRow(name: string, { over, half }: { over: string; half?: "top" | "bottom" }) {
   const handle = rowHandle(name)!;
-  const target = isCategory ? rowOf(over) : withHeight(rowOf(over));
+  const target = withHeight(rowOf(over));
   document.elementFromPoint = () => target;
   const at = { pointerId: 3, clientX: 10, clientY: half === "top" ? 8 : 24 };
   fireEvent.pointerDown(handle, { ...at, button: 0 });
@@ -103,7 +102,7 @@ describe("перестановка строк", () => {
     renderProject(TWO_CATEGORIES);
     await screen.findByRole("button", { name: /Логотип/ });
 
-    dragRow("Логотип", { over: "Разработка", isCategory: true });
+    dragRow("Логотип", { over: "Разработка" });
 
     await waitFor(() =>
       expect(sent[0].op).toMatchObject({ type: "reorder_task", category_id: "c2" }),
@@ -138,7 +137,7 @@ describe("перестановка строк", () => {
     renderProject(TWO_CATEGORIES);
     await screen.findByRole("button", { name: /Логотип/ });
 
-    const { handle, at } = touchDragRow("Логотип", { over: "Разработка", isCategory: true });
+    const { handle, at } = touchDragRow("Логотип", { over: "Разработка" });
     fireEvent.pointerUp(handle, at);
 
     await waitFor(() =>
@@ -176,5 +175,106 @@ describe("перестановка строк", () => {
     await screen.findByRole("button", { name: /Первая/ });
 
     expect(rowHandle("Первая")).not.toBeInTheDocument();
+    expect(rowHandle("Дизайн")).not.toBeInTheDocument();
+  });
+});
+
+describe("перестановка категорий", () => {
+  it("категория, брошенная над соседней, встаёт на её место", async () => {
+    const sent = captureMutations();
+    renderProject(TWO_CATEGORIES);
+    await screen.findByRole("button", { name: /Логотип/ });
+
+    dragRow("Разработка", { over: "Дизайн", half: "top" });
+
+    await waitFor(() =>
+      expect(sent[0].op).toMatchObject({
+        type: "reorder_category",
+        category_id: "c2",
+        position: 0,
+      }),
+    );
+  });
+
+  it("строка задачи означает свою категорию: этап встаёт после неё", async () => {
+    const sent = captureMutations();
+    renderProject(TWO_CATEGORIES);
+    await screen.findByRole("button", { name: /Логотип/ });
+
+    // «Логотип» лежит в «Дизайне» — первой категории; бросок в её середину
+    // ставит «Разработку» сразу после неё, то есть туда же, где она и была.
+    hoverRowWhileDragging("Разработка", { over: "Логотип" });
+    expect(rowOf("Дизайн")).toHaveClass("drop-after");
+    fireEvent.pointerUp(rowOf("Логотип"), { pointerId: 2, clientX: 10, clientY: 24 });
+
+    // Порядок не изменился — и записывать в историю нечего.
+    await waitFor(() => expect(ghost()).not.toBeInTheDocument());
+    expect(sent).toHaveLength(0);
+  });
+
+  it("над своей же строкой линия вставки не рисуется", async () => {
+    renderProject(TWO_CATEGORIES);
+    await screen.findByRole("button", { name: /Логотип/ });
+
+    hoverRowWhileDragging("Дизайн", { over: "Дизайн" });
+    expect(rowOf("Дизайн")).not.toHaveClass("drop-after");
+    expect(rowOf("Дизайн")).toHaveClass("is-dragged");
+  });
+
+  it("бросок задачи на заголовок остаётся переносом в категорию, а не перестановкой", async () => {
+    const sent = captureMutations();
+    renderProject(TWO_CATEGORIES);
+    await screen.findByRole("button", { name: /Логотип/ });
+
+    hoverRowWhileDragging("Логотип", { over: "Разработка" });
+    expect(rowOf("Разработка")).toHaveClass("drop-into");
+    fireEvent.pointerUp(rowOf("Разработка"), { pointerId: 2, clientX: 10, clientY: 24 });
+
+    await waitFor(() =>
+      expect(sent[0].op).toMatchObject({ type: "reorder_task", category_id: "c2" }),
+    );
+  });
+});
+
+describe("призрак переносимой строки", () => {
+  it("под курсором едет имя того, что в руке, а строка-источник гаснет", async () => {
+    renderProject(THREE_TASKS);
+    await screen.findByRole("button", { name: /Третья/ });
+
+    expect(ghost()).not.toBeInTheDocument();
+
+    hoverRowWhileDragging("Третья", { over: "Первая", half: "top" });
+    expect(ghost()).toHaveTextContent("Третья");
+    expect(rowOf("Третья")).toHaveClass("is-dragged");
+
+    fireEvent.pointerUp(rowOf("Первая"), { pointerId: 2, clientX: 10, clientY: 8 });
+    await waitFor(() => expect(ghost()).not.toBeInTheDocument());
+  });
+
+  it("призрак идёт за курсором", async () => {
+    renderProject(THREE_TASKS);
+    await screen.findByRole("button", { name: /Третья/ });
+
+    fireEvent.pointerDown(rowHandle("Третья")!, {
+      pointerId: 2,
+      button: 0,
+      clientX: 40,
+      clientY: 60,
+    });
+    // Точка пишется свойствами прямо в узел — состояние React на движение руки
+    // не пересобирается (см. useReorder).
+    expect(ghost()!.style.getPropertyValue("--drag-x")).toBe("40px");
+
+    fireEvent.pointerMove(window, { pointerId: 2, clientX: 90, clientY: 120 });
+    expect(ghost()!.style.getPropertyValue("--drag-x")).toBe("90px");
+    expect(ghost()!.style.getPropertyValue("--drag-y")).toBe("120px");
+  });
+
+  it("у категории призрак называет этап", async () => {
+    renderProject(TWO_CATEGORIES);
+    await screen.findByRole("button", { name: /Логотип/ });
+
+    hoverRowWhileDragging("Разработка", { over: "Дизайн", half: "top" });
+    expect(ghost()).toHaveTextContent("Разработка");
   });
 });

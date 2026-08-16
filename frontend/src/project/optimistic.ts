@@ -199,3 +199,36 @@ export function reorderTask(
     ),
   };
 }
+
+/**
+ * Категория встаёт на другое место в списке этапов — и соседи расступаются.
+ *
+ * Позиции пересчитываются подряд по всему списку, как и у задач: сервер делает
+ * ровно это, и порядок, отличающийся от будущего ответа, дал бы заметный
+ * скачок этапов при обновлении. Задачи при этом не трогаются вовсе — у них
+ * своя нумерация внутри своей категории, и перестановка этапов её не задевает.
+ */
+export function reorderCategory(
+  state: ProjectState,
+  categoryId: string,
+  position: number,
+): ProjectState {
+  const moved = state.categories.find((category) => category.id === categoryId);
+  if (!moved) return state;
+
+  const others = state.categories
+    .filter((category) => category.id !== categoryId)
+    .sort((a, b) => a.position - b.position || (a.id < b.id ? -1 : 1));
+
+  const index = Math.min(position, others.length);
+  const ordered = [...others.slice(0, index), moved, ...others.slice(index)];
+
+  const places = new Map(ordered.map((category, slot) => [category.id, slot]));
+  return {
+    ...state,
+    categories: state.categories.map((category) => ({
+      ...category,
+      position: places.get(category.id) ?? category.position,
+    })),
+  };
+}

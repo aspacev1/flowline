@@ -86,6 +86,9 @@
                 "$ref": "#/components/schemas/PublicReorderTask"
               },
               {
+                "$ref": "#/components/schemas/PublicReorderCategory"
+              },
+              {
                 "$ref": "#/components/schemas/PublicAddDependency"
               },
               {
@@ -1752,6 +1755,33 @@
           "name"
         ],
         "title": "PublicRenameCategory",
+        "type": "object"
+      },
+      "PublicReorderCategory": {
+        "additionalProperties": false,
+        "properties": {
+          "category_id": {
+            "format": "uuid",
+            "title": "Category Id",
+            "type": "string"
+          },
+          "position": {
+            "minimum": 0.0,
+            "title": "Position",
+            "type": "integer"
+          },
+          "type": {
+            "const": "reorder_category",
+            "default": "reorder_category",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "category_id",
+          "position"
+        ],
+        "title": "PublicReorderCategory",
         "type": "object"
       },
       "PublicReorderTask": {

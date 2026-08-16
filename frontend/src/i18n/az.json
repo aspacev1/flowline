@@ -420,6 +420,7 @@
     "create_task": "tapşırığı yaratdı",
     "delete_task": "tapşırığı sildi",
     "reorder_task": "tapşırığı daşıdı",
+    "reorder_category": "kateqoriyanı daşıdı",
     "assign_user": "icraçı təyin etdi",
     "assign_user_named": "icraçı təyin etdi: {name}",
     "unassign_user": "icraçını çıxardı",
@@ -575,6 +576,7 @@
     "resized": "«{name}» indi {days} çəkir",
     "progress_set": "«{name}» — {percent}%",
     "move_category": "«{name}» və bütün tapşırıqlarını sürüşdürmək üçün dartın",
+    "reorder_category": "«{name}» kateqoriyasını daşımaq üçün dartın",
     "category_moved_late": "«{name}» {days} gec sürüşdü",
     "category_moved_early": "«{name}» {days} tez sürüşdü",
     "milestone": {

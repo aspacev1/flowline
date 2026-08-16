@@ -29,7 +29,14 @@ const TYPE_GROUPS = {
   dates: ["move_task", "set_duration", "resize_task", "move_category", "set_milestone"],
   status: ["set_status", "set_progress"],
   fields: ["set_task_fields", "set_criticality", "rename_category", "set_category_color"],
-  structure: ["create_task", "delete_task", "reorder_task", "create_category", "delete_category"],
+  structure: [
+    "create_task",
+    "delete_task",
+    "reorder_task",
+    "create_category",
+    "reorder_category",
+    "delete_category",
+  ],
   people: ["assign_user", "unassign_user"],
   links: ["add_dependency", "remove_dependency"],
 } as const;
@@ -61,6 +68,7 @@ const EVENT_ICONS: Record<string, readonly [glyph: string, tone: string]> = {
   create_task: ["＋", "accent"],
   create_category: ["＋", "accent"],
   reorder_task: ["⇅", "warn"],
+  reorder_category: ["⇅", "warn"],
   delete_task: ["✕", "danger"],
   delete_category: ["✕", "danger"],
   assign_user: ["＋", "ok"],

@@ -220,6 +220,12 @@ export type Op =
   | { type: "set_status"; task_id: string; status: TaskStatus }
   | { type: "set_progress"; task_id: string; progress_pct: number }
   | { type: "reorder_task"; task_id: string; category_id: string; position: number }
+  /**
+   * Категория встаёт на другое место в списке этапов. Отдельная операция от
+   * `reorder_task`: место задачи описывается парой (категория, номер) — её и
+   * переносят из этапа в этап, — а у категории родителя нет, и номер один.
+   */
+  | { type: "reorder_category"; category_id: string; position: number }
   | { type: "assign_user"; task_id: string; user_id: string }
   | { type: "unassign_user"; task_id: string; user_id: string }
   | { type: "add_dependency"; from_task_id: string; to_task_id: string }

@@ -430,6 +430,7 @@
     "create_task": "создал задачу",
     "delete_task": "удалил задачу",
     "reorder_task": "переставил задачу",
+    "reorder_category": "переставил категорию",
     "assign_user": "назначил исполнителя",
     "assign_user_named": "назначил исполнителя: {name}",
     "unassign_user": "снял исполнителя",
@@ -585,6 +586,7 @@
     "resized": "«{name}» теперь занимает {days}",
     "progress_set": "«{name}» — {percent}%",
     "move_category": "Перетащите, чтобы сдвинуть «{name}» со всеми задачами",
+    "reorder_category": "Перетащите, чтобы переставить «{name}»",
     "category_moved_late": "«{name}» — позже на {days}",
     "category_moved_early": "«{name}» — раньше на {days}",
     "milestone": {
