@@ -236,6 +236,41 @@ function applied(state: ProjectState, op: Record<string, unknown>): ProjectState
   const assignees = state.tasks.find((task) => task.id === id)?.assignee_ids ?? [];
 
   switch (op.type) {
+    case "create_task": {
+      // Идентификатор и позицию назначает сервер — здесь тоже: клиент их не
+      // присылает и присылать не должен. Задача встаёт в конец своей
+      // категории, как на сервере; конец равен началу, потому что заводится
+      // она однодневной, а календаря у заглушки нет.
+      const categoryId = op.category_id as string;
+      const siblings = state.tasks.filter((task) => task.category_id === categoryId);
+      const start = op.start_date as string;
+      return {
+        ...state,
+        tasks: [
+          ...state.tasks,
+          {
+            ...STATE.tasks[0],
+            id: `new${state.tasks.length + 1}`,
+            category_id: categoryId,
+            name: op.name as string,
+            description: "",
+            internal_note: "",
+            start_date: start,
+            end_date: start,
+            duration_days: op.duration_days as number,
+            milestone: false,
+            criticality: "normal",
+            status: "planned",
+            progress_pct: 0,
+            position: siblings.length,
+            assignee_ids: [],
+            baseline_start: null,
+            baseline_duration: null,
+            baseline_end: null,
+          },
+        ],
+      };
+    }
     case "move_task":
       return patch({ start_date: op.start_date as string });
     case "set_duration":

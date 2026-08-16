@@ -370,26 +370,9 @@
       "milestone_hint": "Şkalada nöqtə: müddəti yoxdur"
     },
     "new": {
-      "title": "Yeni tapşırıq",
-      "name": "Ad",
-      "description": "Təsvir",
-      "status": "Status",
-      "category": "Kateqoriya",
-      "criticality": "Kritiklik",
-      "start": "Başlama tarixi",
-      "start_day": "Start, layihə günü",
-      "duration": "Müddət, iş günü",
-      "progress": "Tamamlanıb, %",
-      "internal_note": "Daxili qeyd",
-      "depends_on": "Asılıdır",
-      "blocks": "Bloklayır",
-      "add_link": "Əlaqə əlavə et…",
-      "add_link_to": "«{label}» siyahısına əlavə et",
-      "unlink": "«{name}» ilə əlaqəni sil",
-      "assignees": "İcraçılar",
-      "submit": "Tapşırıq yarat",
-      "partial": "Tapşırıq artıq yaradılıb — təkrar yalnız qalanını əlavə edəcək.",
-      "milestone": "Mərhələ"
+      "placeholder": "Tapşırığın adı, sonra Enter",
+      "aria": "«{category}» kateqoriyasında yeni tapşırıq",
+      "creating": "Yaradılır…"
     }
   },
   "history": {

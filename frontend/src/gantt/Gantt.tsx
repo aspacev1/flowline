@@ -13,10 +13,12 @@ import { Grid } from "./Grid";
 import { Header, RelativeHeader } from "./Header";
 import { RELATIVE_EPOCH, relativeDayLabel, relativeWindow } from "./relative";
 import { Arrows } from "./Arrows";
+import { NewTaskRow, PendingRow } from "./NewTaskRow";
 import { CategoryRow, TaskRow } from "./Row";
 import type { CellLabels, DayFormat } from "./Row";
 import { MOTION_MS, usePrefersReducedMotion } from "./motion";
 import { useLinkDrag } from "./useLinkDrag";
+import { useQuickTask } from "./useQuickTask";
 import { useReorder } from "./useReorder";
 import {
   COLUMN_KEYS,
@@ -74,6 +76,8 @@ export function Gantt({
   state,
   canWrite = false,
   onAddTask,
+  newTaskIn = null,
+  onCloseNewTask,
   onDeleteCategory,
   selectedTaskId = null,
   onSelectTask,
@@ -87,6 +91,15 @@ export function Gantt({
   canWrite?: boolean;
   /** Плюс на строке категории. Без него диаграмма остаётся на чтение. */
   onAddTask?: (categoryId: string) => void;
+  /**
+   * Категория, в конце которой открыта строка новой задачи. `null` — закрыта.
+   *
+   * Состоянием снаружи, а не внутри ленты: ту же строку открывает кнопка
+   * тулбара, а тулбар приходит с экрана готовым узлом (см. `toolbarAction`), и
+   * дотянуться до состояния ленты ему было бы нечем.
+   */
+  newTaskIn?: string | null;
+  onCloseNewTask?: () => void;
   /** Крестик на строке пустой категории. Без него категории не удаляются. */
   onDeleteCategory?: (categoryId: string) => void;
   /** Задача, карточка которой открыта. */
@@ -114,6 +127,7 @@ export function Gantt({
   const scroller = useRef<HTMLDivElement>(null);
   const reorder = useReorder({ projectId, state, canWrite });
   const link = useLinkDrag({ projectId, state, canWrite });
+  const quick = useQuickTask({ projectId, state });
   const reducedMotion = usePrefersReducedMotion();
   // Лента по умолчанию открывается в дневном масштабе — самом крупном: на
   // нём у деления хватает места на день недели над числом, и первое, что
@@ -184,6 +198,22 @@ export function Gantt({
       else next.add(id);
       return next;
     });
+
+  // Задачу заводят и в свёрнутой категории: «плюс» на её строке никуда не
+  // девается, да и кнопка тулбара целится в первую по счёту, свёрнута она или
+  // нет. Строка, открытая внутри свёрнутого, не видна вовсе — а поле, которого
+  // не видно, читается как бездействие. Тот же набор возвращается неизменным,
+  // когда разворачивать нечего: новый объект здесь тянул бы перерисовку ленты
+  // на каждом ответе сервера.
+  useEffect(() => {
+    if (newTaskIn === null) return;
+    setClosed((current) => {
+      if (!current.has(newTaskIn)) return current;
+      const next = new Set(current);
+      next.delete(newTaskIn);
+      return next;
+    });
+  }, [newTaskIn]);
 
   // Относительная ось: план ещё не привязан к датам, шкала считает недели
   // проекта от эпохи. Свойство проекта, а не экрана — приходит с сервера.
@@ -312,6 +342,11 @@ export function Gantt({
         })
       : undefined;
 
+  // Заводить задачи может только тот, кто может писать: строка ввода у
+  // читателя обещала бы отказ сервера. Признак считается один раз — по нему
+  // строка и рисуется, и занимает место в счёте строк ниже.
+  const newTaskShown = canWrite && newTaskIn !== null;
+
   // Номера строк в том же порядке, в каком они ниже и рисуются: строка
   // категории, затем её задачи. Нужны стрелкам — им неоткуда узнать, на какой
   // высоте оказалась задача.
@@ -321,11 +356,20 @@ export function Gantt({
     rowCount += 1;
     // Задачи свёрнутой категории строк не занимают, и стрелка к ним не
     // рисуется — ей просто не с чем совпасть (см. Arrows).
-    if (closed.has(category.id)) continue;
-    for (const task of tasksByCategory.get(category.id) ?? []) {
-      rowOf.set(task.id, rowCount);
-      rowCount += 1;
+    if (!closed.has(category.id)) {
+      for (const task of tasksByCategory.get(category.id) ?? []) {
+        rowOf.set(task.id, rowCount);
+        rowCount += 1;
+      }
+      // Строки ожидания — тоже строки: они стоят в середине ленты, и стрелки
+      // к задачам всех категорий ниже уехали бы на строку вверх, не будь они
+      // здесь сосчитаны.
+      rowCount += quick.pendingIn(category.id).length;
     }
+    // Строка ввода видна и в свёрнутой категории — потому и сосчитана вне
+    // условия: категорию сворачивают и посреди набора, а поле, исчезнувшее
+    // из-под курсора, унесло бы с собой написанное.
+    if (newTaskShown && newTaskIn === category.id) rowCount += 1;
   }
 
   return (
@@ -600,6 +644,32 @@ export function Gantt({
                           showBaseline={view.baseline}
                         />
                       ))}
+
+                      {/* Отправленное и ещё не подтверждённое — в конце
+                          категории, там же, где сервер положит настоящую
+                          строку: позиция новой задачи — наибольшая занятая
+                          плюс один. */}
+                      {open &&
+                        quick.pendingIn(category.id).map((row) => (
+                          <PendingRow
+                            key={row.id}
+                            layout={layout}
+                            scale={scale}
+                            name={row.name}
+                            title={t("task.new.creating")}
+                          />
+                        ))}
+
+                      {newTaskShown && newTaskIn === category.id && (
+                        <NewTaskRow
+                          layout={layout}
+                          scale={scale}
+                          label={t("task.new.aria", { category: category.name })}
+                          placeholder={t("task.new.placeholder")}
+                          onCreate={(name) => quick.create(category.id, name)}
+                          onClose={() => onCloseNewTask?.()}
+                        />
+                      )}
                     </div>
                   );
                 })}
