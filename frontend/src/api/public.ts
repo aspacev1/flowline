@@ -22,6 +22,15 @@ export function publicCommentsQueryKey(orgSlug: string, projectSlug: string, tok
   return ["public", orgSlug, projectSlug, token, "comments"] as const;
 }
 
+/** Внутри ключа ленты — по той же причине, что и на рабочем экране. */
+export function publicCommentCountsQueryKey(
+  orgSlug: string,
+  projectSlug: string,
+  token: string,
+) {
+  return [...publicCommentsQueryKey(orgSlug, projectSlug, token), "counts"] as const;
+}
+
 function publicPath(orgSlug: string, projectSlug: string, token: string, suffix = ""): string {
   // Токен уходит параметром запроса — так же, как он приходит в адресе
   // страницы. Кодируется каждая часть: слаг строит сервер, но подставляет их
@@ -44,6 +53,17 @@ export function listPublicComments(
   token: string,
 ): Promise<Comment[]> {
   return request<Comment[]>(publicPath(orgSlug, projectSlug, token, "/comments"));
+}
+
+/** Счётчик реплик на строках публичной ленты — без внутренних: их гость не видит. */
+export function listPublicCommentCounts(
+  orgSlug: string,
+  projectSlug: string,
+  token: string,
+): Promise<Record<string, number>> {
+  return request<Record<string, number>>(
+    publicPath(orgSlug, projectSlug, token, "/comments/counts"),
+  );
 }
 
 export function addPublicComment(

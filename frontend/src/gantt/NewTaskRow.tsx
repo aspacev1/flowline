@@ -33,12 +33,21 @@ export function NewTaskRow({
   /** Имя поля при чтении с экрана: «Новая задача в „Дизайн“». */
   label: string;
   placeholder: string;
-  /** Отправить написанное. Строка при этом остаётся открытой. */
-  onCreate: (name: string) => void;
+  /**
+   * Отправить написанное. Строка при этом остаётся открытой.
+   *
+   * Второй довод — сколько задач эта строка уже отправила. Он нужен вставке
+   * посередине: строка стоит на одном месте, а «а», «б», «в» подряд обязаны
+   * лечь в этом же порядке — то есть каждая следующая на номер ниже
+   * предыдущей. Без счёта все три ушли бы на один номер, и порядок вышел бы
+   * обратным набранному.
+   */
+  onCreate: (name: string, sent: number) => void;
   onClose: () => void;
 }) {
   const [name, setName] = useState("");
   const input = useRef<HTMLInputElement>(null);
+  const sent = useRef(0);
 
   // Фокус — сразу: «плюс» нажимают ради того, чтобы писать, и щелчок по полю
   // после этого был бы вторым нажатием ради того же самого.
@@ -50,7 +59,8 @@ export function NewTaskRow({
   const submit = (): boolean => {
     const trimmed = name.trim();
     if (trimmed === "") return false;
-    onCreate(trimmed);
+    onCreate(trimmed, sent.current);
+    sent.current += 1;
     setName("");
     return true;
   };

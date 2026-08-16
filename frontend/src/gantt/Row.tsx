@@ -1,3 +1,4 @@
+import { useId } from "react";
 import type { CSSProperties, HTMLAttributes, ReactNode, RefCallback } from "react";
 
 import type { Calendar, Category, Task } from "../api/projects";
@@ -5,6 +6,7 @@ import { useLocale } from "../i18n/LocaleProvider";
 import { baselineOf, endShiftDays } from "../project/baseline";
 import { patchProgress, patchTask } from "../project/optimistic";
 import { useProjectMutation } from "../project/useProjectMutation";
+import { AssignMenu } from "./AssignMenu";
 import { useBarTip } from "./BarTip";
 import { Cell, EditableCell, rollUp } from "./Cells";
 import type { ColumnKey, ColumnLayout } from "./columns";
@@ -270,6 +272,9 @@ export function TaskRow({
   statusLabel,
   showBaseline = true,
   assigneeNames,
+  commentCount = 0,
+  onOpenComments,
+  onInsertBefore,
 }: {
   projectId: string;
   task: Task;
@@ -301,11 +306,25 @@ export function TaskRow({
   statusLabel?: string;
   /** Рисовать ли призрак и засечку базового плана — флажок меню «Вид». */
   showBaseline?: boolean;
-  /** Имена исполнителей по идентификаторам — для колонки исполнителей. */
+  /**
+   * Состав организации: имена по идентификаторам. Им подписаны исполнители
+   * задачи — и из него же выбирают новых (см. AssignMenu). `undefined` —
+   * состава не знаем вовсе (публичная страница, роль без права на список), и
+   * тогда колонка исполнителей молчит, а назначать некого.
+   */
   assigneeNames?: ReadonlyMap<string, string>;
+  /** Сколько реплик у задачи. Ноль числа не показывает — показывать нечего. */
+  commentCount?: number;
+  /** Открыть обсуждение задачи. `undefined` — карточки нет (гость). */
+  onOpenComments?: (taskId: string) => void;
+  /** Завести задачу прямо над этой строкой. `undefined` — читателю. */
+  onInsertBefore?: () => void;
 }) {
   const { t } = useLocale();
   const { apply } = useProjectMutation(projectId);
+  // Узел с названием задачи: им подписана кнопка исполнителей — она называет
+  // себя «Исполнители», а какой задачи, говорит описанием (см. AssignMenu).
+  const nameId = useId();
   // Место полоски по датам. Считается здесь, а не в разметке ниже, потому что
   // его знать нужно двоим: самой разметке и слою движения — тот сравнивает его
   // с местом на прошлом рендере и по разнице показывает переезд.
@@ -368,6 +387,49 @@ export function TaskRow({
   const assignees = task.assignee_ids
     .map((id) => assigneeNames?.get(id))
     .filter((name): name is string => name !== undefined);
+
+  // Исполнителей раздают со строки, а не только из карточки. Кнопка стоит в
+  // своей колонке, когда та показана, и в колонке имени, когда нет: орган
+  // управления один, и рисовать его дважды значило бы завести два места, где
+  // одно и то же однажды разойдётся.
+  const assign =
+    canWrite && assigneeNames !== undefined && assigneeNames.size > 0 ? (
+      <AssignMenu
+        projectId={projectId}
+        task={task}
+        roster={assigneeNames}
+        describedBy={nameId}
+      />
+    ) : null;
+  const assignInColumn = assign !== null && layout.shown.includes("assignee");
+  const assignInName = assignInColumn ? null : assign;
+
+  // Счётчик обсуждения. Ноль числа не рисует: «0» на каждой из ста строк — это
+  // рябь, в которой не видно единственной строки, где разговор есть. Сам знак
+  // при этом остаётся — его показывает наведение (см. gantt.css), иначе
+  // открыть разговор со строки было бы нечем.
+  //
+  // Не кнопка — по той же причине, что и имя задачи рядом (см. ниже): то же
+  // обсуждение открывается с клавиатуры полоской и вкладкой в карточке, а
+  // вторая кнопка на каждой из ста строк была бы сотней лишних шагов Tab, ни
+  // один из которых не ведёт туда, куда нельзя дойти иначе. Числу при этом
+  // нужно имя: без него с экрана читается голая цифра.
+  const commentsLabel = t("gantt.comments.aria", { name: task.name, count: commentCount });
+  const comments =
+    commentCount === 0 && onOpenComments === undefined ? null : (
+      <span
+        className={`gantt__row-action${commentCount > 0 ? " is-set" : ""}${
+          onOpenComments ? " is-clickable" : ""
+        }`}
+        role="img"
+        aria-label={commentsLabel}
+        title={commentsLabel}
+        onClick={onOpenComments ? () => onOpenComments(task.id) : undefined}
+      >
+        <CommentIcon />
+        {commentCount > 0 && commentCount}
+      </span>
+    );
 
   return (
     <div
@@ -460,15 +522,43 @@ export function TaskRow({
             // Тернарник, а не `&&`: пустой список обязан дойти до ячейки как
             // «нечего показать» (прочерк), а `false` от неё неотличим от
             // намеренно пустого содержимого и стёр бы прочерк.
-            assignee:
-              assignees.length > 0 ? (
-                <span className="gantt__cell-value" title={assignees.join(", ")}>
-                  {assignees.join(", ")}
-                </span>
-              ) : undefined,
+            // Кнопка выбора занимает эту ячейку целиком, когда назначать
+            // можно: она же и показывает назначенных — аватарами.
+            assignee: assignInColumn
+              ? assign
+              : assignees.length > 0
+                ? (
+                    <span className="gantt__cell-value" title={assignees.join(", ")}>
+                      {assignees.join(", ")}
+                    </span>
+                  )
+                : undefined,
           }}
           task={
             <>
+              {onInsertBefore && (
+                // «Плюс» на границе строк — как в TeamGantt: задача заводится
+                // там, куда указали, а не в конце категории. Стоит он поперёк
+                // верхнего края строки, наполовину заезжая на соседа сверху:
+                // вставка происходит между ними, и знак обязан стоять там же,
+                // где произойдёт то, что он обещает.
+                //
+                // Не кнопка и скрыт от чтения с экрана — как ручка
+                // перестановки рядом, и по той же причине: это выбор места
+                // строки в списке, а выбор места с клавиатуры в этот план не
+                // входит. Объявить сотню кнопок, ни одна из которых не
+                // срабатывает по Enter, хуже, чем не объявлять их вовсе;
+                // завести же задачу с клавиатуры по-прежнему можно — «плюсом»
+                // на строке категории, который кнопка и есть.
+                <span
+                  className="gantt__insert"
+                  aria-hidden="true"
+                  title={t("gantt.insert_before", { name: task.name })}
+                  onClick={onInsertBefore}
+                >
+                  +
+                </span>
+              )}
               {reorder?.enabled && (
                 // Ручка отдельно от полоски: за неё меняют порядок, за полоску —
                 // даты.
@@ -498,6 +588,7 @@ export function TaskRow({
                   них лишним, неотличимым от первой шагом Tab. Клик остаётся
                   доступен указателем и не обещает того, чего не выполняет. */}
               <span
+                id={nameId}
                 className={`gantt__label-name${onSelect ? " gantt__label-name--clickable" : ""}`}
                 onClick={onSelect ? () => onSelect(task.id) : undefined}
               >
@@ -520,6 +611,22 @@ export function TaskRow({
                   aria-label={beyondPlanLabel}
                 >
                   +
+                </span>
+              )}
+
+              {/* Хвост колонки имени: обсуждение и исполнители — то, что в
+                  TeamGantt показывает наведение на строку. Прижаты вправо,
+                  чтобы имена задач читались одним столбцом, а не начинались
+                  каждое на своём отступе.
+
+                  Молчат, пока не навели, — но только когда молчать есть о чём:
+                  число реплик видно всегда (иначе о разговоре можно узнать,
+                  только водя мышью по ста строкам), а кнопка, чтобы этот
+                  разговор завести, ждёт наведения (см. gantt.css). */}
+              {(comments !== null || assignInName !== null) && (
+                <span className="gantt__row-actions">
+                  {comments}
+                  {assignInName}
                 </span>
               )}
             </>
@@ -745,6 +852,21 @@ export function TaskRow({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Знак «обсуждение» — рисунком, а не эмодзи.
+ *
+ * Эмодзи рисуется цветной картинкой шрифта системы: в ряду тонких линий ленты
+ * это наклейка, да ещё и разная на разных системах. Рисунок берёт цвет текста
+ * и гаснет вместе с ним.
+ */
+function CommentIcon() {
+  return (
+    <svg className="gantt__glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path d="M13.6 2.8H2.4a1 1 0 0 0-1 1v6.1a1 1 0 0 0 1 1h1.9v2.6l2.9-2.6h6.4a1 1 0 0 0 1-1V3.8a1 1 0 0 0-1-1Z" />
+    </svg>
   );
 }
 

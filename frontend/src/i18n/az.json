@@ -530,6 +530,19 @@
    "keys": "Shift + ←→ köçür · Esc dayandır · {mod}+Z geri al"
     },
     "toggle_category": "«{name}» kateqoriyasını qatla və ya aç",
+    "insert_before": "«{name}» tapşırığından əvvəl tapşırıq əlavə et",
+    "comments": {
+      "aria": {
+        "one": "«{name}» müzakirəsi: {count} şərh",
+        "other": "«{name}» müzakirəsi: {count} şərh"
+      }
+    },
+    "assign": {
+      "label": "İcraçılar",
+      "empty": "İcraçı təyin et",
+      "some": "İcraçılar: {names}",
+      "aria": "«{name}» icraçıları"
+    },
     "caption": "Al qırmızı kəsik — ilkin son tarixdir; «+N gün» yazısı tarixin nə qədər sürüşdüyünü göstərir. Al qırmızı ox — pozulmuş asılılıqdır: tapşırıq blokeri hazır olmamış başlayıb.",
     "resized": "«{name}» indi {days} çəkir",
     "progress_set": "«{name}» — {percent}%",

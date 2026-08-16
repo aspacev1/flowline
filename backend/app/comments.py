@@ -8,7 +8,7 @@
 import uuid
 from collections.abc import Sequence
 
-from sqlalchemy import select, tuple_
+from sqlalchemy import func, select, tuple_
 from sqlalchemy.orm import Session as DbSession
 
 from app.config import get_settings
@@ -147,6 +147,35 @@ def list_comments(
         query.order_by(Comment.created_at.desc(), Comment.id.desc()).limit(limit)
     ).all()
     return list(reversed(rows))
+
+
+def comment_counts(
+    db: DbSession, project: Project, *, include_internal: bool = True
+) -> dict[uuid.UUID, int]:
+    """Сколько реплик у каждой задачи проекта.
+
+    Счётчик стоит на каждой строке ленты, поэтому считается одним запросом на
+    проект, а не запросом на задачу: на сотне задач второе означало бы сотню
+    походов в базу ради одного экрана. Ленту для этого не годится взять
+    целиком — она отдаётся хвостом в сто реплик (см. list_comments), и счёт по
+    ней врал бы ровно на тех проектах, где переписки много.
+
+    Отдаются только задачи, у которых реплики есть: ноль — это отсутствие
+    ключа. Реплики к проекту целиком (`task_id is NULL`) не считаются вовсе —
+    они не принадлежат ни одной строке.
+
+    `include_internal=False` — счёт глазами гостя публичной ссылки: реплики
+    «в сторону» он не видит, и число рядом с задачей не должно проговариваться
+    о том, что команда что-то обсуждала.
+    """
+    query = (
+        select(Comment.task_id, func.count())
+        .where(Comment.project_id == project.id, Comment.task_id.is_not(None))
+        .group_by(Comment.task_id)
+    )
+    if not include_internal:
+        query = query.where(Comment.internal.is_(False))
+    return {task_id: count for task_id, count in db.execute(query).all()}
 
 
 def author_names(db: DbSession, comments: Sequence[Comment]) -> dict[uuid.UUID, str]:

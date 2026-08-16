@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session as DbSession
 from app.access import Action, can
 from app.api.serialization import comments_out, project_state
 from app.calendar import CalendarError
-from app.comments import CommentRejected, add_comment, list_comments
+from app.comments import CommentRejected, add_comment, comment_counts, list_comments
 from app.config import get_settings
 from app.db import get_db
 from app.models import Organization, Project, ShareLink
@@ -144,6 +144,20 @@ def public_comments(
     except CommentRejected as error:
         raise HTTPException(status_code=404, detail=error.code)
     return comments_out(db, rows)
+
+
+@router.get("/{org_slug}/{project_slug}/comments/counts")
+def public_comment_counts(
+    shared: SharedProject = Depends(shared_project), db: DbSession = Depends(get_db)
+):
+    """Счётчик реплик на строках публичной ленты — без внутренних.
+
+    Тот же фильтр, что и у ленты выше: гость внутренних реплик не видит, и
+    число рядом с задачей не должно проговариваться о том, чего в его ленте
+    нет вовсе.
+    """
+    counts = comment_counts(db, shared.project, include_internal=False)
+    return {str(task_id): count for task_id, count in counts.items()}
 
 
 @router.post("/{org_slug}/{project_slug}/comments", status_code=201)

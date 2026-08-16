@@ -13,7 +13,7 @@ from app.api.deps import ProjectContext, project_context
 from app.api.serialization import comments_out, project_state
 from app.auth import current_user
 from app.calendar import CalendarError
-from app.comments import CommentRejected, add_comment, list_comments
+from app.comments import CommentRejected, add_comment, comment_counts, list_comments
 from app.db import get_db
 from app.live import hub
 from app.models import (
@@ -915,6 +915,21 @@ def list_project_comments(
     except CommentRejected as error:
         raise HTTPException(status_code=404, detail=error.code)
     return comments_out(db, rows)
+
+
+@router.get("/{project_id}/comments/counts")
+def project_comment_counts(
+    context: ProjectContext = Depends(project_context), db: DbSession = Depends(get_db)
+):
+    """Сколько реплик у каждой задачи — числом на строке ленты.
+
+    Отдельным маршрутом, а не полем в состоянии проекта: комментарий состояния
+    не меняет и ревизии не рождает, поэтому состояние после него не
+    перезапрашивается, и счётчик, вшитый в него, показывал бы вчерашнее число
+    до ближайшей правки плана. Здесь же он обновляется вместе с самой лентой
+    реплик — по тому же событию сокета.
+    """
+    return {str(task_id): count for task_id, count in comment_counts(db, context.project).items()}
 
 
 @router.post("/{project_id}/comments", status_code=201)

@@ -62,7 +62,12 @@ export function useQuickTask({ projectId, state }: { projectId: string; state: P
   // убирал бы из ожидания обе.
   const sent = useRef(0);
 
-  const create = (categoryId: string, name: string) => {
+  /**
+   * `position` — номер строки, на который её кладут. Не назван — задача встаёт
+   * в конец категории, как и было; назван — на своё место, а соседи ниже
+   * едут на единицу (см. `_make_room` на сервере).
+   */
+  const create = (categoryId: string, name: string, position?: number) => {
     sent.current += 1;
     const id = sent.current;
     setPending((rows) => [...rows, { id, categoryId, name }]);
@@ -74,6 +79,10 @@ export function useQuickTask({ projectId, state }: { projectId: string; state: P
         name,
         start_date: startDayFor(state, categoryId, today),
         duration_days: 1,
+        // Ключа нет вовсе, когда места не называли: сервер отличает «в конец»
+        // от названного номера, и первое — это отсутствие ключа, а не ключ со
+        // значением.
+        ...(position === undefined ? {} : { position }),
       },
       // Догадки нет — есть строка ожидания рядом. `apply` всё равно единственная
       // дорога изменения: она же запирает правку при обрыве связи и она же

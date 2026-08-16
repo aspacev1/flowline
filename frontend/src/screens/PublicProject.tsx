@@ -1,11 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 
 import { errorKey } from "../api/errors";
 import {
   addPublicComment,
   getPublicProject,
+  listPublicCommentCounts,
   listPublicComments,
+  publicCommentCountsQueryKey,
   publicCommentsQueryKey,
   publicProjectQueryKey,
 } from "../api/public";
@@ -51,6 +54,20 @@ export function PublicProject() {
     // ошибку об одном и том же.
     enabled: project.isSuccess,
   });
+
+  // Число реплик на строках — без внутренних: их фильтрует сервер, а не
+  // разметка. Ключ лежит внутри ключа ленты, поэтому своя же отправленная
+  // реплика обновляет и счётчик — тем же сбросом, что и саму ленту.
+  const counts = useQuery({
+    queryKey: publicCommentCountsQueryKey(orgSlug, projectSlug, token),
+    queryFn: () => listPublicCommentCounts(orgSlug, projectSlug, token),
+    retry: false,
+    enabled: project.isSuccess,
+  });
+  const commentsByTask = useMemo(
+    () => new Map(Object.entries(counts.data ?? {})),
+    [counts.data],
+  );
 
   const send = useMutation({
     mutationFn: (input: { body: string; name: string }) =>
@@ -99,7 +116,16 @@ export function PublicProject() {
         <ProjectHead state={project.data} />
 
         <div className={`project__body${reducedMotion ? " motion-off" : ""}`}>
-          <Gantt projectId={project.data.id} state={project.data} canWrite={false} />
+          {/* Счётчик реплик виден и гостю — но кнопкой не становится:
+              карточки задачи у него нет, и открывать ею нечего (см. Row).
+              Знать, что об этой строке уже говорили, ему всё равно полезно:
+              разговор идёт лентой ниже. */}
+          <Gantt
+            projectId={project.data.id}
+            state={project.data}
+            canWrite={false}
+            commentCounts={commentsByTask}
+          />
         </div>
 
         <CommentThread

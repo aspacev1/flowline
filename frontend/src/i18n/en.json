@@ -530,6 +530,19 @@
    "keys": "Shift + ←→ move · Esc cancel · {mod}+Z undo"
     },
     "toggle_category": "Collapse or expand “{name}”",
+    "insert_before": "Add a task above “{name}”",
+    "comments": {
+      "aria": {
+        "one": "“{name}” discussion: {count} comment",
+        "other": "“{name}” discussion: {count} comments"
+      }
+    },
+    "assign": {
+      "label": "Assigned people",
+      "empty": "Assign people",
+      "some": "Assigned: {names}",
+      "aria": "People on “{name}”"
+    },
     "caption": "The magenta tick is the original deadline; the “+N d” label shows how far the date slipped. A magenta arrow is a violated dependency: the task started before its blocker was done.",
     "resized": "“{name}” now takes {days}",
     "progress_set": "“{name}” — {percent}% done",
