@@ -123,12 +123,37 @@ function proposalFixtures(state: ProposalState = PROPOSAL) {
       sent.push({ method: "PATCH", path: "proposal", body: await request.json() });
       return HttpResponse.json(state);
     }),
+    http.patch("/api/projects/p1/proposal/categories/:categoryId", async ({ request, params }) => {
+      sent.push({
+        method: "PATCH",
+        path: `category:${params.categoryId as string}`,
+        body: await request.json(),
+      });
+      return HttpResponse.json({ id: params.categoryId, name: "Дизайн", position: 0 });
+    }),
+    http.delete("/api/projects/p1/proposal/tasks/:taskId", ({ params }) => {
+      sent.push({ method: "DELETE", path: `task:${params.taskId as string}`, body: null });
+      return new HttpResponse(null, { status: 204 });
+    }),
+    http.delete("/api/projects/p1/proposal/categories/:categoryId", ({ params }) => {
+      sent.push({
+        method: "DELETE",
+        path: `category:${params.categoryId as string}`,
+        body: null,
+      });
+      return new HttpResponse(null, { status: 204 });
+    }),
     http.post("/api/projects/p1/proposal/push-to-plan", () => {
       sent.push({ method: "POST", path: "push-to-plan", body: null });
       return HttpResponse.json({ created_tasks: 2 }, { status: 201 });
     }),
   );
   return sent;
+}
+
+/** Открыть ячейку строки на правку: щелчок по значению, как в ленте. */
+async function openCell(text: string) {
+  await userEvent.click(await screen.findByText(text));
 }
 
 describe("вкладка предложения", () => {
@@ -143,7 +168,7 @@ describe("вкладка предложения", () => {
     // Строка работы: роль в карточке, а в таблице — оценка в днях и часах,
     // ставка за день и цена. У «Гайдлайна» цена 600 не совпадает ни с одной
     // ставкой — совпавшая строка прятала бы ошибку.
-    expect(await screen.findByRole("button", { name: /Логотип/ })).toBeInTheDocument();
+    expect(await screen.findByText("Логотип")).toBeInTheDocument();
     expect(screen.getByText("Знак")).toBeInTheDocument();
     expect(screen.getByText("2д")).toBeInTheDocument();
     expect(screen.getByText("16ч")).toBeInTheDocument();
@@ -151,7 +176,7 @@ describe("вкладка предложения", () => {
     expect(screen.getByText(money(600))).toBeInTheDocument();
 
     // Строка раздела — сводка своих работ и описание.
-    expect(screen.getByDisplayValue("Понять и нарисовать")).toBeInTheDocument();
+    expect(screen.getByText("Понять и нарисовать")).toBeInTheDocument();
 
     const summary = screen.getByRole("complementary", { name: "Итоги предложения" });
     expect(within(summary).getByText("40ч")).toBeInTheDocument();
@@ -165,23 +190,25 @@ describe("вкладка предложения", () => {
   it("шеврон сворачивает раздел: работы прячутся, сводка остаётся", async () => {
     proposalFixtures();
     renderProject(undefined, { route: "/projects/p1/proposal" });
-    await screen.findByRole("button", { name: /Логотип/ });
+    await screen.findByText("Логотип");
 
     await userEvent.click(
       screen.getByRole("button", { name: "Свернуть раздел «Дизайн»" }),
     );
 
-    expect(screen.queryByRole("button", { name: /Логотип/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("Логотип")).not.toBeInTheDocument();
     // Сводка раздела на месте: свёрнутый раздел — строка с суммой, не дыра.
     expect(screen.getByText("Дизайн")).toBeInTheDocument();
     expect(screen.getAllByText(money(800)).length).toBeGreaterThan(0);
   });
 
-  it("щелчок по работе открывает карточку с подробностями и обсуждением", async () => {
+  it("знак «править» на строке открывает карточку с подробностями и обсуждением", async () => {
     proposalFixtures();
     renderProject(undefined, { route: "/projects/p1/proposal" });
 
-    await userEvent.click(await screen.findByRole("button", { name: /Логотип/ }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Править работу «Логотип»" }),
+    );
     const panel = await screen.findByRole("complementary", { name: /Логотип/ });
 
     expect(within(panel).getByLabelText("Подробное описание")).toHaveValue("Три варианта");
@@ -195,7 +222,9 @@ describe("вкладка предложения", () => {
     const sent = proposalFixtures();
     renderProject(undefined, { route: "/projects/p1/proposal" });
 
-    await userEvent.click(await screen.findByRole("button", { name: /Логотип/ }));
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Править работу «Логотип»" }),
+    );
     const panel = await screen.findByRole("complementary", { name: /Логотип/ });
 
     const risks = within(panel).getByLabelText("Риски");
@@ -212,10 +241,159 @@ describe("вкладка предложения", () => {
     );
   });
 
+  it("каждая ячейка работы правится прямо в таблице", async () => {
+    const sent = proposalFixtures();
+    renderProject(undefined, { route: "/projects/p1/proposal" });
+
+    // Имя.
+    await openCell("Логотип");
+    const name = screen.getByLabelText("Изменить: Работа у «Логотип»");
+    await userEvent.clear(name);
+    await userEvent.type(name, "Знак фирмы");
+    await userEvent.tab();
+    await waitFor(() =>
+      expect(sent).toContainEqual({
+        method: "PATCH",
+        path: "task:pt1",
+        body: { name: "Знак фирмы" },
+      }),
+    );
+
+    // Описание: пустое — тоже значение, описание стирают.
+    await openCell("Знак");
+    const description = screen.getByLabelText("Изменить: Описание у «Логотип»");
+    await userEvent.clear(description);
+    await userEvent.tab();
+    await waitFor(() =>
+      expect(sent).toContainEqual({
+        method: "PATCH",
+        path: "task:pt1",
+        body: { description: "" },
+      }),
+    );
+
+    // Оценка в днях — в единицах сметы она же и есть.
+    await openCell("2д");
+    const effort = screen.getByLabelText("Изменить: Оценка у «Логотип»");
+    await userEvent.clear(effort);
+    await userEvent.type(effort, "4{Enter}");
+    await waitFor(() =>
+      expect(sent).toContainEqual({ method: "PATCH", path: "task:pt1", body: { effort: 4 } }),
+    );
+
+    // Часы правятся своей колонкой и переводятся обратно в дни сметы: 24 часа
+    // при восьмичасовом дне — три дня.
+    await openCell("16ч");
+    const hours = screen.getByLabelText("Изменить: Часы у «Логотип»");
+    await userEvent.clear(hours);
+    await userEvent.type(hours, "24{Enter}");
+    await waitFor(() =>
+      expect(sent).toContainEqual({ method: "PATCH", path: "task:pt1", body: { effort: 3 } }),
+    );
+
+    // Ставка.
+    await openCell(`${money(100)}/д`);
+    const rate = screen.getByLabelText("Изменить: Ставка у «Логотип»");
+    await userEvent.clear(rate);
+    await userEvent.type(rate, "150{Enter}");
+    await waitFor(() =>
+      expect(sent).toContainEqual({ method: "PATCH", path: "task:pt1", body: { rate: 150 } }),
+    );
+
+    // Цена — произведение, и правка её меняет ставку: 900 за три дня «Гайдлайна»
+    // это 300 за день.
+    await openCell(money(600));
+    const price = screen.getByLabelText("Изменить: Цена у «Гайдлайн»");
+    await userEvent.clear(price);
+    await userEvent.type(price, "900{Enter}");
+    await waitFor(() =>
+      expect(sent).toContainEqual({ method: "PATCH", path: "task:pt2", body: { rate: 300 } }),
+    );
+  });
+
+  it("имя и описание раздела правятся в его строке", async () => {
+    const sent = proposalFixtures();
+    renderProject(undefined, { route: "/projects/p1/proposal" });
+
+    await openCell("Дизайн");
+    const name = screen.getByLabelText("Название раздела «Дизайн»");
+    await userEvent.clear(name);
+    await userEvent.type(name, "Проектирование{Enter}");
+    await waitFor(() =>
+      expect(sent).toContainEqual({
+        method: "PATCH",
+        path: "category:pc1",
+        body: { name: "Проектирование" },
+      }),
+    );
+
+    await openCell("Понять и нарисовать");
+    const description = screen.getByLabelText("Описание раздела «Дизайн»");
+    await userEvent.clear(description);
+    await userEvent.type(description, "Понять и показать{Enter}");
+    await waitFor(() =>
+      expect(sent).toContainEqual({
+        method: "PATCH",
+        path: "category:pc1",
+        body: { description: "Понять и показать" },
+      }),
+    );
+  });
+
+  it("крестик на строке удаляет работу — после вопроса о последствии", async () => {
+    const sent = proposalFixtures();
+    renderProject(undefined, { route: "/projects/p1/proposal" });
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Удалить работу «Логотип»" }),
+    );
+    // Сначала — что именно сломается, и только потом само действие.
+    expect(
+      screen.getByText("Работа «Логотип» удалится вместе с обсуждением"),
+    ).toBeInTheDocument();
+    expect(sent).not.toContainEqual({ method: "DELETE", path: "task:pt1", body: null });
+
+    await userEvent.click(screen.getByRole("button", { name: "Удалить работу" }));
+    await waitFor(() =>
+      expect(sent).toContainEqual({ method: "DELETE", path: "task:pt1", body: null }),
+    );
+
+    // Тот же крестик и на строке раздела — со своим предупреждением: раздел
+    // уносит с собой все работы.
+    await userEvent.click(screen.getByRole("button", { name: "Удалить раздел «Дизайн»" }));
+    await userEvent.click(screen.getByRole("button", { name: "Удалить раздел" }));
+    await waitFor(() =>
+      expect(sent).toContainEqual({ method: "DELETE", path: "category:pc1", body: null }),
+    );
+  });
+
+  it("знак «править» на строке раздела открывает окно с его полями", async () => {
+    const sent = proposalFixtures();
+    renderProject(undefined, { route: "/projects/p1/proposal" });
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Править раздел «Дизайн»" }),
+    );
+    const modal = await screen.findByRole("dialog");
+    expect(within(modal).getByLabelText("Название")).toHaveValue("Дизайн");
+
+    await userEvent.clear(within(modal).getByLabelText("Описание"));
+    await userEvent.type(within(modal).getByLabelText("Описание"), "Смыслы и картинки");
+    await userEvent.click(within(modal).getByRole("button", { name: "Сохранить" }));
+
+    await waitFor(() =>
+      expect(sent).toContainEqual({
+        method: "PATCH",
+        path: "category:pc1",
+        body: { name: "Дизайн", description: "Смыслы и картинки" },
+      }),
+    );
+  });
+
   it("работа заводится строкой в таблице: Enter отправляет и оставляет поле", async () => {
     const sent = proposalFixtures();
     renderProject(undefined, { route: "/projects/p1/proposal" });
-    await screen.findByRole("button", { name: /Логотип/ });
+    await screen.findByText("Логотип");
 
     // Кнопка тулбара открывает строку в первом разделе — как в ленте.
     await userEvent.click(screen.getByRole("button", { name: "Новая работа" }));
@@ -240,7 +418,7 @@ describe("вкладка предложения", () => {
   it("раздел заводится окном из тулбара — как категория в ленте", async () => {
     const sent = proposalFixtures();
     renderProject(undefined, { route: "/projects/p1/proposal" });
-    await screen.findByRole("button", { name: /Логотип/ });
+    await screen.findByText("Логотип");
 
     await userEvent.click(screen.getByRole("button", { name: "Новый раздел" }));
     const modal = await screen.findByRole("dialog");
@@ -260,7 +438,7 @@ describe("вкладка предложения", () => {
   it("примечания предложения показываются пунктами и правятся на месте", async () => {
     const sent = proposalFixtures();
     renderProject(undefined, { route: "/projects/p1/proposal" });
-    await screen.findByRole("button", { name: /Логотип/ });
+    await screen.findByText("Логотип");
 
     // Пункт на строку — списком.
     expect(screen.getByText("Оценки по текущему объёму.")).toBeInTheDocument();
@@ -285,7 +463,7 @@ describe("вкладка предложения", () => {
   it("кнопка переноса отдаёт смету в план", async () => {
     const sent = proposalFixtures();
     renderProject(undefined, { route: "/projects/p1/proposal" });
-    await screen.findByRole("button", { name: /Логотип/ });
+    await screen.findByText("Логотип");
 
     await userEvent.click(screen.getByRole("button", { name: "Добавить в план" }));
 
@@ -298,6 +476,8 @@ describe("вкладка предложения", () => {
     proposalFixtures();
     renderProject(undefined, { canWrite: false, route: "/projects/p1/proposal" });
 
+    // Имя у читателя — по-прежнему кнопка, открывающая карточку: правкой
+    // щелчок по нему быть не может, а карточка для чтения открыта и ему.
     expect(await screen.findByRole("button", { name: /Логотип/ })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Добавить в план" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Новая работа" })).not.toBeInTheDocument();
@@ -305,8 +485,24 @@ describe("вкладка предложения", () => {
     expect(
       screen.queryByRole("button", { name: "Править примечания" }),
     ).not.toBeInTheDocument();
-    // Описание раздела — текстом, не полем: право читать не даёт права менять.
+    // Знаков правки и удаления на строках нет вовсе: право читать не даёт
+    // права менять.
+    expect(
+      screen.queryByRole("button", { name: "Править работу «Логотип»" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Удалить работу «Логотип»" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Править раздел «Дизайн»" }),
+    ).not.toBeInTheDocument();
+
+    // Описание раздела — текстом, не полем: щелчок по нему ничего не открывает.
     expect(screen.getByText("Понять и нарисовать")).toBeInTheDocument();
+    await userEvent.click(screen.getByText("Понять и нарисовать"));
+    expect(
+      screen.queryByLabelText("Описание раздела «Дизайн»"),
+    ).not.toBeInTheDocument();
     // Настройки сметы показываются, но выключены.
     expect(screen.getByLabelText("Налог, %")).toBeDisabled();
   });

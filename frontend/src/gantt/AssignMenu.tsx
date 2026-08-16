@@ -218,7 +218,7 @@ export function AssignMenu({
  */
 function PeopleIcon() {
   return (
-    <svg className="gantt__glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+    <svg className="glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
       <circle cx="6" cy="5" r="2.4" />
       <path d="M1.6 13.2c0-2.3 2-3.8 4.4-3.8s4.4 1.5 4.4 3.8" />
       <circle cx="11.6" cy="5.6" r="1.9" />

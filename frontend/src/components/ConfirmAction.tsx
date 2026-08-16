@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 
 import { useLocale } from "../i18n/LocaleProvider";
 
@@ -17,6 +18,7 @@ import { useLocale } from "../i18n/LocaleProvider";
  */
 export function ConfirmAction({
   label,
+  icon,
   warning,
   confirm,
   onConfirm,
@@ -25,6 +27,12 @@ export function ConfirmAction({
 }: {
   /** Подпись самой кнопки — до вопроса. */
   label: string;
+  /**
+   * Знак вместо подписи — для кнопки на строке таблицы, где на слово места
+   * нет. Подпись при этом никуда не девается: она становится именем кнопки, и
+   * с экрана читается по-прежнему словами, а не «крестик».
+   */
+  icon?: ReactNode;
   /** Что именно сломается. Не «вы уверены?», а последствие. */
   warning: string;
   /** Подпись подтверждения: она называет действие, а не отвечает «да». */
@@ -75,9 +83,11 @@ export function ConfirmAction({
       type="button"
       className={className}
       disabled={disabled}
+      aria-label={icon === undefined ? undefined : label}
+      title={icon === undefined ? undefined : label}
       onClick={() => setConfirming(true)}
     >
-      {label}
+      {icon ?? label}
     </button>
   );
 }

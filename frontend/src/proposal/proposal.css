@@ -52,6 +52,14 @@
 
 /* --- Таблица работ ------------------------------------------------------- */
 
+/* Берега таблицы: она уезжает вбок внутри них, а не под карточку итогов.
+   Шесть колонок — имя, описание и четыре числа — ужимаются до предела и
+   дальше не ужимаются, и на узком экране кто-то обязан уступить. Уступает
+   прокрутка, а не колонка цены. */
+.proposal-table__scroll {
+  overflow-x: auto;
+}
+
 .proposal-table {
   width: 100%;
   border-collapse: collapse;
@@ -93,62 +101,47 @@
   background: var(--bg-subtle);
 }
 
+/* Колонка имени: шеврон, само имя и знаки действий, прижатые к правому краю
+   колонки. Флексом на всю ширину ячейки, а не по содержимому: иначе знаки
+   вставали бы вплотную к имени и на каждой строке на своём месте. */
 .proposal-row__name {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+}
+
+/* Само имя занимает всё свободное место: оно и обрезается многоточием, когда
+   не влезло, а не раздвигает соседние колонки.
+
+   Но не уже нижней границы: обрезаемое имя браузер считает сжимаемым до нуля,
+   и колонка работ отдавала бы всю ширину описанию — от названий оставалось бы
+   «Диз…». Порог держит колонку читаемой, а многоточие достаётся только тем
+   именам, которые и правда длиннее её. */
+.proposal-row__field {
+  flex: 1;
+  min-width: 100px;
 }
 
 /* Работы отступают под свой раздел — на ширину шеврона: имена строк одной
    природы стоят в одной колонке. */
 .proposal-row__name--task {
-  padding-left: 26px;
+  padding-left: 19px;
 }
 
-.proposal-row__chevron {
-  background: none;
-  border: 0;
-  padding: 0 2px;
-  color: var(--text-faint);
-  cursor: pointer;
-  font-size: 12px;
-  line-height: 1;
+/* Имя раздела — того же начертания, что и его сумма: это заголовок группы, а
+   не значение отдельной работы. Как строка категории в ленте. Описание рядом
+   полужирным не набирается: это по-прежнему пояснение, а не заголовок. */
+.proposal-row--category .proposal-row__field .cell-value {
+  font-weight: 600;
 }
 
-.proposal-row__chevron:hover {
-  color: var(--text);
-  background: none;
-}
-
-/* «Плюс» и удаление — по наведению, как контролы строк ленты: постоянные
-   кнопки возле каждого раздела читаются как угроза. */
-.proposal-row__add {
-  background: none;
-  border: 0;
-  padding: 0 4px;
-  color: var(--text-faint);
-  cursor: pointer;
-  font-size: 14px;
-  line-height: 1;
-  opacity: 0;
-  transition: opacity 80ms ease;
-}
-
-.proposal-row__delete {
-  opacity: 0;
-  transition: opacity 80ms ease;
-}
-
-.proposal-row--category:hover .proposal-row__add,
-.proposal-row--category:focus-within .proposal-row__add,
-.proposal-row--category:hover .proposal-row__delete,
-.proposal-row--category:focus-within .proposal-row__delete {
+/* Знаки действий молчат, пока на строку не навели, — общее правило строк
+   (components/rows.css) знает всё, кроме того, какая строка под курсором. */
+.proposal-row:hover .row-icon,
+.proposal-row:focus-within .row-icon,
+.proposal-row:hover .row-badge {
   opacity: 1;
-}
-
-.proposal-row__add:hover {
-  color: var(--accent);
-  background: none;
 }
 
 .proposal-table__num {
@@ -166,19 +159,23 @@ th.proposal-table__num {
   font-weight: 600;
 }
 
-/* Имя строки — кнопка на всю ячейку: карточку открывают щелчком по имени,
-   и зона щелчка не должна быть меньше слова. */
-.proposal-table__open {
+/* Имя строки у читателя — кнопка, открывающая карточку, но не выглядящая
+   кнопкой: ни заливки, ни тени, ни высоты базовой — иначе каждое имя в
+   таблице стояло бы в собственной плашке. Геометрию берёт у ячейки рядом
+   (`cell-value`), чтобы таблица не съезжала на пиксель от прав смотрящего. */
+.proposal-row__open {
+  width: 100%;
+  height: auto;
   background: none;
-  border: 0;
-  padding: 0;
+  box-shadow: none;
   font: inherit;
   color: var(--text);
   cursor: pointer;
   text-align: left;
+  justify-content: flex-start;
 }
 
-.proposal-table__open:hover {
+.proposal-row__open:hover {
   color: var(--accent);
   background: none;
 }
@@ -188,11 +185,27 @@ th.proposal-table__num {
   max-width: 320px;
 }
 
-/* Счётчик реплик — тихим значком после имени, как на строке ленты. */
-.proposal-table__comments {
-  color: var(--text-faint);
+/* Описание переносится по словам, а не режется многоточием в одну строку:
+   таблица шириной в экран, и длинная фраза, не умеющая переноситься, отняла
+   бы место у всех колонок разом. Остальные ячейки — в одну строку, как в
+   ленте: имена и числа сравнивают взглядом сверху вниз. */
+.proposal-table__desc .cell-value {
+  white-space: normal;
+  overflow: visible;
+}
+
+/* Вопрос перед удалением разворачивается на месте крестика — прямо в колонке
+   имени. Он длиннее любого знака рядом, поэтому набран мельче и переносится
+   по словам: иначе фраза о последствии растянула бы колонку на пол-таблицы. */
+.proposal-row .plan__confirm {
   font-size: 12px;
-  white-space: nowrap;
+  white-space: normal;
+}
+
+/* Число правится своим числом, а не подписью: в поле встаёт «2», а не «2д», и
+   выравнивание вправо остаётся тем же, каким было у значения. */
+.proposal-table__num .cell-input {
+  text-align: right;
 }
 
 /* Поле новой строки — на всю ширину таблицы, как строка новой задачи в
@@ -209,17 +222,6 @@ th.proposal-table__num {
 .proposal-table__input:focus {
   outline: none;
   box-shadow: none;
-}
-
-/* Описание раздела правится на месте — поле не выглядит полем, пока в него
-   не встали: рамка у каждой строки превратила бы таблицу в анкету. */
-.proposal-table__input--quiet {
-  color: var(--text-muted);
-}
-
-.proposal-table__input--quiet:hover {
-  background: var(--hover);
-  border-radius: 4px;
 }
 
 /* --- Допущения и примечания ---------------------------------------------- */

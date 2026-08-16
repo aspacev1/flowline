@@ -6,16 +6,24 @@ import { projectQueryKey } from "../api/projects";
 import {
   createProposalTask,
   deleteProposalCategory,
+  deleteProposalTask,
   getProposal,
   proposalQueryKey,
   pushProposalToPlan,
   updateProposalCategory,
   updateProposalSettings,
+  updateProposalTask,
 } from "../api/proposal";
-import type { ProposalCategory, ProposalSettingsPatch, ProposalTask } from "../api/proposal";
+import type {
+  ProposalCategory,
+  ProposalSettingsPatch,
+  ProposalTask,
+  ProposalTaskPatch,
+} from "../api/proposal";
 import { SaveMark, SelectField, TextField, ValueField } from "../components/autosave";
 import { useFieldSaves } from "../components/autosave";
 import { ConfirmAction } from "../components/ConfirmAction";
+import { CommentIcon, EditableCell, PencilIcon, RowBadge, RowIcon } from "../components/rows";
 import { useToast } from "../components/toast";
 import { useLocale } from "../i18n/LocaleProvider";
 import { formatAmount, formatMoney } from "./money";
@@ -40,6 +48,13 @@ const COLUMNS = 6;
  * Разделы и строки заводятся теми же движениями, что категории и задачи в
  * ленте: раздел — окном из тулбара, строка — полем прямо в таблице, по
  * «плюсу» на строке раздела или кнопкой тулбара (см. NewProposalTaskRow).
+ *
+ * И правятся тем же движением: любая ячейка открывается щелчком по ней и
+ * уходит на сервер потерей фокуса — как ячейки закреплённой таблицы ленты
+ * (components/rows). Смету пишут построчно, сверяя числа с соседними, и
+ * карточка ради одной ставки означала бы открыть, поправить, закрыть — на
+ * каждой строке подряд. Карточка остаётся для того, чего в таблице нет:
+ * подробностей, рисков, допущений и разговора.
  */
 export function Proposal({ projectId, canWrite }: { projectId: string; canWrite: boolean }) {
   const { t, locale } = useLocale();
@@ -57,6 +72,9 @@ export function Proposal({ projectId, canWrite }: { projectId: string; canWrite:
   // показывала бы устаревшие данные. Тот же приём, что у карточки задачи.
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [addingCategory, setAddingCategory] = useState(false);
+  // Раздел, открытый на правку в окне. Идентификатором, а не объектом — по той
+  // же причине, что и строка выше.
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   // Раздел, в котором открыта строка новой работы. `null` — закрыта.
   const [newTaskIn, setNewTaskIn] = useState<string | null>(null);
   // Свёрнутые разделы. Пустое множество — всё развёрнуто: смету читают
@@ -84,10 +102,27 @@ export function Proposal({ projectId, canWrite }: { projectId: string; canWrite:
   });
 
   const patchCategory = useMutation({
-    mutationFn: (input: { categoryId: string; description: string }) =>
-      updateProposalCategory(projectId, input.categoryId, {
-        description: input.description,
-      }),
+    mutationFn: (input: {
+      categoryId: string;
+      patch: Partial<{ name: string; description: string }>;
+    }) => updateProposalCategory(projectId, input.categoryId, input.patch),
+    onSuccess: invalidate,
+  });
+
+  // Правка ячейки — та же операция, что и в карточке строки: таблица не
+  // заводит своего способа менять оценку или ставку, она вызывает
+  // существующий. Ответ сервера перечитывает смету целиком, и итоги справа
+  // сходятся с колонкой цены сами.
+  const patchTask = useMutation({
+    mutationFn: (input: { taskId: string; patch: ProposalTaskPatch }) =>
+      updateProposalTask(projectId, input.taskId, input.patch),
+    onSuccess: invalidate,
+  });
+
+  // Карточку удалённой строки закрывать нечем и не за чем: она ищется по
+  // идентификатору в свежем ответе сервера и исчезает вместе со строкой.
+  const removeTask = useMutation({
+    mutationFn: (taskId: string) => deleteProposalTask(projectId, taskId),
     onSuccess: invalidate,
   });
 
@@ -119,6 +154,8 @@ export function Proposal({ projectId, canWrite }: { projectId: string; canWrite:
   const proposal = query.data;
   const tasks = proposal.categories.flatMap((category) => category.tasks);
   const selectedTask = tasks.find((task) => task.id === selectedTaskId) ?? null;
+  const editingCategory =
+    proposal.categories.find((category) => category.id === editingCategoryId) ?? null;
   const hours = proposal.effort_unit === "hours";
 
   // Оценка живёт в единице сметы, а показывается в обеих: колонка дней и
@@ -126,6 +163,10 @@ export function Proposal({ projectId, canWrite }: { projectId: string; canWrite:
   // которым перенос в план считает длительности.
   const toDays = (effort: number) => (hours ? effort / proposal.hours_per_day : effort);
   const toHours = (effort: number) => (hours ? effort : effort * proposal.hours_per_day);
+  // Обратный пересчёт: правят ту колонку, в которую смотрят, а в трудоёмкость
+  // строки написанное переводится тем же «часов в дне», каким и показано.
+  const effortOfDays = (value: number) => (hours ? value * proposal.hours_per_day : value);
+  const effortOfHours = (value: number) => (hours ? value : value / proposal.hours_per_day);
 
   const days = (value: number) =>
     t("proposal.format.days", { value: formatAmount(locale, value) });
@@ -248,54 +289,75 @@ export function Proposal({ projectId, canWrite }: { projectId: string; canWrite:
         {proposal.categories.length === 0 ? (
           <p className="muted proposal__empty">{t("proposal.empty")}</p>
         ) : (
-          <table className="proposal-table">
-            <thead>
-              <tr>
-                <th>{t("proposal.columns.work_item")}</th>
-                <th>{t("proposal.columns.description")}</th>
-                <th className="proposal-table__num">{t("proposal.columns.effort")}</th>
-                <th className="proposal-table__num">{t("proposal.columns.hours")}</th>
-                <th className="proposal-table__num">{t("proposal.columns.rate")}</th>
-                <th className="proposal-table__num">{t("proposal.columns.price")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {proposal.categories.map((category) => (
-                <CategoryRows
-                  key={category.id}
-                  category={category}
-                  open={!collapsed.has(category.id)}
-                  canWrite={canWrite}
-                  toDays={toDays}
-                  toHours={toHours}
-                  days={days}
-                  hoursLabel={hoursLabel}
-                  money={money}
-                  rate={rate}
-                  addingTask={newTaskIn === category.id}
-                  onToggle={() => toggle(category.id)}
-                  onAddTask={() => setNewTaskIn(category.id)}
-                  onCloseNewTask={() => setNewTaskIn(null)}
-                  onCreateTask={createTask(category.id)}
-                  onDelete={() => removeCategory.mutate(category.id)}
-                  onDescribe={(description) =>
-                    patchCategory.mutate({ categoryId: category.id, description })
-                  }
-                  onOpenTask={(taskId) =>
-                    // Повторный щелчок по той же строке закрывает карточку —
-                    // тем же движением, что открыл. Как у карточки задачи.
-                    setSelectedTaskId((current) => (current === taskId ? null : taskId))
-                  }
-                  t={t}
-                />
-              ))}
-            </tbody>
-          </table>
+          // Таблица прокручивается вбок в своих берегах: шесть колонок с
+          // именами, описаниями и деньгами на узком экране уже, чем есть, не
+          // становятся — а без этого они уезжали бы под карточку итогов, и
+          // колонка цены пропадала бы вовсе.
+          <div className="proposal-table__scroll">
+            <table className="proposal-table">
+              <thead>
+                <tr>
+                  <th>{t("proposal.columns.work_item")}</th>
+                  <th>{t("proposal.columns.description")}</th>
+                  <th className="proposal-table__num">{t("proposal.columns.effort")}</th>
+                  <th className="proposal-table__num">{t("proposal.columns.hours")}</th>
+                  <th className="proposal-table__num">{t("proposal.columns.rate")}</th>
+                  <th className="proposal-table__num">{t("proposal.columns.price")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {proposal.categories.map((category) => (
+                  <CategoryRows
+                    key={category.id}
+                    category={category}
+                    open={!collapsed.has(category.id)}
+                    canWrite={canWrite}
+                    toDays={toDays}
+                    toHours={toHours}
+                    effortOfDays={effortOfDays}
+                    effortOfHours={effortOfHours}
+                    days={days}
+                    hoursLabel={hoursLabel}
+                    money={money}
+                    rate={rate}
+                    addingTask={newTaskIn === category.id}
+                    onToggle={() => toggle(category.id)}
+                    onAddTask={() => setNewTaskIn(category.id)}
+                    onCloseNewTask={() => setNewTaskIn(null)}
+                    onCreateTask={createTask(category.id)}
+                    onDelete={() => removeCategory.mutate(category.id)}
+                    onEdit={() => setEditingCategoryId(category.id)}
+                    onPatch={(patch) => patchCategory.mutate({ categoryId: category.id, patch })}
+                    onPatchTask={(taskId, patch) => patchTask.mutate({ taskId, patch })}
+                    onDeleteTask={(taskId) => removeTask.mutate(taskId)}
+                    onOpenTask={(taskId) =>
+                      // Повторный щелчок по той же строке закрывает карточку —
+                      // тем же движением, что открыл. Как у карточки задачи.
+                      setSelectedTaskId((current) => (current === taskId ? null : taskId))
+                    }
+                    t={t}
+                  />
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
 
-        {(addTask.error || removeCategory.error || patchCategory.error) && (
+        {(addTask.error ||
+          removeCategory.error ||
+          patchCategory.error ||
+          patchTask.error ||
+          removeTask.error) && (
           <p className="error" role="alert">
-            {t(errorKey(addTask.error ?? removeCategory.error ?? patchCategory.error))}
+            {t(
+              errorKey(
+                addTask.error ??
+                  removeCategory.error ??
+                  patchCategory.error ??
+                  patchTask.error ??
+                  removeTask.error,
+              ),
+            )}
           </p>
         )}
 
@@ -398,6 +460,17 @@ export function Proposal({ projectId, canWrite }: { projectId: string; canWrite:
       {addingCategory && (
         <ProposalCategoryForm projectId={projectId} onClose={() => setAddingCategory(false)} />
       )}
+
+      {/* Окно раздела на правке — то же, что и при заведении: имя и описание
+          правятся и прямо в строке, но с клавиатуры до ячейки не дойти (см.
+          components/rows), и окно остаётся тем самым путём. */}
+      {editingCategory && (
+        <ProposalCategoryForm
+          projectId={projectId}
+          category={editingCategory}
+          onClose={() => setEditingCategoryId(null)}
+        />
+      )}
     </div>
   );
 }
@@ -415,6 +488,8 @@ function CategoryRows({
   canWrite,
   toDays,
   toHours,
+  effortOfDays,
+  effortOfHours,
   days,
   hoursLabel,
   money,
@@ -425,7 +500,10 @@ function CategoryRows({
   onCloseNewTask,
   onCreateTask,
   onDelete,
-  onDescribe,
+  onEdit,
+  onPatch,
+  onPatchTask,
+  onDeleteTask,
   onOpenTask,
   t,
 }: {
@@ -434,6 +512,8 @@ function CategoryRows({
   canWrite: boolean;
   toDays: (effort: number) => number;
   toHours: (effort: number) => number;
+  effortOfDays: (value: number) => number;
+  effortOfHours: (value: number) => number;
   days: (value: number) => string;
   hoursLabel: (value: number) => string;
   money: (value: number) => string;
@@ -444,7 +524,11 @@ function CategoryRows({
   onCloseNewTask: () => void;
   onCreateTask: (name: string) => void;
   onDelete: () => void;
-  onDescribe: (description: string) => void;
+  /** Открыть окно раздела: имя и описание с клавиатуры правятся там. */
+  onEdit: () => void;
+  onPatch: (patch: Partial<{ name: string; description: string }>) => void;
+  onPatchTask: (taskId: string, patch: ProposalTaskPatch) => void;
+  onDeleteTask: (taskId: string) => void;
   onOpenTask: (taskId: string) => void;
   t: (key: string, params?: Record<string, string | number>) => string;
 }) {
@@ -468,7 +552,7 @@ function CategoryRows({
           <span className="proposal-row__name">
             <button
               type="button"
-              className="proposal-row__chevron"
+              className="row-chevron"
               aria-expanded={open}
               aria-label={toggleLabel}
               title={toggleLabel}
@@ -477,45 +561,62 @@ function CategoryRows({
               {open ? "▾" : "▸"}
             </button>
             {/* Имя раздела — содержимое пользователя: не переводится. */}
-            <strong>{category.name}</strong>
-            {canWrite && (
-              // Подпись включает название раздела — на десятке разделов
-              // безымянные «плюсы» при чтении с экрана неразличимы. Тот же
-              // довод, что у «плюса» на строке категории в ленте.
-              <button
-                type="button"
-                className="proposal-row__add"
-                aria-label={t("proposal.category.add_task", { name: category.name })}
-                title={t("proposal.category.add_task", { name: category.name })}
-                onClick={onAddTask}
-              >
-                +
-              </button>
-            )}
-            {canWrite && (
-              <ConfirmAction
-                className="button--quiet proposal-row__delete"
-                label={t("proposal.category.delete")}
-                warning={t("proposal.category.delete_warning", { name: category.name })}
-                confirm={t("proposal.category.delete_confirm")}
-                onConfirm={onDelete}
+            <span className="proposal-row__field">
+              <EditableCell
+                type="text"
+                value={category.name}
+                display={category.name}
+                disabled={!canWrite}
+                label={t("proposal.category.rename", { name: category.name })}
+                onCommit={(value) => {
+                  const name = value.trim();
+                  if (name !== "" && name !== category.name) onPatch({ name });
+                }}
               />
+            </span>
+            {canWrite && (
+              // Знаки строки — те же, что у строки ленты, и молчат так же:
+              // постоянное удаление возле каждого раздела читается как угроза.
+              // Подпись каждого включает название раздела — на десятке
+              // разделов безымянные «плюсы» при чтении с экрана неразличимы.
+              <span className="row-icons">
+                <RowIcon
+                  label={t("proposal.category.add_task", { name: category.name })}
+                  onClick={onAddTask}
+                >
+                  +
+                </RowIcon>
+                <RowIcon
+                  label={t("proposal.category.edit", { name: category.name })}
+                  onClick={onEdit}
+                >
+                  <PencilIcon />
+                </RowIcon>
+                <ConfirmAction
+                  className="row-icon row-icon--danger"
+                  icon="×"
+                  label={t("proposal.category.delete", { name: category.name })}
+                  warning={t("proposal.category.delete_warning", { name: category.name })}
+                  confirm={t("proposal.category.delete_confirm")}
+                  onConfirm={onDelete}
+                />
+              </span>
             )}
           </span>
         </td>
         <td className="proposal-table__desc">
-          {canWrite ? (
-            // Описание правится на месте: у раздела нет карточки, и окно ради
-            // одной строки было бы дороже самой строки.
-            <DescriptionCell
-              label={t("proposal.category.describe", { name: category.name })}
-              value={category.description}
-              onCommit={onDescribe}
-            />
-          ) : (
-            category.description
-          )}
+          <EditableCell
+            type="text"
+            value={category.description}
+            display={category.description}
+            disabled={!canWrite}
+            allowEmpty
+            label={t("proposal.category.describe", { name: category.name })}
+            onCommit={(description) => onPatch({ description })}
+          />
         </td>
+        {/* Числа раздела — сводка его строк, а не значения: править их значило
+            бы менять неизвестно какую из работ. Как строка категории в ленте. */}
         <td className="proposal-table__num">{days(categoryDays)}</td>
         <td className="proposal-table__num">{hoursLabel(categoryHours)}</td>
         <td className="proposal-table__num muted">
@@ -531,13 +632,19 @@ function CategoryRows({
           <TaskRow
             key={task.id}
             task={task}
+            canWrite={canWrite}
             days={days}
             hoursLabel={hoursLabel}
             toDays={toDays}
             toHours={toHours}
+            effortOfDays={effortOfDays}
+            effortOfHours={effortOfHours}
             money={money}
             rate={rate}
             onOpen={() => onOpenTask(task.id)}
+            onPatch={(patch) => onPatchTask(task.id, patch)}
+            onDelete={() => onDeleteTask(task.id)}
+            t={t}
           />
         ))}
 
@@ -555,48 +662,223 @@ function CategoryRows({
 }
 
 /**
- * Строка работы. Имя — кнопка, открывающая карточку: подробности, разговор и
- * заметки живут там, а таблица отвечает на «что, сколько и почём».
+ * Строка работы: каждая ячейка правится на месте.
+ *
+ * Оценка живёт в трудоёмкости строки, а показана двумя колонками — днями и
+ * часами; правится любая, и написанное переводится обратно тем же «часов в
+ * дне». Цена — произведение оценки на ставку, и правка её меняет ставку: «эта
+ * строка стоит пять тысяч» говорят именно так, а оценку в этот момент не
+ * пересматривают. У строки без оценки множителя нет, и цену ей задать нечем.
+ *
+ * Карточка остаётся для того, чего в таблице нет: роли, подробностей, рисков,
+ * допущений и разговора. Её открывает знак «править» — и он же единственный
+ * путь туда с клавиатуры: ячейки открываются щелчком (см. components/rows).
  */
 function TaskRow({
   task,
+  canWrite,
   days,
   hoursLabel,
   toDays,
   toHours,
+  effortOfDays,
+  effortOfHours,
   money,
   rate,
   onOpen,
+  onPatch,
+  onDelete,
+  t,
 }: {
   task: ProposalTask;
+  canWrite: boolean;
   days: (value: number) => string;
   hoursLabel: (value: number) => string;
   toDays: (effort: number) => number;
   toHours: (effort: number) => number;
+  effortOfDays: (value: number) => number;
+  effortOfHours: (value: number) => number;
   money: (value: number) => string;
   rate: (value: number) => string;
   onOpen: () => void;
+  onPatch: (patch: ProposalTaskPatch) => void;
+  onDelete: () => void;
+  t: (key: string, params?: Record<string, string | number>) => string;
 }) {
+  /** «Изменить: {колонка} у „{имя}“» — подпись поля, открытого на месте. */
+  const label = (column: string) =>
+    t("proposal.cell.edit", { column: t(column), name: task.name });
+
+  const commit = {
+    name: (value: string) => {
+      const name = value.trim();
+      if (name !== "" && name !== task.name) onPatch({ name });
+    },
+    effort: (value: number | null) => {
+      const effort = value === null ? null : rounded(value);
+      if (effort !== null && effort !== task.effort) onPatch({ effort });
+    },
+    rate: (value: string) => {
+      const parsed = amount(value);
+      if (parsed !== null && rounded(parsed) !== task.rate) onPatch({ rate: rounded(parsed) });
+    },
+    price: (value: string) => {
+      const parsed = amount(value);
+      // Делить не на что: у строки без оценки цена не разложится на ставку.
+      if (parsed === null || task.effort === 0) return;
+      const next = rounded(parsed / task.effort);
+      if (next !== task.rate) onPatch({ rate: next });
+    },
+  };
+
   return (
     <tr className="proposal-row proposal-row--task">
       <td>
         <span className="proposal-row__name proposal-row__name--task">
-          <button type="button" className="proposal-table__open" onClick={onOpen}>
-            {/* Имя строки — содержимое пользователя: не переводится. */}
-            {task.name}
-          </button>
-          {task.comment_count > 0 && (
-            <span className="proposal-table__comments">💬 {task.comment_count}</span>
-          )}
+          {/* Имя строки — содержимое пользователя: не переводится.
+
+              У читателя щелчок по имени открывает карточку — как и раньше:
+              правкой он быть не может, а карточка со всем, чего в таблице нет,
+              для чтения открыта и ему. Тому, кто пишет, то же движение
+              открывает ячейку, а карточку — знак «править» справа: два разных
+              дела на одном щелчке не помещаются. */}
+          <span className="proposal-row__field">
+            {canWrite ? (
+              <EditableCell
+                type="text"
+                value={task.name}
+                display={task.name}
+                label={label("proposal.columns.work_item")}
+                onCommit={commit.name}
+              />
+            ) : (
+              <button type="button" className="cell-value proposal-row__open" onClick={onOpen}>
+                {task.name}
+              </button>
+            )}
+          </span>
+          <span className="row-icons">
+            {(task.comment_count > 0 || canWrite) && (
+              <RowBadge
+                // Подпись та же, что у счётчика на строке ленты: разговор —
+                // один и тот же разговор, где бы его ни открыли.
+                label={t("comments.aria", { name: task.name, count: task.comment_count })}
+                set={task.comment_count > 0}
+                onClick={onOpen}
+              >
+                <CommentIcon />
+                {task.comment_count > 0 && task.comment_count}
+              </RowBadge>
+            )}
+            {canWrite && (
+              <>
+                <RowIcon label={t("proposal.task.edit", { name: task.name })} onClick={onOpen}>
+                  <PencilIcon />
+                </RowIcon>
+                <ConfirmAction
+                  className="row-icon row-icon--danger"
+                  icon="×"
+                  label={t("proposal.task.remove", { name: task.name })}
+                  warning={t("proposal.task.delete_warning", { name: task.name })}
+                  confirm={t("proposal.task.delete_confirm")}
+                  onConfirm={onDelete}
+                />
+              </>
+            )}
+          </span>
         </span>
       </td>
-      <td className="proposal-table__desc">{task.description}</td>
-      <td className="proposal-table__num">{days(toDays(task.effort))}</td>
-      <td className="proposal-table__num">{hoursLabel(toHours(task.effort))}</td>
-      <td className="proposal-table__num muted">{task.rate > 0 ? rate(task.rate) : ""}</td>
-      <td className="proposal-table__num">{money(task.effort * task.rate)}</td>
+      <td className="proposal-table__desc">
+        <EditableCell
+          type="text"
+          value={task.description}
+          display={task.description}
+          disabled={!canWrite}
+          allowEmpty
+          label={label("proposal.columns.description")}
+          onCommit={(description) => onPatch({ description })}
+        />
+      </td>
+      <td className="proposal-table__num">
+        <EditableCell
+          type="number"
+          step="any"
+          min={0}
+          value={String(toDays(task.effort))}
+          display={days(toDays(task.effort))}
+          disabled={!canWrite}
+          label={label("proposal.columns.effort")}
+          onCommit={(value) => {
+            const parsed = amount(value);
+            commit.effort(parsed === null ? null : effortOfDays(parsed));
+          }}
+        />
+      </td>
+      <td className="proposal-table__num">
+        <EditableCell
+          type="number"
+          step="any"
+          min={0}
+          value={String(toHours(task.effort))}
+          display={hoursLabel(toHours(task.effort))}
+          disabled={!canWrite}
+          label={label("proposal.columns.hours")}
+          onCommit={(value) => {
+            const parsed = amount(value);
+            commit.effort(parsed === null ? null : effortOfHours(parsed));
+          }}
+        />
+      </td>
+      <td className="proposal-table__num muted">
+        <EditableCell
+          type="number"
+          step="any"
+          min={0}
+          value={String(task.rate)}
+          display={task.rate > 0 ? rate(task.rate) : ""}
+          disabled={!canWrite}
+          label={label("proposal.columns.rate")}
+          onCommit={commit.rate}
+        />
+      </td>
+      <td className="proposal-table__num">
+        <EditableCell
+          type="number"
+          step="any"
+          min={0}
+          value={String(task.effort * task.rate)}
+          display={money(task.effort * task.rate)}
+          disabled={!canWrite || task.effort === 0}
+          label={label("proposal.columns.price")}
+          onCommit={commit.price}
+        />
+      </td>
     </tr>
   );
+}
+
+/**
+ * Число из ячейки — или `null`, если написано не число.
+ *
+ * Отрицательные не проходят: ни оценка, ни ставка, ни цена меньше нуля не
+ * бывают, и сервер откажет — но сказать об этом можно и здесь, не спрашивая
+ * никого.
+ */
+function amount(text: string): number | null {
+  const value = Number(text);
+  return text.trim() === "" || !Number.isFinite(value) || value < 0 ? null : value;
+}
+
+/**
+ * Два знака после запятой — ровно столько, сколько хранит сервер.
+ *
+ * Пересчёты сметы делят: 25 часов при восьмичасовом дне — это 3,125 дня, а
+ * колонка цены, разложенная на ставку, и вовсе даёт бесконечную дробь.
+ * Отправить её целиком значит попросить сервер о точности, которой у его
+ * колонки нет, и получить в ответ округление, о котором никто не просил.
+ */
+function rounded(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 /**
@@ -629,41 +911,3 @@ function NotesEditor({
   );
 }
 
-/**
- * Описание раздела, которое правится на своей строке.
- *
- * То же правило, что у автосохраняемого текста (components/autosave): черновик
- * набирается локально, уходит по потере фокуса и только если изменился, а
- * значение сверху возвращает поле к правде после чужой правки.
- */
-function DescriptionCell({
-  label,
-  value,
-  onCommit,
-}: {
-  label: string;
-  value: string;
-  onCommit: (value: string) => void;
-}) {
-  const [draft, setDraft] = useState(value);
-  const [editing, setEditing] = useState(false);
-  const shown = editing ? draft : value;
-
-  return (
-    <input
-      className="proposal-table__input proposal-table__input--quiet"
-      type="text"
-      value={shown}
-      aria-label={label}
-      onFocus={() => {
-        setDraft(value);
-        setEditing(true);
-      }}
-      onChange={(event) => setDraft(event.target.value)}
-      onBlur={() => {
-        setEditing(false);
-        if (draft !== value) onCommit(draft);
-      }}
-    />
-  );
-}

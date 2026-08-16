@@ -648,41 +648,8 @@
   justify-content: flex-end;
 }
 
-/* Значение ячейки. Правится оно или нет, выглядит одинаково: тон значения не
-   должен зависеть от прав смотрящего — иначе у гостя таблица читается как
-   выцветшая, будто числа в ней недостоверны. Возможность правки показывает
-   наведение, а не постоянная рамка. */
-.gantt__cell-value {
-  min-width: 0;
-  padding: 2px 4px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm, 6px);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.gantt__cell-value--editable {
-  cursor: text;
-}
-
-.gantt__cell-value--editable:hover {
-  border-color: var(--border-strong);
-  background: var(--surface);
-}
-
-/* Поле на месте ячейки: занимает ровно её место, чтобы строка не дёргалась в
-   момент, когда ячейка становится редактируемой. */
-.gantt__cell-input {
-  width: 100%;
-  min-width: 0;
-  padding: 1px 3px;
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-sm, 6px);
-  background: var(--surface);
-  font: inherit;
-  color: inherit;
-}
+/* Значение ячейки и поле на её месте — общие для ленты и сметы: обе показывают
+   список строк, чьи ячейки правятся щелчком (см. components/rows.css). */
 
 /* Строка новой задачи и строка ожидания ответа. Обе — строки ленты и по
    высоте, и по разделителю: подниматься и опускаться на пиксель, когда задача
@@ -775,7 +742,7 @@
 
 /* Числа строки категории — того же начертания, что и её имя: это сводка по
    группе, а не значение отдельной задачи. */
-.gantt__row--category .gantt__cell-value {
+.gantt__row--category .cell-value {
   font-weight: 700;
 }
 
@@ -784,24 +751,8 @@
   font-weight: 700;
 }
 
-/* Шеврон сворачивания категории — молчаливая кнопка, как ручка и плюс. */
-.gantt__chevron {
-  flex: 0 0 auto;
-  width: 13px;
-  padding: 0;
-  background: transparent;
-  border: 0;
-  box-shadow: none;
-  color: var(--text-muted);
-  font-size: 10px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.gantt__chevron:hover {
-  color: var(--text);
-  background: transparent;
-}
+/* Шеврон сворачивания категории — молчаливая кнопка, как ручка и плюс; общий
+   со сметой (см. components/rows.css). */
 
 /* Ручка перетаскивания: появляется при наведении на строку. Постоянно видимая
    она превратила бы левую колонку в частокол из точек, а при чтении с экрана
@@ -895,77 +846,15 @@
   background: var(--accent-soft);
 }
 
-/* Плюс на строке категории — тот же приём, что и у ручки: молчит, пока на
-   строку не навели. */
-.gantt__add {
-  margin-left: auto;
-  flex: 0 0 auto;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  background: transparent;
-  color: var(--text-faint);
-  box-shadow: none;
-  font-size: 16px;
-  line-height: 1;
-  opacity: 0;
-  /* Появление — тем же временем, что и любой другой отклик на наведение
-     (см. `--motion-fast`). Прежние 20мс не «быстрее», а незаметны: глаз читает
-     их как включение лампочки, и кнопка возникала рывком там, где строка под
-     ней подсвечивалась плавно. Список повторяет переход базовой кнопки, иначе
-     собственное объявление стирает его целиком и тень с рамкой на фокусе
-     появляются мгновенно. */
-  transition:
-    opacity var(--motion-fast) var(--motion-ease),
-    background-color var(--motion-fast) var(--motion-ease),
-    border-color var(--motion-fast) var(--motion-ease),
-    box-shadow var(--motion-fast) var(--motion-ease),
-    color var(--motion-fast) var(--motion-ease);
-}
-
-.gantt__row:hover .gantt__add,
-.gantt__add:focus-visible {
-  opacity: 1;
-}
-
-.gantt__add:hover {
-  background: var(--hover);
-  color: var(--text);
-}
-
-/* Крестик удаления пустой категории — сосед плюса и молчит вместе с ним, той
-   же скоростью: пара кнопок на одной строке, разойдись у них длительность —
-   они бы проявлялись порознь. */
-.gantt__remove {
-  flex: 0 0 auto;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  background: transparent;
-  color: var(--text-faint);
-  box-shadow: none;
-  font-size: 16px;
-  line-height: 1;
-  opacity: 0;
-  transition:
-    opacity var(--motion-fast) var(--motion-ease),
-    background-color var(--motion-fast) var(--motion-ease),
-    border-color var(--motion-fast) var(--motion-ease),
-    box-shadow var(--motion-fast) var(--motion-ease),
-    color var(--motion-fast) var(--motion-ease);
-}
-
-.gantt__row:hover .gantt__remove,
-.gantt__remove:focus-visible {
-  opacity: 1;
-}
-
-.gantt__remove:hover {
-  background: var(--hover);
-  color: var(--danger);
-}
-
 /* --- то, что показывает наведение на строку --- */
+
+/* Плюс на строке категории, крестик удаления и счётчик обсуждения — знаки
+   строки, общие со сметой (см. components/rows.css). Здесь сказано только то,
+   чего общий набор знать не может: строка, на которую навели. */
+.gantt__row:hover .row-icon,
+.gantt__row:hover .row-badge {
+  opacity: 1;
+}
 
 /* «Плюс» на границе строк: задача заводится там, куда указали, а не в конце
    категории. Стоит поперёк верхнего края строки, наполовину заезжая на соседа
@@ -1004,72 +893,6 @@
 
 .gantt__insert:hover {
   background: var(--accent-hover);
-}
-
-/* Хвост колонки имени: обсуждение и исполнители. Прижаты вправо, чтобы имена
-   задач читались одним столбцом, а не начинались каждое на своём отступе. */
-.gantt__row-actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex: 0 0 auto;
-  margin-left: auto;
-}
-
-/* Знаки — рисунком в цвет текста, а не эмодзи: эмодзи рисуется цветной
-   картинкой шрифта системы и в ряду тонких линий ленты выглядит наклейкой. */
-.gantt__glyph {
-  flex: 0 0 auto;
-  width: 14px;
-  height: 14px;
-  fill: none;
-  stroke: currentcolor;
-  stroke-width: 1.35;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-/* Счётчик обсуждения. Молчит, пока на строку не навели, — но только когда
-   молчать есть о чём: у задачи с репликами число видно всегда, иначе о
-   разговоре можно было бы узнать, только водя мышью по сотне строк. */
-.gantt__row-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  height: 22px;
-  padding: 0 5px;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-faint);
-  box-shadow: none;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1;
-  opacity: 0;
-  transition:
-    opacity var(--motion-fast) var(--motion-ease),
-    background-color var(--motion-fast) var(--motion-ease),
-    color var(--motion-fast) var(--motion-ease);
-}
-
-.gantt__row-action.is-set {
-  color: var(--text-muted);
-  opacity: 1;
-}
-
-/* Указатель — там, где по знаку и правда открывается разговор: у гостя
-   карточки задачи нет, и обещать нажатие ему не за чем. */
-.gantt__row-action.is-clickable {
-  cursor: pointer;
-}
-
-.gantt__row:hover .gantt__row-action {
-  opacity: 1;
-}
-
-.gantt__row-action.is-clickable:hover {
-  background: var(--hover);
-  color: var(--accent);
 }
 
 /* Исполнители со строки. Пустая кнопка ждёт наведения — «Назначить» на каждой
@@ -1191,7 +1014,6 @@
    работают, но только вслепую (тот же довод, что у ручки перестановки). */
 @media (hover: none) {
   .gantt__insert,
-  .gantt__row-action,
   .gantt__assign-button.is-empty {
     opacity: 1;
   }
