@@ -883,7 +883,12 @@ button:disabled:hover {
    заливка: рядом стоит главное действие, и две плашки подряд отобрали бы у
    него первый взгляд. Отдельный класс, а не `.button--quiet`, потому что
    правила кнопок написаны на селектор `button`, до ссылки они не достают. */
-.button-link {
+/* Селектор двойной по той же причине, по какой он двойной в теме: правило
+   `.header a` красит ссылки шапки чернилами и подчёркивает их, и одинокий
+   класс оно перебило бы по весу — вход на публичной странице получил бы рамку
+   кнопки и подчёркивание разом. */
+.button-link,
+.header .button-link {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -901,7 +906,8 @@ button:disabled:hover {
   box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 
-.button-link:hover {
+.button-link:hover,
+.header .button-link:hover {
   background: var(--hover);
 }
 

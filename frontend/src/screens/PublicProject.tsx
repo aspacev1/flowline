@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import { errorKey } from "../api/errors";
+import { useAuth } from "../auth/AuthProvider";
 import {
   addPublicComment,
   getPublicProject,
@@ -80,9 +81,17 @@ export function PublicProject() {
 
   if (project.isPending) {
     return (
-      <main className="screen screen--center">
-        <p role="status">{t("common.loading")}</p>
-      </main>
+      <>
+        {/* Шапка стоит и здесь: она не часть проекта, а рама страницы — с
+            входом и переключателем языка, которые нужны раньше, чем приедет
+            содержимое. Название организации пока не пришло, и его место
+            держит название продукта, а не пустота, от которой строка потом
+            дёрнулась бы по высоте. */}
+        <PublicHeader title={t("app.title")} />
+        <main className="screen screen--center">
+          <p role="status">{t("common.loading")}</p>
+        </main>
+      </>
     );
   }
 
@@ -91,23 +100,23 @@ export function PublicProject() {
     // одним и тем же отказом: сервер их не различает сознательно, и
     // придумывать здесь разницу нельзя.
     return (
-      <main className="screen screen--center">
-        <p className="error" role="alert">
-          {t(errorKey(project.error))}
-        </p>
-      </main>
+      <>
+        {/* И здесь тоже: отозванную ссылку чаще всего открывает свой же — тот,
+            кто эту ссылку и рассылал. Ему нужен вход, а не только сообщение о
+            том, что дальше хода нет. */}
+        <PublicHeader title={t("app.title")} />
+        <main className="screen screen--center">
+          <p className="error" role="alert">
+            {t(errorKey(project.error))}
+          </p>
+        </main>
+      </>
     );
   }
 
   return (
     <>
-      <header className="header">
-        <span className="header__brand">{project.data.org.name}</span>
-        <div className="header__side">
-          <span className="muted">{t("public.badge")}</span>
-          <LocaleSwitch />
-        </div>
-      </header>
+      <PublicHeader title={project.data.org.name} projectId={project.data.id} />
 
       <main className="screen screen--wide">
         {/* Та же шапка, что и на рабочем экране, но без действий и без строки
@@ -140,5 +149,63 @@ export function PublicProject() {
         />
       </main>
     </>
+  );
+}
+
+/**
+ * Шапка страницы по ссылке — и единственный ход отсюда в само приложение.
+ *
+ * Публичную ссылку открывает не только клиент: по ней ходит и своя команда, и
+ * тот, кто её разослал. Раньше шапка держала подпись «публичная страница» и
+ * переключатель языка, и человек, оказавшийся здесь, никакого пути внутрь не
+ * видел вовсе — адрес входа приходилось знать наизусть.
+ *
+ * Что предложить, решает сессия, а не догадка:
+ *
+ * — гостю «Войти», и после входа он попадает в этот же проект, а не в общий
+ *   список: он пришёл по ссылке именно на него, и терять её на шаге с паролем
+ *   значило бы заставить искать проект заново. Чужому аккаунту проект ответит
+ *   тем же отказом, что и всегда: ссылка открывает страницу, а не доступ, и
+ *   решать про доступ шапке нечем;
+ * — вошедшему «Открыть в приложении»: предлагать ему вход — это спрашивать
+ *   пароль у того, кто уже вошёл;
+ * — пока сессия проверяется — ничего: показать «Войти» и через мгновение
+ *   заменить его другой ссылкой хуже, чем показать её мгновением позже.
+ *
+ * Ссылка-кнопка, а не подчёркнутое слово: рядом стоят подпись «публичная
+ * страница» и переключатель языка, и среди слов слово потерялось бы.
+ */
+function PublicHeader({ title, projectId }: { title: string; projectId?: string }) {
+  const { t } = useLocale();
+  const { status } = useAuth();
+  // Адрес проекта известен только тогда, когда проект открылся: на отозванной
+  // ссылке возвращаться после входа некуда, и человек попадает туда же, куда
+  // приводит обычный вход, — в список проектов.
+  const inApp = projectId === undefined ? null : `/projects/${projectId}`;
+
+  return (
+    <header className="header">
+      <span className="header__brand">{title}</span>
+      <div className="header__side">
+        <span className="muted">{t("public.badge")}</span>
+        <LocaleSwitch />
+        {status === "anonymous" && (
+          <Link
+            className="button-link"
+            to="/login"
+            // Тем же способом, каким помнит адрес `RequireAuth`: экран входа
+            // читает его из состояния перехода (см. afterAuthPath).
+            state={inApp === null ? undefined : { from: { pathname: inApp } }}
+          >
+            {t("public.login")}
+          </Link>
+        )}
+        {status === "authenticated" && (
+          <Link className="button-link" to={inApp ?? "/projects"}>
+            {t("public.open_app")}
+          </Link>
+        )}
+      </div>
+    </header>
   );
 }
