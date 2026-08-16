@@ -97,11 +97,17 @@ _NOTE_FIELD = "internal_note"
 
 
 def _carries_note(payload: dict) -> bool:
-    """Есть ли заметка где-нибудь в записи, включая вложенные словари."""
-    return any(
-        key == _NOTE_FIELD or (isinstance(value, dict) and _carries_note(value))
-        for key, value in payload.items()
-    )
+    """Есть ли заметка где-нибудь в записи, включая вложенные словари и списки."""
+    return any(key == _NOTE_FIELD or _nested_note(value) for key, value in payload.items())
+
+
+def _nested_note(value: object) -> bool:
+    """Заметка внутри значения — словаря или списка словарей."""
+    if isinstance(value, dict):
+        return _carries_note(value)
+    if isinstance(value, list):
+        return any(_nested_note(item) for item in value)
+    return False
 
 
 def _without_note(payload: dict) -> dict:
@@ -112,12 +118,25 @@ def _without_note(payload: dict) -> dict:
     молча не срабатывает — заметка уезжает в ответ. Обход по вложенным
     словарям делает правило нечувствительным к форме записи, а значит и к
     форме операций, которых ещё нет.
+
+    Списки обходятся наравне со словарями, и это не запас на будущее: снимок
+    удалённой категории несёт свои задачи именно списком, и заметка каждой из
+    них лежит на два уровня вглубь — в словаре внутри списка внутри записи.
     """
     return {
-        key: _without_note(value) if isinstance(value, dict) else value
+        key: _prune_note(value)
         for key, value in payload.items()
         if key != _NOTE_FIELD
     }
+
+
+def _prune_note(value):
+    """Значение без заметки: словарь — по ключам, список — поэлементно."""
+    if isinstance(value, dict):
+        return _without_note(value)
+    if isinstance(value, list):
+        return [_prune_note(item) for item in value]
+    return value
 
 
 def visible_op(payload: dict, role: Role | None, *, project_granted: bool = False) -> dict:

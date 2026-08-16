@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
 
-import { Cell } from "./Cells";
+import { Cell, shownColumns } from "./Cells";
 import type { ColumnLayout } from "./columns";
 import type { Scale } from "./timescale";
 
@@ -153,7 +153,7 @@ function NameRow({
   return (
     <div className={`gantt__row ${className}`} aria-busy={busy || undefined}>
       <div className="gantt__label">
-        {layout.shown.map((column) => (
+        {shownColumns(layout).map((column) => (
           <Cell key={column} column={column} layout={layout}>
             {column === "task" ? children : null}
           </Cell>

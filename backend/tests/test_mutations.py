@@ -206,8 +206,41 @@ def test_undo_of_a_delete_brings_the_task_back_with_the_same_id(db, project, cat
     assert restored.name == "Logo"
 
 
-def test_deleting_a_non_empty_category_is_refused(db, project, category):
-    apply_op(
+def test_deleting_a_category_takes_its_tasks_with_it(db, project, category):
+    for name in ("Logo", "Layout"):
+        apply_op(
+            db,
+            project,
+            CreateTask(
+                category_id=str(category.id),
+                name=name,
+                start_date=date(2026, 3, 4),
+                duration_days=5,
+            ),
+            actor_id=None,
+        )
+
+    deleted = apply_op(db, project, DeleteCategory(category_id=str(category.id)), actor_id=None)
+
+    assert db.get(Category, category.id) is None
+    assert db.scalar(select(func.count()).select_from(Task)) == 0
+    # Число задач — в самой записи: «удалил категорию» умалчивало бы об этапе,
+    # ушедшем вместе с ней.
+    assert deleted.op == {
+        "type": "delete_category",
+        "category_id": str(category.id),
+        "tasks": 2,
+    }
+
+
+def test_undo_of_a_category_delete_brings_back_the_whole_stage(db, project, category, insider):
+    """Отмена возвращает не заголовок, а этап целиком — со связями и людьми.
+
+    Ради этого запрет на удаление непустой категории и снимался: удалять этап
+    по строке ради его заголовка — это столько же удалений, сколько в нём
+    задач, и столько же нажатий «Отменить», чтобы передумать.
+    """
+    first = apply_op(
         db,
         project,
         CreateTask(
@@ -217,14 +250,42 @@ def test_deleting_a_non_empty_category_is_refused(db, project, category):
             duration_days=5,
         ),
         actor_id=None,
-    )
+    ).op["task_id"]
+    second = apply_op(
+        db,
+        project,
+        CreateTask(
+            category_id=str(category.id),
+            name="Layout",
+            start_date=date(2026, 3, 11),
+            duration_days=3,
+        ),
+        actor_id=None,
+    ).op["task_id"]
+    apply_op(db, project, AddDependency(from_task_id=first, to_task_id=second), actor_id=None)
+    apply_op(db, project, AssignUser(task_id=first, user_id=str(insider.id)), actor_id=None)
 
-    with pytest.raises(InvalidOperation) as error:
-        apply_op(db, project, DeleteCategory(category_id=str(category.id)), actor_id=None)
-    assert error.value.code == "category_not_empty"
+    deleted = apply_op(db, project, DeleteCategory(category_id=str(category.id)), actor_id=None)
+    undo(db, project, deleted, actor_id=None)
+
+    restored = db.get(Category, category.id)
+    assert restored is not None
+    assert restored.name == "Design"
+    assert [task.name for task in db.scalars(select(Task).order_by(Task.position))] == [
+        "Logo",
+        "Layout",
+    ]
+    # Идентификаторы те же: ссылки на задачу из журнала и из соседней вкладки
+    # обязаны продолжать вести туда же.
+    assert db.get(Task, first).duration_days == 5
+    # Связь между двумя задачами одной категории возвращается тоже — а её не
+    # было бы, восстанавливай окружение каждой задачи сразу после её строки:
+    # в этот момент второй задачи ещё не существует.
+    assert db.scalar(select(func.count()).select_from(Dependency)) == 1
+    assert db.scalar(select(func.count()).select_from(TaskAssignee)) == 1
 
 
-def test_undo_of_a_category_delete_restores_it_with_the_same_id(db, project, category):
+def test_undo_of_an_empty_category_delete_restores_it_with_the_same_id(db, project, category):
     deleted = apply_op(db, project, DeleteCategory(category_id=str(category.id)), actor_id=None)
     assert db.get(Category, category.id) is None
 
@@ -576,7 +637,7 @@ def test_public_operations_are_a_subset_of_the_internal_ones():
         "dependencies",
         "comments",
     } == set(CreateTask.model_fields)
-    assert set(PublicCreateCategory.model_fields) | {"category_id", "position"} == set(
+    assert set(PublicCreateCategory.model_fields) | {"category_id", "position", "tasks"} == set(
         CreateCategory.model_fields
     )
 

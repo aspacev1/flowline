@@ -40,7 +40,6 @@ const PLAIN_CODES = new Set([
   "proposal_empty",
   "task_limit_reached",
   "duration_too_short",
-  "category_not_empty",
   "user_not_in_organization",
   "calendar_has_no_working_days",
   "calendar_too_few_working_days",

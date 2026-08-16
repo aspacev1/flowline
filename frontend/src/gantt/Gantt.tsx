@@ -122,7 +122,15 @@ export function Gantt({
    */
   newTaskAt?: NewTaskAt | null;
   onCloseNewTask?: () => void;
-  /** Крестик на строке пустой категории. Без него категории не удаляются. */
+  /**
+   * Крестик на строке категории. Без него категории не удаляются.
+   *
+   * Зовётся щелчком, а удаляет не сразу: спросить, точно ли уходит этап
+   * вместе со своими задачами, обязан экран — он же и применяет операцию.
+   * Лента этого вопроса не задаёт: у неё нет ни окна, ни счёта того, что
+   * уйдёт вместе с категорией на самом деле (комментарии, назначения), — а
+   * вопрос, заданный вполсилы, хуже незаданного.
+   */
   onDeleteCategory?: (categoryId: string) => void;
   /** Задача, карточка которой открыта. */
   selectedTaskId?: string | null;
@@ -202,6 +210,10 @@ export function Gantt({
   };
   const switchColumn = (column: ColumnKey) =>
     setLayout({ ...layout, shown: toggleColumn(layout.shown, column) });
+  // Таблица целиком: свёрнутая отдаёт всё своё место шкале. Полугодовой план
+  // иначе виден только кусками — таблица занимает треть экрана, и разглядеть
+  // за ней форму проекта нельзя, не уехав прокруткой от имён задач.
+  const toggleTable = () => setLayout({ ...layout, collapsed: !layout.collapsed });
   const resizeColumn = (column: ColumnKey, width: number) =>
     setLayout({ ...layout, widths: { ...layout.widths, [column]: width } });
   const moveColumn = (moved: ColumnKey, before: ColumnKey) =>
@@ -251,6 +263,16 @@ export function Gantt({
       return next;
     });
   }, [newTaskIn]);
+
+  // По той же причине разворачивается и свёрнутая таблица: имя новой задачи
+  // пишут в её колонке, и у свёрнутой этой колонки нет — кнопка «Новая
+  // задача» открывала бы поле, которого не видно.
+  useEffect(() => {
+    if (newTaskIn === null || !layout.collapsed) return;
+    const next = { ...layout, collapsed: false };
+    setLayoutState(next);
+    rememberLayout(projectId, next);
+  }, [newTaskIn, layout, projectId]);
 
   // Относительная ось: план ещё не привязан к датам, шкала считает недели
   // проекта от эпохи. Свойство проекта, а не экрана — приходит с сервера.
@@ -599,6 +621,22 @@ export function Gantt({
                   resizeLabel={(column) => t("gantt.col.resize", { column })}
                   reorderLabel={(column) => t("gantt.col.reorder", { column })}
                 />
+                {/* Кнопка свёртки — в углу таблицы, на границе со шкалой: она
+                    двигает эту границу, и стоять обязана там же. В тулбаре, к
+                    которому её просилось бы отнести, она оказалась бы в ряду
+                    настроек показа — среди «Вида» и «Колонок», то есть в
+                    списке того, что открывают, чтобы что-то настроить. Здесь
+                    её видно сразу и целиться в неё не надо. */}
+                <button
+                  type="button"
+                  className="gantt__fold"
+                  aria-expanded={!layout.collapsed}
+                  aria-label={t(layout.collapsed ? "gantt.table.expand" : "gantt.table.collapse")}
+                  title={t(layout.collapsed ? "gantt.table.expand" : "gantt.table.collapse")}
+                  onClick={toggleTable}
+                >
+                  <FoldIcon open={!layout.collapsed} />
+                </button>
               </div>
               {relativeView ? (
                 <RelativeHeader
@@ -711,10 +749,13 @@ export function Gantt({
                           onAddTask && ((categoryId) => onAddTask({ categoryId, before: null }))
                         }
                         deleteLabel={t("category.delete", { name: category.name })}
-                        // Крестик — только у пустой категории: непустую сервер
-                        // откажется удалять (сначала разбирают задачи), и
-                        // кнопка обещала бы отказ.
-                        onDelete={tasks.length === 0 ? onDeleteCategory : undefined}
+                        // Крестик есть у всякой категории, а не только у
+                        // пустой: этап отменяют целиком, и разбирать его по
+                        // задаче ради того, чтобы избавиться от заголовка, —
+                        // столько удалений, сколько в нём строк. Что уйдёт
+                        // вместе с категорией, экран говорит вслух и ждёт
+                        // подтверждения (см. onDeleteCategory).
+                        onDelete={onDeleteCategory}
                         reorder={reorder}
                         open={open}
                         onToggle={() => toggleCategory(category.id)}
@@ -786,6 +827,32 @@ export function Gantt({
       )}
     </div>
     </BarTipProvider>
+  );
+}
+
+/**
+ * Знак кнопки, двигающей границу таблицы: черта и стрелка к ней.
+ *
+ * Стрелка показывает, куда уедет граница, а не то, что сейчас: у развёрнутой
+ * таблицы она смотрит влево — «убрать таблицу», у свёрнутой вправо — «вернуть».
+ * Знак рисунком, а не ««» и «»»: типографские кавычки читаются с экрана как
+ * знаки препинания, а в ряду тонких линий таблицы выглядят опечаткой.
+ */
+function FoldIcon({ open }: { open: boolean }) {
+  return (
+    <svg className="glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      {open ? (
+        <>
+          <path d="M11.5 3v10" />
+          <path d="M9 8H3.5M6 5 3 8l3 3" />
+        </>
+      ) : (
+        <>
+          <path d="M4.5 3v10" />
+          <path d="M7 8h5.5M10 5l3 3-3 3" />
+        </>
+      )}
+    </svg>
   );
 }
 

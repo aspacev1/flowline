@@ -6,6 +6,7 @@ import type { ProjectState } from "../api/projects";
 import type { Locale } from "../i18n";
 import { Providers, renderWithProviders } from "../test/utils";
 import { Gantt } from "./Gantt";
+import { COLLAPSED_WIDTH, DEFAULT_WIDTH } from "./columns";
 import { DAY_WIDTH } from "./scale";
 
 const STATE: ProjectState = {
@@ -335,6 +336,82 @@ describe("диаграмма", () => {
     await userEvent.click(screen.getByText("Логотип"));
 
     expect(onSelectTask).toHaveBeenCalledWith("t1");
+  });
+});
+
+/**
+ * Свёртка таблицы: полгода плана иначе видно только кусками.
+ *
+ * Таблица слева отнимает у шкалы треть экрана, и на длинном проекте форму
+ * плана — где густо, где пусто — приходится собирать из двух прокруток. По
+ * кнопке она уезжает целиком, оставляя полосу с самой этой кнопкой, а лента
+ * занимает всё освободившееся место.
+ */
+describe("свёртка таблицы", () => {
+  const labelWidth = (container: HTMLElement) =>
+    container.querySelector<HTMLElement>(".gantt")?.style.getPropertyValue("--gantt-label");
+
+  it("прячет колонки и отдаёт их место шкале", async () => {
+    const { container } = draw(STATE);
+    expect(labelWidth(container)).toBe(`${DEFAULT_WIDTH.task + DEFAULT_WIDTH.start + DEFAULT_WIDTH.end}px`);
+
+    await userEvent.click(screen.getByRole("button", { name: "Свернуть таблицу задач" }));
+
+    // Ни имени задачи, ни заголовков колонок: полоса шириной в кнопку, и
+    // ячейки в ней вылезали бы поверх шкалы.
+    expect(screen.queryByText("Логотип")).not.toBeInTheDocument();
+    expect(screen.queryByText("Начало")).not.toBeInTheDocument();
+    expect(labelWidth(container)).toBe(`${COLLAPSED_WIDTH}px`);
+    // Полоски на месте: свернули таблицу, а не ленту.
+    expect(screen.getByRole("img", { name: /Логотип/ })).toBeInTheDocument();
+  });
+
+  it("возвращает те же колонки, что были: свёртка — про место, а не про выбор", async () => {
+    draw(STATE);
+    await userEvent.click(screen.getByRole("button", { name: "Свернуть таблицу задач" }));
+    await userEvent.click(screen.getByRole("button", { name: "Развернуть таблицу задач" }));
+
+    expect(screen.getByText("Логотип")).toBeInTheDocument();
+    expect(screen.getByText("Окончание")).toBeInTheDocument();
+  });
+
+  it("помнит свёрнутую таблицу после ухода с экрана и обратно", async () => {
+    const first = draw(STATE);
+    await userEvent.click(screen.getByRole("button", { name: "Свернуть таблицу задач" }));
+    first.unmount();
+
+    const again = draw(STATE);
+    expect(labelWidth(again.container)).toBe(`${COLLAPSED_WIDTH}px`);
+    again.unmount();
+
+    // Соседний проект открывается развёрнутым: раскладка — выбор для этого
+    // проекта, а не для всего приложения.
+    const other = renderWithProviders(<Gantt projectId="p2" state={STATE} />, { locale: "ru" });
+    expect(labelWidth(other.container)).not.toBe(`${COLLAPSED_WIDTH}px`);
+  });
+
+  it("ввод новой задачи разворачивает таблицу: поле живёт в её колонке", async () => {
+    const { rerender } = renderWithProviders(
+      <Gantt projectId="p1" state={STATE} canWrite newTaskAt={null} />,
+      { locale: "ru" },
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Свернуть таблицу задач" }));
+
+    rerender(
+      <Providers locale="ru">
+        <Gantt
+          projectId="p1"
+          state={STATE}
+          canWrite
+          newTaskAt={{ categoryId: "c1", before: null }}
+        />
+      </Providers>,
+    );
+
+    // Поле, которого не видно, читается как бездействие кнопки «Новая задача».
+    expect(
+      await screen.findByRole("textbox", { name: "Новая задача в «Дизайн»" }),
+    ).toBeInTheDocument();
   });
 });
 

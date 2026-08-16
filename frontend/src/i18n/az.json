@@ -13,6 +13,10 @@
       "other": "{count} gün"
     },
     "days_short": "{count} gün",
+    "tasks": {
+      "one": "{count} tapşırıq",
+      "other": "{count} tapşırıq"
+    },
     "save": "Yadda saxla"
   },
   "modal": {
@@ -160,7 +164,6 @@
     "task_not_found": "Bu layihədə belə tapşırıq yoxdur",
     "task_limit_reached": "Layihədə tapşırıq sayı həddi doldu",
     "duration_too_short": "Müddət ən azı bir gün olmalıdır",
-    "category_not_empty": "Kateqoriyada hələ tapşırıqlar var — əvvəlcə onları köçürün",
     "user_not_in_organization": "Bu şəxs sizin təşkilatınızda deyil",
     "calendar_has_no_working_days": "Layihə təqvimində bir dənə də iş günü yoxdur",
     "calendar_too_few_working_days": "Layihə təqvimində bu müddət üçün kifayət qədər iş günü yoxdur",
@@ -319,6 +322,10 @@
   "category": {
     "create": "Yeni kateqoriya",
     "delete": "«{name}» kateqoriyasını sil",
+    "delete_title": "«{name}» kateqoriyası silinsin?",
+    "delete_warning": "Kateqoriya ilə birlikdə onun bütün tapşırıqları ({tasks}) gedir — əlaqələri, icraçıları və şərhləri ilə. «Ləğv et» hamısını geri qaytarır",
+    "delete_warning_empty": "Kateqoriyada tapşırıq yoxdur. «Ləğv et» onu geri qaytarır",
+    "delete_confirm": "Bəli, sil",
     "new": {
       "title": "Yeni kateqoriya",
       "name": "Ad",
@@ -422,7 +429,9 @@
     "remove_dependency": "əlaqəni sildi",
     "remove_dependency_named": "əlaqəni sildi: {from} → {to}",
     "create_category": "kateqoriya yaratdı",
+    "create_category_with_tasks": "kateqoriyanı {tasks} ilə geri qaytardı",
     "delete_category": "kateqoriyanı sildi",
+    "delete_category_with_tasks": "kateqoriyanı {tasks} ilə birlikdə sildi",
     "rename_category": "kateqoriyanın adını «{from}» → «{to}» dəyişdi",
     "set_category_color": "kateqoriyanın rəngini dəyişdi",
     "tabs_label": "Layihə bölmələri",
@@ -549,6 +558,10 @@
     "tip": {
       "more": "{name} +{count}",
       "keys": "Shift + ←→ köçür · Esc dayandır · {mod}+Z geri al"
+    },
+    "table": {
+      "collapse": "Tapşırıq cədvəlini qatla",
+      "expand": "Tapşırıq cədvəlini aç"
     },
     "toggle_category": "«{name}» kateqoriyasını qatla və ya aç",
     "insert_before": "«{name}» tapşırığından əvvəl tapşırıq əlavə et",

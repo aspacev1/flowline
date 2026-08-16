@@ -13,6 +13,10 @@
       "other": "{count} days"
     },
     "days_short": "{count} d",
+    "tasks": {
+      "one": "{count} task",
+      "other": "{count} tasks"
+    },
     "save": "Save"
   },
   "modal": {
@@ -160,7 +164,6 @@
     "task_not_found": "No such task in this project",
     "task_limit_reached": "This project has too many tasks: the cap is reached",
     "duration_too_short": "The duration must be at least one day",
-    "category_not_empty": "The category still has tasks — move them out first",
     "user_not_in_organization": "This person is not in your organization",
     "calendar_has_no_working_days": "The project calendar has no working days at all",
     "calendar_too_few_working_days": "The project calendar has too few working days for this duration",
@@ -319,6 +322,10 @@
   "category": {
     "create": "New category",
     "delete": "Delete category “{name}”",
+    "delete_title": "Delete category “{name}”?",
+    "delete_warning": "Everything in it goes too ({tasks}) — with their links, assignees and comments. “Undo” brings it all back",
+    "delete_warning_empty": "The category has no tasks. “Undo” brings it back",
+    "delete_confirm": "Yes, delete",
     "new": {
       "title": "New category",
       "name": "Name",
@@ -422,7 +429,9 @@
     "remove_dependency": "removed a link",
     "remove_dependency_named": "removed a link: {from} → {to}",
     "create_category": "created the category",
+    "create_category_with_tasks": "restored the category with {tasks}",
     "delete_category": "deleted the category",
+    "delete_category_with_tasks": "deleted the category with {tasks}",
     "rename_category": "renamed the category from “{from}” to “{to}”",
     "set_category_color": "changed the category colour",
     "tabs_label": "Project sections",
@@ -549,6 +558,10 @@
     "tip": {
       "more": "{name} +{count}",
       "keys": "Shift + ←→ move · Esc cancel · {mod}+Z undo"
+    },
+    "table": {
+      "collapse": "Collapse the task table",
+      "expand": "Expand the task table"
     },
     "toggle_category": "Collapse or expand “{name}”",
     "insert_before": "Add a task above “{name}”",

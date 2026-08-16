@@ -316,13 +316,43 @@ def test_naming_a_task_of_another_project_is_reported_as_not_found(authed):
 def test_a_refused_operation_answers_with_a_stable_machine_code(authed):
     project_id, category_id, _ = _project_with_task(authed)
 
+    # Отказ домена, а не формы запроса: сдвиг на ноль дней провод принимает —
+    # отбивает его правило «запись в истории обязана что-то означать».
     response = authed.post(
         f"/api/projects/{project_id}/mutations",
-        json={"op": {"type": "delete_category", "category_id": category_id}},
+        json={"op": {"type": "move_category", "category_id": category_id, "days": 0}},
     )
     assert response.status_code == 422
     # Код, а не переводимая проза: тексты сообщений составляет клиент.
-    assert response.json()["detail"] == "category_not_empty"
+    assert response.json()["detail"] == "empty_shift"
+
+
+def test_deleting_a_category_takes_its_tasks_and_is_undone_in_one_step(authed):
+    """Категория уходит вместе с этапом — и возвращается им же.
+
+    Раньше маршрут отвечал на это `category_not_empty`, и убрать этап значило
+    удалить каждую его задачу по очереди: столько же записей в истории и
+    столько же нажатий «Отменить», сколько в нём строк.
+    """
+    project_id, category_id, task_id = _project_with_task(authed)
+
+    deleted = authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={"op": {"type": "delete_category", "category_id": category_id}},
+    )
+    assert deleted.status_code == 201
+    assert deleted.json()["op"]["tasks"] == 1
+
+    state = authed.get(f"/api/projects/{project_id}").json()
+    assert state["categories"] == []
+    assert state["tasks"] == []
+
+    undone = authed.post(f"/api/projects/{project_id}/undo", json={})
+    assert undone.status_code == 201
+
+    state = authed.get(f"/api/projects/{project_id}").json()
+    assert [category["id"] for category in state["categories"]] == [category_id]
+    assert [task["id"] for task in state["tasks"]] == [task_id]
 
 
 def test_an_over_long_name_is_refused_before_it_reaches_the_column(authed):

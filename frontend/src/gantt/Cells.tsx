@@ -25,6 +25,22 @@ import { COLUMN_KEYS, MIN_WIDTH, clampWidth } from "./columns";
 
 export type CellText = { text: string; title?: string };
 
+/**
+ * Колонки, которые строка рисует сейчас.
+ *
+ * У свёрнутой таблицы их нет ни одной: от неё осталась полоса шириной в
+ * кнопку (см. COLLAPSED_WIDTH), и ячейки в неё не помещаются — они вылезли бы
+ * поверх шкалы. Набор колонок и их ширины при этом целы и ждут разворота:
+ * свёртка — это про место на экране, а не про то, что человек выбрал видеть.
+ *
+ * Правило одно на все три места, где рисуются ячейки таблицы, — шапку, строку
+ * категории и строку задачи: три отдельные проверки разошлись бы, и одна из
+ * них рисовала бы колонки поверх соседней ленты.
+ */
+export function shownColumns(layout: ColumnLayout): readonly ColumnKey[] {
+  return layout.collapsed ? [] : layout.shown;
+}
+
 /** Одна ячейка строки: ширину задаёт раскладка, содержимое — вызывающий. */
 export function Cell({
   column,
@@ -76,7 +92,7 @@ export function HeadCells({
 
   return (
     <>
-      {layout.shown.map((column) => (
+      {shownColumns(layout).map((column) => (
         <Cell key={column} column={column} layout={layout}>
           <span
             className={`gantt__corner-label${

@@ -24,6 +24,29 @@ describe("запись истории", () => {
     expect(formatEvent(op, "ru")).toBe("изменил описание");
   });
 
+  it("называет, сколько задач ушло вместе с категорией", () => {
+    // «Удалил категорию» об удалённом вместе с ней этапе умалчивает, а в
+    // ленте истории это единственное место, где видно, что именно исчезло.
+    expect(formatEvent({ type: "delete_category", category_id: "c1", tasks: 3 }, "ru")).toBe(
+      "удалил категорию вместе с задачами: 3 задачи",
+    );
+    expect(formatEvent({ type: "delete_category", category_id: "c1" }, "ru")).toBe(
+      "удалил категорию",
+    );
+  });
+
+  it("отличает возвращённую отменой категорию от только что созданной", () => {
+    const restored = {
+      type: "create_category",
+      category_id: "c1",
+      tasks: [{ type: "create_task", task_id: "t1" }],
+    };
+    expect(formatEvent(restored, "ru")).toBe("вернул категорию с задачами: 1 задача");
+    expect(formatEvent({ type: "create_category", category_id: "c1" }, "ru")).toBe(
+      "создал категорию",
+    );
+  });
+
   it("не падает на неизвестном типе события", () => {
     expect(formatEvent({ type: "invented_later", task_id: "t1" }, "ru")).toBe("изменил задачу");
   });

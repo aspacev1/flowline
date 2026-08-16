@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  COLLAPSED_WIDTH,
   COLUMN_KEYS,
   reorderColumns,
   toggleColumn,
@@ -33,6 +34,10 @@ describe("раскладка колонок", () => {
     expect(layoutWidth(layout)).toBe(
       DEFAULT_WIDTH.task + DEFAULT_WIDTH.start + DEFAULT_WIDTH.end,
     );
+  });
+
+  it("свёрнутая таблица — полоса под кнопку, а не сумма своих колонок", () => {
+    expect(layoutWidth({ ...defaultLayout(1440), collapsed: true })).toBe(COLLAPSED_WIDTH);
   });
 
   it("ширина держится в границах, за которыми колонка перестаёт быть колонкой", () => {
@@ -83,10 +88,29 @@ describe("порядок и набор колонок", () => {
 
 describe("память раскладки", () => {
   it("возвращает то, что положили", () => {
-    const layout = { shown: ["task" as const, "duration" as const], widths: { ...DEFAULT_WIDTH } };
+    const layout = {
+      shown: ["task" as const, "duration" as const],
+      widths: { ...DEFAULT_WIDTH },
+      collapsed: false,
+    };
     rememberLayout("p1", layout);
 
     expect(storedLayout("p1")).toEqual(layout);
+  });
+
+  it("свёрнутую таблицу помнит: разворачивают её ради одного взгляда, а не одного экрана", () => {
+    rememberLayout("p9", { ...defaultLayout(1440), collapsed: true });
+
+    expect(storedLayout("p9")?.collapsed).toBe(true);
+  });
+
+  it("свёртка из хранилища читается признаком, а не «чем угодно правдивым»", () => {
+    localStorage.setItem(
+      "planora.gantt_columns.p10",
+      JSON.stringify({ shown: ["task"], widths: {}, collapsed: "нет" }),
+    );
+
+    expect(storedLayout("p10")?.collapsed).toBe(false);
   });
 
   it("возвращает порядок таким, каким его выставили", () => {

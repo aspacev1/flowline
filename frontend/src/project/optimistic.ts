@@ -123,16 +123,23 @@ export function deleteTask(state: ProjectState, taskId: string): ProjectState {
 }
 
 /**
- * Категория снимается только пустой — непустую сервер откажется удалять
- * (category_not_empty), и отказ откатит догадку. Задачи всё равно фильтруются:
- * догадка не должна уметь показать строки-сироты, даже если её позвали в обход
- * этого правила.
+ * Категория исчезает вместе со своим содержимым — ровно так, как сделает
+ * сервер: этап отменяют целиком, и заголовок без задач под ним был бы
+ * состоянием, которого не бывает. Связи удалённых задач уходят с ними по той
+ * же причине, что и у одиночного удаления: стрелки к несуществующей строке
+ * некуда рисовать.
  */
 export function deleteCategory(state: ProjectState, categoryId: string): ProjectState {
+  const gone = new Set(
+    state.tasks.filter((task) => task.category_id === categoryId).map((task) => task.id),
+  );
   return {
     ...state,
     categories: state.categories.filter((category) => category.id !== categoryId),
     tasks: state.tasks.filter((task) => task.category_id !== categoryId),
+    dependencies: state.dependencies.filter(
+      (link) => !gone.has(link.from_task_id) && !gone.has(link.to_task_id),
+    ),
   };
 }
 
