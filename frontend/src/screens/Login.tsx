@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from "react-router-do
 import { errorKey } from "../api/errors";
 import { afterAuthPath } from "../auth/afterAuth";
 import { useAuth } from "../auth/AuthProvider";
+import { pendingInvite, withInvite } from "../auth/invite";
 import { Field } from "../components/Field";
 import { useLocale } from "../i18n/LocaleProvider";
 
@@ -16,7 +17,13 @@ export function Login() {
   // Человек пришёл по приглашению и завернул сюда, чтобы войти под своим
   // аккаунтом. После входа он возвращается к приглашению, а не оказывается в
   // списке проектов, забыв, зачем шёл.
-  const inviteToken = params.get("invite");
+  //
+  // Память — запасной путь для того единственного перехода, где строка запроса
+  // бессильна: между «Забыли пароль?» и «Войти» стоит письмо, ссылку в нём
+  // строит сервер, и приглашения там нет. Возврат по памяти безопасен: он
+  // приводит на экран приглашения, где всё равно надо нажать «Принять», —
+  // молча ни в какую организацию человек не вступает.
+  const inviteToken = params.get("invite") ?? pendingInvite();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -80,17 +87,19 @@ export function Login() {
       </form>
 
       <p className="muted">
-        <Link to="/forgot-password">{t("auth.login.link_forgot")}</Link>
+        {/* Восстановление пароля — часть пути приглашённого, а не отдельная
+            история: приглашения шлют на рабочие адреса, у которых аккаунт
+            заведён давно, а пароль к нему помнят не всегда. */}
+        <Link to={withInvite("/forgot-password", inviteToken)}>
+          {t("auth.login.link_forgot")}
+        </Link>
       </p>
 
       <p className="muted">
         {t("auth.login.no_account")}{" "}
         {/* Состояние едет и на регистрацию: у пришедшего по ссылке чаще всего
             ещё нет аккаунта, и терять адрес на шаг позже — та же потеря. */}
-        <Link
-          to={inviteToken === null ? "/register" : `/register?invite=${encodeURIComponent(inviteToken)}`}
-          state={location.state}
-        >
+        <Link to={withInvite("/register", inviteToken)} state={location.state}>
           {t("auth.login.link_register")}
         </Link>
       </p>

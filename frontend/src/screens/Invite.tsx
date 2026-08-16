@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { errorKey } from "../api/errors";
 import { acceptInvitation, inviteQueryKey, previewInvitation } from "../api/invitations";
 import { useAuth } from "../auth/AuthProvider";
+import { forgetInvite, rememberInvite, withInvite } from "../auth/invite";
 import { useLocale } from "../i18n/LocaleProvider";
 
 /**
@@ -26,9 +28,20 @@ export function Invite() {
     retry: false,
   });
 
+  // Живое приглашение запоминается, как только стало понятно, что оно живое:
+  // дальше человека может унести на вход, оттуда — в восстановление пароля, а
+  // оттуда — в письмо, после которого строка запроса уже ничего не помнит.
+  useEffect(() => {
+    if (preview.isSuccess) rememberInvite(token);
+    // Мёртвую ссылку помнить незачем: она уже никуда не приведёт, а всплыть
+    // посреди следующего входа успела бы.
+    if (preview.isError) forgetInvite();
+  }, [preview.isSuccess, preview.isError, token]);
+
   const accept = useMutation({
     mutationFn: () => acceptInvitation(token),
     onSuccess: () => {
+      forgetInvite();
       // Сервер переключил сессию на новую организацию — всё, что кэш помнит о
       // прежней, устарело в тот же момент. Инвалидация, а не clear(): профиль
       // вошедшего никуда не делся, и выбрасывать его значило бы отправить
@@ -86,10 +99,8 @@ export function Invite() {
 
       {status === "anonymous" && (
         <p className="invite__choice">
-          <Link to={`/register?invite=${encodeURIComponent(token)}`}>
-            {t("invite.accept.register")}
-          </Link>
-          <Link to={`/login?invite=${encodeURIComponent(token)}`}>{t("invite.accept.login")}</Link>
+          <Link to={withInvite("/register", token)}>{t("invite.accept.register")}</Link>
+          <Link to={withInvite("/login", token)}>{t("invite.accept.login")}</Link>
         </p>
       )}
 

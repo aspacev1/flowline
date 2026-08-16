@@ -688,7 +688,36 @@ body:has(.screen--narrow) {
   .sidebar { --sidebar-mark: 18px; --sidebar-gap: 8px; }
   .sidebar__workspace { flex: 0 0 auto; padding: 0; }
   .sidebar__avatar { width: 36px; height: 36px; }
-  .sidebar__brand, .sidebar .org-switch, .sidebar__foot { display: none; }
+  .sidebar__brand { display: none; }
+  /* Нижний блок прежде прятался целиком — и вместе с ним с телефона исчезали
+     «Настройки» (а за ними участники и профиль), «Выйти», выбор языка и
+     переключатель организаций. Замены не было никакой: приглашённый принимал
+     приглашение с телефона — а письма и читают чаще всего с телефона — и
+     оказывался в комнате без дверей. Теперь блок не пропадает, а ложится в ту
+     же верхнюю строку справа: подписи в нём скрыты, остаются значки, и на это
+     хватает места рядом с тремя разделами. */
+  .sidebar__foot {
+    flex-direction: row;
+    align-items: center;
+    gap: 2px;
+    margin-top: 0;
+    margin-left: auto;
+    padding-top: 0;
+    border-top: 0;
+    flex: 0 0 auto;
+  }
+  .sidebar__foot .sidebar__label { display: none; }
+  .sidebar__foot .sidebar__link, .sidebar__foot button.sidebar__button {
+    width: auto;
+    min-height: 36px;
+    height: 36px;
+    padding: 0 10px;
+  }
+  .sidebar__foot .sidebar__icon { flex-basis: 18px; height: 18px; }
+  /* Переключатель организаций подписей не имеет и сжимается сам: он нужен
+     ровно тому, у кого организаций стало две, — то есть принявшему
+     приглашение. */
+  .sidebar .org-switch { max-width: 32vw; flex: 0 1 auto; }
   .sidebar__nav { flex-direction: row; gap: 6px; }
   .sidebar__link { min-height: 36px; padding: 0 11px; font-size: 13px; }
   .sidebar__link.is-current { box-shadow: none; }

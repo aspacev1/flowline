@@ -203,7 +203,7 @@
     "unsupported_locale": "Bu dil dəstəklənmir",
     "invite_for_another_address": "Dəvət başqa ünvana ünvanlanıb",
     "email_not_verified": "Əvvəlcə öz ünvanınızı təsdiqləyin",
-    "role_not_invitable": "Bu rolu keçidlə vermək olmaz",
+    "role_not_invitable": "Sahibi dəvətlə təyin etmək olmaz — başqa rol seçin",
     "verification_not_found": "Təsdiq keçidi işləmir",
     "llm_not_configured": "LLM qoşulmayıb",
     "llm_unreachable": "Model əlçatan deyil",
@@ -247,7 +247,9 @@
     "title": "Layihələr",
     "empty": {
       "title": "Hələ bir dənə də layihə yoxdur",
-      "hint": "İlk layihəni yaradın — kateqoriyalar və tapşırıqlar onun içində yaşayacaq"
+      "hint": "İlk layihəni yaradın — kateqoriyalar və tapşırıqlar onun içində yaşayacaq",
+      "no_access_title": "Sizə hələ heç bir layihə açılmayıb",
+      "no_access_hint": "Bu təşkilatda layihələr var — onlara girişi sahib verir. Lazım olanları açmasını xahiş edin"
     },
     "create": "Layihə yarat",
     "new": {

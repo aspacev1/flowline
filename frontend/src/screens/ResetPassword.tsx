@@ -4,6 +4,7 @@ import { Link, useSearchParams } from "react-router-dom";
 
 import { resetPassword } from "../api/auth";
 import { errorKey } from "../api/errors";
+import { withInvite } from "../auth/invite";
 import { Field } from "../components/Field";
 import { useLocale } from "../i18n/LocaleProvider";
 import { MIN_PASSWORD_LENGTH } from "./Register";
@@ -24,6 +25,11 @@ export function ResetPassword() {
   const { t } = useLocale();
   const [params] = useSearchParams();
   const token = params.get("token") ?? "";
+  // На этот экран приходят по ссылке из письма, а её строит сервер — токена
+  // приглашения в ней нет и быть не может. Параметр читается на случай, когда
+  // сюда пришли внутри приложения; за письмом же приглашение переносит память
+  // (см. auth/invite.ts), и её читает экран входа.
+  const inviteToken = params.get("invite");
 
   const [password, setPassword] = useState("");
   const [localErrorKey, setLocalErrorKey] = useState<string | null>(null);
@@ -58,7 +64,7 @@ export function ResetPassword() {
         <>
           <p role="status">{t("auth.reset.done")}</p>
           <p className="muted">
-            <Link to="/login">{t("auth.reset.link_login")}</Link>
+            <Link to={withInvite("/login", inviteToken)}>{t("auth.reset.link_login")}</Link>
           </p>
         </>
       )}
@@ -91,7 +97,9 @@ export function ResetPassword() {
           новой, и дорога к ней должна быть в один шаг, а не через догадку. */}
       {(mutation.isError || token === "") && (
         <p className="muted">
-          <Link to="/forgot-password">{t("auth.reset.link_again")}</Link>
+          <Link to={withInvite("/forgot-password", inviteToken)}>
+            {t("auth.reset.link_again")}
+          </Link>
         </p>
       )}
     </main>

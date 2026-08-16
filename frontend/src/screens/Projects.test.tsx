@@ -627,3 +627,50 @@ describe("данные организации", () => {
     expect(screen.queryByText(new RegExp(USER.name))).toBeNull();
   });
 });
+
+describe("пустой список для того, кто не может писать", () => {
+  /**
+   * Тот же экран глазами заданной роли.
+   *
+   * Свой `/api/org` идёт первым: msw берёт первый подходящий обработчик, и
+   * общий из sessionHandlers перекрыл бы роль, ради которой тест и написан.
+   */
+  function asRole(role: string) {
+    return [
+      http.get("/api/org", () => HttpResponse.json({ ...ORG, role })),
+      http.get("/api/projects", () => HttpResponse.json([])),
+      ...sessionHandlers(),
+    ];
+  }
+
+  it("не предлагает наблюдателю завести проект: сервер ответил бы отказом", async () => {
+    server.use(...asRole("viewer"));
+
+    renderApp({ route: "/projects", locale: "ru" });
+
+    // Сперва дожидаемся текста, который появляется только с известной ролью:
+    // проверка отсутствия кнопок до ответа `/api/org` зеленела бы сама собой.
+    await screen.findByText(/вам пока не открыли ни одного проекта/i);
+    expect(screen.queryByRole("button", { name: /создать проект/i })).toBeNull();
+    expect(screen.queryByRole("link", { name: /создать через интервью/i })).toBeNull();
+  });
+
+  it("объясняет клиенту, что доступ выдаёт владелец, а не зовёт создавать", async () => {
+    server.use(...asRole("client"));
+
+    renderApp({ route: "/projects", locale: "ru" });
+
+    expect(await screen.findByText(/доступ к ним выдаёт владелец/i)).toBeInTheDocument();
+    // Прежний призыв обманывал: проекты в организации есть, их просто не выдали.
+    expect(screen.queryByText(/создайте первый проект/i)).toBeNull();
+  });
+
+  it("владельцу оставляет и кнопку, и прежний призыв", async () => {
+    server.use(...asRole("owner"));
+
+    renderApp({ route: "/projects", locale: "ru" });
+
+    expect(await screen.findByRole("button", { name: /создать проект/i })).toBeInTheDocument();
+    expect(screen.getByText(/создайте первый проект/i)).toBeInTheDocument();
+  });
+});

@@ -203,7 +203,7 @@
     "unsupported_locale": "That language is not supported",
     "invite_for_another_address": "The invitation is addressed to someone else",
     "email_not_verified": "Confirm your own address first",
-    "role_not_invitable": "That role cannot be handed out by a link",
+    "role_not_invitable": "An owner cannot be appointed by invitation — pick another role",
     "verification_not_found": "That confirmation link no longer works",
     "llm_not_configured": "No LLM is connected",
     "llm_unreachable": "The model is unreachable",
@@ -247,7 +247,9 @@
     "title": "Projects",
     "empty": {
       "title": "No projects yet",
-      "hint": "Create the first project — categories and tasks will live inside it"
+      "hint": "Create the first project — categories and tasks will live inside it",
+      "no_access_title": "No projects have been opened to you yet",
+      "no_access_hint": "This organization does have projects — the owner grants access to them. Ask them to open the ones you need"
     },
     "create": "Create project",
     "new": {

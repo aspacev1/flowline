@@ -42,6 +42,21 @@ def test_registration_creates_user_org_and_owner_membership(db):
     assert org.slug == "alex"
 
 
+def test_the_organization_speaks_the_language_of_its_founder(db):
+    """Язык организации — язык того, кто её завёл.
+
+    На нём уходят письма организации, и прежде всего приглашения. Раньше здесь
+    оставался жёсткий дефолт модели (`az`), и русскоязычный владелец рассылал
+    команде приглашения по-азербайджански, не имея способа заметить это из
+    интерфейса.
+    """
+    user = register(db, name="Алексей", email="alex@example.com", password="s3cret-pass", locale="ru")
+    db.flush()
+
+    membership = db.query(Membership).filter_by(user_id=user.id).one()
+    assert db.get(Organization, membership.org_id).default_locale == "ru"
+
+
 def test_registration_rejects_a_duplicate_email_regardless_of_case(db):
     register(db, name="Alex", email="alex@example.com", password="s3cret-pass")
     db.flush()

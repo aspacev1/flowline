@@ -512,3 +512,32 @@ def test_a_client_still_does_not_get_the_organization_roster(owner, clients):
     guest.post(f"/api/invitations/{_token(issued['url'])}/accept")
 
     assert guest.get("/api/org/members").status_code == 403
+
+
+def test_the_invitation_letter_speaks_the_language_of_the_founder(clients, mail_on, mailbox):
+    """Письмо приглашения — на языке того, кто завёл организацию.
+
+    Язык письма берётся из `organizations.default_locale`, а тот при регистрации
+    не задавался вовсе и оставался жёстким дефолтом модели: русскоязычный
+    владелец рассылал команде приглашения по-азербайджански и заметить это из
+    интерфейса не мог никак. Проверяется именно сквозной путь — регистрация,
+    выпуск, письмо, — потому что обе его половины по отдельности были исправны
+    и раньше, а расходились они ровно на стыке.
+    """
+    owner = clients()
+    owner.post(
+        "/api/auth/register",
+        json={"name": "Алексей", "email": "founder@example.com", "password": PASSWORD},
+        headers={"Accept-Language": "ru-RU,ru;q=0.9"},
+    )
+    # Письмо подтверждения адреса к делу не относится: оно и раньше уходило на
+    # языке человека — расходился только язык организации.
+    mailbox.clear()
+
+    response = _invite(owner, emails=("guest@example.com",))
+    assert response.status_code == 201
+    assert response.json()[0]["sent"] is True
+
+    (letter,) = mailbox
+    assert "приглашает вас в организацию" in letter.body
+    assert "dəvət edir" not in letter.body

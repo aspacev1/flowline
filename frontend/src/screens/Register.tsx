@@ -6,6 +6,7 @@ import { ME_QUERY_KEY, register as registerRequest } from "../api/auth";
 import type { User } from "../api/auth";
 import { errorKey } from "../api/errors";
 import { afterAuthPath } from "../auth/afterAuth";
+import { forgetInvite, withInvite } from "../auth/invite";
 import { inviteQueryKey, previewInvitation } from "../api/invitations";
 import { Field } from "../components/Field";
 import { useLocale } from "../i18n/LocaleProvider";
@@ -19,6 +20,11 @@ export function Register() {
   const location = useLocation();
   const queryClient = useQueryClient();
   const [params] = useSearchParams();
+  // Только из строки запроса, в отличие от экрана входа: приглашение здесь
+  // подставляет адрес и запирает поле, а это слишком сильное действие, чтобы
+  // делать его по памяти. Человек, открывший чужую ссылку и передумавший,
+  // должен получить на /register пустую форму, а не заблокированный чужой
+  // адрес.
   const inviteToken = params.get("invite");
 
   const [name, setName] = useState("");
@@ -50,6 +56,10 @@ export function Register() {
       // поход человек смотрит на индикатор загрузки без причины.
       queryClient.setQueryData(ME_QUERY_KEY, user);
       adoptProfileLocale(user.locale);
+      // Приглашение отработало: сервер завёл членство прямо в регистрации.
+      // Держать его дальше значило бы уводить человека на экран уже принятого
+      // приглашения при следующем же входе.
+      if (inviteToken !== null) forgetInvite();
       // Тот же возврат, что и на входе: человек мог прийти по ссылке на проект
       // и завести аккаунт прямо здесь.
       navigate(afterAuthPath(location.state));
@@ -141,7 +151,12 @@ export function Register() {
 
       <p className="muted">
         {t("auth.register.have_account")}{" "}
-        <Link to="/login" state={location.state}>
+        {/* Токен едет и на вход — тем же правилом, по которому экран входа
+            везёт его на регистрацию. Без этого самый частый путь приглашённого
+            обрывался здесь: приглашения шлют на рабочие адреса, аккаунт на них
+            обычно уже есть, регистрация отвечает «адрес занят», и человек шёл
+            по этой самой ссылке — в свою прежнюю организацию. */}
+        <Link to={withInvite("/login", inviteToken)} state={location.state}>
           {t("auth.register.link_login")}
         </Link>
       </p>

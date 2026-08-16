@@ -152,9 +152,14 @@ export function Header() {
             профиля пишет он же: второй копии, которая разъехалась бы с этой на
             первой правке, ни здесь, ни на экране профиля больше нет. */}
         <LocaleSwitch />
-        <NavLink to="/settings" className={navClass}>
+        {/* Подпись — отдельным узлом, потому что на узком экране нижний блок
+            переезжает в верхнюю строку и подписи в нём скрываются: места на
+            них там нет, а сами пункты обязаны остаться. Имя для чтения вслух
+            при этом задано явно — значок `aria-hidden`, и без aria-label
+            свёрнутый пункт остался бы безымянным. */}
+        <NavLink to="/settings" className={navClass} aria-label={t("nav.settings")}>
           <IconGear />
-          {t("nav.settings")}
+          <span className="sidebar__label">{t("nav.settings")}</span>
         </NavLink>
         {/* Значок слева — тот же, что у соседних пунктов: без него подпись
             «Выйти» одна съезжала влево, к краю колонки, и ряд снизу ломался.
@@ -163,10 +168,11 @@ export function Header() {
         <button
           type="button"
           className="button--quiet sidebar__button"
+          aria-label={t("nav.logout")}
           onClick={() => void logout()}
         >
           <IconExit />
-          {t("nav.logout")}
+          <span className="sidebar__label">{t("nav.logout")}</span>
         </button>
       </div>
     </header>
