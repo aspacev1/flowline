@@ -31,15 +31,15 @@ describe("шапка", () => {
       "href",
       "/projects",
     );
-    // Портфель — соседний пункт со своим именем и своим адресом.
-    expect(screen.getByRole("link", { name: "Портфель" })).toHaveAttribute("href", "/portfolio");
+    // Про проекты в колонке один пункт, а не два: соседний «Портфель» показывал
+    // те же проекты под тем же заголовком, и различить их снаружи было нечем.
+    expect(screen.queryByRole("link", { name: "Портфель" })).toBeNull();
   });
 
   it("подсвечивает ровно один раздел — тот, на котором стоит человек", async () => {
-    renderApp({ route: "/portfolio", locale: "ru" });
+    renderApp({ route: "/reports", locale: "ru" });
 
-    const portfolio = await screen.findByRole("link", { name: "Портфель" });
-    expect(portfolio).toHaveClass("is-current");
+    expect(await screen.findByRole("link", { name: "Отчёты" })).toHaveClass("is-current");
     expect(screen.getByRole("link", { name: "Проекты" })).not.toHaveClass("is-current");
   });
 
@@ -66,7 +66,7 @@ describe("шапка", () => {
     // один пункт, и по колонке не видно, где он.
     const projects = await screen.findByRole("link", { name: "Проекты" });
     expect(projects).toHaveClass("is-current");
-    expect(screen.getByRole("link", { name: "Портфель" })).not.toHaveClass("is-current");
+    expect(screen.getByRole("link", { name: "Мои задачи" })).not.toHaveClass("is-current");
   });
 
   it("ведёт в настройки одним пунктом, а не тремя шестерёнками подряд", async () => {

@@ -4,8 +4,8 @@ import { errorKey } from "../api/errors";
 import type { ProjectState } from "../api/projects";
 import { formatShortDate } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
-import { daysBetween } from "../gantt/timescale";
 import { progressOf, statusCounts } from "../project/progress";
+import { deadlineOverrunDays, overdueTasks } from "../project/verdict";
 import { useToday } from "../time/useToday";
 import { useProjectStates } from "./projectStates";
 
@@ -71,9 +71,10 @@ export function Reports() {
 function ReportRow({ state, today }: { state: ProjectState; today: string }) {
   const progress = progressOf(state.tasks);
   const counts = statusCounts(state.tasks);
-  const overdue = state.tasks.filter(
-    (task) => task.status !== "done" && task.end_date < today,
-  ).length;
+  // Считает общий модуль, а не эта строка: «просрочено» здесь и «после
+  // дедлайна проекта» в шапке проекта — две разные величины с одним именем, и
+  // третий их счёт разошёлся бы с обоими.
+  const overdue = overdueTasks(state, today).length;
 
   return (
     <tr>
@@ -95,15 +96,21 @@ function ReportRow({ state, today }: { state: ProjectState; today: string }) {
 /**
  * Вердикт по сроку — словами, а не датой: дату пришлось бы сравнивать в уме,
  * а «+4 дня» — уже ответ. Без дедлайна вердикта нет: писать «успеваем» там,
- * где успевать не к чему, — выдумывать смысл.
+ * где успевать не к чему, — выдумывать смысл. У относительного плана его нет
+ * по той же причине: сравнивать дедлайн не с чем, пока не назначен старт, и
+ * «укладываемся» про такой проект было бы обещанием, взятым из воздуха.
  */
 function Deadline({ state }: { state: ProjectState }) {
   const { t } = useLocale();
-  if (state.deadline === null || state.project_end === null) {
+  if (
+    state.schedule_mode !== "calendar" ||
+    state.deadline === null ||
+    state.project_end === null
+  ) {
     return <span className="muted">—</span>;
   }
-  const overrun = daysBetween(state.deadline, state.project_end);
-  if (overrun > 0) {
+  const overrun = deadlineOverrunDays(state);
+  if (overrun !== null) {
     return (
       <span className="report__late">
         {t("reports.deadline_late", { days: t("common.days", { count: overrun }) })}

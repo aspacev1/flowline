@@ -474,50 +474,48 @@ body:has(.screen--narrow) {
 
 /* --- списки --- */
 
-/* Project portfolio cards keep the scan path clear at both 2 and 20 items.
+/* Карточки проектов держат путь взгляда и на двух, и на двадцати.
    auto-fill, а не auto-fit: fit схлопывает пустые дорожки, и единственный
    проект растягивался карточкой во всю страницу — километровая карточка об
    одном названии и есть «громоздко». fill держит сетку той же, что и при
    двадцати проектах, и первая карточка обещает размером, что рядом встанут
    следующие. */
 .projects {
-  display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 16px;
 }
 
-.projects li {
-  position: relative;
+.project-card {
   min-height: 124px;
-  align-content: flex-end;
-  align-items: flex-start;
-  padding: 20px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
   box-shadow: var(--shadow-sm);
 }
 
-.projects li::before {
-  content: "";
-  width: 40px;
-  height: 7px;
-  margin-bottom: 22px;
-  border-radius: 3px;
-  background: linear-gradient(90deg, var(--accent) 0 58%, #93a1f2 58%);
-}
+/* Полоска над названием отсюда убрана. Она была нарисована в CSS одинаковой
+   на всех карточках — сорок пикселей с изломом на 58%, — но в сетке
+   одинаковых карточек единственное цветное пятно читается как показание
+   прибора, и его читали как готовность проекта. Место занял вердикт: там же,
+   тем же размером, но он что-то значит. */
 
-.projects li:hover {
+.project-card:hover {
   border-color: var(--border-strong);
   background: var(--bg-subtle);
   box-shadow: 0 8px 24px rgb(16 24 40 / 7%);
 }
 
-.projects li a { width: 100%; color: var(--text); font-size: 16px; font-weight: 700; }
+.screen .project-card__name { color: var(--text); font-size: 16px; font-weight: 700; }
+.screen .project-card__name:hover { background: transparent; text-decoration: underline; }
+.project-card__verdict { border-radius: var(--radius-pill); font-size: 11px; }
+/* Тревога и внимание — те же два цвета, что у плашек статуса: янтарный здесь
+   значит «требует решения», розовый — «сорвано», и третьего значения у них в
+   этой теме нет. */
+.project-card__verdict[data-tone="alarm"] { background: var(--danger-soft); color: #b8365a; }
+.project-card__verdict[data-tone="warn"] { background: var(--warn-soft); color: #a1620f; }
+.project-card__verdict[data-tone="calm"] { background: var(--ok-soft); color: #187448; }
+.project-card__verdict[data-tone="neutral"] { background: var(--tag-gray); color: var(--text-muted); }
+.project-card__mode { border-color: var(--border-strong); border-radius: var(--radius-pill); font-size: 11px; }
 /* Слаг — обычным шрифтом и приглушённо, а не моноширинным faint: это адрес
    публичной страницы, то есть данные, и читаться он обязан как текст, а не
    как отладочная строка; faint на белом (2.7:1) для данных не хватает. */
-.projects__slug { margin: 3px 0 0; color: var(--text-muted); font-size: 12px; font-family: var(--font); }
+.project-card__slug { color: var(--text-muted); font-size: 12px; font-family: var(--font); }
 
 .home-card, .task-list, .report { border-color: var(--border); border-radius: var(--radius-lg); background: var(--surface); }
 /* Название карточки и ссылка на проект в строке задачи — чернилами, а не

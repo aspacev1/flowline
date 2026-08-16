@@ -81,7 +81,6 @@
   "nav": {
     "my_tasks": "Tapşırıqlarım",
     "projects": "Layihələr",
-    "portfolio": "Portfel",
     "reports": "Hesabatlar",
     "logout": "Çıxış",
     "org_settings": "Təşkilat",
@@ -253,7 +252,35 @@
       "name": "Ad"
     },
     "create_with_ai": "Müsahibə ilə yarat",
-    "created": "«{name}» layihəsi yaradıldı"
+    "created": "«{name}» layihəsi yaradıldı",
+    "card": {
+      "tasks": {
+        "one": "{count} tapşırıq",
+        "other": "{count} tapşırıq"
+      },
+      "progress": "{pct}% hazırdır",
+      "plan_days": "{days}lük plan"
+    },
+    "mode": {
+      "relative": "Nisbi plan"
+    },
+    "verdict": {
+      "empty": "Plan boşdur — tapşırıq əlavə edin",
+      "overdue": {
+        "one": "{count} gecikib",
+        "other": "{count} gecikib"
+      },
+      "late": "{days} gecikmə",
+      "blocked": {
+        "one": "{count} bloklanıb",
+        "other": "{count} bloklanıb"
+      },
+      "changed": "Razılaşdırmadan sonra dəyişib",
+      "unscheduled": "Başlama tarixini təyin edin",
+      "draft": "Qaralama — razılaşdırılmayıb",
+      "done": "Tamamlanıb",
+      "on_track": "Plan üzrə gedir"
+    }
   },
   "project": {
     "period": "{from} — {to}",
@@ -266,19 +293,6 @@
       "not_started": "Başlanmayıb",
       "not_planned": "Plandan kənar",
       "completed": "Tamamlanıb"
-    }
-  },
-  "portfolio": {
-    "title": "Portfel",
-    "greeting": "Salam, {name} — layihə portfeli bir baxışda",
-    "tasks": {
-      "one": "{count} tapşırıq",
-      "other": "{count} tapşırıq"
-    },
-    "progress": "{pct}% hazırdır",
-    "blocked": {
-      "one": "{count} bloklanıb",
-      "other": "{count} bloklanıb"
     }
   },
   "my_tasks": {

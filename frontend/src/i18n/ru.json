@@ -83,7 +83,6 @@
   "nav": {
     "my_tasks": "Мои задачи",
     "projects": "Проекты",
-    "portfolio": "Портфель",
     "reports": "Отчёты",
     "logout": "Выйти",
     "org_settings": "Организация",
@@ -255,7 +254,41 @@
       "name": "Название"
     },
     "create_with_ai": "Создать через интервью",
-    "created": "Проект «{name}» создан"
+    "created": "Проект «{name}» создан",
+    "card": {
+      "tasks": {
+        "one": "{count} задача",
+        "few": "{count} задачи",
+        "many": "{count} задач",
+        "other": "{count} задачи"
+      },
+      "progress": "Готово на {pct}%",
+      "plan_days": "план на {days}"
+    },
+    "mode": {
+      "relative": "Относительный план"
+    },
+    "verdict": {
+      "empty": "Плана нет — добавьте задачи",
+      "overdue": {
+        "one": "{count} просрочена",
+        "few": "{count} просрочены",
+        "many": "{count} просрочено",
+        "other": "{count} просрочено"
+      },
+      "late": "Опоздание на {days}",
+      "blocked": {
+        "one": "{count} заблокирована",
+        "few": "{count} заблокированы",
+        "many": "{count} заблокировано",
+        "other": "{count} заблокировано"
+      },
+      "changed": "Изменён после согласования",
+      "unscheduled": "Назначьте дату старта",
+      "draft": "Черновик — не согласован",
+      "done": "Завершён",
+      "on_track": "Идёт по плану"
+    }
   },
   "project": {
     "period": "{from} — {to}",
@@ -268,23 +301,6 @@
       "not_started": "Не начато",
       "not_planned": "Вне плана",
       "completed": "Завершено"
-    }
-  },
-  "portfolio": {
-    "title": "Портфель",
-    "greeting": "Здравствуйте, {name} — вот портфель одним взглядом",
-    "tasks": {
-      "one": "{count} задача",
-      "few": "{count} задачи",
-      "many": "{count} задач",
-      "other": "{count} задачи"
-    },
-    "progress": "Готово на {pct}%",
-    "blocked": {
-      "one": "{count} заблокирована",
-      "few": "{count} заблокированы",
-      "many": "{count} заблокировано",
-      "other": "{count} заблокировано"
     }
   },
   "my_tasks": {
