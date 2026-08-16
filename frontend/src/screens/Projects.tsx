@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 
 import { errorKey } from "../api/errors";
 import type { Project, ProjectState } from "../api/projects";
-import { useOrgRole } from "../auth/permissions";
+import { roleCanWrite, useOrgRole } from "../auth/permissions";
 import { CreateProjectActions } from "../components/CreateProjectActions";
 import { Menu } from "../components/Menu";
 import { Modal } from "../components/Modal";
@@ -40,7 +40,14 @@ export function Projects() {
   // Удаление — право владельца, как и в настройках проекта: редактор правит
   // план, но не расстаётся с проектом целиком. Решает всё равно сервер, здесь
   // лишь не предлагается действие, которое кончится отказом.
-  const canDelete = useOrgRole() === "owner";
+  const role = useOrgRole();
+  const canDelete = role === "owner";
+  // Создание — по тому же правилу, что и удаление, и по той же причине: сервер
+  // решает про оба одинаково (PROJECT_WRITE), и предлагать наблюдателю кнопку,
+  // которая ответит отказом, — значит встречать нового участника отказом на
+  // первом же нажатии. Раньше шестерёнка удаления роль спрашивала, а кнопка
+  // создания — нет.
+  const canCreate = roleCanWrite(role);
   // Проект, о котором задан вопрос, а не «окно открыто»: окно называет имя, и
   // держать его отдельным состоянием значило бы завести второй источник того
   // же самого. Окно одно на список: вопрос задают об одном проекте за раз.
@@ -60,7 +67,7 @@ export function Projects() {
     <main className="screen">
       <div className="screen__head">
         <h1>{t("projects.title")}</h1>
-        <CreateProjectActions />
+        {canCreate && <CreateProjectActions />}
       </div>
 
       {listPending && <p role="status">{t("common.loading")}</p>}
@@ -72,9 +79,18 @@ export function Projects() {
       )}
 
       {!listPending && listError === null && projects.length === 0 && (
+        // Пустой список значит разное для разных ролей, и одно объяснение на
+        // оба случая обманывает половину читателей. У того, кто может писать,
+        // проектов действительно нет. У наблюдателя и клиента они, скорее
+        // всего, есть — просто ему не выдали доступ, и звать его «создать
+        // первый» некуда: сервер откажет.
         <div className="empty">
-          <p className="empty__title">{t("projects.empty.title")}</p>
-          <p className="muted">{t("projects.empty.hint")}</p>
+          <p className="empty__title">
+            {t(canCreate ? "projects.empty.title" : "projects.empty.no_access_title")}
+          </p>
+          <p className="muted">
+            {t(canCreate ? "projects.empty.hint" : "projects.empty.no_access_hint")}
+          </p>
         </div>
       )}
 

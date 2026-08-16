@@ -437,3 +437,38 @@ def test_the_same_address_twice_in_one_batch_produces_one_invitation(db):
 def test_a_random_uuid_is_not_a_token(db):
     assert by_token(db, str(uuid.uuid4())) is None
     assert by_token(db, "") is None
+
+
+def test_the_owner_role_is_not_handed_out_by_an_invitation(db):
+    """Владельца приглашением не назначают.
+
+    Владелец распоряжается организацией целиком, а приглашение без адреса вдобавок
+    достаётся предъявителю: владельцем становился любой, кто открыл переславшуюся
+    ссылку. Отыграть это назад нечем — смены роли участнику в продукте пока нет.
+    Код отказа отдельный, а не общий `unknown_role`: роль существует, её просто
+    нельзя выдать этим способом.
+    """
+    owner, org_id = _owner(db)
+
+    with pytest.raises(InvitationError) as failure:
+        _invite(db, org_id, owner.id, role="owner")
+
+    assert failure.value.code == "role_not_invitable"
+
+
+def test_a_bearer_invitation_cannot_smuggle_the_owner_role_either(db):
+    owner, org_id = _owner(db)
+
+    with pytest.raises(InvitationError) as failure:
+        _invite(db, org_id, owner.id, role="owner", emails=())
+
+    assert failure.value.code == "role_not_invitable"
+
+
+def test_an_unknown_role_is_still_told_apart_from_a_forbidden_one(db):
+    owner, org_id = _owner(db)
+
+    with pytest.raises(InvitationError) as failure:
+        _invite(db, org_id, owner.id, role="admiral")
+
+    assert failure.value.code == "unknown_role"

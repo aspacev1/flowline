@@ -70,11 +70,23 @@ def _unavailable(state: Status) -> InvitationError:
     return InvitationError(f"invite_{state.value}")
 
 
+#: Роли, которые приглашением не выдаются. Владелец распоряжается организацией
+#: целиком — удаляет проекты, переутверждает планы, зовёт кого угодно, — а
+#: приглашение без адреса вдобавок достаётся предъявителю: владельцем
+#: становился любой, кто открыл переславшуюся ссылку. Отыграть это назад нечем,
+#: смены роли участнику в продукте пока нет. Владельца назначает владелец,
+#: действующему участнику и отдельным действием — когда оно появится.
+NOT_INVITABLE: frozenset[Role] = frozenset({Role.OWNER})
+
+
 def _parse_role(raw: str) -> Role:
     try:
-        return Role(raw)
+        role = Role(raw)
     except ValueError as error:
         raise InvitationError("unknown_role") from error
+    if role in NOT_INVITABLE:
+        raise InvitationError("role_not_invitable")
+    return role
 
 
 def _checked_project_ids(

@@ -1,4 +1,4 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
@@ -319,5 +319,22 @@ describe("переключатель организаций", () => {
     // выбором, а не остаётся на данных, которых в этой организации нет.
     expect(await screen.findByText("Кто-то ещё")).toBeInTheDocument();
     expect(switcher).toHaveValue("o2");
+  });
+});
+
+describe("роль в форме приглашения", () => {
+  it("владельца приглашением не выдают: отыграть это назад нечем", async () => {
+    server.use(...membersHandlers());
+
+    renderApp({ route: "/members", locale: "ru" });
+    await userEvent.click(await screen.findByRole("button", { name: /пригласить/i }));
+
+    const select = screen.getByLabelText(/роль/i);
+    const values = within(select)
+      .getAllByRole("option")
+      .map((option) => (option as HTMLOptionElement).value);
+
+    expect(values).toEqual(["editor", "viewer", "client"]);
+    expect(values).not.toContain("owner");
   });
 });

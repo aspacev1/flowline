@@ -88,9 +88,15 @@ def register(
         return user
 
     org_name = name.strip()
+    # Язык организации — язык её основателя, а не значение по умолчанию из
+    # модели. На этом языке уходят письма организации, и прежде всего
+    # приглашения: их язык брался из `organizations.default_locale`, куда при
+    # регистрации никто ничего не клал, — и русскоязычный владелец рассылал
+    # команде приглашения по-азербайджански, не имея способа заметить это из
+    # интерфейса. Язык человека в этот момент уже известен и лежит в профиле.
     org = insert_with_unique_slug(
         db,
-        lambda slug: Organization(name=org_name, slug=slug),
+        lambda slug: Organization(name=org_name, slug=slug, default_locale=user.locale),
         name=org_name,
         is_taken=lambda slug: _org_slug_taken(db, slug),
         fallback="org",

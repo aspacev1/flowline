@@ -1,9 +1,10 @@
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import { requestPasswordReset } from "../api/auth";
 import { errorKey } from "../api/errors";
+import { withInvite } from "../auth/invite";
 import { Field } from "../components/Field";
 import { useLocale } from "../i18n/LocaleProvider";
 
@@ -16,6 +17,11 @@ import { useLocale } from "../i18n/LocaleProvider";
  */
 export function ForgotPassword() {
   const { t } = useLocale();
+  const [params] = useSearchParams();
+  // Приглашение проезжает и через восстановление: сюда попадают посреди пути
+  // «пришёл по ссылке — аккаунт уже есть — пароля не помню», и возврат на вход
+  // должен вести обратно к приглашению, а не в прежнюю организацию.
+  const inviteToken = params.get("invite");
   const [email, setEmail] = useState("");
   const mutation = useMutation({ mutationFn: requestPasswordReset });
 
@@ -59,7 +65,7 @@ export function ForgotPassword() {
       )}
 
       <p className="muted">
-        <Link to="/login">{t("auth.forgot.link_login")}</Link>
+        <Link to={withInvite("/login", inviteToken)}>{t("auth.forgot.link_login")}</Link>
       </p>
     </main>
   );
