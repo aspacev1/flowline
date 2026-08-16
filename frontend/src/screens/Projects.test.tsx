@@ -78,6 +78,63 @@ function projectsWithStates(...states: ProjectState[]) {
   ];
 }
 
+/**
+ * Два проекта и сервер, который и правда с ними расстаётся.
+ *
+ * Список отдаёт то, что живо, удалённый проект отвечает 404-м — иначе тест
+ * про исчезнувшую карточку проходил бы и в том случае, когда клиент лишь
+ * убрал её у себя, а на сервере ничего не случилось.
+ */
+function deletableProjects() {
+  const states = [
+    state({ id: "p1", name: "Редизайн", slug: "redizayn" }),
+    state({ id: "p2", name: "Смета", slug: "smeta" }),
+  ];
+  const alive = new Set(states.map((project) => project.id));
+  /** Кого сервер получил приказ удалить. Пустой — значит, никого. */
+  const deleted: string[] = [];
+
+  return {
+    deleted,
+    handlers: [
+      http.get("/api/projects", () =>
+        HttpResponse.json(
+          states
+            .filter((project) => alive.has(project.id))
+            .map(({ id, name, slug }) => ({ id, name, slug })),
+        ),
+      ),
+      ...states.map((project) =>
+        http.get(`/api/projects/${project.id}`, () =>
+          alive.has(project.id)
+            ? HttpResponse.json(project)
+            : HttpResponse.json({ detail: "not_found" }, { status: 404 }),
+        ),
+      ),
+      http.delete("/api/projects/:projectId", ({ params }) => {
+        const id = String(params.projectId);
+        deleted.push(id);
+        alive.delete(id);
+        return new HttpResponse(null, { status: 204 });
+      }),
+    ],
+  };
+}
+
+/** Шестерёнка на карточке названного проекта — не на соседней. */
+async function gearOf(name: string): Promise<HTMLElement> {
+  const cards = await screen.findAllByRole("listitem");
+  const card = cards.find((node) => within(node).queryByRole("link", { name }) !== null);
+  if (card === undefined) throw new Error(`карточки «${name}» на экране нет`);
+  return within(card).findByRole("button", { name: "Действия проекта" });
+}
+
+/** Раскрыть шестерёнку карточки и выбрать в ней удаление. */
+async function askToDelete(name: string) {
+  await userEvent.click(await gearOf(name));
+  await userEvent.click(screen.getByRole("button", { name: "Удалить проект" }));
+}
+
 /** 11 марта 2026 в Баку — пояс организации, по которому считается «сегодня». */
 function atMarch11(run: () => Promise<void>) {
   vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -421,6 +478,105 @@ describe("сводка на карточке", () => {
     // отказе, «проектов нет» было бы враньём поверх баннера ошибки.
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(screen.queryByText(/ни одного проекта/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("удаление проекта с карточки", () => {
+  it("пункт меню сперва спрашивает, а не удаляет", async () => {
+    const { deleted, handlers } = deletableProjects();
+    server.use(...sessionHandlers(), ...handlers);
+
+    renderApp({ route: "/projects", locale: "ru" });
+    await askToDelete("Редизайн");
+
+    const dialog = screen.getByRole("dialog");
+    // Окно называет имя проекта: в сетке одинаковых карточек это единственное
+    // место, где видно, что целились в соседнюю.
+    expect(
+      within(dialog).getByRole("heading", { name: "Удалить проект «Редизайн»?" }),
+    ).toBeInTheDocument();
+    // И называет последствие, а не спрашивает «вы уверены?».
+    expect(within(dialog).getByText(/отменить это будет нельзя/i)).toBeInTheDocument();
+    expect(deleted).toEqual([]);
+  });
+
+  it("фокус в окне стоит на отказе, а не на удалении", async () => {
+    const { handlers } = deletableProjects();
+    server.use(...sessionHandlers(), ...handlers);
+
+    renderApp({ route: "/projects", locale: "ru" });
+    await askToDelete("Редизайн");
+
+    // Enter, нажатый быстрее, чем прочитано предупреждение, обязан ничего не
+    // удалить: у необратимого действия первым под рукой стоит отказ.
+    expect(screen.getByRole("button", { name: "Отмена" })).toHaveFocus();
+  });
+
+  it("подтверждённое удаление убирает карточку и называет проект", async () => {
+    const { deleted, handlers } = deletableProjects();
+    server.use(...sessionHandlers(), ...handlers);
+
+    renderApp({ route: "/projects", locale: "ru" });
+    await askToDelete("Редизайн");
+    await userEvent.click(screen.getByRole("button", { name: "Да, удалить проект" }));
+
+    // Удалён названный проект, а не соседний по сетке.
+    await waitFor(() => expect(deleted).toEqual(["p1"]));
+    await waitFor(() => expect(screen.queryByText("Редизайн")).toBeNull());
+    expect(screen.getByText("Смета")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    // Список после удаления выглядит так же, как после промаха мимо кнопки:
+    // отчитаться о тихой операции обязан тост, и называет он то, что удалено.
+    expect(await screen.findByText("Проект «Редизайн» удалён")).toBeInTheDocument();
+  });
+
+  it("отказ в окне не трогает ни сервер, ни список", async () => {
+    const { deleted, handlers } = deletableProjects();
+    server.use(...sessionHandlers(), ...handlers);
+
+    renderApp({ route: "/projects", locale: "ru" });
+    await askToDelete("Редизайн");
+    await userEvent.click(screen.getByRole("button", { name: "Отмена" }));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByText("Редизайн")).toBeInTheDocument();
+    expect(deleted).toEqual([]);
+  });
+
+  it("отказ сервера остаётся в окне, а карточка — на месте", async () => {
+    const { handlers } = deletableProjects();
+    server.use(...sessionHandlers(), ...handlers);
+    // Отдельным вызовом, а не последним доводом в предыдущем: msw отдаёт
+    // предпочтение обработчику, объявленному позже, — но именно вызовом, а
+    // внутри одного вызова побеждает первый подошедший.
+    server.use(
+      http.delete("/api/projects/p1", () =>
+        HttpResponse.json({ detail: "forbidden" }, { status: 403 }),
+      ),
+    );
+
+    renderApp({ route: "/projects", locale: "ru" });
+    await askToDelete("Редизайн");
+    await userEvent.click(screen.getByRole("button", { name: "Да, удалить проект" }));
+
+    // Окно не закрывается на отказе: закрытое, оно унесло бы с собой и
+    // объяснение, и карточка молча осталась бы на месте без причины.
+    expect(await screen.findByText(/у вас нет прав/i)).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("Редизайн")).toBeInTheDocument();
+  });
+
+  it("редактору шестерёнки на карточке нет", async () => {
+    const { handlers } = deletableProjects();
+    server.use(...sessionHandlers(), ...handlers);
+    // Отдельным вызовом: см. соседний тест про отказ сервера.
+    server.use(http.get("/api/org", () => HttpResponse.json({ ...ORG, role: "editor" })));
+
+    renderApp({ route: "/projects", locale: "ru" });
+
+    // Расстаться с проектом целиком — право владельца; редактор правит план.
+    expect(await screen.findByText("Редизайн")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Действия проекта" })).toBeNull();
   });
 });
 
