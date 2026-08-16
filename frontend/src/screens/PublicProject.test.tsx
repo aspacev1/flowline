@@ -3,8 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 
+import { projectFixtures } from "../test/project";
 import { server } from "../test/server";
-import { renderApp } from "../test/utils";
+import { USER, renderApp, sessionHandlers } from "../test/utils";
 
 const TOKEN = "sh4re-t0ken";
 const ROUTE = `/p/acme/redizayn?s=${TOKEN}`;
@@ -226,6 +227,63 @@ describe("публичная страница", () => {
     // передаёт их ленте пропсом. Спроси их лента сама — публичная страница
     // ходила бы за ними тоже и получала отказ на каждом открытии ссылки.
     expect(asked).toEqual([]);
+  });
+
+  it("уводит гостя на вход, а после входа — в сам проект", async () => {
+    server.use(guestSession(), publicProject(), noComments());
+
+    renderApp({ route: ROUTE, locale: "ru" });
+    await screen.findAllByText("Логотип");
+
+    await userEvent.click(screen.getByRole("link", { name: "Войти" }));
+
+    expect(screen.getByTestId("location")).toHaveTextContent("/login");
+    expect(await screen.findByRole("heading", { name: "Вход", level: 1 })).toBeInTheDocument();
+
+    // Дальше вход должен вернуть человека в тот проект, ссылку на который он и
+    // открыл: адрес едет вместе с переходом, как и у RequireAuth. Ответы
+    // рабочего экрана — общей оснасткой: проверяется переход, а не то, из
+    // скольких запросов собирается страница проекта.
+    projectFixtures();
+    server.use(http.post("/api/auth/login", () => HttpResponse.json(USER)));
+
+    await userEvent.type(screen.getByLabelText("Почта"), USER.email);
+    await userEvent.type(screen.getByLabelText("Пароль"), "s3cret");
+    await userEvent.click(screen.getByRole("button", { name: "Войти" }));
+
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/projects/p1"));
+  });
+
+  it("вошедшему предлагает сам проект, а не вход", async () => {
+    server.use(...sessionHandlers(), publicProject(), noComments());
+
+    renderApp({ route: ROUTE, locale: "ru" });
+    await screen.findAllByText("Логотип");
+
+    // Спрашивать пароль у того, кто уже вошёл, незачем: ему нужен ход внутрь,
+    // к тому же проекту, но на рабочий экран.
+    expect(screen.queryByRole("link", { name: "Войти" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Открыть в приложении" })).toHaveAttribute(
+      "href",
+      "/projects/p1",
+    );
+  });
+
+  it("даёт войти и с отозванной ссылки", async () => {
+    server.use(
+      guestSession(),
+      http.get("/api/public/acme/redizayn", () =>
+        HttpResponse.json({ detail: "link_not_found" }, { status: 404 }),
+      ),
+    );
+
+    renderApp({ route: ROUTE, locale: "ru" });
+    await screen.findByRole("alert");
+
+    // Отозванную ссылку чаще всего открывает свой же — тот, кто её и рассылал.
+    // Возвращаться после входа некуда: проект не открылся, и вход приводит
+    // туда же, куда приводит обычный вход.
+    expect(screen.getByRole("link", { name: "Войти" })).toHaveAttribute("href", "/login");
   });
 
   it("язык переключается прямо на странице", async () => {

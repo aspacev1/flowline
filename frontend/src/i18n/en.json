@@ -623,7 +623,9 @@
     }
   },
   "public": {
-    "badge": "Public page"
+    "badge": "Public page",
+    "login": "Log in",
+    "open_app": "Open in app"
   },
   "org": {
     "switch_label": "Organization"

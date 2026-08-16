@@ -623,7 +623,9 @@
     }
   },
   "public": {
-    "badge": "İctimai səhifə"
+    "badge": "İctimai səhifə",
+    "login": "Daxil ol",
+    "open_app": "Tətbiqdə aç"
   },
   "org": {
     "switch_label": "Təşkilat"
