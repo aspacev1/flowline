@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { commentsQueryKey } from "../api/comments";
 import { projectQueryKey } from "../api/projects";
+import { proposalQueryKey } from "../api/proposal";
 
 /**
  * Состояние живой связи с проектом.
@@ -138,6 +139,11 @@ export function useProjectLive(projectId: string): Live {
         // дочитывает по HTTP, где действует фильтр внутренних реплик.
         if (type === "comment") {
           void queryClient.invalidateQueries({ queryKey: commentsQueryKey(projectId) });
+        }
+        // Смета правится без ревизий, поэтому у неё своё событие — как у
+        // реплик: факт «изменилась», текст клиент дочитывает по HTTP.
+        if (type === "proposal") {
+          void queryClient.invalidateQueries({ queryKey: proposalQueryKey(projectId) });
         }
       };
 

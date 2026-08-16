@@ -231,7 +231,10 @@
     "task_is_milestone": "A milestone has no duration. Turn the milestone flag off first",
     "empty_shift": "A shift of zero days changes nothing",
     "category_empty": "There are no tasks in this category to move",
-    "date_out_of_range": "That shift takes a task past the supported date range"
+    "date_out_of_range": "That shift takes a task past the supported date range",
+    "proposal_empty": "The proposal has no tasks to add to the plan",
+    "proposal_category_not_found": "No such section in this proposal",
+    "proposal_task_not_found": "No such task in this proposal"
   },
   "live": {
     "offline": "No connection to the server. Editing is unavailable",
@@ -406,6 +409,7 @@
     "rename_category": "renamed the category from “{from}” to “{to}”",
     "set_category_color": "changed the category colour",
     "tabs_label": "Project sections",
+    "tab_proposal": "Proposal",
     "tab_gantt": "Chart",
     "tab_history": "History",
     "feed_empty": "No changes yet",
@@ -444,38 +448,38 @@
     "set_milestone_off": "turned the milestone back into a task"
   },
   "schedule": {
-   "open": "Set start date",
-   "change": "Change start date",
-   "title": "Set the start date",
-   "change_title": "Move the start date",
-   "start": "Start date",
-   "week_label": "Working week",
-   "week": {
-    "keep": "As in project settings",
-    "mon_fri": "Mon–Fri (5/2)",
-    "mon_sat": "Mon–Sat (6/1)",
-    "all": "Calendar days (no days off)"
-   },
-   "holidays_note": "Days off and holidays come from the organization and project settings — the dates are computed around them.",
-   "tasks_legend": "Tasks",
-   "tasks_shift": "Shift all tasks along with the start",
-   "tasks_keep": "Keep task dates as they are",
-   "preview": "Project timeline: {from} — {to}",
-   "preview_empty": "Project start: {from}. No tasks yet.",
-   "apply": "Apply dates"
+    "open": "Set start date",
+    "change": "Change start date",
+    "title": "Set the start date",
+    "change_title": "Move the start date",
+    "start": "Start date",
+    "week_label": "Working week",
+    "week": {
+      "keep": "As in project settings",
+      "mon_fri": "Mon–Fri (5/2)",
+      "mon_sat": "Mon–Sat (6/1)",
+      "all": "Calendar days (no days off)"
+    },
+    "holidays_note": "Days off and holidays come from the organization and project settings — the dates are computed around them.",
+    "tasks_legend": "Tasks",
+    "tasks_shift": "Shift all tasks along with the start",
+    "tasks_keep": "Keep task dates as they are",
+    "preview": "Project timeline: {from} — {to}",
+    "preview_empty": "Project start: {from}. No tasks yet.",
+    "apply": "Apply dates"
   },
   "gantt": {
     "relative": {
-     "badge": "Relative plan",
-     "hint": "Plan the timeline now. Assign a start date when the project is approved.",
-     "month": "Month {number}",
-     "week": "Week {number}",
-     "day": "Day {number}"
+      "badge": "Relative plan",
+      "hint": "Plan the timeline now. Assign a start date when the project is approved.",
+      "month": "Month {number}",
+      "week": "Week {number}",
+      "day": "Day {number}"
     },
     "mode": {
-     "label": "Timeline view",
-     "relative": "Relative",
-     "calendar": "Calendar"
+      "label": "Timeline view",
+      "relative": "Relative",
+      "calendar": "Calendar"
     },
     "empty": "This project has no categories yet. Create a category — tasks live inside it",
     "today": "Today",
@@ -527,7 +531,7 @@
     },
     "tip": {
       "more": "{name} +{count}",
-   "keys": "Shift + ←→ move · Esc cancel · {mod}+Z undo"
+      "keys": "Shift + ←→ move · Esc cancel · {mod}+Z undo"
     },
     "toggle_category": "Collapse or expand “{name}”",
     "insert_before": "Add a task above “{name}”",
@@ -763,6 +767,64 @@
       "drop": "Remove",
       "project_name": "Project name",
       "apply": "Apply to a project"
+    }
+  },
+  "proposal": {
+    "empty": "No sections yet — add the first one below",
+    "settings": {
+      "unit": "Estimate in",
+      "unit_days": "Days",
+      "unit_hours": "Hours",
+      "hours_per_day": "Hours per day",
+      "tax_rate": "Tax, %",
+      "currency": "Currency",
+      "currency_invalid": "A three-letter code, e.g. USD"
+    },
+    "columns": {
+      "task": "Task",
+      "description": "Description",
+      "role": "Role",
+      "effort_days": "Effort, days",
+      "effort_hours": "Effort, hours",
+      "rate": "Rate",
+      "price": "Price"
+    },
+    "category": {
+      "add": "Add section",
+      "name": "Section name",
+      "empty": "No tasks in this section yet",
+      "delete": "Delete section",
+      "delete_warning": "The section “{name}” will be deleted with all its tasks",
+      "delete_confirm": "Delete section"
+    },
+    "task": {
+      "add": "Add task",
+      "name": "New task name",
+      "panel_aria": "Proposal line: {name}",
+      "role": "Responsible role",
+      "description": "Description",
+      "details": "Detailed description",
+      "notes": "Notes",
+      "risks": "Risks",
+      "assumptions": "Assumptions",
+      "delete": "Delete task",
+      "delete_warning": "The task “{name}” will be deleted with its discussion",
+      "delete_confirm": "Delete task"
+    },
+    "summary": {
+      "title": "Proposal summary",
+      "total_days": "Total days",
+      "total_hours": "Total hours",
+      "subtotal": "Subtotal",
+      "tax": "Tax ({rate}%)",
+      "total": "Total"
+    },
+    "push": {
+      "action": "Add to plan",
+      "done": {
+        "one": "{count} task added to the plan",
+        "other": "{count} tasks added to the plan"
+      }
     }
   }
 }

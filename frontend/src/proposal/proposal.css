@@ -1,0 +1,221 @@
+/*
+ * Смета: таблица разделов слева, карточка итогов справа.
+ *
+ * Раскладка та же, что у ленты с карточкой задачи: работа — слева, сводка —
+ * узкой колонкой. Итоги не прячутся в подвал таблицы намеренно: вопрос
+ * «сколько всего» задают, не дочитав смету, и ответ обязан быть виден без
+ * прокрутки.
+ */
+
+.proposal {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+.proposal__main {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Настройки сметы — одной строкой над таблицей, а не отдельным экраном:
+   единица, налог и валюта меняют то, что написано прямо под ними. */
+.proposal__toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.proposal__settings {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.proposal__settings .field {
+  margin: 0;
+  max-width: 132px;
+}
+
+.proposal__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.proposal-category {
+  margin-bottom: 28px;
+}
+
+.proposal-category__head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.proposal-category__name {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* Удаление раздела — по наведению, как контролы строк ленты: постоянная
+   кнопка удаления возле каждого заголовка читается как угроза. */
+.proposal-category__head .proposal-category__delete {
+  opacity: 0;
+  transition: opacity 80ms ease;
+}
+
+.proposal-category__head:hover .proposal-category__delete,
+.proposal-category__head:focus-within .proposal-category__delete {
+  opacity: 1;
+}
+
+.proposal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.proposal-table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.proposal-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.proposal-table tbody tr:hover {
+  background: var(--hover);
+}
+
+.proposal-table__num {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+th.proposal-table__num {
+  text-align: right;
+}
+
+/* Имя строки — кнопка на всю ячейку: карточку открывают щелчком по имени,
+   и зона щелчка не должна быть меньше слова. */
+.proposal-table__open {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.proposal-table__open:hover {
+  color: var(--accent);
+  background: none;
+}
+
+.proposal-table__desc {
+  color: var(--text-muted);
+  max-width: 320px;
+}
+
+/* Счётчик реплик — тихим значком после имени, как на строке ленты. */
+.proposal-table__comments {
+  margin-left: 8px;
+  color: var(--text-faint);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* Строка добавления — тихая, под таблицей: смету пишут списком, и окно на
+   каждую строку означало бы открыть и закрыть его столько раз, сколько строк. */
+.proposal-add {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.proposal-add input {
+  flex: 1;
+  max-width: 360px;
+}
+
+.proposal__empty {
+  margin: 24px 0;
+}
+
+/* Карточка итогов. Ширина фиксированная: итоговая сумма не должна прыгать
+   вправо-влево от того, насколько длинны имена строк слева. */
+.proposal-summary {
+  width: 260px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  background: var(--surface);
+}
+
+.proposal-summary__title {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.proposal-summary dl {
+  margin: 0;
+}
+
+.proposal-summary__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 8px;
+  font-size: 14px;
+}
+
+.proposal-summary__row dt {
+  color: var(--text-muted);
+}
+
+.proposal-summary__row dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.proposal-summary__total {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+  margin-top: 8px;
+  font-weight: 600;
+}
+
+.proposal-summary__total dt {
+  color: var(--text);
+}
+
+@media (max-width: 900px) {
+  .proposal {
+    flex-direction: column-reverse;
+  }
+
+  .proposal-summary {
+    width: 100%;
+    position: static;
+  }
+}
