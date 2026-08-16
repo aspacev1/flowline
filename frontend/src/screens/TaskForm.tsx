@@ -13,6 +13,7 @@ import {
 import type { Category, Criticality, Task, TaskStatus } from "../api/projects";
 import { Field } from "../components/Field";
 import { Modal } from "../components/Modal";
+import { Switch } from "../components/Switch";
 import { dateOfProjectDay } from "../gantt/relative";
 import { useToday } from "../time/useToday";
 import { useLocale } from "../i18n/LocaleProvider";
@@ -74,6 +75,11 @@ export function TaskForm({
   const [startDate, setStartDate] = useState(today);
   const [startDay, setStartDay] = useState("1");
   const [durationDays, setDurationDays] = useState("1");
+  // Веха: точка на шкале вместо отрезка. Схлопывает длительность в день —
+  // это то же правило, что держат база и слой мутаций, и форма обязана его
+  // повторить, иначе сервер отобьёт создание отказом, которого человек не
+  // мог предвидеть: поле длительности он не трогал.
+  const [milestone, setMilestone] = useState(false);
   const [assignees, setAssignees] = useState<string[]>([]);
   // Две стороны одной и той же связи: «зависит от» — где будущая задача
   // приёмник, «блокирует» — где источник. Хранятся списками чужих
@@ -118,7 +124,8 @@ export function TaskForm({
           description: description.trim(),
           internal_note: internalNote.trim(),
           start_date: relative ? dateOfProjectDay(Number(startDay)) : startDate,
-          duration_days: Number(durationDays),
+          duration_days: milestone ? 1 : Number(durationDays),
+          milestone,
           criticality,
           status,
           progress_pct: Number(progressPct),
@@ -201,6 +208,7 @@ export function TaskForm({
     progressPct !== "0" ||
     (relative ? startDay !== "1" : startDate !== today) ||
     durationDays !== "1" ||
+    milestone ||
     assignees.length > 0 ||
     dependsOn.length > 0 ||
     blocks.length > 0;
@@ -211,8 +219,7 @@ export function TaskForm({
   const valid =
     name.trim() !== "" &&
     (relative ? Number.isInteger(day) && day >= 1 : startDate !== "") &&
-    Number.isInteger(days) &&
-    days >= 1 &&
+    (milestone || (Number.isInteger(days) && days >= 1)) &&
     progressPct !== "" &&
     Number.isInteger(pct) &&
     pct >= 0 &&
@@ -309,16 +316,31 @@ export function TaskForm({
           />
         )}
 
+        {/* Веха стоит перед длительностью, а не после: включённая, она эту
+            длительность и отменяет, и спрашивать срок у того, у кого его не
+            будет, значит задавать вопрос впустую. */}
+        <p className="field field--switch">
+          <Switch
+            id="task-milestone"
+            label={t("task.new.milestone")}
+            checked={milestone}
+            onChange={setMilestone}
+          />
+          <span className="field__hint">{t("task.panel.milestone_hint")}</span>
+        </p>
+
         {/* Подпись говорит «рабочих дней», а не «дней»: это разные величины, и
             человек, поставивший 5 в пятницу, должен понимать, почему задача
             кончается в четверг, а не в следующий вторник. */}
-        <Field
-          id="task-duration"
-          label={t("task.new.duration")}
-          type="number"
-          value={durationDays}
-          onChange={setDurationDays}
-        />
+        {!milestone && (
+          <Field
+            id="task-duration"
+            label={t("task.new.duration")}
+            type="number"
+            value={durationDays}
+            onChange={setDurationDays}
+          />
+        )}
 
         <Field
           id="task-progress"

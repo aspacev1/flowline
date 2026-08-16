@@ -62,6 +62,15 @@ export type Task = {
   duration_days: number;
   /** Считает сервер. Клиент календарную арифметику не повторяет. */
   end_date: string;
+  /**
+   * Веха: точка на шкале вместо отрезка — сдача этапа, согласование, дедлайн
+   * подрядчика. Рисуется ромбом в своём дне и длительности не имеет: сервер
+   * держит её равной одному дню и отбивает `set_duration` по вехе.
+   *
+   * Признак, а не вывод из «длительность равна одному дню»: однодневных задач
+   * полно, и вехой они не становятся.
+   */
+  milestone: boolean;
   criticality: Criticality;
   status: TaskStatus;
   progress_pct: number;
@@ -155,11 +164,29 @@ export type Op =
       criticality?: Criticality;
       status?: TaskStatus;
       progress_pct?: number;
+      milestone?: boolean;
     }
   | { type: "delete_category"; category_id: string }
   | { type: "delete_task"; task_id: string }
   | { type: "move_task"; task_id: string; start_date: string }
+  /**
+   * Сдвиг всей категории на N календарных дней — одна операция, а не пачка
+   * `move_task` по числу задач: человек сделал одно движение, и история
+   * обязана показать одну запись, а отмена вернуть всё одним нажатием.
+   *
+   * Дни, а не целевая дата: своих границ у категории нет — сводная полоса
+   * рисуется по крайним датам её задач.
+   */
+  | { type: "move_category"; category_id: string; days: number }
+  /**
+   * Левая грань полоски: старт и длительность разом, конец на месте. Одна
+   * операция, а не пара `move_task` + `set_duration`, — грань тянут одним
+   * движением, и промежуточного состояния «уже сдвинули, но ещё не укоротили»
+   * человек не создавал.
+   */
+  | { type: "resize_task"; task_id: string; start_date: string; duration_days: number }
   | { type: "set_duration"; task_id: string; duration_days: number }
+  | { type: "set_milestone"; task_id: string; milestone: boolean }
   | {
       type: "set_task_fields";
       task_id: string;

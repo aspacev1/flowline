@@ -1,4 +1,5 @@
 import type { ProjectState, Task, TaskStatus } from "../api/projects";
+import { addDays } from "../gantt/timescale";
 
 /**
  * Преобразования состояния «как оно будет выглядеть», пока сервер не ответил.
@@ -54,6 +55,52 @@ export function patchStatus(state: ProjectState, taskId: string, status: TaskSta
     tasks: state.tasks.map((task) =>
       task.id === taskId
         ? { ...task, status, progress_pct: progressForStatus(status, task.progress_pct) }
+        : task,
+    ),
+  };
+}
+
+/**
+ * Веха схлопывает длительность в один день — та же сцепка, что на сервере, и
+ * только она. Снятый признак длительности не трогает: настоящей у вехи не
+ * было, и придумывать её на выходе не из чего.
+ *
+ * Дату окончания догадка не считает — её считает сервер по календарю проекта.
+ * Полоска до ответа остаётся прежней ширины и только потом становится ромбом;
+ * это честнее, чем показать неверный конец уверенно.
+ */
+export function patchMilestone(
+  state: ProjectState,
+  taskId: string,
+  milestone: boolean,
+): ProjectState {
+  return {
+    ...state,
+    tasks: state.tasks.map((task) =>
+      task.id === taskId
+        ? { ...task, milestone, duration_days: milestone ? 1 : task.duration_days }
+        : task,
+    ),
+  };
+}
+
+/**
+ * Сдвиг всей категории на N календарных дней.
+ *
+ * Считается по календарным дням, а не по рабочим, потому что операция задана
+ * в них же: полосу тащат по шкале, и деление шкалы — календарный день.
+ * Настоящие даты окончания пересчитает сервер по календарю проекта.
+ */
+export function shiftCategory(
+  state: ProjectState,
+  categoryId: string,
+  days: number,
+): ProjectState {
+  return {
+    ...state,
+    tasks: state.tasks.map((task) =>
+      task.category_id === categoryId
+        ? { ...task, start_date: addDays(task.start_date, days) }
         : task,
     ),
   };

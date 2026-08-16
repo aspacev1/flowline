@@ -1139,7 +1139,7 @@ export interface components {
         /** Body_apply_mutation_api_projects__project_id__mutations_post */
         Body_apply_mutation_api_projects__project_id__mutations_post: {
             /** Op */
-            op: components["schemas"]["PublicCreateCategory"] | components["schemas"]["PublicCreateTask"] | components["schemas"]["PublicMoveTask"] | components["schemas"]["PublicSetDuration"] | components["schemas"]["PublicDeleteTask"] | components["schemas"]["PublicDeleteCategory"] | components["schemas"]["PublicSetTaskFields"] | components["schemas"]["PublicSetCriticality"] | components["schemas"]["PublicSetProgress"] | components["schemas"]["PublicSetStatus"] | components["schemas"]["PublicRenameCategory"] | components["schemas"]["PublicSetCategoryColor"] | components["schemas"]["PublicReorderTask"] | components["schemas"]["PublicAddDependency"] | components["schemas"]["PublicRemoveDependency"] | components["schemas"]["PublicAssignUser"] | components["schemas"]["PublicUnassignUser"];
+            op: components["schemas"]["PublicCreateCategory"] | components["schemas"]["PublicCreateTask"] | components["schemas"]["PublicMoveTask"] | components["schemas"]["PublicMoveCategory"] | components["schemas"]["PublicResizeTask"] | components["schemas"]["PublicSetDuration"] | components["schemas"]["PublicSetMilestone"] | components["schemas"]["PublicDeleteTask"] | components["schemas"]["PublicDeleteCategory"] | components["schemas"]["PublicSetTaskFields"] | components["schemas"]["PublicSetCriticality"] | components["schemas"]["PublicSetProgress"] | components["schemas"]["PublicSetStatus"] | components["schemas"]["PublicRenameCategory"] | components["schemas"]["PublicSetCategoryColor"] | components["schemas"]["PublicReorderTask"] | components["schemas"]["PublicAddDependency"] | components["schemas"]["PublicRemoveDependency"] | components["schemas"]["PublicAssignUser"] | components["schemas"]["PublicUnassignUser"];
             /** Reason */
             reason?: string | null;
         };
@@ -1578,6 +1578,11 @@ export interface components {
              * @default
              */
             internal_note: string;
+            /**
+             * Milestone
+             * @default false
+             */
+            milestone: boolean;
             /** Name */
             name: string;
             /**
@@ -1626,6 +1631,22 @@ export interface components {
              * @constant
              */
             type: "delete_task";
+        };
+        /** PublicMoveCategory */
+        PublicMoveCategory: {
+            /**
+             * Category Id
+             * Format: uuid
+             */
+            category_id: string;
+            /** Days */
+            days: number;
+            /**
+             * Type
+             * @default move_category
+             * @constant
+             */
+            type: "move_category";
         };
         /** PublicMoveTask */
         PublicMoveTask: {
@@ -1702,6 +1723,27 @@ export interface components {
              */
             type: "reorder_task";
         };
+        /** PublicResizeTask */
+        PublicResizeTask: {
+            /** Duration Days */
+            duration_days: number;
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+            /**
+             * Task Id
+             * Format: uuid
+             */
+            task_id: string;
+            /**
+             * Type
+             * @default resize_task
+             * @constant
+             */
+            type: "resize_task";
+        };
         /** PublicSetCategoryColor */
         PublicSetCategoryColor: {
             /**
@@ -1748,6 +1790,22 @@ export interface components {
              * @constant
              */
             type: "set_duration";
+        };
+        /** PublicSetMilestone */
+        PublicSetMilestone: {
+            /** Milestone */
+            milestone: boolean;
+            /**
+             * Task Id
+             * Format: uuid
+             */
+            task_id: string;
+            /**
+             * Type
+             * @default set_milestone
+             * @constant
+             */
+            type: "set_milestone";
         };
         /** PublicSetProgress */
         PublicSetProgress: {

@@ -22,6 +22,7 @@ from app.mutations import (
     DeleteCategory,
     DeleteTask,
     InvalidOperation,
+    MoveCategory,
     MoveTask,
     NotFoundInProject,
     PublicCreateCategory,
@@ -29,9 +30,11 @@ from app.mutations import (
     RemoveDependency,
     RenameCategory,
     ReorderTask,
+    ResizeTask,
     SetCategoryColor,
     SetCriticality,
     SetDuration,
+    SetMilestone,
     SetProgress,
     SetStatus,
     SetTaskFields,
@@ -1145,3 +1148,249 @@ def test_unassigning_someone_who_is_not_assigned_is_refused(db, project, categor
         apply_op(db, project, UnassignUser(task_id=task_id, user_id=str(insider.id)),
                  actor_id=None)
     assert error.value.code == "assignment_not_found"
+
+
+# --- вехи --------------------------------------------------------------------
+
+
+def _task(db, project, category, **fields):
+    """Задача с разумными умолчаниями: тестам ниже важны один-два её поля."""
+    return apply_op(
+        db,
+        project,
+        CreateTask(
+            category_id=str(category.id),
+            name=fields.pop("name", "Logo"),
+            start_date=fields.pop("start_date", date(2026, 3, 4)),
+            duration_days=fields.pop("duration_days", 5),
+            **fields,
+        ),
+        actor_id=None,
+    ).op["task_id"]
+
+
+def test_a_task_created_as_a_milestone_keeps_the_flag(db, project, category):
+    task_id = _task(db, project, category, duration_days=1, milestone=True)
+
+    assert db.get(Task, task_id).milestone is True
+
+
+def test_a_milestone_longer_than_a_day_is_refused_at_creation(db, project, category):
+    with pytest.raises(InvalidOperation) as error:
+        _task(db, project, category, duration_days=5, milestone=True)
+    assert error.value.code == "milestone_has_duration"
+
+
+def test_becoming_a_milestone_collapses_the_duration_to_one_day(db, project, category):
+    task_id = _task(db, project, category, duration_days=5)
+
+    changed = apply_op(db, project, SetMilestone(task_id=task_id, milestone=True), actor_id=None)
+
+    assert db.get(Task, task_id).duration_days == 1
+    # Обе границы длительности — в журнале: без них отмена вернула бы признак,
+    # но не срок, и задача осталась бы однодневной навсегда.
+    assert changed.op["duration_from"] == 5
+    assert changed.op["duration_to"] == 1
+
+
+def test_undo_of_becoming_a_milestone_restores_the_duration(db, project, category):
+    task_id = _task(db, project, category, duration_days=5)
+    changed = apply_op(db, project, SetMilestone(task_id=task_id, milestone=True), actor_id=None)
+
+    undo(db, project, changed, actor_id=None)
+
+    task = db.get(Task, task_id)
+    assert task.milestone is False
+    assert task.duration_days == 5
+
+
+def test_dropping_the_milestone_flag_leaves_the_duration_alone(db, project, category):
+    task_id = _task(db, project, category, duration_days=1, milestone=True)
+
+    changed = apply_op(db, project, SetMilestone(task_id=task_id, milestone=False), actor_id=None)
+
+    # Отрезок длиной в день — честный ответ: настоящей длительности у вехи не
+    # было, и придумывать её на выходе не из чего.
+    assert db.get(Task, task_id).duration_days == 1
+    assert "duration_from" not in changed.op
+
+
+def test_set_duration_is_refused_on_a_milestone(db, project, category):
+    task_id = _task(db, project, category, duration_days=1, milestone=True)
+
+    with pytest.raises(InvalidOperation) as error:
+        apply_op(db, project, SetDuration(task_id=task_id, duration_days=4), actor_id=None)
+    assert error.value.code == "task_is_milestone"
+
+
+def test_a_milestone_still_moves(db, project, category):
+    task_id = _task(db, project, category, duration_days=1, milestone=True)
+
+    apply_op(db, project, MoveTask(task_id=task_id, start_date=date(2026, 3, 11)), actor_id=None)
+
+    assert db.get(Task, task_id).start_date == date(2026, 3, 11)
+
+
+def test_undo_of_a_deleted_milestone_brings_the_flag_back(db, project, category):
+    task_id = _task(db, project, category, duration_days=1, milestone=True)
+    deleted = apply_op(db, project, DeleteTask(task_id=task_id), actor_id=None)
+
+    undo(db, project, deleted, actor_id=None)
+
+    assert db.get(Task, task_id).milestone is True
+
+
+def test_the_wire_accepts_the_milestone_flag(db, project, category):
+    op = to_internal(
+        PublicCreateTask(
+            category_id=str(category.id),
+            name="Kickoff",
+            start_date=date(2026, 3, 4),
+            duration_days=1,
+            milestone=True,
+        )
+    )
+
+    assert op.milestone is True
+
+
+# --- сдвиг категории ---------------------------------------------------------
+
+
+def test_moving_a_category_shifts_every_task_in_it(db, project, category):
+    first = _task(db, project, category, name="Logo", start_date=date(2026, 3, 4))
+    second = _task(db, project, category, name="Palette", start_date=date(2026, 3, 9))
+
+    moved = apply_op(db, project, MoveCategory(category_id=str(category.id), days=3), actor_id=None)
+
+    assert db.get(Task, first).start_date == date(2026, 3, 7)
+    assert db.get(Task, second).start_date == date(2026, 3, 12)
+    assert moved.op["task_ids"] == [first, second]
+
+
+def test_moving_a_category_is_one_revision_not_one_per_task(db, project, category):
+    _task(db, project, category, name="Logo")
+    _task(db, project, category, name="Palette")
+    before = db.scalar(select(func.count()).select_from(Revision))
+
+    apply_op(db, project, MoveCategory(category_id=str(category.id), days=3), actor_id=None)
+
+    assert db.scalar(select(func.count()).select_from(Revision)) == before + 1
+
+
+def test_undo_of_a_category_move_brings_every_task_back(db, project, category):
+    first = _task(db, project, category, name="Logo", start_date=date(2026, 3, 4))
+    second = _task(db, project, category, name="Palette", start_date=date(2026, 3, 9))
+    moved = apply_op(db, project, MoveCategory(category_id=str(category.id), days=-6), actor_id=None)
+
+    undo(db, project, moved, actor_id=None)
+
+    assert db.get(Task, first).start_date == date(2026, 3, 4)
+    assert db.get(Task, second).start_date == date(2026, 3, 9)
+
+
+def test_moving_a_category_leaves_a_neighbour_alone(db, project, category):
+    inside = _task(db, project, category, start_date=date(2026, 3, 4))
+    neighbour = apply_op(
+        db, project, CreateCategory(name="Build", color="#22c55e"), actor_id=None
+    ).op["category_id"]
+    outside = apply_op(
+        db,
+        project,
+        CreateTask(
+            category_id=neighbour,
+            name="Deploy",
+            start_date=date(2026, 3, 4),
+            duration_days=2,
+        ),
+        actor_id=None,
+    ).op["task_id"]
+
+    apply_op(db, project, MoveCategory(category_id=str(category.id), days=5), actor_id=None)
+
+    assert db.get(Task, inside).start_date == date(2026, 3, 9)
+    assert db.get(Task, outside).start_date == date(2026, 3, 4)
+
+
+def test_moving_a_category_by_zero_days_is_refused(db, project, category):
+    _task(db, project, category)
+
+    with pytest.raises(InvalidOperation) as error:
+        apply_op(db, project, MoveCategory(category_id=str(category.id), days=0), actor_id=None)
+    assert error.value.code == "empty_shift"
+
+
+def test_moving_an_empty_category_is_refused(db, project, category):
+    with pytest.raises(InvalidOperation) as error:
+        apply_op(db, project, MoveCategory(category_id=str(category.id), days=4), actor_id=None)
+    assert error.value.code == "category_empty"
+
+
+def test_moving_a_category_of_another_project_is_refused(db, project, other_category):
+    with pytest.raises(NotFoundInProject) as error:
+        apply_op(
+            db, project, MoveCategory(category_id=str(other_category.id), days=4), actor_id=None
+        )
+    assert error.value.code == "category_not_found"
+
+
+# --- левая грань полоски -----------------------------------------------------
+
+
+def test_resize_changes_start_and_duration_in_one_revision(db, project, category):
+    task_id = _task(db, project, category, start_date=date(2026, 3, 4), duration_days=5)
+    before = db.scalar(select(func.count()).select_from(Revision))
+
+    changed = apply_op(
+        db,
+        project,
+        ResizeTask(task_id=task_id, start_date=date(2026, 3, 2), duration_days=7),
+        actor_id=None,
+    )
+
+    task = db.get(Task, task_id)
+    assert (task.start_date, task.duration_days) == (date(2026, 3, 2), 7)
+    assert db.scalar(select(func.count()).select_from(Revision)) == before + 1
+    assert changed.op["from"] == {"start_date": "2026-03-04", "duration_days": 5}
+    assert changed.op["to"] == {"start_date": "2026-03-02", "duration_days": 7}
+
+
+def test_undo_of_a_resize_restores_both_fields(db, project, category):
+    task_id = _task(db, project, category, start_date=date(2026, 3, 4), duration_days=5)
+    changed = apply_op(
+        db,
+        project,
+        ResizeTask(task_id=task_id, start_date=date(2026, 3, 2), duration_days=7),
+        actor_id=None,
+    )
+
+    undo(db, project, changed, actor_id=None)
+
+    task = db.get(Task, task_id)
+    assert (task.start_date, task.duration_days) == (date(2026, 3, 4), 5)
+
+
+def test_resize_is_refused_on_a_milestone(db, project, category):
+    task_id = _task(db, project, category, duration_days=1, milestone=True)
+
+    with pytest.raises(InvalidOperation) as error:
+        apply_op(
+            db,
+            project,
+            ResizeTask(task_id=task_id, start_date=date(2026, 3, 2), duration_days=3),
+            actor_id=None,
+        )
+    assert error.value.code == "task_is_milestone"
+
+
+def test_resize_rejects_zero_duration(db, project, category):
+    task_id = _task(db, project, category)
+
+    with pytest.raises(InvalidOperation) as error:
+        apply_op(
+            db,
+            project,
+            ResizeTask(task_id=task_id, start_date=date(2026, 3, 4), duration_days=0),
+            actor_id=None,
+        )
+    assert error.value.code == "duration_too_short"

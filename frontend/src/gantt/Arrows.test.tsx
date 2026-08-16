@@ -11,7 +11,12 @@ function barBox(name: string): { left: number; width: number } {
   // Имя полоски начинается с имени задачи и продолжается датами — этим она
   // отличается от кнопок карточки вроде «Убрать связь с „Макет“».
   const bar = screen.getByRole("button", { name: new RegExp(`^${name}, `) });
-  return { left: Number.parseFloat(bar.style.left), width: Number.parseFloat(bar.style.width) };
+  return {
+    left: Number.parseFloat(bar.style.left),
+    // Ширина живёт свойством, а не `width`: полоску растягивают за грань, и
+    // к её ширине по датам прибавляется сдвиг пальца (см. gantt.css).
+    width: Number.parseFloat(bar.style.getPropertyValue("--bar-w")),
+  };
 }
 
 function pointsOf(container: HTMLElement): number[][] {

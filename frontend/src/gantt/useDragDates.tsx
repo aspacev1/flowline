@@ -5,21 +5,24 @@ import type { KeyboardEvent, MouseEvent, PointerEvent } from "react";
 import { ApiError } from "../api/client";
 import { errorKey } from "../api/errors";
 import { projectQueryKey, undoLast } from "../api/projects";
-import type { ProjectState, Task } from "../api/projects";
+import type { Calendar, Op, ProjectState, Task } from "../api/projects";
 import { useToast } from "../components/toast";
 import { formatShortDate } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
-import { patchTask } from "../project/optimistic";
+import { patchProgress, patchTask } from "../project/optimistic";
+import type { Optimistic } from "../project/useProjectMutation";
 import { useAskShiftReason } from "../project/ShiftReason";
 import { useProjectMutation } from "../project/useProjectMutation";
 import { UndoMove } from "./UndoMove";
+import { edgeScroll } from "./edgeScroll";
 import { relativeDayLabel } from "./relative";
+import { workingDaysBetween } from "./scale";
 import { addDays } from "./timescale";
 import type { BarMotion } from "./useBarMotion";
 import type { Scale } from "./timescale";
 
 /**
- * Перетаскивание полоски по горизонтали.
+ * Жесты по самой полоске: перенос, две её грани и заливка выполненного.
  *
  * Указательные события, а не мышиные: захват указателя удерживает жест, даже
  * когда курсор ушёл за край ленты, — а он уходит постоянно, потому что тащат до
@@ -39,17 +42,70 @@ import type { Scale } from "./timescale";
  * Начатый жест прерывается по Esc: передумать посреди перетаскивания — обычное
  * дело, и единственным выходом иначе было бы дотащить полоску обратно на глаз,
  * то есть попасть точно в тот же день, откуда её взяли.
+ *
+ * ## Почему четыре жеста в одном месте
+ *
+ * У них общего больше, чем различий: захват указателя, порог в пару пикселей,
+ * отмена по Esc, подкачка ленты у края, ожидание ответа на месте броска, тост
+ * с отменой. Различаются они ровно двумя вещами — что считать из сдвига и
+ * какую операцию отправить, — и это здесь единственное, что написано для
+ * каждого отдельно (см. `PLAN`).
  */
+
+/** За что взялись: тело полоски, её грань или граница заливки. */
+export type BarGrip = "move" | "start" | "end" | "progress";
+
+/** Что жест насчитал из своего сдвига: операция и её оптимистичная догадка. */
+type Plan = {
+  op: Op;
+  optimistic: Optimistic;
+  /** Подпись тоста. Пусто — тост не показывается вовсе (жест ничего не изменил). */
+  toast?: string;
+};
+
+/**
+ * Насколько полоска выглядит иначе, пока её держат.
+ *
+ * Перенос двигает её целиком, левая грань двигает начало и на столько же
+ * укорачивает, правая меняет одну ширину, заливка не трогает ни того ни
+ * другого — у неё своя граница (см. `holdProgress`). Одно место вместо четырёх
+ * обработчиков с одинаковой обвязкой.
+ */
+function heldShape(grip: BarGrip, dx: number): { dx: number; dw: number } {
+  if (grip === "move") return { dx, dw: 0 };
+  if (grip === "start") return { dx, dw: -dx };
+  if (grip === "end") return { dx: 0, dw: dx };
+  return { dx: 0, dw: 0 };
+}
+
+/**
+ * Граница выполненного под пальцем — свойством прямо в узел полоски, как и
+ * сдвиг самой полоски: заливка обязана идти за пальцем без задержки, а
+ * перерисовывать ради этого строку значит платить рендером за одно число.
+ */
+function holdProgress(bar: HTMLElement | undefined, dx: number) {
+  bar?.style.setProperty("--progress-dx", `${dx}px`);
+}
+
 export function useDragDates({
   projectId,
   task,
   scale,
+  calendar,
   enabled,
   motion,
 }: {
   projectId: string;
   task: Task;
   scale: Scale;
+  /**
+   * Рабочий календарь проекта — им правая грань переводит день, до которого
+   * её дотянули, в длительность (см. `workingDaysBetween`). Пропсом, а не
+   * запросом изнутри: состояние уже спросил экран, и второй поход к серверу
+   * ради маски рабочих дней означал бы жест, который не начинается, пока не
+   * ответит сеть.
+   */
+  calendar: Calendar;
   /** Гость полоски не двигает. */
   enabled: boolean;
   motion: BarMotion;
@@ -66,7 +122,16 @@ export function useDragDates({
     queryClient.getQueryData<ProjectState>(projectQueryKey(projectId))?.schedule_mode ===
     "relative";
 
-  const from = useRef<{ pointerId: number; x: number; bar: HTMLElement } | null>(null);
+  const from = useRef<{
+    pointerId: number;
+    x: number;
+    bar: HTMLElement;
+    grip: BarGrip;
+    scroll: ReturnType<typeof edgeScroll>;
+  } | null>(null);
+  // Последняя точка указателя: качалка ленты пересчитывает жест без новых
+  // событий — палец стоит, едет лента, — и брать точку ей больше неоткуда.
+  const lastX = useRef(0);
   // Было ли движение. Живёт в ref, а не в состоянии: значение читается в
   // обработчике клика сразу после отпускания, и перерисовка тут не нужна.
   const dragged = useRef(false);
@@ -78,25 +143,93 @@ export function useDragDates({
   //
   // `dragging` — полоску действительно тащат: она поднимается над соседями и
   // меняет курсор. Это уже после порога в пару пикселей, иначе вид полоски
-  // мигал бы на каждом открытии карточки.
+  // мигал бы на каждом открытии карточки. Хранится за что именно взялись:
+  // строке нужно показать, какой жест идёт.
   //
   // Сам сдвиг в состояние не попадает ни в каком виде: его пишет слой движения
   // прямо в узел.
   const [started, setStarted] = useState(false);
-  const [dragging, setDragging] = useState(false);
+  const [dragging, setDragging] = useState<BarGrip | null>(null);
 
   /**
-   * День, на который попадёт начало полоски, сдвинутой на `dx` пикселей.
+   * Насколько далеко можно утащить грань, не схлопнув полоску.
    *
-   * Половина дня прибавляется, чтобы день менялся посередине ячейки, а не на
-   * её краю: иначе полоска перескакивает на новый день от дрожания руки в
-   * один пиксель.
+   * Задача короче одного дня не бывает, и грань, доведённая за противоположную,
+   * означала бы отрицательную длительность. Упор ставится здесь, а не при
+   * отправке: полоска обязана перестать сжиматься под пальцем ровно там, где
+   * перестаёт меняться то, что уйдёт на сервер.
    */
-  const dateAfter = (dx: number) =>
-    scale.dateAt(scale.xOf(task.start_date) + dx + scale.dayWidth / 2);
+  const clampGrip = (grip: BarGrip, dx: number): number => {
+    const width = scale.widthOf(task.start_date, task.end_date);
+    const limit = width - scale.dayWidth;
+    if (grip === "start") return Math.min(dx, limit);
+    if (grip === "end") return Math.max(dx, -limit);
+    return dx;
+  };
 
   /**
-   * Отмена из тоста. Отменяется именно тот перенос, о котором тост говорит:
+   * Что уйдёт на сервер, если жест закончить здесь.
+   *
+   * `null` — жест ничего не изменил: полоску вернули на тот же день, грань — в
+   * ту же дату, заливку — на тот же процент. Такое не отправляется вовсе:
+   * запись в истории обещала бы изменение, которого не было.
+   */
+  const planFor = (grip: BarGrip, dx: number): Plan | null => {
+    if (grip === "progress") {
+      const width = scale.widthOf(task.start_date, task.end_date);
+      const filled = (width * task.progress_pct) / 100 + dx;
+      const pct = progressStep(width === 0 ? 0 : (filled / width) * 100);
+      if (pct === task.progress_pct) return null;
+      return {
+        op: { type: "set_progress", task_id: task.id, progress_pct: pct },
+        optimistic: (state) => patchProgress(state, task.id, pct),
+        toast: t("gantt.progress_set", { name: task.name, percent: pct }),
+      };
+    }
+
+    if (grip === "move") {
+      // Половина дня прибавляется, чтобы день менялся посередине ячейки, а не
+      // на её краю: иначе полоска перескакивает на новый день от дрожания руки
+      // в один пиксель.
+      const start = scale.dateAt(scale.xOf(task.start_date) + dx + scale.dayWidth / 2);
+      if (start === task.start_date) return null;
+      return {
+        op: { type: "move_task", task_id: task.id, start_date: start },
+        optimistic: (state) => patchTask(state, task.id, { start_date: start }),
+        toast: t("gantt.moved", {
+          date: relativeAxis ? relativeDayLabel(t, start) : formatShortDate(t, start),
+        }),
+      };
+    }
+
+    if (grip === "start") {
+      const start = scale.dateAt(scale.xOf(task.start_date) + dx + scale.dayWidth / 2);
+      if (start === task.start_date) return null;
+      // Конец стоит на месте — это и есть смысл левой грани, — поэтому
+      // длительность считается до него. Рабочими днями, потому что в них она и
+      // задана; догадка сверяется с ответом сервера (см. `workingDaysBetween`).
+      const duration = Math.max(1, workingDaysBetween(start, task.end_date, calendar));
+      return {
+        op: { type: "resize_task", task_id: task.id, start_date: start, duration_days: duration },
+        optimistic: (state) =>
+          patchTask(state, task.id, { start_date: start, duration_days: duration }),
+        toast: t("gantt.resized", { name: task.name, days: t("common.days", { count: duration }) }),
+      };
+    }
+
+    const end = scale.dateAt(scale.xOf(task.end_date) + dx + scale.dayWidth / 2);
+    if (end === task.end_date) return null;
+    const duration = Math.max(1, workingDaysBetween(task.start_date, end, calendar));
+    if (duration === task.duration_days) return null;
+    return {
+      op: { type: "set_duration", task_id: task.id, duration_days: duration },
+      optimistic: (state) => patchTask(state, task.id, { duration_days: duration }),
+      toast: t("gantt.resized", { name: task.name, days: t("common.days", { count: duration }) }),
+    };
+  };
+
+  /**
+   * Отмена из тоста. Отменяется именно то изменение, о котором тост говорит:
    * его номер назвал сервер, применяя операцию, и он же уходит обратно в
    * `expected_seq`. «Последнее изменение проекта» здесь не годится — за шесть
    * секунд, что висит тост, последним успевает стать чужое.
@@ -104,7 +237,7 @@ export function useDragDates({
    * Сам путь тот же, что у кнопки «Отменить» в ленте истории: отмена
    * подчиняется тому же порогу объяснений, что и любой сдвиг.
    */
-  const undoMove = async (seq: number) => {
+  const undoChange = async (seq: number) => {
     try {
       try {
         await undoLast(projectId, { seq });
@@ -141,10 +274,12 @@ export function useDragDates({
   const cancel = useCallback(() => {
     const start = from.current;
     from.current = null;
-    motion.hold(0);
+    start?.scroll.stop();
+    holdProgress(start?.bar, 0);
+    motion.hold(0, 0);
     motion.release();
     setStarted(false);
-    setDragging(false);
+    setDragging(null);
     // Захват снимается руками: иначе полоска до конца жеста продолжает
     // получать события указателя, и отпускание прилетело бы уже прерванному
     // перетаскиванию.
@@ -176,8 +311,13 @@ export function useDragDates({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [cancel, started]);
 
+  // Качалка ленты живёт ровно на время жеста, но остановить её нужно и тогда,
+  // когда строка исчезла посреди него: сосед удалил задачу, лента свернула
+  // категорию. Кадр, оставшийся без узла, крутился бы вечно.
+  useEffect(() => () => from.current?.scroll.stop(), []);
+
   /**
-   * @param hold Держать ли полоску там, куда её бросили, пока перенос идёт.
+   * @param hold Держать ли полоску там, куда её бросили, пока изменение идёт.
    *   Так делает перетаскивание: полоску отпустили под пальцем, и до решения
    *   ей место там. Клавиатура не держит ничего — там полоска и не двигалась,
    *   а поехавшая до ответа на вопрос о причине означала бы сдвиг, которого
@@ -187,32 +327,28 @@ export function useDragDates({
    *   значит не снимать его до ответа. Второе состояние с той же датой считало
    *   бы этот сдвиг ещё раз — и полоска на кадр уезжала бы вдвое.
    */
-  const move = (startDate: string, hold = false) => {
-    // Ноль дней — ничего не отправляем: жест, вернувший полоску на место, не
-    // изменение и не должен оставлять запись в истории.
-    if (startDate === task.start_date) {
+  const commit = (plan: Plan | null, hold = false) => {
+    // Жест, вернувший полоску на место, — не изменение и не должен оставлять
+    // запись в истории.
+    if (plan === null) {
       if (hold) motion.settle();
       return;
     }
-    apply(
-      { type: "move_task", task_id: task.id, start_date: startDate },
-      (state) => patchTask(state, task.id, { start_date: startDate }),
-    )
+    apply(plan.op, plan.optimistic)
       .then(
         (revision) => {
           // Тост с отменой — после подтверждения сервером, как в макете:
-          // перенос применяется сразу, а лёгкий путь назад лежит под рукой.
+          // изменение применяется сразу, а лёгкий путь назад лежит под рукой.
           // Номер ревизии — из ответа сервера: он и делает кнопку обещанием
-          // вернуть этот перенос, а не «что там сейчас сверху журнала».
+          // вернуть именно этот шаг, а не «что там сейчас сверху журнала».
+          if (plan.toast === undefined) return;
           showToast({
-            message: t("gantt.moved", {
-              date: relativeAxis ? relativeDayLabel(t, startDate) : formatShortDate(t, startDate),
-            }),
+            message: plan.toast,
             action: (
               <UndoMove
                 projectId={projectId}
                 seq={revision.seq}
-                onUndo={() => void undoMove(revision.seq)}
+                onUndo={() => void undoChange(revision.seq)}
               />
             ),
           });
@@ -228,73 +364,129 @@ export function useDragDates({
         },
       )
       .finally(() => {
-        // Перенос решён — сдвиг можно снимать. Подтверждённый снял уже слой
-        // разметки: новый `left` пришёл с датами, и `settle` увидит ноль.
-        // Отказанный снимается здесь, и полоска едет назад — после ответа, а
-        // не до него.
+        // Изменение решено — сдвиг можно снимать. Подтверждённый снял уже слой
+        // разметки: новые `left` и `width` пришли с датами, и `settle` увидит
+        // ноль. Отказанный снимается здесь, и полоска едет назад — после
+        // ответа, а не до него.
         if (hold) motion.settle();
       });
   };
 
-  return {
-    /** Идёт ли жест прямо сейчас. */
-    dragging,
-    handlers: {
-      onPointerDown(event: PointerEvent<HTMLElement>) {
-        if (!enabled || event.button !== 0) return;
-        from.current = { pointerId: event.pointerId, x: event.clientX, bar: event.currentTarget };
-        dragged.current = false;
-        // Жест начат — с этого мгновения его можно передумать по Esc. Вид
-        // полоски при этом не меняется: щелчок начинается точно так же, и
-        // подъём над соседями мигал бы на каждом открытии карточки.
-        setStarted(true);
-        // jsdom этого метода не знает, да и браузер откажет на устаревшем
-        // указателе. Захват — улучшение жеста, а не его условие.
-        event.currentTarget.setPointerCapture?.(event.pointerId);
-      },
+  /** Общий разбор движения указателя: и от руки, и от уехавшей самой ленты. */
+  const track = (clientX: number) => {
+    const start = from.current;
+    if (start === null) return;
+    // Прибавка за уехавшую ленту: под неподвижным пальцем день меняется ровно
+    // потому, что лента едет, и без этого слагаемого полоска отставала бы от
+    // неё ровно на пройденное расстояние.
+    const dx = clampGrip(start.grip, clientX - start.x + start.scroll.scrolled());
+    // Порог в пару пикселей: дрожание руки при щелчке не должно превращать
+    // щелчок в перетаскивание и закрывать карточку, которую человек как раз
+    // открывал.
+    if (Math.abs(dx) > 2 && !dragged.current) {
+      dragged.current = true;
+      setDragging(start.grip);
+    }
+    if (start.grip === "progress") {
+      holdProgress(start.bar, dx);
+      return;
+    }
+    const shape = heldShape(start.grip, dx);
+    motion.hold(shape.dx, shape.dw);
+  };
 
-      onPointerMove(event: PointerEvent<HTMLElement>) {
-        const start = from.current;
-        if (start === null || start.pointerId !== event.pointerId) return;
-        const dx = event.clientX - start.x;
-        // Порог в пару пикселей: дрожание руки при щелчке не должно
-        // превращать щелчок в перетаскивание и закрывать карточку, которую
-        // человек как раз открывал.
-        if (Math.abs(dx) > 2 && !dragged.current) {
-          dragged.current = true;
-          setDragging(true);
-        }
-        motion.hold(dx);
-      },
-
-      onPointerUp(event: PointerEvent<HTMLElement>) {
-        const start = from.current;
-        if (start === null || start.pointerId !== event.pointerId) return;
-        from.current = null;
-        setStarted(false);
-        setDragging(false);
-        // Полоска ждёт ровно там, где её отпустили, — сдвиг снимет `settle`,
-        // когда перенос решится, и она доедет до своего дня уже с ответом.
-        // Снятый прямо сейчас, он вернул бы её на место ещё до вопроса о
-        // причине — то есть ответил бы «не получилось» раньше, чем спросили.
-        motion.release(true);
-        move(dateAfter(event.clientX - start.x), true);
-      },
-
-      onPointerCancel() {
-        cancel();
-      },
-
-      onClickCapture(event: MouseEvent<HTMLElement>) {
-        // После отпускания кнопки браузер шлёт клик по той же полоске. Без
-        // этого перехвата каждое перетаскивание заканчивалось бы открытием
-        // карточки — и человек, подвинувший десять задач, закрывал бы десять
-        // карточек.
-        if (!dragged.current) return;
-        dragged.current = false;
-        event.preventDefault();
+  /** Обработчики любой из ручек: тела полоски, её граней и заливки. */
+  const gripHandlers = (grip: BarGrip) => ({
+    onPointerDown(event: PointerEvent<HTMLElement>) {
+      if (!enabled || event.button !== 0) return;
+      if (grip !== "move") {
+        // Грань внутри полоски, и без этого нажатие на неё дошло бы до полоски
+        // тоже: жест начался бы дважды, и второй перезаписал бы первый.
         event.stopPropagation();
-      },
+        // Ручка — не кнопка, а `span` внутри полоски, и нажатие на неё браузер
+        // считает началом выделения текста: живая проверка показала жест,
+        // который вместо растягивания полоски подсвечивал названия соседних
+        // задач. Самой полоске (`move`) это не нужно и вредно — она кнопка, и
+        // отмена умолчания отняла бы у неё фокус по щелчку.
+        event.preventDefault();
+      }
+      const bar = event.currentTarget.closest<HTMLElement>(".gantt__bar") ?? event.currentTarget;
+      from.current = {
+        pointerId: event.pointerId,
+        x: event.clientX,
+        bar,
+        grip,
+        scroll: edgeScroll(bar, () => track(lastX.current)),
+      };
+      lastX.current = event.clientX;
+      dragged.current = false;
+      // Жест начат — с этого мгновения его можно передумать по Esc. Вид
+      // полоски при этом не меняется: щелчок начинается точно так же, и
+      // подъём над соседями мигал бы на каждом открытии карточки.
+      setStarted(true);
+      // jsdom этого метода не знает, да и браузер откажет на устаревшем
+      // указателе. Захват — улучшение жеста, а не его условие.
+      event.currentTarget.setPointerCapture?.(event.pointerId);
+    },
+
+    onPointerMove(event: PointerEvent<HTMLElement>) {
+      const start = from.current;
+      if (start === null || start.pointerId !== event.pointerId) return;
+      lastX.current = event.clientX;
+      start.scroll.track(event.clientX);
+      track(event.clientX);
+    },
+
+    onPointerUp(event: PointerEvent<HTMLElement>) {
+      const start = from.current;
+      if (start === null || start.pointerId !== event.pointerId) return;
+      from.current = null;
+      start.scroll.stop();
+      setStarted(false);
+      setDragging(null);
+      const dx = clampGrip(start.grip, event.clientX - start.x + start.scroll.scrolled());
+
+      if (start.grip === "progress") {
+        // Заливка ответа не ждёт: догадка о проценте — это и есть будущий
+        // ответ, целиком, без календарной арифметики, которую считает сервер.
+        // Снимается граница до отправки, потому что оптимистичная правда
+        // ложится в кэш синхронно внутри `commit`, и держать сверх неё
+        // пиксельный сдвиг значило бы посчитать его дважды.
+        holdProgress(start.bar, 0);
+        commit(planFor(start.grip, dx));
+        return;
+      }
+
+      // Полоска ждёт ровно там, где её отпустили, — сдвиг снимет `settle`,
+      // когда изменение решится, и она доедет до своего дня уже с ответом.
+      // Снятый прямо сейчас, он вернул бы её на место ещё до вопроса о
+      // причине — то есть ответил бы «не получилось» раньше, чем спросили.
+      motion.release(true);
+      commit(planFor(start.grip, dx), true);
+    },
+
+    onPointerCancel() {
+      cancel();
+    },
+
+    onClickCapture(event: MouseEvent<HTMLElement>) {
+      // После отпускания кнопки браузер шлёт клик по той же полоске. Без
+      // этого перехвата каждое перетаскивание заканчивалось бы открытием
+      // карточки — и человек, подвинувший десять задач, закрывал бы десять
+      // карточек.
+      if (!dragged.current) return;
+      dragged.current = false;
+      event.preventDefault();
+      event.stopPropagation();
+    },
+  });
+
+  return {
+    /** Какой жест идёт прямо сейчас; `null` — никакой. */
+    dragging,
+    /** Тело полоски: перенос обеих дат разом. */
+    handlers: {
+      ...gripHandlers("move"),
 
       onKeyDown(event: KeyboardEvent<HTMLElement>) {
         // Полоска объявлена кнопкой, и человек, работающий с клавиатуры,
@@ -309,8 +501,35 @@ export function useDragDates({
         const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
         if (step === 0) return;
         event.preventDefault();
-        move(addDays(task.start_date, step));
+        const start = addDays(task.start_date, step);
+        commit({
+          op: { type: "move_task", task_id: task.id, start_date: start },
+          optimistic: (state) => patchTask(state, task.id, { start_date: start }),
+          toast: t("gantt.moved", {
+            date: relativeAxis ? relativeDayLabel(t, start) : formatShortDate(t, start),
+          }),
+        });
       },
     },
+    /**
+     * Ручка грани или заливки. Отдельными узлами поверх полоски, а не зонами
+     * внутри одного обработчика: у каждой свой курсор и своя подсказка, и
+     * зонами это пришлось бы решать в момент нажатия, когда курсор уже показал
+     * что-то одно.
+     */
+    gripHandlers,
   };
+}
+
+/**
+ * Процент, до которого дотянули заливку, — с точностью до пяти.
+ *
+ * Не до единицы: на месячном масштабе день занимает восемнадцать пикселей, и
+ * попасть в 37% там нельзя даже намеренно — выходит лотерея из соседних
+ * значений. Пять — шаг, который человек и называет вслух («процентов
+ * семьдесят»), и он же попадается на глаз по делениям полоски. Ровные 0 и 100
+ * достижимы обычным движением до края, а не только точным попаданием.
+ */
+function progressStep(pct: number): number {
+  return Math.min(100, Math.max(0, Math.round(pct / 5) * 5));
 }

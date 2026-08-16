@@ -8,13 +8,19 @@ import { endShiftDays, isBeyondPlan } from "../project/baseline";
 import { formatDate, formatMonth, weekdayNarrow } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
 import { BarTipProvider } from "./BarTip";
+import { HeadCells } from "./Cells";
 import { Grid } from "./Grid";
 import { Header, RelativeHeader } from "./Header";
 import { RELATIVE_EPOCH, relativeDayLabel, relativeWindow } from "./relative";
 import { Arrows } from "./Arrows";
 import { CategoryRow, TaskRow } from "./Row";
+import type { CellLabels, DayFormat } from "./Row";
 import { MOTION_MS, usePrefersReducedMotion } from "./motion";
+import { useLinkDrag } from "./useLinkDrag";
 import { useReorder } from "./useReorder";
+import { COLUMN_KEYS, OPTIONAL_COLUMNS, defaultLayout, layoutWidth } from "./columns";
+import type { ColumnKey, ColumnLayout } from "./columns";
+import { rememberLayout, storedLayout } from "./columns";
 import { DAY_WIDTH, ROW_HEIGHT, projectWindow } from "./scale";
 import type { Zoom } from "./scale";
 import { rememberZoom, storedZoom } from "./scalePreference";
@@ -99,6 +105,7 @@ export function Gantt({
   const { t } = useLocale();
   const scroller = useRef<HTMLDivElement>(null);
   const reorder = useReorder({ projectId, state, canWrite });
+  const link = useLinkDrag({ projectId, state, canWrite });
   const reducedMotion = usePrefersReducedMotion();
   // Лента по умолчанию открывается в дневном масштабе — самом крупном: на
   // нём у деления хватает места на день недели над числом, и первое, что
@@ -120,6 +127,33 @@ export function Gantt({
     setZoomState(next);
     rememberZoom(projectId, next);
   };
+
+  // Колонки закреплённой таблицы — набор и ширины. Живут там же, где масштаб,
+  // и по той же причине: раскладка — состояние экрана, привязанное к проекту,
+  // а не свойство плана, и сосед по проекту чужой её получать не должен.
+  const [layout, setLayoutState] = useState<ColumnLayout>(
+    () => storedLayout(projectId) ?? defaultLayout(),
+  );
+  useEffect(() => {
+    setLayoutState(storedLayout(projectId) ?? defaultLayout());
+  }, [projectId]);
+
+  const setLayout = (next: ColumnLayout) => {
+    setLayoutState(next);
+    rememberLayout(projectId, next);
+  };
+  const toggleColumn = (column: ColumnKey) =>
+    setLayout({
+      ...layout,
+      // Порядок задаёт объявленный список, а не порядок включения: колонка,
+      // выключенная и включённая обратно, обязана вернуться на своё место, а
+      // не встать в конец.
+      shown: COLUMN_KEYS.filter(
+        (key) => (layout.shown.includes(key) && key !== column) || (key === column && !layout.shown.includes(key)),
+      ),
+    });
+  const resizeColumn = (column: ColumnKey, width: number) =>
+    setLayout({ ...layout, widths: { ...layout.widths, [column]: width } });
 
   // Необязательные слои. Базовый план и сводка по дедлайну видны сразу:
   // первый — язык отклонений, вторая — единственная цифра, которая
@@ -173,6 +207,19 @@ export function Gantt({
   // либо ещё нет, либо её просили не показывать.
   const formatDay = (iso: string) =>
     relativeView ? relativeDayLabel(t, iso, anchor) : formatDate(t, iso);
+
+  // Как строки показывают даты и как принимают их обратно. Ввод зеркален
+  // показу: там, где строка показала «День 8», она и принимает восьмой день.
+  const format: DayFormat = { label: formatDay, relative: relativeView, anchor };
+
+  // Подписи ячеек — один раз на ленту, а не по словарю в каждой строке: на
+  // сотне задач это сотня одинаковых обращений за теми же шестью строками.
+  const cellLabels: CellLabels = {
+    columns: Object.fromEntries(
+      COLUMN_KEYS.map((key) => [key, t(`gantt.col.${key}`)]),
+    ) as Record<ColumnKey, string>,
+    edit: (column, name) => t("gantt.col.edit", { column, name }),
+  };
 
   // Куда лента смотрит сейчас и для какого проекта её уже показали.
   //
@@ -284,15 +331,18 @@ export function Gantt({
     >
     <div
       className={`gantt gantt--${zoom}${reorder.active ? " is-reordering" : ""}${
-        reducedMotion ? " motion-off" : ""
-      }`}
-      // Высота строки и длительность переходов задаются отсюда по одной и той
-      // же причине: обе величины знает не только CSS. По высоте строки стрелки
-      // считают вертикальные координаты, по длительности код ведёт переезд
-      // полоски. Второе такое же число в стилях однажды разошлось бы с ними.
+        link.active ? " is-linking" : ""
+      }${reducedMotion ? " motion-off" : ""}`}
+      // Высота строки, ширина закреплённой колонки и длительность переходов
+      // задаются отсюда по одной и той же причине: все три величины знает не
+      // только CSS. По высоте строки стрелки считают вертикальные координаты,
+      // по ширине колонки встают сетка и слой стрелок, по длительности код
+      // ведёт переезд полоски. Вторые такие же числа в стилях однажды
+      // разошлись бы с ними.
       style={
         {
           "--gantt-row": `${ROW_HEIGHT}px`,
+          "--gantt-label": `${layoutWidth(layout)}px`,
           "--motion": `${MOTION_MS}ms`,
         } as CSSProperties
       }
@@ -359,6 +409,25 @@ export function Gantt({
             ))}
           </Menu>
 
+          {/* Колонки таблицы слева — отдельным меню, а не вместе со слоями:
+              «показать столбец с длительностью» и «показать легенду» отвечают
+              на разные вопросы, и один список из девяти галочек заставлял бы
+              вычитывать его целиком ради любой из них. Название задачи в
+              список не входит: строка без имени — строка, по которой нельзя
+              понять, о чём она. */}
+          <Menu label={t("gantt.toolbar.columns")}>
+            {OPTIONAL_COLUMNS.map((column) => (
+              <label key={column} className="menu__item">
+                <input
+                  type="checkbox"
+                  checked={layout.shown.includes(column)}
+                  onChange={() => toggleColumn(column)}
+                />
+                {cellLabels.columns[column]}
+              </label>
+            ))}
+          </Menu>
+
           {/* «Вид» включает слои, которых нет в макете, но которые уже есть в
               продукте: легенду, сводку по дедлайну, сноску и призрак базового
               плана. Так они перестают быть спрятанной стилем разметкой. */}
@@ -397,9 +466,12 @@ export function Gantt({
           <div className="gantt__canvas">
             <div className="gantt__head-row">
               <div className="gantt__label gantt__corner">
-                <span className="gantt__cell gantt__cell--task">
-                  <span className="gantt__corner-label">{t("gantt.col.task")}</span>
-                </span>
+                <HeadCells
+                  layout={layout}
+                  labels={cellLabels.columns}
+                  onResize={resizeColumn}
+                  resizeLabel={(column) => t("gantt.col.resize", { column })}
+                />
               </div>
               {relativeView ? (
                 <RelativeHeader
@@ -442,6 +514,23 @@ export function Gantt({
                 rows={rowCount}
               />
 
+              {link.enabled && (
+                // Линия связи под пальцем. Слой стоит всегда, а не только на
+                // время жеста: его координаты нужны уже в момент нажатия — с
+                // них линия и начинается, — а узел, созданный тем же кадром,
+                // к этому моменту ещё не смонтирован. Видимость снимает CSS
+                // по признаку на корне ленты.
+                <svg
+                  className="gantt__link-layer"
+                  ref={link.layerRef}
+                  width={scale.width}
+                  height={rowCount * ROW_HEIGHT}
+                  aria-hidden="true"
+                >
+                  <line ref={link.lineRef} className="gantt__link-line" />
+                </svg>
+              )}
+
               <div className="gantt__rows">
                 {categories.map((category: Category) => {
                   const tasks = tasksByCategory.get(category.id) ?? [];
@@ -449,9 +538,14 @@ export function Gantt({
                   return (
                     <div key={category.id} className="gantt__group">
                       <CategoryRow
+                        projectId={projectId}
                         category={category}
                         tasks={tasks}
                         scale={scale}
+                        layout={layout}
+                        format={format}
+                        canWrite={canWrite}
+                        moveLabel={t("gantt.move_category", { name: category.name })}
                         addLabel={t("task.add_to", { category: category.name })}
                         onAddTask={onAddTask}
                         deleteLabel={t("category.delete", { name: category.name })}
@@ -471,13 +565,23 @@ export function Gantt({
                           projectId={projectId}
                           task={task}
                           scale={scale}
+                          calendar={state.calendar}
+                          layout={layout}
+                          cellLabels={cellLabels}
+                          format={format}
                           canWrite={canWrite}
                           late={isLate(task)}
                           lateLabel={t("gantt.late")}
-                          title={`${formatDay(task.start_date)} — ${formatDay(task.end_date)}`}
+                          title={
+                            task.milestone
+                              ? `${t("gantt.milestone.short")}, ${formatDay(task.start_date)}`
+                              : `${formatDay(task.start_date)} — ${formatDay(task.end_date)}`
+                          }
                           selected={task.id === selectedTaskId}
                           onSelect={onSelectTask}
                           reorder={reorder}
+                          link={link}
+                          assigneeNames={assigneeNames}
                           handleLabel={t("gantt.reorder", { name: task.name })}
                           beyondPlan={isBeyondPlan(state, task)}
                           beyondPlanLabel={t("gantt.beyond_plan")}

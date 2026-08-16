@@ -34,8 +34,17 @@ import { MOTION_MS, prefersReducedMotion } from "./motion";
 export type BarMotion = {
   /** Ссылка на узел полоски: без него писать некуда. */
   ref: RefCallback<HTMLElement>;
-  /** Полоска под пальцем: сдвиг в пикселях от места, положенного ей по датам. */
-  hold: (dx: number) => void;
+  /**
+   * Полоска под пальцем: сдвиг в пикселях от места, положенного ей по датам.
+   *
+   * @param dw насколько шире положенного полоска сейчас выглядит. Ненулевым
+   *   бывает только при растягивании за грань, и там ширина обязана меняться —
+   *   растянуть полоску, не меняя ширины, нельзя. Оговорка к правилу из
+   *   заголовка файла («ширина выставляется на рендер и не трогается») ровно
+   *   этим и ограничена: под пальцем в этот момент одна полоска, а не весь
+   *   слой строк, и пересчёт разметки стоит одной строки.
+   */
+  hold: (dx: number, dw?: number) => void;
   /**
    * Палец отпустили.
    *
@@ -60,6 +69,11 @@ export function useBarMotion({
   // читаются в обработчиках указателя и в слое разметки, а перерисовывать
   // строку ради них не нужно — в этом весь смысл (см. заголовок файла).
   const held = useRef(0);
+  // Прибавка к ширине под пальцем — растягивание за грань. Отдельно от сдвига,
+  // потому что снимается по-другому: сдвиг доезжает до места анимацией, а
+  // ширина встаёт сразу. Анимировать её нечем и незачем — конец полоски и так
+  // стоит там, где его отпустили.
+  const heldWidth = useRef(0);
   const holding = useRef(false);
   const settling = useRef<Animation | null>(null);
   const frame = useRef(0);
@@ -84,7 +98,8 @@ export function useBarMotion({
     // только оттуда поехала на новый день.
     const from = before.left + held.current;
     held.current = 0;
-    write(node.current, 0);
+    heldWidth.current = 0;
+    write(node.current, 0, 0);
 
     const dx = from - left;
     if (dx === 0) return;
@@ -108,14 +123,15 @@ export function useBarMotion({
     node.current = element;
   }, []);
 
-  const hold = useCallback((dx: number) => {
+  const hold = useCallback((dx: number, dw = 0) => {
     holding.current = true;
     held.current = dx;
+    heldWidth.current = dw;
     // Начатый переезд отменяется: анимация и палец спорили бы за один и тот же
     // transform, и полоска дрожала бы между ними.
     settling.current?.cancel();
     settling.current = null;
-    write(node.current, dx);
+    write(node.current, dx, dw);
   }, []);
 
   // Сдвиг снимается не сразу, а следующим кадром. Если жест перенёс задачу,
@@ -124,14 +140,17 @@ export function useBarMotion({
   // датам и только потом переездом вперёд. Если же жест ничего не изменил —
   // вернуть полоску на место, кроме этого кадра, некому.
   const settle = useCallback(() => {
-    if (held.current === 0) return;
+    if (held.current === 0 && heldWidth.current === 0) return;
     cancelAnimationFrame(frame.current);
     frame.current = requestAnimationFrame(() => {
       // Ноль значит, что слой разметки уже разобрался с этим сдвигом сам.
       const dx = held.current;
-      if (dx === 0) return;
+      const dw = heldWidth.current;
+      if (dx === 0 && dw === 0) return;
       held.current = 0;
-      write(node.current, 0);
+      heldWidth.current = 0;
+      write(node.current, 0, 0);
+      if (dx === 0) return;
       settling.current?.cancel();
       settling.current = slide(node.current, dx);
     });
@@ -153,9 +172,11 @@ export function useBarMotion({
   return { ref, hold, release, settle };
 }
 
-/** Сдвиг полоски по горизонтали. Пишется свойством, чтобы не спорить с наведением. */
-function write(node: HTMLElement | null, dx: number) {
+/** Сдвиг полоски по горизонтали и прибавка к ширине. Пишутся свойствами, чтобы
+    не спорить с наведением: подъём под курсором — слагаемое того же transform. */
+function write(node: HTMLElement | null, dx: number, dw: number) {
   node?.style.setProperty("--bar-dx", `${dx}px`);
+  node?.style.setProperty("--bar-dw", `${dw}px`);
 }
 
 /**

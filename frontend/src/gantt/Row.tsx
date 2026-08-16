@@ -1,23 +1,75 @@
 import type { CSSProperties, HTMLAttributes, ReactNode, RefCallback } from "react";
 
-import type { Category, Task } from "../api/projects";
+import type { Calendar, Category, Task } from "../api/projects";
+import { useLocale } from "../i18n/LocaleProvider";
 import { baselineOf, endShiftDays } from "../project/baseline";
+import { patchProgress, patchTask } from "../project/optimistic";
+import { useProjectMutation } from "../project/useProjectMutation";
 import { useBarTip } from "./BarTip";
+import { Cell, EditableCell, rollUp } from "./Cells";
+import type { ColumnKey, ColumnLayout } from "./columns";
+import { dateOfProjectDay, projectDayNumber } from "./relative";
 import { useBarMotion } from "./useBarMotion";
+import { useDragCategory } from "./useDragCategory";
 import { useDragDates } from "./useDragDates";
+import type { LinkDrag } from "./useLinkDrag";
 import { halfOf } from "./useReorder";
 import type { Reorder } from "./useReorder";
 import type { Scale } from "./timescale";
 
 /**
- * Левая колонка — единственная ячейка задачи.
+ * Как строка показывает даты и как их принимает обратно.
  *
- * Обёрнута в тот же `gantt__cell`, что и раньше держал три ячейки: сама
- * закреплённая колонка (`gantt__label`) от этого не меняется, меняется
- * только то, что в ней лежит.
+ * Приходит из ленты, а не собирается здесь: у относительного плана настоящих
+ * дат нет, и «14 августа» на его шкале — это выдумка. Ввод зеркален показу —
+ * там, где строка показала «День 8», она и принимает восьмой день, а не дату.
  */
-function LabelCells({ task }: { task: ReactNode }) {
-  return <span className="gantt__cell gantt__cell--task">{task}</span>;
+export type DayFormat = {
+  /** Дата в том виде, в каком её читают глазами. */
+  label: (iso: string) => string;
+  /** Ось относительная: правка старта идёт номером дня проекта, а не датой. */
+  relative: boolean;
+  /** Начало относительной оси: эпоха либо назначенный старт. */
+  anchor: string;
+};
+
+/**
+ * Подписи ячеек. Собраны лентой один раз и переданы вниз, а не взяты словарём
+ * в каждой строке: на сотне задач это сотня одинаковых обращений к словарю за
+ * теми же шестью строками.
+ */
+export type CellLabels = {
+  columns: Record<ColumnKey, string>;
+  /** «Изменить {что} у {задачи}» — подпись поля, открытого на месте. */
+  edit: (column: string, name: string) => string;
+};
+
+/**
+ * Ячейки закреплённой колонки для одной строки.
+ *
+ * Первая колонка отдана содержимым — в ней живут шеврон, ручка, имя и флажки;
+ * остальные раскладываются одинаково и потому собираются здесь по списку.
+ */
+function LabelCells({
+  layout,
+  task,
+  cells,
+}: {
+  layout: ColumnLayout;
+  /** Содержимое колонки названия: у категории и задачи оно разное. */
+  task: ReactNode;
+  /** Готовое содержимое остальных колонок. Пустая — прочерк. */
+  cells: Partial<Record<ColumnKey, ReactNode>>;
+}) {
+  return (
+    <>
+      {layout.shown.map((column) => (
+        <Cell key={column} column={column} layout={layout}>
+          {column === "task" ? task : (cells[column] ?? <span className="muted">—</span>)}
+        </Cell>
+      ))}
+    </>
+  );
 }
 
 /**
@@ -26,23 +78,36 @@ function LabelCells({ task }: { task: ReactNode }) {
  * Полоса рисуется по крайним датам содержимого, а не по отдельно хранимым
  * границам категории: вторых не существует, и заводить их значило бы держать
  * значение, которое обязано совпадать с задачами, но однажды разойдётся.
+ *
+ * За эту же полосу категорию и двигают: этап целиком уезжает на неделю —
+ * обычное дело, и до этого оно означало перетащить каждую полоску по очереди
+ * (см. useDragCategory).
  */
 export function CategoryRow({
+  projectId,
   category,
   tasks,
   scale,
+  layout,
+  format,
   addLabel,
   onAddTask,
   deleteLabel,
   onDelete,
   reorder,
+  canWrite = false,
+  moveLabel,
   open = true,
   onToggle,
   toggleLabel,
 }: {
+  projectId: string;
   category: Category;
   tasks: Task[];
   scale: Scale;
+  layout: ColumnLayout;
+  /** Строка категории — сводка, а не правка: её ячейки только показывают. */
+  format: DayFormat;
   addLabel: string;
   onAddTask?: (categoryId: string) => void;
   deleteLabel?: string;
@@ -50,18 +115,22 @@ export function CategoryRow({
       сервер откажется удалять, и кнопка обещала бы отказ. */
   onDelete?: (categoryId: string) => void;
   reorder?: Reorder;
+  /** Может ли этот человек двигать категорию целиком. */
+  canWrite?: boolean;
+  moveLabel?: string;
   /** Развёрнута ли категория: свёрнутая прячет свои строки задач. */
   open?: boolean;
   onToggle?: () => void;
   toggleLabel?: string;
 }) {
-  const span =
-    tasks.length === 0
-      ? null
-      : {
-          start: tasks.reduce((a, t) => (t.start_date < a ? t.start_date : a), tasks[0].start_date),
-          end: tasks.reduce((a, t) => (t.end_date > a ? t.end_date : a), tasks[0].end_date),
-        };
+  const span = rollUp(tasks);
+  const drag = useDragCategory({
+    projectId,
+    category,
+    scale,
+    // Пустую категорию двигать нечем: сервер откажет, полосы на ленте и так нет.
+    enabled: canWrite && tasks.length > 0,
+  });
 
   return (
     <div
@@ -80,6 +149,12 @@ export function CategoryRow({
     >
       <div className="gantt__label">
         <LabelCells
+          layout={layout}
+          cells={{
+            start: span && <span className="gantt__cell-value">{format.label(span.start)}</span>,
+            end: span && <span className="gantt__cell-value">{format.label(span.end)}</span>,
+            progress: span && <span className="gantt__cell-value">{span.progress}%</span>,
+          }}
           task={
             <>
               {onToggle && (
@@ -134,7 +209,10 @@ export function CategoryRow({
       <div className="gantt__lane" style={{ width: scale.width }}>
         {span && (
           <div
-            className="gantt__span"
+            ref={drag.spanRef}
+            className={`gantt__span${drag.handlers ? " is-draggable" : ""}${
+              drag.dragging ? " is-dragging" : ""
+            }`}
             style={{
               left: scale.xOf(span.start),
               width: scale.widthOf(span.start, span.end),
@@ -144,7 +222,13 @@ export function CategoryRow({
               // `currentColor` — второго места с цветом категории не заводим.
               color: category.color,
             }}
+            title={drag.handlers ? moveLabel : undefined}
+            // Полоса не орган управления даже когда её тащат: перенос этапа
+            // мышью — ускорение, а не единственный путь, и с клавиатуры те же
+            // задачи двигаются каждая своей полоской. Кнопка здесь обещала бы
+            // действие по Enter, которого нет.
             aria-hidden="true"
+            {...drag.handlers}
           />
         )}
       </div>
@@ -165,6 +249,10 @@ export function TaskRow({
   projectId,
   task,
   scale,
+  calendar,
+  layout,
+  cellLabels,
+  format,
   late,
   lateLabel,
   title,
@@ -172,6 +260,7 @@ export function TaskRow({
   selected = false,
   onSelect,
   reorder,
+  link,
   handleLabel,
   beyondPlan = false,
   beyondPlanLabel,
@@ -179,10 +268,16 @@ export function TaskRow({
   deviationLabel,
   statusLabel,
   showBaseline = true,
+  assigneeNames,
 }: {
   projectId: string;
   task: Task;
   scale: Scale;
+  /** Рабочий календарь: им правая грань переводит день в длительность. */
+  calendar: Calendar;
+  layout: ColumnLayout;
+  cellLabels: CellLabels;
+  format: DayFormat;
   late: boolean;
   lateLabel: string;
   title: string;
@@ -191,6 +286,8 @@ export function TaskRow({
   selected?: boolean;
   onSelect?: (taskId: string) => void;
   reorder?: Reorder;
+  /** Протягивание связи от кружка на краю полоски. У гостя его нет. */
+  link?: LinkDrag;
   handleLabel?: string;
   /** Задача добавлена после утверждения плана. */
   beyondPlan?: boolean;
@@ -203,23 +300,64 @@ export function TaskRow({
   statusLabel?: string;
   /** Рисовать ли призрак и засечку базового плана — флажок меню «Вид». */
   showBaseline?: boolean;
+  /** Имена исполнителей по идентификаторам — для колонки исполнителей. */
+  assigneeNames?: ReadonlyMap<string, string>;
 }) {
+  const { t } = useLocale();
+  const { apply } = useProjectMutation(projectId);
   // Место полоски по датам. Считается здесь, а не в разметке ниже, потому что
   // его знать нужно двоим: самой разметке и слою движения — тот сравнивает его
   // с местом на прошлом рендере и по разнице показывает переезд.
   const left = scale.xOf(task.start_date);
-  const width = scale.widthOf(task.start_date, task.end_date);
+  // Веха занимает один день независимо от того, что лежит в длительности:
+  // ромб стоит в своём дне, а не растягивается по нему.
+  const width = task.milestone
+    ? scale.dayWidth
+    : scale.widthOf(task.start_date, task.end_date);
   const motion = useBarMotion({ left, scaleKey: scale.key });
-  const { dragging, handlers } = useDragDates({
+  const { dragging, handlers, gripHandlers } = useDragDates({
     projectId,
     task,
     scale,
+    calendar,
     enabled: canWrite,
     motion,
   });
   const tip = useBarTip(task, canWrite);
   const baseline = baselineOf(task);
   const shift = endShiftDays(task);
+
+  // Правки прямо в таблице. Каждая — та же операция, что и в карточке задачи:
+  // ячейка не заводит своего способа менять срок, она вызывает уже
+  // существующий. Отказ откатывает `apply`, и ячейка возвращается к правде
+  // сама — своего состояния «не сохранилось» у неё нет.
+  const edit = {
+    start: (value: string) => {
+      const start = format.relative ? dateOfProjectDay(Number(value), format.anchor) : value;
+      if (start === task.start_date) return;
+      void apply({ type: "move_task", task_id: task.id, start_date: start }, (state) =>
+        patchTask(state, task.id, { start_date: start }),
+      ).catch(() => {});
+    },
+    duration: (value: string) => {
+      const duration_days = Number(value);
+      if (!Number.isInteger(duration_days) || duration_days < 1) return;
+      void apply({ type: "set_duration", task_id: task.id, duration_days }, (state) =>
+        patchTask(state, task.id, { duration_days }),
+      ).catch(() => {});
+    },
+    progress: (value: string) => {
+      const pct = Math.min(100, Math.max(0, Math.round(Number(value))));
+      if (!Number.isFinite(pct) || pct === task.progress_pct) return;
+      void apply({ type: "set_progress", task_id: task.id, progress_pct: pct }, (state) =>
+        patchProgress(state, task.id, pct),
+      ).catch(() => {});
+    },
+  };
+
+  const assignees = task.assignee_ids
+    .map((id) => assigneeNames?.get(id))
+    .filter((name): name is string => name !== undefined);
 
   return (
     <div
@@ -239,6 +377,66 @@ export function TaskRow({
     >
       <div className="gantt__label">
         <LabelCells
+          layout={layout}
+          cells={{
+            start: (
+              <EditableCell
+                type={format.relative ? "number" : "date"}
+                value={
+                  format.relative
+                    ? String(projectDayNumber(task.start_date, format.anchor))
+                    : task.start_date
+                }
+                display={format.label(task.start_date)}
+                disabled={!canWrite}
+                min={format.relative ? 1 : undefined}
+                label={cellLabels.edit(cellLabels.columns.start, task.name)}
+                onCommit={edit.start}
+              />
+            ),
+            // Дата окончания — показ и только: её считает сервер по календарю
+            // проекта, и поле для правки обещало бы влияние, которого нет.
+            end: <span className="gantt__cell-value">{format.label(task.end_date)}</span>,
+            duration: (
+              <EditableCell
+                type="number"
+                value={String(task.duration_days)}
+                display={
+                  // У вехи длительности нет — есть день, в который она
+                  // случается. Показать «1 дн.» значило бы назвать отрезком то,
+                  // что нарисовано точкой.
+                  task.milestone
+                    ? t("gantt.milestone.short")
+                    : t("common.days_short", { count: task.duration_days })
+                }
+                disabled={!canWrite || task.milestone}
+                min={1}
+                label={cellLabels.edit(cellLabels.columns.duration, task.name)}
+                onCommit={edit.duration}
+              />
+            ),
+            progress: (
+              <EditableCell
+                type="number"
+                value={String(task.progress_pct)}
+                display={`${task.progress_pct}%`}
+                disabled={!canWrite}
+                min={0}
+                max={100}
+                label={cellLabels.edit(cellLabels.columns.progress, task.name)}
+                onCommit={edit.progress}
+              />
+            ),
+            // Тернарник, а не `&&`: пустой список обязан дойти до ячейки как
+            // «нечего показать» (прочерк), а `false` от неё неотличим от
+            // намеренно пустого содержимого и стёр бы прочерк.
+            assignee:
+              assignees.length > 0 ? (
+                <span className="gantt__cell-value" title={assignees.join(", ")}>
+                  {assignees.join(", ")}
+                </span>
+              ) : undefined,
+          }}
           task={
             <>
               {reorder?.enabled && (
@@ -352,20 +550,21 @@ export function TaskRow({
         <Bar
           interactive={Boolean(onSelect) || canWrite}
           barRef={motion.ref}
-          className={`gantt__bar${late ? " is-late" : ""}${canWrite ? " is-draggable" : ""}${
-            dragging ? " is-dragging" : ""
-          }`}
+          className={`gantt__bar${task.milestone ? " gantt__bar--milestone" : ""}${
+            late ? " is-late" : ""
+          }${canWrite ? " is-draggable" : ""}${dragging !== null ? " is-dragging" : ""}`}
           data-criticality={task.criticality}
           data-status={task.status}
+          data-testid={`bar-${task.id}`}
           style={
             {
               // Место по датам, и только по ним: `left` и `width` выставляются
               // на рендер и дальше не меняются никем. И сдвиг под пальцем, и
               // ожидание ответа на месте броска, и переезд после ответа
-              // сервера идут через `transform` — см. useBarMotion, там же и о
-              // том, почему не через эти два.
+              // сервера идут через `transform` и `--bar-dw` — см. useBarMotion,
+              // там же и о том, почему не через эти два.
               left,
-              width,
+              "--bar-w": `${width}px`,
               "--progress": `${task.progress_pct}%`,
             } as CSSProperties
           }
@@ -411,31 +610,131 @@ export function TaskRow({
           aria-expanded={onSelect ? selected : undefined}
           onClick={() => onSelect?.(task.id)}
         >
-          {/* Заливка внутри полоски, а не отдельная полоска рядом: прогресс —
-              это часть задачи, а не вторая задача под ней. */}
-          <span
-            className="gantt__progress"
-            style={{ width: `${task.progress_pct}%` }}
-            aria-hidden="true"
-          />
-          {/* Галочка готовой задачи — как в макете: знак «сделано» виден с
-              расстояния, на котором плашка статуса уже не читается. */}
-          {task.status === "done" && (
-            <span className="gantt__check" aria-hidden="true">
-              ✓
-            </span>
-          )}
-          {/* Заблокированная называет своё состояние прямо на полоске: это
-              редкое и требующее действия состояние, и цвета одного мало. */}
-          {task.status === "blocked" && statusLabel && (
-            <span className="gantt__bar-blocked" aria-hidden="true">
-              <span>⚠</span>
-              {statusLabel}
-            </span>
+          {task.milestone ? (
+            // Веха — ромб в своём дне. Повёрнутый квадрат внутри полоски, а не
+            // сама полоска: её `transform` занят движением, и второй поворот
+            // на том же узле стёр бы сдвиг под пальцем.
+            <span className="gantt__diamond" aria-hidden="true" />
+          ) : (
+            <>
+              {/* Заливка внутри полоски, а не отдельная полоска рядом: прогресс —
+                  это часть задачи, а не вторая задача под ней. */}
+              <span className="gantt__progress" aria-hidden="true" />
+              {/* Галочка готовой задачи — как в макете: знак «сделано» виден с
+                  расстояния, на котором плашка статуса уже не читается. */}
+              {task.status === "done" && (
+                <span className="gantt__check" aria-hidden="true">
+                  ✓
+                </span>
+              )}
+              {/* Заблокированная называет своё состояние прямо на полоске: это
+                  редкое и требующее действия состояние, и цвета одного мало. */}
+              {task.status === "blocked" && statusLabel && (
+                <span className="gantt__bar-blocked" aria-hidden="true">
+                  <span>⚠</span>
+                  {statusLabel}
+                </span>
+              )}
+
+              {canWrite && (
+                // Грани полоски: левая двигает начало, не трогая конца, правая
+                // растягивает срок. Отдельными узлами, а не зонами внутри
+                // общего обработчика: у каждой свой курсор, и зонами его
+                // пришлось бы решать в момент нажатия — когда курсор уже
+                // показал что-то одно.
+                //
+                // От чтения с экрана скрыты: то же, что они делают, доступно с
+                // клавиатуры полями «Начало» и «Длительность» — и в таблице
+                // слева, и в карточке задачи. Две ручки, ни одна из которых не
+                // работает по Enter, были бы лишними шагами Tab на каждой из
+                // сотни строк.
+                <>
+                  <span
+                    className="gantt__grip gantt__grip--start"
+                    aria-hidden="true"
+                    {...gripHandlers("start")}
+                  />
+                  <span
+                    className="gantt__grip gantt__grip--end"
+                    aria-hidden="true"
+                    {...gripHandlers("end")}
+                  />
+                </>
+              )}
+
+              {canWrite && task.status === "in_progress" && (
+                // Ручка выполненного — только там, где заливка вообще видна.
+                // У запланированной её нет: процент лёг бы в поле, а на
+                // полоске не отразился, и жест выглядел бы сорвавшимся.
+                <span
+                  className="gantt__grip gantt__grip--progress"
+                  aria-hidden="true"
+                  {...gripHandlers("progress")}
+                />
+              )}
+            </>
           )}
         </Bar>
+
+        {link?.enabled && dragging === null && (
+          // Кружки связи — снаружи полоски, а не внутри: у полоски обрезается
+          // содержимое (иначе подпись вылезала бы за её края), и кружок на
+          // границе срезало бы пополам.
+          //
+          // Пока полоску тащат, кружков нет: они стоят по датам задачи, а
+          // полоска в этот момент идёт за пальцем, и кружки отставали бы от
+          // неё, показывая связь не оттуда, откуда её тянут.
+          <>
+            <LinkDot
+              side="start"
+              task={task}
+              link={link}
+              x={left}
+              label={t("gantt.link.from", { name: task.name })}
+            />
+            <LinkDot
+              side="end"
+              task={task}
+              link={link}
+              x={left + width}
+              label={t("gantt.link.to", { name: task.name })}
+            />
+          </>
+        )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Кружок, от которого тянут связь.
+ *
+ * Не кнопка: связь заводится перетаскиванием, а нажатие Enter на ней не значит
+ * ничего. Тот же путь с клавиатуры даёт список связей в карточке задачи —
+ * поэтому кружок скрыт и от чтения с экрана, а подпись остаётся подсказкой
+ * указателю.
+ */
+function LinkDot({
+  side,
+  task,
+  link,
+  x,
+  label,
+}: {
+  side: "start" | "end";
+  task: Task;
+  link: LinkDrag;
+  x: number;
+  label: string;
+}) {
+  return (
+    <span
+      className={`gantt__link-dot gantt__link-dot--${side}`}
+      style={{ left: x }}
+      title={label}
+      aria-hidden="true"
+      {...link.handleProps(task.id, side)}
+    />
   );
 }
 

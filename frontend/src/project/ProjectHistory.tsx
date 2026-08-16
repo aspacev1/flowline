@@ -26,7 +26,7 @@ import "./history.css";
  * группа разворачивается в список ещё на клиенте.
  */
 const TYPE_GROUPS = {
-  dates: ["move_task", "set_duration"],
+  dates: ["move_task", "set_duration", "resize_task", "move_category", "set_milestone"],
   status: ["set_status", "set_progress"],
   fields: ["set_task_fields", "set_criticality", "rename_category", "set_category_color"],
   structure: ["create_task", "delete_task", "reorder_task", "create_category", "delete_category"],
@@ -47,6 +47,11 @@ type TypeGroup = keyof typeof TYPE_GROUPS;
 const EVENT_ICONS: Record<string, readonly [glyph: string, tone: string]> = {
   move_task: ["↔", "accent"],
   set_duration: ["↔", "accent"],
+  resize_task: ["↔", "accent"],
+  move_category: ["↔", "accent"],
+  // Веха — не срок и не текст: она превращает отрезок в точку, и знак у
+  // неё свой, тот же ромб, каким она нарисована на ленте.
+  set_milestone: ["◆", "accent"],
   set_status: ["✓", "ok"],
   set_progress: ["✓", "ok"],
   set_criticality: ["!", "danger"],

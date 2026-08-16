@@ -8,11 +8,13 @@ import { CRITICALITY_LEVELS, TASK_STATUSES } from "../api/projects";
 import type { Criticality, Op, ProjectState, Task, TaskStatus } from "../api/projects";
 import { Avatar } from "../components/Avatar";
 import { StatusChip } from "../components/StatusChip";
+import { Switch } from "../components/Switch";
 import { useEscape } from "../components/useEscape";
 import { baselineOf, deviationDays, endShiftDays, isBeyondPlan } from "../project/baseline";
 import {
   addDependency,
   deleteTask,
+  patchMilestone,
   patchProgress,
   patchStatus,
   patchTask,
@@ -363,6 +365,24 @@ export function TaskPanel({
                 );
               }}
             />
+
+            {/* Веха — рубильник, а не поле: у него два состояния, и меняются
+                они сразу. Стоит перед сроками не случайно: включённый он
+                схлопывает длительность в день, и решение «это точка или
+                отрезок» принимается раньше, чем набирается срок. */}
+            <div className="panel__row">
+              <Switch
+                id="panel-milestone"
+                label={t("task.panel.milestone")}
+                checked={task.milestone}
+                disabled={!canWrite}
+                onChange={(milestone) =>
+                  send({ type: "set_milestone", task_id: task.id, milestone }, (state) =>
+                    patchMilestone(state, task.id, milestone),
+                  )
+                }
+              />
+            </div>
 
             {relative ? (
               // Относительный план: старт правится номером дня проекта — дат

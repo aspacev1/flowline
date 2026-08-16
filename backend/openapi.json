@@ -47,7 +47,16 @@
                 "$ref": "#/components/schemas/PublicMoveTask"
               },
               {
+                "$ref": "#/components/schemas/PublicMoveCategory"
+              },
+              {
+                "$ref": "#/components/schemas/PublicResizeTask"
+              },
+              {
                 "$ref": "#/components/schemas/PublicSetDuration"
+              },
+              {
+                "$ref": "#/components/schemas/PublicSetMilestone"
               },
               {
                 "$ref": "#/components/schemas/PublicDeleteTask"
@@ -1263,6 +1272,11 @@
             "title": "Internal Note",
             "type": "string"
           },
+          "milestone": {
+            "default": false,
+            "title": "Milestone",
+            "type": "boolean"
+          },
           "name": {
             "maxLength": 300,
             "minLength": 1,
@@ -1341,6 +1355,34 @@
           "task_id"
         ],
         "title": "PublicDeleteTask",
+        "type": "object"
+      },
+      "PublicMoveCategory": {
+        "additionalProperties": false,
+        "properties": {
+          "category_id": {
+            "format": "uuid",
+            "title": "Category Id",
+            "type": "string"
+          },
+          "days": {
+            "maximum": 3650.0,
+            "minimum": -3650.0,
+            "title": "Days",
+            "type": "integer"
+          },
+          "type": {
+            "const": "move_category",
+            "default": "move_category",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "category_id",
+          "days"
+        ],
+        "title": "PublicMoveCategory",
         "type": "object"
       },
       "PublicMoveTask": {
@@ -1458,6 +1500,39 @@
         "title": "PublicReorderTask",
         "type": "object"
       },
+      "PublicResizeTask": {
+        "additionalProperties": false,
+        "properties": {
+          "duration_days": {
+            "minimum": 1.0,
+            "title": "Duration Days",
+            "type": "integer"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "task_id": {
+            "format": "uuid",
+            "title": "Task Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "resize_task",
+            "default": "resize_task",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "start_date",
+          "duration_days"
+        ],
+        "title": "PublicResizeTask",
+        "type": "object"
+      },
       "PublicSetCategoryColor": {
         "additionalProperties": false,
         "properties": {
@@ -1536,6 +1611,32 @@
           "duration_days"
         ],
         "title": "PublicSetDuration",
+        "type": "object"
+      },
+      "PublicSetMilestone": {
+        "additionalProperties": false,
+        "properties": {
+          "milestone": {
+            "title": "Milestone",
+            "type": "boolean"
+          },
+          "task_id": {
+            "format": "uuid",
+            "title": "Task Id",
+            "type": "string"
+          },
+          "type": {
+            "const": "set_milestone",
+            "default": "set_milestone",
+            "title": "Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "task_id",
+          "milestone"
+        ],
+        "title": "PublicSetMilestone",
         "type": "object"
       },
       "PublicSetProgress": {

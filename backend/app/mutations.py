@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -117,6 +117,7 @@ class CreateTask(BaseModel):
     criticality: str = "normal"
     progress_pct: int = 0
     status: str = "planned"
+    milestone: bool = False
     baseline_start: date | None = None
     baseline_duration: int | None = None
     task_id: uuid.UUID | None = None
@@ -141,6 +142,62 @@ class SetDuration(BaseModel):
     type: Literal["set_duration"] = "set_duration"
     task_id: uuid.UUID
     duration_days: int
+
+
+class ResizeTask(BaseModel):
+    """Старт и длительность разом — левая грань полоски.
+
+    Отдельная операция, а не пара move_task + set_duration, по той же причине,
+    по которой set_task_fields сохраняет три поля разом: левую грань тянут
+    одним движением, конец задачи при этом стоит на месте, и в истории это
+    обязано читаться как одно изменение. Пара операций дала бы две записи, две
+    отмены и промежуточное состояние, которого человек не создавал, — задачу,
+    уже сдвинутую, но ещё не укороченную.
+
+    Правая грань этой операции не требует: там меняется одна длительность, и
+    для неё уже есть set_duration.
+    """
+
+    type: Literal["resize_task"] = "resize_task"
+    task_id: uuid.UUID
+    start_date: date
+    duration_days: int
+
+
+class SetMilestone(BaseModel):
+    """Задача становится вехой или перестаёт ею быть.
+
+    Отдельная операция, а не поле set_task_fields: превращение отрезка в точку
+    схлопывает длительность, то есть меняет сроки, — и в истории это обязано
+    читаться как изменение сроков, а не как правка текста.
+    """
+
+    type: Literal["set_milestone"] = "set_milestone"
+    task_id: uuid.UUID
+    milestone: bool
+    # Поле восстановления — зеркально set_progress.status: веха схлопывает
+    # длительность в один день, и отмена обязана вернуть ту, что стояла до
+    # операции, а не выдуманную единицу. По проводу не принимается: длительность
+    # с провода назначает set_duration.
+    duration_days: int | None = None
+
+
+class MoveCategory(BaseModel):
+    """Сдвиг всей категории на N календарных дней.
+
+    Одна операция, а не пачка move_task по числу задач, по той же причине, по
+    которой set_task_fields сохраняет три поля разом: человек сделал одно
+    движение — сводную полосу категории потащили вправо, — и история обязана
+    показать одну запись, а отмена вернуть всё одним нажатием.
+
+    Дни, а не целевая дата: у категории нет своих границ (сводная полоса
+    рисуется по крайним датам её задач), и «перенести категорию на 3 марта»
+    значило бы придумать ей начало, которого в модели нет.
+    """
+
+    type: Literal["move_category"] = "move_category"
+    category_id: uuid.UUID
+    days: int
 
 
 class DeleteTask(BaseModel):
@@ -266,7 +323,10 @@ Op = Annotated[
     CreateCategory
     | CreateTask
     | MoveTask
+    | MoveCategory
+    | ResizeTask
     | SetDuration
+    | SetMilestone
     | DeleteTask
     | DeleteCategory
     | SetTaskFields
@@ -288,7 +348,10 @@ _MODELS = {
     "create_category": CreateCategory,
     "create_task": CreateTask,
     "move_task": MoveTask,
+    "move_category": MoveCategory,
+    "resize_task": ResizeTask,
     "set_duration": SetDuration,
+    "set_milestone": SetMilestone,
     "delete_task": DeleteTask,
     "delete_category": DeleteCategory,
     "set_task_fields": SetTaskFields,
@@ -355,6 +418,7 @@ class PublicCreateTask(_Wire):
     criticality: Criticality = Criticality.NORMAL
     progress_pct: int = Field(default=0, ge=0, le=100)
     status: TaskStatus = TaskStatus.PLANNED
+    milestone: bool = False
     baseline_start: date | None = Field(default=None, le=MAX_WIRE_DATE)
     baseline_duration: int | None = Field(default=None, ge=1)
 
@@ -365,10 +429,36 @@ class PublicMoveTask(_Wire):
     start_date: date = Field(le=MAX_WIRE_DATE)
 
 
+#: Дальний край сдвига категории. Десять лет в обе стороны — заведомо больше
+#: любого настоящего переноса и заведомо меньше того, чем можно опрокинуть
+#: арифметику дат. Настоящую границу всё равно держит MAX_WIRE_DATE: сдвиг,
+#: уводящий задачу за неё, отбивается при применении.
+MAX_WIRE_SHIFT_DAYS = 3650
+
+
+class PublicMoveCategory(_Wire):
+    type: Literal["move_category"] = "move_category"
+    category_id: uuid.UUID
+    days: int = Field(ge=-MAX_WIRE_SHIFT_DAYS, le=MAX_WIRE_SHIFT_DAYS)
+
+
+class PublicResizeTask(_Wire):
+    type: Literal["resize_task"] = "resize_task"
+    task_id: uuid.UUID
+    start_date: date = Field(le=MAX_WIRE_DATE)
+    duration_days: int = Field(ge=1)
+
+
 class PublicSetDuration(_Wire):
     type: Literal["set_duration"] = "set_duration"
     task_id: uuid.UUID
     duration_days: int = Field(ge=1)
+
+
+class PublicSetMilestone(_Wire):
+    type: Literal["set_milestone"] = "set_milestone"
+    task_id: uuid.UUID
+    milestone: bool
 
 
 class PublicDeleteTask(_Wire):
@@ -457,7 +547,10 @@ PublicOp = Annotated[
     PublicCreateCategory
     | PublicCreateTask
     | PublicMoveTask
+    | PublicMoveCategory
+    | PublicResizeTask
     | PublicSetDuration
+    | PublicSetMilestone
     | PublicDeleteTask
     | PublicDeleteCategory
     | PublicSetTaskFields
@@ -683,6 +776,13 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
             )
         if op.status not in TASK_STATUSES:
             raise InvalidOperation("unknown_status", f"неизвестный статус: {op.status}")
+        if op.milestone and op.duration_days != 1:
+            # То же ограничение, что держит база: веха — точка на шкале.
+            # Проверка здесь, а не только в CHECK, чтобы отказ был честным
+            # кодом операции, а не пятисоткой на нарушении ограничения.
+            raise InvalidOperation(
+                "milestone_has_duration", "у вехи длительность ровно один день"
+            )
         # Внешний ключ гарантирует лишь, что категория где-то существует —
         # не то, что она принадлежит этому проекту. Без явной проверки задача
         # может незаметно оказаться под категорией чужого проекта.
@@ -725,6 +825,7 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
             criticality=op.criticality,
             progress_pct=op.progress_pct,
             status=op.status,
+            milestone=op.milestone,
             position=position,
             baseline_start=op.baseline_start,
             baseline_duration=op.baseline_duration,
@@ -745,6 +846,7 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
                 "criticality": task.criticality,
                 "progress_pct": task.progress_pct,
                 "status": task.status,
+                "milestone": task.milestone,
                 "position": task.position,
                 "baseline_start": task.baseline_start.isoformat() if task.baseline_start else None,
                 "baseline_duration": task.baseline_duration,
@@ -764,10 +866,117 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
              "to": previous.isoformat()},
         )
 
+    if isinstance(op, ResizeTask):
+        if op.duration_days < 1:
+            raise InvalidOperation("duration_too_short", "длительность должна быть не меньше одного дня")
+        task = _require_task(db, project, op.task_id)
+        if task.milestone:
+            # У вехи нет граней, которые можно тянуть: она точка. Причина та
+            # же, что у set_duration, — признак ставил человек, и снимать его
+            # тоже ему.
+            raise InvalidOperation(
+                "task_is_milestone", "у вехи длительность не меняется: сначала снимите признак"
+            )
+        # Обе границы — парой словарей, как у set_task_fields: операция меняет
+        # два поля разом, и читаться она обязана как одно изменение.
+        forward = {
+            "type": "resize_task",
+            "task_id": str(task.id),
+            "from": {
+                "start_date": task.start_date.isoformat(),
+                "duration_days": task.duration_days,
+            },
+            "to": {
+                "start_date": op.start_date.isoformat(),
+                "duration_days": op.duration_days,
+            },
+        }
+        task.start_date = op.start_date
+        task.duration_days = op.duration_days
+        db.flush()
+        return forward, _swap(forward)
+
+    if isinstance(op, MoveCategory):
+        if op.days == 0:
+            # Ноль дней — не изменение, а запись в истории обещала бы, что
+            # что-то произошло. У move_task такого отбоя нет намеренно: там
+            # ноль означает «вернули на прежнюю дату», и это всё-таки жест по
+            # одной задаче. Здесь же нулём сдвигается вся категория — то есть
+            # не сдвигается ничего.
+            raise InvalidOperation("empty_shift", "сдвиг на ноль дней ничего не меняет")
+        category = _require_category(db, project, op.category_id)
+        tasks = db.scalars(
+            select(Task).where(Task.category_id == category.id).order_by(Task.position, Task.id)
+        ).all()
+        if not tasks:
+            raise InvalidOperation("category_empty", "в категории нет задач: двигать нечего")
+        shift = timedelta(days=op.days)
+        for task in tasks:
+            moved = task.start_date + shift
+            if moved > MAX_WIRE_DATE or moved < date.min + timedelta(days=1):
+                # Тот же дальний край, что и у дат с провода: сдвиг не должен
+                # уметь положить в базу дату, которую провод не принял бы.
+                raise InvalidOperation(
+                    "date_out_of_range", f"сдвиг уводит «{task.name}» за границу дат"
+                )
+            task.start_date = moved
+        db.flush()
+        return (
+            {
+                "type": "move_category",
+                "category_id": str(category.id),
+                "days": op.days,
+                # Задачи названы поимённо, а не только числом дней: история
+                # обязана показать, что именно уехало, а карточка отмены —
+                # сказать, сколько строк вернётся.
+                "task_ids": [str(task.id) for task in tasks],
+            },
+            {
+                "type": "move_category",
+                "category_id": str(category.id),
+                "days": -op.days,
+                "task_ids": [str(task.id) for task in tasks],
+            },
+        )
+
+    if isinstance(op, SetMilestone):
+        task = _require_task(db, project, op.task_id)
+        previous_duration = task.duration_days
+        forward = {
+            "type": "set_milestone",
+            "task_id": str(task.id),
+            "from": task.milestone,
+            "to": op.milestone,
+        }
+        inverse = _swap(forward)
+        task.milestone = op.milestone
+        if op.duration_days is not None:
+            # Поле восстановления: журнал диктует точную длительность, и
+            # схлопывание не пересчитывается — оно уже отработало в прямой
+            # операции.
+            task.duration_days = op.duration_days
+        elif op.milestone:
+            # Веха — точка на шкале: длительность схлопывается в день. Это и
+            # есть то, что отмена обязана уметь вернуть, поэтому обе границы
+            # уходят в журнал ниже.
+            task.duration_days = 1
+        db.flush()
+        if task.duration_days != previous_duration:
+            forward |= {"duration_from": previous_duration, "duration_to": task.duration_days}
+            inverse |= {"duration_from": task.duration_days, "duration_to": previous_duration}
+        return forward, inverse
+
     if isinstance(op, SetDuration):
         if op.duration_days < 1:
             raise InvalidOperation("duration_too_short", "длительность должна быть не меньше одного дня")
         task = _require_task(db, project, op.task_id)
+        if task.milestone and op.duration_days != 1:
+            # Веха длительности не имеет. Молча превратить её обратно в отрезок
+            # эта операция не вправе: признак вехи ставил человек, и снимать
+            # его — тоже его решение (set_milestone).
+            raise InvalidOperation(
+                "task_is_milestone", "у вехи длительность не меняется: сначала снимите признак"
+            )
         previous = task.duration_days
         task.duration_days = op.duration_days
         db.flush()
@@ -1117,6 +1326,7 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
             "criticality": task.criticality,
             "progress_pct": task.progress_pct,
             "status": task.status,
+            "milestone": task.milestone,
             "position": task.position,
             "baseline_start": task.baseline_start.isoformat() if task.baseline_start else None,
             "baseline_duration": task.baseline_duration,
@@ -1158,6 +1368,38 @@ def _guard_shift_threshold(db: DbSession, project: Project, op, reason: str | No
     elif isinstance(op, SetDuration):
         task = _require_task(db, project, op.task_id)
         deviation = deviation_days(task, duration_days=op.duration_days)
+    elif isinstance(op, ResizeTask):
+        # Единственная операция, у которой оба измерения меняются одним
+        # движением, — и единственная, которой честно спросить наибольшее из
+        # двух отклонений. Правило «названное измерение и меряется» её не
+        # касается: она называет оба.
+        task = _require_task(db, project, op.task_id)
+        deviation = deviation_days(
+            task, start_date=op.start_date, duration_days=op.duration_days
+        )
+    elif isinstance(op, MoveCategory):
+        # Сдвиг категории — тот же перенос сроков, только разом по многим
+        # задачам, и порог обязан считаться по нему так же. Берётся наибольшее
+        # отклонение: категорию сдвинули одним движением, и объяснение у него
+        # одно — на самую уехавшую из её задач. Считать порог по каждой
+        # отдельно значило бы спросить причину столько раз, сколько строк в
+        # категории, за одно движение руки.
+        shift = timedelta(days=op.days)
+        deviations = [
+            deviation_days(task, start_date=task.start_date + shift)
+            for task in db.scalars(
+                select(Task).where(Task.category_id == op.category_id)
+            ).all()
+        ]
+        measured = [value for value in deviations if value is not None]
+        deviation = max(measured) if measured else None
+    elif isinstance(op, SetMilestone):
+        # Веха схлопывает длительность — то есть меняет сроки, и порог здесь
+        # тот же, что у set_duration. Длительность после операции известна:
+        # либо продиктована журналом (отмена), либо это один день.
+        task = _require_task(db, project, op.task_id)
+        after = op.duration_days if op.duration_days is not None else (1 if op.milestone else None)
+        deviation = None if after is None else deviation_days(task, duration_days=after)
     else:
         # Остальные операции базового плана не касаются. Создание задачи —
         # тоже: у созданной после утверждения задачи базового плана нет, она
@@ -1219,6 +1461,7 @@ _SCALAR_BOUNDS_FIELD = {
     "move_task": "start_date",
     "set_duration": "duration_days",
     "set_criticality": "criticality",
+    "set_milestone": "milestone",
     "set_progress": "progress_pct",
     "set_status": "status",
     "rename_category": "name",
@@ -1227,7 +1470,7 @@ _SCALAR_BOUNDS_FIELD = {
 
 # Операции, у которых `to` — не скаляр, а словарь полей: они разворачиваются
 # в модель целиком.
-_MAPPED_BOUNDS = frozenset({"set_task_fields"})
+_MAPPED_BOUNDS = frozenset({"set_task_fields", "resize_task"})
 
 # Связанное поле, границы которого операция несёт сверх собственных: имя
 # поля модели и пара ключей журнала. Присутствуют в записи только когда
@@ -1236,6 +1479,7 @@ _MAPPED_BOUNDS = frozenset({"set_task_fields"})
 _COUPLED_BOUNDS_FIELD = {
     "set_progress": ("status", "status_from", "status_to"),
     "set_status": ("progress_pct", "progress_from", "progress_to"),
+    "set_milestone": ("duration_days", "duration_from", "duration_to"),
 }
 
 

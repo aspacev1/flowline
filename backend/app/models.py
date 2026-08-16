@@ -511,6 +511,13 @@ class Task(Base):
         # положить строку, которую слой мутаций не принял бы.
         CheckConstraint("progress_pct BETWEEN 0 AND 100", name="ck_tasks_progress_pct"),
         CheckConstraint("duration_days >= 1", name="ck_tasks_duration_days"),
+        # Веха — точка на шкале, и один день это и означает. Инвариант держит
+        # база, а не только слой мутаций: веха с длительностью в неделю
+        # рисуется ромбом, а считается отрезком, и расхождение между тем, что
+        # видно, и тем, что посчитано, — худший род ошибки в диаграмме.
+        CheckConstraint(
+            "NOT milestone OR duration_days = 1", name="ck_tasks_milestone_duration"
+        ),
         CheckConstraint(
             "criticality IN (" + ", ".join(f"'{level}'" for level in CRITICALITY_LEVELS) + ")",
             name="ck_tasks_criticality",
@@ -534,6 +541,17 @@ class Task(Base):
     internal_note: Mapped[str] = mapped_column(Text, default="")
     start_date: Mapped[date] = mapped_column(Date)
     duration_days: Mapped[int] = mapped_column(Integer)
+    # Веха: сдача этапа, согласование, дедлайн подрядчика — то, что происходит
+    # в день, а не длится. Признак задачи, а не отдельная таблица: у вехи те же
+    # имя, категория, статус, исполнители, комментарии и связи, и вторая
+    # сущность означала бы второй набор операций, второй журнал и вторую
+    # отмену ради одного различия в отрисовке.
+    #
+    # Длительность у вехи всё равно хранится (и равна одному дню — см.
+    # ограничение выше): расчёт даты окончания, снимки плана и порог сдвига
+    # спрашивают её у всех задач одинаково, и nullable-колонка добавила бы в
+    # каждый из них ветку «а если веха».
+    milestone: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
     criticality: Mapped[str] = mapped_column(String(16), default="normal")
     progress_pct: Mapped[int] = mapped_column(Integer, default=0)
     # server_default — не только для миграции по живой таблице: второй путь
