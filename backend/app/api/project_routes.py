@@ -254,6 +254,27 @@ def _names_for(db: DbSession, project: Project, ops: list[dict]) -> dict[str, st
             name = revision.inverse.get("name")
             if entity_id not in names and name:
                 names[entity_id] = name
+
+    # Задачи, унесённые каскадом вместе со своей категорией: своей записи об
+    # удалении у них нет вовсе — их имена лежат в снимке восстановления
+    # категории, списком внутри её inverse. Без этого прохода записи о таких
+    # задачах читались бы в ленте без подлежащего: «перенёс старт с 12 на 19
+    # марта» — а чей это старт, сказать больше нечем.
+    orphaned = ids["task"] - set(names)
+    if orphaned:
+        cascades = db.scalars(
+            select(Revision)
+            .where(
+                Revision.project_id == project.id,
+                Revision.op["type"].astext == "delete_category",
+            )
+            .order_by(Revision.seq.desc())
+        ).all()
+        for revision in cascades:
+            for snapshot in revision.inverse.get("tasks", []):
+                task_id = str(snapshot.get("task_id"))
+                if task_id in orphaned and task_id not in names and snapshot.get("name"):
+                    names[task_id] = snapshot["name"]
     return names
 
 

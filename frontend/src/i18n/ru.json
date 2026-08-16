@@ -15,6 +15,12 @@
       "other": "{count} дня"
     },
     "days_short": "{count} дн.",
+    "tasks": {
+      "one": "{count} задача",
+      "few": "{count} задачи",
+      "many": "{count} задач",
+      "other": "{count} задачи"
+    },
     "save": "Сохранить"
   },
   "modal": {
@@ -162,7 +168,6 @@
     "task_not_found": "Задача не найдена в этом проекте",
     "task_limit_reached": "В проекте слишком много задач: потолок исчерпан",
     "duration_too_short": "Длительность должна быть не меньше одного дня",
-    "category_not_empty": "В категории ещё есть задачи — сначала разберите их",
     "user_not_in_organization": "Этот человек не состоит в вашей организации",
     "calendar_has_no_working_days": "В календаре проекта нет ни одного рабочего дня",
     "calendar_too_few_working_days": "В календаре проекта не хватает рабочих дней для такой длительности",
@@ -327,6 +332,10 @@
   "category": {
     "create": "Новая категория",
     "delete": "Удалить категорию «{name}»",
+    "delete_title": "Удалить категорию «{name}»?",
+    "delete_warning": "Вместе с категорией уйдут все её задачи ({tasks}) — со связями, исполнителями и комментариями. Вернуть их можно кнопкой «Отменить»",
+    "delete_warning_empty": "В категории нет задач. Вернуть её можно кнопкой «Отменить»",
+    "delete_confirm": "Да, удалить",
     "new": {
       "title": "Новая категория",
       "name": "Название",
@@ -430,7 +439,9 @@
     "remove_dependency": "убрал связь",
     "remove_dependency_named": "убрал связь: {from} → {to}",
     "create_category": "создал категорию",
+    "create_category_with_tasks": "вернул категорию с задачами: {tasks}",
     "delete_category": "удалил категорию",
+    "delete_category_with_tasks": "удалил категорию вместе с задачами: {tasks}",
     "rename_category": "переименовал категорию с «{from}» на «{to}»",
     "set_category_color": "изменил цвет категории",
     "tabs_label": "Разделы проекта",
@@ -557,6 +568,10 @@
     "tip": {
       "more": "{name} +{count}",
       "keys": "Shift + ←→ перенести · Esc прервать · {mod}+Z отменить"
+    },
+    "table": {
+      "collapse": "Свернуть таблицу задач",
+      "expand": "Развернуть таблицу задач"
     },
     "toggle_category": "Свернуть или развернуть «{name}»",
     "insert_before": "Добавить задачу перед «{name}»",

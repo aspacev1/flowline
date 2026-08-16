@@ -133,10 +133,22 @@ export function formatEvent(
         ? say(`${String(op.type)}_named`, { from, to })
         : say(String(op.type));
     }
-    case "create_category":
-      return say("create_category");
-    case "delete_category":
-      return say("delete_category");
+    case "create_category": {
+      // Восстановленная отменой категория приходит со снимком своих задач:
+      // «создал категорию» о вернувшемся вместе с ней этапе умалчивало бы.
+      const restored = Array.isArray(op.tasks) ? op.tasks.length : 0;
+      return restored === 0
+        ? say("create_category")
+        : say("create_category_with_tasks", { tasks: t("common.tasks", { count: restored }) });
+    }
+    case "delete_category": {
+      // Число задач кладёт в запись сервер: снимок восстановления, по
+      // которому их можно было бы сосчитать, виден не всякой роли.
+      const gone = typeof op.tasks === "number" ? op.tasks : 0;
+      return gone === 0
+        ? say("delete_category")
+        : say("delete_category_with_tasks", { tasks: t("common.tasks", { count: gone }) });
+    }
     case "rename_category":
       return say("rename_category", { from: String(op.from), to: String(op.to) });
     case "set_category_color":

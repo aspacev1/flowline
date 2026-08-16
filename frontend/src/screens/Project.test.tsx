@@ -145,23 +145,59 @@ describe("экран проекта", () => {
 describe("удаление категории", () => {
   beforeEach(projectFixtures);
 
-  it("пустая категория удаляется крестиком, у непустой крестика нет", async () => {
+  it("пустая категория уходит после подтверждения, что терять нечего", async () => {
     const sent = captureMutations();
     renderProject();
     await screen.findByRole("button", { name: /Логотип/ });
 
-    // В «Дизайне» живёт задача: сервер отказал бы (category_not_empty), и
-    // кнопка обещала бы отказ.
-    expect(
-      screen.queryByRole("button", { name: "Удалить категорию «Дизайн»" }),
-    ).not.toBeInTheDocument();
-
     await userEvent.click(screen.getByRole("button", { name: "Удалить категорию «Разработка»" }));
+
+    // Вопрос задаётся и о пустой: промахнуться крестиком по соседней строке —
+    // обычное дело, и имя в заголовке окна единственное, чем это видно.
+    const dialog = await screen.findByRole("dialog", { name: /Разработка/ });
+    expect(dialog).toHaveTextContent("В категории нет задач");
+    expect(sent).toHaveLength(0);
+
+    await userEvent.click(screen.getByRole("button", { name: "Да, удалить" }));
 
     await waitFor(() =>
       expect(sent).toEqual([{ op: { type: "delete_category", category_id: "c2" } }]),
     );
     await waitFor(() => expect(screen.queryByText("Разработка")).not.toBeInTheDocument());
+  });
+
+  it("непустая называет, сколько задач уйдёт вместе с ней", async () => {
+    const sent = captureMutations();
+    renderProject();
+    await screen.findByRole("button", { name: /Логотип/ });
+
+    await userEvent.click(screen.getByRole("button", { name: "Удалить категорию «Дизайн»" }));
+
+    // Число, а не «вы уверены?»: «удалить категорию» звучит как расставание с
+    // заголовком, а уходит вместе с ним весь этап.
+    expect(await screen.findByRole("dialog", { name: /Дизайн/ })).toHaveTextContent("1 задача");
+
+    await userEvent.click(screen.getByRole("button", { name: "Да, удалить" }));
+
+    await waitFor(() =>
+      expect(sent).toEqual([{ op: { type: "delete_category", category_id: "c1" } }]),
+    );
+    // Задачи ушли вместе с категорией — так же, как это сделает сервер.
+    await waitFor(() => expect(screen.queryByText("Логотип")).not.toBeInTheDocument());
+  });
+
+  it("отказ в окне ничего не удаляет", async () => {
+    const sent = captureMutations();
+    renderProject();
+    await screen.findByRole("button", { name: /Логотип/ });
+
+    await userEvent.click(screen.getByRole("button", { name: "Удалить категорию «Дизайн»" }));
+    await screen.findByRole("dialog", { name: /Дизайн/ });
+    await userEvent.click(screen.getByRole("button", { name: "Отмена" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(sent).toHaveLength(0);
+    expect(screen.getByText("Логотип")).toBeInTheDocument();
   });
 
   it("читателю крестик не показывается", async () => {

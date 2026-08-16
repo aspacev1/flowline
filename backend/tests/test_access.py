@@ -116,6 +116,28 @@ def test_visible_op_does_not_mutate_the_stored_payload():
     assert payload["internal_note"] == "тайный план"
 
 
+def test_visible_op_strips_notes_from_tasks_inside_a_deleted_category():
+    """Снимок удалённой категории несёт заметки своих задач — списком.
+
+    Обход по вложенным словарям на нём молча не срабатывает: заметка лежит на
+    два уровня вглубь — в словаре внутри списка внутри записи, — и клиент
+    получил бы её вместе со снимком восстановления.
+    """
+    payload = {
+        "type": "create_category",
+        "category_id": "22222222-2222-2222-2222-222222222222",
+        "name": "Design",
+        "tasks": [_create_task_op()],
+    }
+
+    shown = visible_op(payload, Role.CLIENT, project_granted=True)
+
+    assert "internal_note" not in shown["tasks"][0]
+    assert shown["tasks"][0]["name"] == "Logo"
+    # Хранимая запись цела: отмена обязана вернуть задачу с заметкой.
+    assert payload["tasks"][0]["internal_note"] == "тайный план"
+
+
 def test_visible_op_passes_through_operations_without_a_note():
     payload = {"type": "delete_task", "task_id": "11111111-1111-1111-1111-111111111111"}
     assert visible_op(payload, Role.CLIENT, project_granted=True) is payload

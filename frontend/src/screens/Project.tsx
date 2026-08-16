@@ -6,7 +6,9 @@ import { commentCounts, commentCountsQueryKey } from "../api/comments";
 import { errorKey } from "../api/errors";
 import { MEMBERS_QUERY_KEY, members } from "../api/org";
 import { getProject, projectQueryKey } from "../api/projects";
+import type { Category } from "../api/projects";
 import { useCanWrite, useOrgRole } from "../auth/permissions";
+import { Modal } from "../components/Modal";
 import { Gantt } from "../gantt/Gantt";
 import type { NewTaskAt } from "../gantt/Gantt";
 import { usePrefersReducedMotion } from "../gantt/motion";
@@ -48,6 +50,10 @@ export function Project({
   // переезд полоски, и выключаться они обязаны вместе.
   const reducedMotion = usePrefersReducedMotion();
   const [addingCategory, setAddingCategory] = useState(false);
+  // Категория, о расставании с которой спрашивают. Держится идентификатором,
+  // а не самой категорией: пока окно открыто, состояние приходит с сервера
+  // заново, и окно, помнящее объект, называло бы человеку старое имя.
+  const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
   // Окно привязки плана к дате старта — и переноса уже назначенной даты.
   const [scheduling, setScheduling] = useState(false);
@@ -90,8 +96,8 @@ export function Project({
   const { apply } = useProjectMutation(projectId);
   // Отказ молчит — тем же образом, что у перестановки строк (useReorder):
   // откат догадки внутри `apply` уже вернул категорию на экран, и этого
-  // достаточно — удалить успели в соседней вкладке или положили в категорию
-  // задачу, и правду покажет ближайший перезапрос.
+  // достаточно — удалить успели в соседней вкладке, и правду покажет
+  // ближайший перезапрос.
   const removeCategory = (categoryId: string) => {
     void apply({ type: "delete_category", category_id: categoryId }, (state) =>
       deleteCategory(state, categoryId),
@@ -150,6 +156,10 @@ export function Project({
   // Задача могла исчезнуть между открытием карточки и следующим ответом
   // сервера: её удалили в соседней вкладке. Карточка тогда просто не рисуется.
   const selectedTask = query.data.tasks.find((task) => task.id === selectedTaskId) ?? null;
+  // То же и с категорией, о которой спрашивают: её могли удалить, пока вопрос
+  // читали, — тогда спрашивать не о чем.
+  const deletingCategory =
+    query.data.categories.find((category) => category.id === deletingCategoryId) ?? null;
 
   const offline = live.status === "offline";
   // Пока связи нет, показанное устарело неизвестно насколько, и любое изменение
@@ -318,7 +328,10 @@ export function Project({
                 onAddTask={editable ? setAddingTaskAt : undefined}
                 newTaskAt={addingTaskAt}
                 onCloseNewTask={() => setAddingTaskAt(null)}
-                onDeleteCategory={editable ? removeCategory : undefined}
+                // Крестик на строке категории только спрашивает: удаление
+                // уносит с собой весь этап, и назвать, что именно уйдёт,
+                // нужно до того, как оно ушло, — а не тостом после.
+                onDeleteCategory={editable ? setDeletingCategoryId : undefined}
                 selectedTaskId={selectedTaskId}
                 onSelectTask={(taskId) => openTask(taskId)}
                 onOpenComments={(taskId) => openTask(taskId, "comments")}
@@ -355,10 +368,78 @@ export function Project({
                 onClose={() => setAddingCategory(false)}
               />
             )}
+
+            {/* Окно живёт на экране, а не в строке ленты: строка исчезает в тот
+                же миг, что и категория, и вопрос, живущий в ней, унёс бы с
+                собой сам себя. Категории может уже не быть — её удалили в
+                соседней вкладке, пока вопрос читали; тогда окна нет. */}
+            {deletingCategory && (
+              <DeleteCategoryDialog
+                category={deletingCategory}
+                tasks={query.data.tasks.filter(
+                  (task) => task.category_id === deletingCategory.id,
+                ).length}
+                onConfirm={() => {
+                  removeCategory(deletingCategory.id);
+                  setDeletingCategoryId(null);
+                }}
+                onClose={() => setDeletingCategoryId(null)}
+              />
+            )}
           </main>
         </LiveProvider>
       </DependencyNudgeProvider>
     </ShiftReasonProvider>
+  );
+}
+
+/**
+ * Вопрос перед удалением категории — окном, а не выноской на строке.
+ *
+ * Выноска на месте кнопки (как у задачи в карточке) здесь не помещается
+ * буквально: строка категории живёт в колонке шириной в двести пикселей, и
+ * предупреждение о десятке задач вытеснило бы из неё имя самой категории —
+ * то единственное, по чему видно, что целились не в соседнюю.
+ *
+ * Окно называет число задач, а не только имя: «удалить категорию» звучит как
+ * расставание с заголовком, а уходит вместе с ним весь этап. Отмена при этом
+ * есть — снимок для неё хранит журнал, — и об этом сказано прямо: иначе
+ * человек оставляет ненужный этап на ленте просто из осторожности.
+ */
+function DeleteCategoryDialog({
+  category,
+  tasks,
+  onConfirm,
+  onClose,
+}: {
+  category: Category;
+  /** Сколько задач уйдёт вместе с категорией. Ноль — этап пуст. */
+  tasks: number;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  const { t } = useLocale();
+
+  return (
+    <Modal title={t("category.delete_title", { name: category.name })} onClose={onClose}>
+      <p>
+        {tasks === 0
+          ? t("category.delete_warning_empty")
+          : t("category.delete_warning", { tasks: t("common.tasks", { count: tasks }) })}
+      </p>
+
+      {/* Отказ первым — как в окне удаления проекта: окно ставит фокус на
+          первый орган управления, и у необратимого на вид действия первой под
+          рукой обязана быть безопасная кнопка. */}
+      <div className="modal__actions">
+        <button type="button" className="button--quiet" onClick={onClose}>
+          {t("common.cancel")}
+        </button>
+        <button type="button" className="button--danger" onClick={onConfirm}>
+          {t("category.delete_confirm")}
+        </button>
+      </div>
+    </Modal>
   );
 }
 

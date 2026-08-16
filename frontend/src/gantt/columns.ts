@@ -54,7 +54,27 @@ export type ColumnLayout = {
   /** Показанные колонки в порядке отрисовки. `task` всегда первая. */
   shown: ColumnKey[];
   widths: Record<ColumnKey, number>;
+  /**
+   * Таблица свёрнута: от неё осталась узкая полоса с кнопкой, а шкала занимает
+   * всё освободившееся место.
+   *
+   * Свойство раскладки, а не отдельное состояние: это тот же вопрос «сколько
+   * места отдано таблице», что и набор колонок с их ширинами, и живёт он там
+   * же — в браузере, привязанным к проекту. Свёрнутая таблица переживает уход
+   * на историю и обратно: полугодовой план разворачивают, чтобы увидеть его
+   * целиком, а не чтобы увидеть на один переход между вкладками.
+   */
+  collapsed: boolean;
 };
+
+/**
+ * Ширина свёрнутой таблицы: полоса ровно под кнопку, которая её вернёт.
+ *
+ * Не ноль: развернуть таблицу было бы нечем — кнопка живёт в ней самой, а
+ * второе место для неё (тулбар) означало бы искать её не там, где она свернула
+ * то, что сворачивала.
+ */
+export const COLLAPSED_WIDTH = 36;
 
 /**
  * Ширина окна, ниже которой таблица открывается одной колонкой имени, и
@@ -90,11 +110,21 @@ export function defaultLayout(width = typeof window === "undefined" ? 0 : window
           ? NARROW_TASK_WIDTH
           : DEFAULT_WIDTH.task,
     },
+    // Развёрнутой: лента открывается таблицей и шкалой, а не одной шкалой —
+    // без имён задач по полоскам не понять, о чём они.
+    collapsed: false,
   };
 }
 
-/** Общая ширина закреплённой колонки — по ней встают шапка, строки и прокрутка. */
+/**
+ * Общая ширина закреплённой колонки — по ней встают шапка, строки и прокрутка.
+ *
+ * У свёрнутой таблицы это ширина полосы с кнопкой, а не сумма колонок: колонки
+ * никуда не делись — их набор и ширины ждут разворота, — но места на ленте они
+ * в этот момент не занимают.
+ */
 export function layoutWidth(layout: ColumnLayout): number {
+  if (layout.collapsed) return COLLAPSED_WIDTH;
   return layout.shown.reduce((total, key) => total + layout.widths[key], 0);
 }
 
@@ -122,7 +152,11 @@ export function storedLayout(projectId: string): ColumnLayout | null {
     const parsed: unknown = JSON.parse(raw);
     if (typeof parsed !== "object" || parsed === null) return null;
 
-    const { shown, widths } = parsed as { shown?: unknown; widths?: unknown };
+    const { shown, widths, collapsed } = parsed as {
+      shown?: unknown;
+      widths?: unknown;
+      collapsed?: unknown;
+    };
     if (!Array.isArray(shown)) return null;
 
     // Порядок читается из хранилища: колонки переставляют местами за
@@ -146,7 +180,10 @@ export function storedLayout(projectId: string): ColumnLayout | null {
         }
       }
     }
-    return { shown: ordered, widths: sizes };
+    // Свёртка читается как признак, а не как «что угодно правдивое»: в записи
+    // от будущей версии на этом месте может лежать строка, и `Boolean("нет")`
+    // открыл бы ленту свёрнутой, ничего никому не объяснив.
+    return { shown: ordered, widths: sizes, collapsed: collapsed === true };
   } catch {
     return null;
   }

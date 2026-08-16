@@ -9,7 +9,7 @@ import { patchProgress, patchTask } from "../project/optimistic";
 import { useProjectMutation } from "../project/useProjectMutation";
 import { AssignMenu } from "./AssignMenu";
 import { useBarTip } from "./BarTip";
-import { Cell, rollUp } from "./Cells";
+import { Cell, rollUp, shownColumns } from "./Cells";
 import type { ColumnKey, ColumnLayout } from "./columns";
 import { dateOfProjectDay, projectDayNumber } from "./relative";
 import { workingDaysBetween } from "./scale";
@@ -67,7 +67,7 @@ function LabelCells({
 }) {
   return (
     <>
-      {layout.shown.map((column) => (
+      {shownColumns(layout).map((column) => (
         <Cell key={column} column={column} layout={layout}>
           {column === "task" ? task : (cells[column] ?? <span className="muted">—</span>)}
         </Cell>
@@ -115,8 +115,9 @@ export function CategoryRow({
   addLabel: string;
   onAddTask?: (categoryId: string) => void;
   deleteLabel?: string;
-  /** Крестик удаления. Передаётся только для пустой категории: непустую
-      сервер откажется удалять, и кнопка обещала бы отказ. */
+  /** Крестик удаления. Спрашивает подтверждение не он, а экран: вместе с
+      категорией уходят её задачи, и назвать их число строка не может — она
+      знает только свои (см. onDeleteCategory в Gantt). */
   onDelete?: (categoryId: string) => void;
   reorder?: Reorder;
   /** Может ли этот человек двигать категорию целиком. */
@@ -184,8 +185,8 @@ export function CategoryRow({
                     </RowIcon>
                   )}
                   {onDelete && deleteLabel !== undefined && (
-                    // Подтверждения нет намеренно: удаляется только пустая
-                    // категория, и отмена возвращает её одной кнопкой.
+                    // Сам крестик ничего не удаляет: он открывает вопрос
+                    // «вместе с этими задачами?», который задаёт экран.
                     <RowIcon label={deleteLabel} tone="danger" onClick={() => onDelete(category.id)}>
                       ×
                     </RowIcon>

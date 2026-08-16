@@ -105,6 +105,14 @@ class CreateCategory(BaseModel):
     color: str
     category_id: uuid.UUID | None = None
     position: int | None = None
+    # Задачи, которые лежали в категории на момент её удаления. Поле
+    # восстановления, зеркальное каскаду: delete_category уносит содержимое
+    # категории вместе с ней, и обратная операция обязана вернуть не пустую
+    # строку заголовка, а весь этап целиком — со связями, назначениями и
+    # разговором каждой задачи (см. CreateTask ниже). По проводу, как и
+    # остальные поля восстановления, не принимается: его нет в публичной
+    # модели.
+    tasks: list["CreateTask"] = Field(default_factory=list)
 
 
 class CreateTask(BaseModel):
@@ -132,6 +140,12 @@ class CreateTask(BaseModel):
     dependencies: list[dict] = Field(default_factory=list)
     comments: list[dict] = Field(default_factory=list)
 
+
+# CreateCategory ссылается на CreateTask раньше, чем тот объявлен: категория со
+# своими задачами — это одна операция, и разорвать пару, переставив классы
+# местами, нельзя (тогда на CreateCategory сослался бы CreateTask). Ссылка
+# разрешается здесь, сразу после объявления второго из них.
+CreateCategory.model_rebuild()
 
 
 # --- поле восстановления автопереноса ------------------------------------------
@@ -751,6 +765,129 @@ def _snapshot_task_links(db: DbSession, task: Task) -> dict:
     return snapshot
 
 
+def _add_task(db: DbSession, project: Project, op: CreateTask) -> Task:
+    """Строка задачи — со всеми проверками и выбором места в списке.
+
+    Отдельно от ветки `create_task` в `_apply`, потому что задачу создают
+    двое: сама операция и восстановление категории вместе с её содержимым
+    (см. CreateCategory.tasks). Второй набор этих проверок разошёлся бы с
+    первым на первой же правке — и разошёлся бы молча, ведь ошибиться здесь
+    можно только в пользу базы: строку, которую отвергнет CHECK, вернёт
+    пятисотка вместо честного кода отказа.
+
+    Окружение задачи — связи, назначения, разговор — здесь не восстанавливается:
+    у категории это делается отдельным проходом, когда созданы уже все её
+    строки (см. _restore_task_links).
+    """
+    if op.duration_days < 1:
+        raise InvalidOperation("duration_too_short", "длительность должна быть не меньше одного дня")
+    # Та же проверка, что у set_criticality/set_progress: внутренняя
+    # модель приходит не только с провода (где границы держит публичная),
+    # но и из журнала — и не должна уметь положить строку, которую CHECK
+    # в базе всё равно отвергнет пятисоткой.
+    if op.criticality not in CRITICALITY_LEVELS:
+        raise InvalidOperation("unknown_criticality", f"неизвестный уровень: {op.criticality}")
+    if not 0 <= op.progress_pct <= 100:
+        raise InvalidOperation(
+            "progress_out_of_range", f"процент вне 0..100: {op.progress_pct}"
+        )
+    if op.status not in TASK_STATUSES:
+        raise InvalidOperation("unknown_status", f"неизвестный статус: {op.status}")
+    if op.milestone and op.duration_days != 1:
+        # То же ограничение, что держит база: веха — точка на шкале.
+        # Проверка здесь, а не только в CHECK, чтобы отказ был честным
+        # кодом операции, а не пятисоткой на нарушении ограничения.
+        raise InvalidOperation(
+            "milestone_has_duration", "у вехи длительность ровно один день"
+        )
+    # Внешний ключ гарантирует лишь, что категория где-то существует —
+    # не то, что она принадлежит этому проекту. Без явной проверки задача
+    # может незаметно оказаться под категорией чужого проекта.
+    _require_category(db, project, op.category_id)
+    # Потолок из настроек (MAX_TASKS_PER_PROJECT): проверяется здесь, а не
+    # в маршруте, потому что это правило домена, а не формы запроса.
+    limit = get_settings().max_tasks_per_project
+    existing = db.scalar(
+        select(func.count()).select_from(Task).where(Task.project_id == project.id)
+    )
+    if existing >= limit:
+        raise InvalidOperation(
+            "task_limit_reached", f"в проекте уже {existing} задач при потолке {limit}"
+        )
+    # Тот же принцип, что и для категорий: наибольшая занятая позиция + 1,
+    # а не COUNT(*) — иначе номер, освободившийся после удаления,
+    # достаётся следующей же созданной задаче ещё раз. Считается внутри
+    # категории: позиция и есть номер строки в её списке — раньше номер
+    # брался по всему проекту, и у категорий были дырявые, зависящие от
+    # порядка создания нумерации, которые уникальным ограничением
+    # (category_id, position) не удержать.
+    if op.position is None:
+        position = db.scalar(
+            select(func.coalesce(func.max(Task.position), -1) + 1).where(
+                Task.category_id == op.category_id
+            )
+        )
+    else:
+        position = op.position
+        _make_room(db, op.category_id, position)
+    task = Task(
+        id=op.task_id or uuid.uuid4(),
+        project_id=project.id,
+        category_id=op.category_id,
+        name=op.name,
+        description=op.description,
+        internal_note=op.internal_note,
+        start_date=op.start_date,
+        duration_days=op.duration_days,
+        criticality=op.criticality,
+        progress_pct=op.progress_pct,
+        status=op.status,
+        milestone=op.milestone,
+        position=position,
+        baseline_start=op.baseline_start,
+        baseline_duration=op.baseline_duration,
+    )
+    db.add(task)
+    db.flush()
+    return task
+
+
+def _task_payload(task: Task) -> dict:
+    """Задача в том виде, в каком она ложится в журнал, — полями create_task.
+
+    Одна форма на три места: запись о создании, снимок для отмены удаления и
+    снимок задачи внутри удалённой категории. Три списка одних и тех же полей
+    разошлись бы на первом же добавленном — и отмена возвращала бы задачу без
+    него.
+    """
+    return {
+        "type": "create_task",
+        "task_id": str(task.id),
+        "category_id": str(task.category_id),
+        "name": task.name,
+        "start_date": task.start_date.isoformat(),
+        "duration_days": task.duration_days,
+        "description": task.description,
+        "internal_note": task.internal_note,
+        "criticality": task.criticality,
+        "progress_pct": task.progress_pct,
+        "status": task.status,
+        "milestone": task.milestone,
+        "position": task.position,
+        "baseline_start": task.baseline_start.isoformat() if task.baseline_start else None,
+        "baseline_duration": task.baseline_duration,
+    }
+
+
+def _task_snapshot(db: DbSession, task: Task) -> dict:
+    """Задача целиком — со связями, назначениями и разговором.
+
+    Снимается перед удалением: каскад уносит окружение вместе со строкой, и
+    отмена без него вернула бы голое имя.
+    """
+    return _task_payload(task) | _snapshot_task_links(db, task)
+
+
 def _restore_task_links(db: DbSession, project: Project, task: Task, op: CreateTask) -> None:
     """Возвращает восстановленной задаче то, что унёс каскад удаления.
 
@@ -884,104 +1021,25 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
         )
         db.add(category)
         db.flush()
-        return (
-            {"type": "create_category", "category_id": str(category.id), "name": op.name,
-             "color": op.color, "position": category.position},
-            {"type": "delete_category", "category_id": str(category.id)},
-        )
+        forward = {
+            "type": "create_category", "category_id": str(category.id), "name": op.name,
+            "color": op.color, "position": category.position,
+        }
+        # Задачи из снимка (отмена каскадного удаления) создаются все до
+        # единой, и только потом каждой возвращается её окружение: задачи
+        # одной категории ссылаются друг на друга, и связь к соседу, которого
+        # ещё не создали, была бы молча пропущена — см. _restore_task_links.
+        if op.tasks:
+            restored = [_add_task(db, project, task_op) for task_op in op.tasks]
+            for task, task_op in zip(restored, op.tasks):
+                _restore_task_links(db, project, task, task_op)
+            forward["tasks"] = [_task_payload(task) for task in restored]
+        return (forward, {"type": "delete_category", "category_id": str(category.id)})
 
     if isinstance(op, CreateTask):
-        if op.duration_days < 1:
-            raise InvalidOperation("duration_too_short", "длительность должна быть не меньше одного дня")
-        # Та же проверка, что у set_criticality/set_progress: внутренняя
-        # модель приходит не только с провода (где границы держит публичная),
-        # но и из журнала — и не должна уметь положить строку, которую CHECK
-        # в базе всё равно отвергнет пятисоткой.
-        if op.criticality not in CRITICALITY_LEVELS:
-            raise InvalidOperation("unknown_criticality", f"неизвестный уровень: {op.criticality}")
-        if not 0 <= op.progress_pct <= 100:
-            raise InvalidOperation(
-                "progress_out_of_range", f"процент вне 0..100: {op.progress_pct}"
-            )
-        if op.status not in TASK_STATUSES:
-            raise InvalidOperation("unknown_status", f"неизвестный статус: {op.status}")
-        if op.milestone and op.duration_days != 1:
-            # То же ограничение, что держит база: веха — точка на шкале.
-            # Проверка здесь, а не только в CHECK, чтобы отказ был честным
-            # кодом операции, а не пятисоткой на нарушении ограничения.
-            raise InvalidOperation(
-                "milestone_has_duration", "у вехи длительность ровно один день"
-            )
-        # Внешний ключ гарантирует лишь, что категория где-то существует —
-        # не то, что она принадлежит этому проекту. Без явной проверки задача
-        # может незаметно оказаться под категорией чужого проекта.
-        _require_category(db, project, op.category_id)
-        # Потолок из настроек (MAX_TASKS_PER_PROJECT): проверяется здесь, а не
-        # в маршруте, потому что это правило домена, а не формы запроса.
-        limit = get_settings().max_tasks_per_project
-        existing = db.scalar(
-            select(func.count()).select_from(Task).where(Task.project_id == project.id)
-        )
-        if existing >= limit:
-            raise InvalidOperation(
-                "task_limit_reached", f"в проекте уже {existing} задач при потолке {limit}"
-            )
-        # Тот же принцип, что и для категорий: наибольшая занятая позиция + 1,
-        # а не COUNT(*) — иначе номер, освободившийся после удаления,
-        # достаётся следующей же созданной задаче ещё раз. Считается внутри
-        # категории: позиция и есть номер строки в её списке — раньше номер
-        # брался по всему проекту, и у категорий были дырявые, зависящие от
-        # порядка создания нумерации, которые уникальным ограничением
-        # (category_id, position) не удержать.
-        if op.position is None:
-            position = db.scalar(
-                select(func.coalesce(func.max(Task.position), -1) + 1).where(
-                    Task.category_id == op.category_id
-                )
-            )
-        else:
-            position = op.position
-            _make_room(db, op.category_id, position)
-        task = Task(
-            id=op.task_id or uuid.uuid4(),
-            project_id=project.id,
-            category_id=op.category_id,
-            name=op.name,
-            description=op.description,
-            internal_note=op.internal_note,
-            start_date=op.start_date,
-            duration_days=op.duration_days,
-            criticality=op.criticality,
-            progress_pct=op.progress_pct,
-            status=op.status,
-            milestone=op.milestone,
-            position=position,
-            baseline_start=op.baseline_start,
-            baseline_duration=op.baseline_duration,
-        )
-        db.add(task)
-        db.flush()
+        task = _add_task(db, project, op)
         _restore_task_links(db, project, task, op)
-        return (
-            {
-                "type": "create_task",
-                "task_id": str(task.id),
-                "category_id": str(task.category_id),
-                "name": task.name,
-                "start_date": task.start_date.isoformat(),
-                "duration_days": task.duration_days,
-                "description": task.description,
-                "internal_note": task.internal_note,
-                "criticality": task.criticality,
-                "progress_pct": task.progress_pct,
-                "status": task.status,
-                "milestone": task.milestone,
-                "position": task.position,
-                "baseline_start": task.baseline_start.isoformat() if task.baseline_start else None,
-                "baseline_duration": task.baseline_duration,
-            },
-            {"type": "delete_task", "task_id": str(task.id)},
-        )
+        return (_task_payload(task), {"type": "delete_task", "task_id": str(task.id)})
 
     if isinstance(op, MoveTask):
         task = _require_task(db, project, op.task_id)
@@ -1465,13 +1523,20 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
 
     if isinstance(op, DeleteCategory):
         category = _require_category(db, project, op.category_id)
-        remaining = db.scalar(
-            select(func.count()).select_from(Task).where(Task.category_id == category.id)
-        )
-        # Удаление непустой категории унесло бы задачи каскадом, и обратная
-        # операция их бы не вернула. Требуем сначала разобрать содержимое.
-        if remaining:
-            raise InvalidOperation("category_not_empty", "категория не пуста")
+        # Категория уходит вместе со своим содержимым: этап отменили целиком —
+        # и разбирать его по строке, чтобы избавиться от заголовка, значит
+        # столько удалений, сколько в нём задач, и столько же записей в
+        # истории на одно решение человека.
+        #
+        # Прежде непустую категорию удалять запрещалось (`category_not_empty`),
+        # и запрет был не капризом: каскад унёс бы задачи, а обратная операция
+        # вернула бы пустой заголовок. Отвечает на это не запрет, а снимок —
+        # тот же, каким отменяется удаление задачи, только по каждой строке
+        # этапа. Предупредить человека о том, что уйдёт вместе с категорией,
+        # обязан интерфейс: сервер такому предупреждению не место.
+        tasks = db.scalars(
+            select(Task).where(Task.category_id == category.id).order_by(Task.position, Task.id)
+        ).all()
         snapshot = {
             "type": "create_category",
             "category_id": str(category.id),
@@ -1479,33 +1544,32 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
             "color": category.color,
             "position": category.position,
         }
+        if tasks:
+            snapshot["tasks"] = [_task_snapshot(db, task) for task in tasks]
+        for task in tasks:
+            db.delete(task)
+        # Флаш до удаления самой категории, а не один общий следом: связь этих
+        # двух таблиц описана только внешним ключом, порядок удалений
+        # SQLAlchemy по нему не выводит — и снесённая первой категория унесла
+        # бы задачи каскадом базы, оставив ORM удалять уже несуществующие
+        # строки (и жаловаться на это предупреждением).
+        db.flush()
         db.delete(category)
         db.flush()
-        return ({"type": "delete_category", "category_id": str(op.category_id)}, snapshot)
+        forward = {"type": "delete_category", "category_id": str(op.category_id)}
+        # Число задач — в самой записи: «удалил категорию» об удалённом вместе
+        # с ней этапе умалчивает, а считать их в ленте истории не по чему —
+        # снимок восстановления виден не каждой роли.
+        if tasks:
+            forward["tasks"] = len(tasks)
+        return (forward, snapshot)
 
     if isinstance(op, DeleteTask):
         task = _require_task(db, project, op.task_id)
-        snapshot = {
-            "type": "create_task",
-            "task_id": str(task.id),
-            "category_id": str(task.category_id),
-            "name": task.name,
-            "start_date": task.start_date.isoformat(),
-            "duration_days": task.duration_days,
-            "description": task.description,
-            "internal_note": task.internal_note,
-            "criticality": task.criticality,
-            "progress_pct": task.progress_pct,
-            "status": task.status,
-            "milestone": task.milestone,
-            "position": task.position,
-            "baseline_start": task.baseline_start.isoformat() if task.baseline_start else None,
-            "baseline_duration": task.baseline_duration,
-            # Каскад удаления уносит и окружение задачи — снимок несёт его с
-            # собой, иначе отмена вернёт голую строку без связей, назначений
-            # и разговора.
-            **_snapshot_task_links(db, task),
-        }
+        # Снимок несёт и окружение задачи — связи, назначения, разговор:
+        # каскад уносит их вместе со строкой, и отмена без них вернула бы
+        # голое имя.
+        snapshot = _task_snapshot(db, task)
         db.delete(task)
         db.flush()
         return ({"type": "delete_task", "task_id": str(op.task_id)}, snapshot)
