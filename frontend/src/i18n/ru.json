@@ -263,8 +263,10 @@
         "other": "{count} задачи"
       },
       "progress": "Готово на {pct}%",
-      "plan_days": "план на {days}"
+      "plan_days": "план на {days}",
+      "menu": "Действия проекта"
     },
+    "delete_title": "Удалить проект «{name}»?",
     "mode": {
       "relative": "Относительный план"
     },

@@ -259,8 +259,10 @@
         "other": "{count} tapşırıq"
       },
       "progress": "{pct}% hazırdır",
-      "plan_days": "{days}lük plan"
+      "plan_days": "{days}lük plan",
+      "menu": "Layihə əməlləri"
     },
+    "delete_title": "«{name}» layihəsi silinsin?",
     "mode": {
       "relative": "Nisbi plan"
     },

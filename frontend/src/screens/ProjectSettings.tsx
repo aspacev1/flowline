@@ -4,9 +4,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { errorKey } from "../api/errors";
 import { ORG_QUERY_KEY, organization } from "../api/org";
 import {
-  PROJECTS_QUERY_KEY,
   checkProjectSlug,
-  deleteProject,
   getProject,
   projectQueryKey,
   updateProject,
@@ -17,9 +15,9 @@ import { SaveMark, TextField, ValueField, useFieldSaves } from "../components/au
 import type { FieldSave } from "../components/autosave";
 import { ConfirmAction } from "../components/ConfirmAction";
 import { Switch } from "../components/Switch";
-import { useToast } from "../components/toast";
 import { useLocale } from "../i18n/LocaleProvider";
 import { SharePanel } from "../project/SharePanel";
+import { useDeleteProject } from "../project/useDeleteProject";
 import {
   DateListField,
   SlugField,
@@ -41,7 +39,6 @@ export function ProjectSettings() {
   const { projectId = "" } = useParams();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const showToast = useToast();
   const canWrite = useCanWrite();
   // Удаление проекта — право владельца, как и пересогласование плана:
   // редактор правит настройки, но не расстаётся с проектом целиком. Решает
@@ -72,25 +69,13 @@ export function ProjectSettings() {
   });
   const saves = useFieldSaves(save.mutateAsync);
 
-  // Имя передаётся в мутацию, а не читается из `state` в обработчике: к моменту
-  // успеха проекта уже нет ни на сервере, ни в кэше — а назвать в тосте нужно
-  // именно то, что удалили.
-  const remove = useMutation({
-    mutationFn: (_name: string) => deleteProject(projectId),
-    onSuccess: (_result, name: string) => {
-      // Кэш проекта не инвалидируется, а выбрасывается: перезапрос по этому
-      // ключу теперь может ответить только 404-й.
-      queryClient.removeQueries({ queryKey: projectQueryKey(projectId) });
-      void queryClient.invalidateQueries({ queryKey: PROJECTS_QUERY_KEY });
-      // replace, а не push: «назад» к настройкам удалённого проекта вело бы
-      // на экран, которому нечего показать, кроме ошибки.
-      navigate("/projects", { replace: true });
-      // Список проектов сам по себе не отчитывается: он выглядит одинаково и
-      // после удаления, и после нажатия «К проектам». Отмены тост не
-      // предлагает намеренно — вместе с проектом ушёл журнал ревизий, и
-      // возвращать состояние неоткуда; об этом честно сказано и в подтверждении.
-      showToast({ message: t("settings.project.deleted", { name }) });
-    },
+  // Что делается с кэшем после удаления, знает общий хук: то же самое
+  // случается и при удалении с карточки в списке проектов. Экрану остаётся
+  // своё — уйти оттуда, где больше нечего показывать. replace, а не push:
+  // «назад» к настройкам удалённого проекта вело бы на экран, которому нечего
+  // показать, кроме ошибки.
+  const remove = useDeleteProject({
+    onDeleted: () => navigate("/projects", { replace: true }),
   });
 
   if (query.isPending) {
@@ -301,7 +286,7 @@ export function ProjectSettings() {
               label={t("settings.project.delete")}
               warning={t("settings.project.delete_warning")}
               confirm={t("settings.project.delete_confirm")}
-              onConfirm={() => remove.mutate(state.name)}
+              onConfirm={() => remove.mutate({ id: projectId, name: state.name })}
               disabled={remove.isPending}
             />
           </div>

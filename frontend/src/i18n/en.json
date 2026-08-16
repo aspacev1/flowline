@@ -259,8 +259,10 @@
         "other": "{count} tasks"
       },
       "progress": "{pct}% done",
-      "plan_days": "{days} long"
+      "plan_days": "{days} long",
+      "menu": "Project actions"
     },
+    "delete_title": "Delete the “{name}” project?",
     "mode": {
       "relative": "Relative plan"
     },

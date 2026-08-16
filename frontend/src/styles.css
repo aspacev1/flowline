@@ -918,6 +918,25 @@ button:disabled:hover {
   background: var(--danger-soft);
 }
 
+/* Кнопка, доводящая необратимое до конца, — залитая цветом тревоги. Рядом с
+   ней в окне стоит отказ, и выглядеть она обязана как действие, а не как
+   вторая тихая кнопка. Заливка, а не рамка `.button--alert`: та отвечает
+   строке посреди экрана и соседствует с настоящими кнопками, а эта — то
+   единственное, ради чего окно открыли. Тёмный оттенок тревоги, а не
+   светлый: белая подпись на светлом контраста для текста не набирает. */
+.button--danger {
+  background: var(--danger-strong, #bd4263);
+  color: #fff;
+}
+
+.button--danger:hover {
+  background: color-mix(in srgb, var(--danger-strong, #bd4263) 88%, #000);
+}
+
+.button--danger:disabled:hover {
+  background: var(--danger-strong, #bd4263);
+}
+
 .button--quiet[aria-pressed="true"] {
   background: var(--accent-soft);
   color: var(--accent);
@@ -1817,6 +1836,10 @@ input[type="checkbox"] {
 .menu__item {
   display: flex;
   align-items: center;
+  /* От левого края, а не по центру: пункт-кнопка иначе наследует
+     `justify-content: center` общего правила кнопок и в столбце пунктов-
+     флажков стоит один по-своему. */
+  justify-content: flex-start;
   gap: 9px;
   width: 100%;
   min-height: 32px;
@@ -1840,6 +1863,16 @@ input[type="checkbox"] {
 
 .menu__item input {
   margin: 0;
+}
+
+/* Единственный пункт, который называет себя цветом: удаление необратимо, и
+   рука обязана узнать его прежде, чем глаз дочитает подпись. */
+.menu__item--danger {
+  color: var(--danger);
+}
+
+.menu__item--danger:hover {
+  background: var(--danger-soft);
 }
 
 .menu__sep {
@@ -2004,6 +2037,33 @@ input[type="checkbox"] {
   font-weight: 600;
   color: var(--text-muted);
   white-space: nowrap;
+}
+
+/* Шестерёнка — у правого края строки с названием, а не в потоке за ним:
+   карточки в сетке разной ширины, и знак, едущий следом за названием, каждый
+   раз оказывался бы в новом месте. По центру строки, а не по базовой линии:
+   базовой линии у значка нет, и `align-items: baseline` головы прижал бы его
+   нижним краем к тексту. */
+.project-card__head .menu {
+  margin-left: auto;
+  align-self: center;
+}
+
+/* Кнопка без подписи: квадратная, прозрачная и приглушённая — это вход в
+   список действий, а не действие. Синей заливки кнопок она не получает: на
+   карточке уже есть то, ради чего на неё смотрят, и вторым синим пятном
+   шестерёнка спорила бы с названием. */
+.project-card__gear {
+  width: var(--control);
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+}
+
+.project-card__gear:hover {
+  background: var(--hover);
+  color: var(--text);
 }
 
 .project-card__slug {
