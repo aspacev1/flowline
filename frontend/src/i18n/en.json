@@ -420,6 +420,7 @@
     "create_task": "created the task",
     "delete_task": "deleted the task",
     "reorder_task": "moved the task",
+    "reorder_category": "moved the category",
     "assign_user": "added an assignee",
     "assign_user_named": "added an assignee: {name}",
     "unassign_user": "removed an assignee",
@@ -575,6 +576,7 @@
     "resized": "“{name}” now takes {days}",
     "progress_set": "“{name}” — {percent}% done",
     "move_category": "Drag to move “{name}” and every task in it",
+    "reorder_category": "Drag to reorder “{name}”",
     "category_moved_late": "“{name}” moved {days} later",
     "category_moved_early": "“{name}” moved {days} earlier",
     "milestone": {

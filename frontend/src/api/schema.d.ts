@@ -1330,7 +1330,7 @@ export interface components {
         /** Body_apply_mutation_api_projects__project_id__mutations_post */
         Body_apply_mutation_api_projects__project_id__mutations_post: {
             /** Op */
-            op: components["schemas"]["PublicCreateCategory"] | components["schemas"]["PublicCreateTask"] | components["schemas"]["PublicMoveTask"] | components["schemas"]["PublicMoveCategory"] | components["schemas"]["PublicResizeTask"] | components["schemas"]["PublicSetDuration"] | components["schemas"]["PublicSetMilestone"] | components["schemas"]["PublicDeleteTask"] | components["schemas"]["PublicDeleteCategory"] | components["schemas"]["PublicSetTaskFields"] | components["schemas"]["PublicSetCriticality"] | components["schemas"]["PublicSetProgress"] | components["schemas"]["PublicSetStatus"] | components["schemas"]["PublicRenameCategory"] | components["schemas"]["PublicSetCategoryColor"] | components["schemas"]["PublicReorderTask"] | components["schemas"]["PublicAddDependency"] | components["schemas"]["PublicRemoveDependency"] | components["schemas"]["PublicAssignUser"] | components["schemas"]["PublicUnassignUser"];
+            op: components["schemas"]["PublicCreateCategory"] | components["schemas"]["PublicCreateTask"] | components["schemas"]["PublicMoveTask"] | components["schemas"]["PublicMoveCategory"] | components["schemas"]["PublicResizeTask"] | components["schemas"]["PublicSetDuration"] | components["schemas"]["PublicSetMilestone"] | components["schemas"]["PublicDeleteTask"] | components["schemas"]["PublicDeleteCategory"] | components["schemas"]["PublicSetTaskFields"] | components["schemas"]["PublicSetCriticality"] | components["schemas"]["PublicSetProgress"] | components["schemas"]["PublicSetStatus"] | components["schemas"]["PublicRenameCategory"] | components["schemas"]["PublicSetCategoryColor"] | components["schemas"]["PublicReorderTask"] | components["schemas"]["PublicReorderCategory"] | components["schemas"]["PublicAddDependency"] | components["schemas"]["PublicRemoveDependency"] | components["schemas"]["PublicAssignUser"] | components["schemas"]["PublicUnassignUser"];
             /** Reason */
             reason?: string | null;
         };
@@ -1966,6 +1966,22 @@ export interface components {
              * @constant
              */
             type: "rename_category";
+        };
+        /** PublicReorderCategory */
+        PublicReorderCategory: {
+            /**
+             * Category Id
+             * Format: uuid
+             */
+            category_id: string;
+            /** Position */
+            position: number;
+            /**
+             * Type
+             * @default reorder_category
+             * @constant
+             */
+            type: "reorder_category";
         };
         /** PublicReorderTask */
         PublicReorderTask: {

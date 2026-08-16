@@ -118,6 +118,8 @@ export function formatEvent(
       return say("delete_task");
     case "reorder_task":
       return say("reorder_task");
+    case "reorder_category":
+      return say("reorder_category");
     case "assign_user":
     case "unassign_user": {
       // Имя — содержимое, а не хрома: подставляется как есть. Безымянная

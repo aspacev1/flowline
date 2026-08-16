@@ -29,6 +29,7 @@ from app.mutations import (
     PublicCreateTask,
     RemoveDependency,
     RenameCategory,
+    ReorderCategory,
     ReorderTask,
     ResizeTask,
     SetCategoryColor,
@@ -1157,6 +1158,90 @@ def test_reorder_is_not_accepted_over_the_wire_as_apply_positions():
     }
     assert "reorder_task" in accepted
     assert "apply_positions" not in accepted
+    assert "reorder_category" in accepted
+    assert "apply_category_positions" not in accepted
+
+
+def _category_positions(db, project) -> dict[str, int]:
+    rows = db.scalars(select(Category).where(Category.project_id == project.id)).all()
+    return {str(row.id): row.position for row in rows}
+
+
+def _new_category(db, project, name: str) -> str:
+    return apply_op(
+        db, project, CreateCategory(name=name, color="#22c55e"), actor_id=None
+    ).op["category_id"]
+
+
+def test_reorder_category_shifts_neighbours_and_records_the_whole_map(db, project, category):
+    """Этап встаёт на названное место, соседи расступаются, карта — в журнале.
+
+    Карта, а не один сдвиг, по той же причине, что и у задачи: отмене нужны
+    все, кого перестановка задела.
+    """
+    ids = [str(category.id)] + [_new_category(db, project, name) for name in ("B", "C")]
+
+    revision = apply_op(
+        db, project, ReorderCategory(category_id=ids[2], position=0), actor_id=None
+    )
+
+    after = _category_positions(db, project)
+    assert after[ids[2]] == 0
+    assert after[ids[0]] == 1
+    assert after[ids[1]] == 2
+    assert set(revision.op["from"]) == set(ids)
+    assert revision.op["to"][ids[0]] == 1
+
+
+def test_undo_of_a_category_reorder_restores_every_neighbour(db, project, category):
+    ids = [str(category.id)] + [_new_category(db, project, name) for name in ("B", "C")]
+    before = _category_positions(db, project)
+
+    revision = apply_op(
+        db, project, ReorderCategory(category_id=ids[2], position=0), actor_id=None
+    )
+    undo(db, project, revision, actor_id=None)
+
+    assert _category_positions(db, project) == before
+
+
+def test_reorder_category_past_the_end_puts_it_last(db, project, category):
+    """Позиция за концом списка — не отказ: бросок в самый низ шлёт длину."""
+    ids = [str(category.id)] + [_new_category(db, project, "B")]
+
+    apply_op(db, project, ReorderCategory(category_id=ids[0], position=99), actor_id=None)
+
+    assert _category_positions(db, project) == {ids[1]: 0, ids[0]: 1}
+
+
+def test_reorder_category_leaves_task_order_alone(db, project, category):
+    """У задач своя нумерация внутри своего этапа — перестановка этапов её не трогает."""
+    other = _new_category(db, project, "B")
+    task_id = apply_op(db, project, CreateTask(
+        category_id=str(category.id), name="Logo",
+        start_date=date(2026, 3, 4), duration_days=1), actor_id=None).op["task_id"]
+
+    apply_op(db, project, ReorderCategory(category_id=other, position=0), actor_id=None)
+
+    task = db.get(Task, task_id)
+    assert (task.category_id, task.position) == (category.id, 0)
+
+
+def test_reorder_category_refuses_a_negative_position(db, project, category):
+    with pytest.raises(InvalidOperation) as error:
+        apply_op(
+            db, project, ReorderCategory(category_id=str(category.id), position=-1),
+            actor_id=None,
+        )
+    assert error.value.code == "negative_position"
+
+
+def test_reorder_category_rejects_a_category_from_another_project(db, project, other_category):
+    with pytest.raises(NotFoundInProject):
+        apply_op(
+            db, project, ReorderCategory(category_id=str(other_category.id), position=0),
+            actor_id=None,
+        )
 
 
 def test_dependency_round_trips(db, project, category):

@@ -3,7 +3,7 @@ import { HttpResponse, http } from "msw";
 import type { ProjectState } from "../api/projects";
 import { addDays } from "../gantt/timescale";
 import type { Locale } from "../i18n";
-import { deleteCategory, deleteTask, reorderTask } from "../project/optimistic";
+import { deleteCategory, deleteTask, reorderCategory, reorderTask } from "../project/optimistic";
 import { server } from "./server";
 import { ORG, USER, renderApp } from "./utils";
 
@@ -345,6 +345,8 @@ function applied(state: ProjectState, op: Record<string, unknown>): ProjectState
       return patch({ assignee_ids: assignees.filter((user) => user !== op.user_id) });
     case "reorder_task":
       return reorderTask(state, id, op.category_id as string, op.position as number);
+    case "reorder_category":
+      return reorderCategory(state, op.category_id as string, op.position as number);
     case "delete_task":
       return deleteTask(state, id);
     case "delete_category":

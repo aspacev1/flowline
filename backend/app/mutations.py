@@ -318,6 +318,21 @@ class ReorderTask(BaseModel):
     position: int
 
 
+class ReorderCategory(BaseModel):
+    """Категория встаёт на другое место в списке этапов.
+
+    Отдельная операция от reorder_task, а не общая «переставить строку»:
+    у задачи место описывается парой (категория, номер) — её и переносят из
+    одного этапа в другой, — а у категории родителя нет вовсе, и номер один.
+    Общая операция несла бы у половины вызовов пустой category_id, то есть
+    описывала бы не то, что произошло.
+    """
+
+    type: Literal["reorder_category"] = "reorder_category"
+    category_id: uuid.UUID
+    position: int
+
+
 class AddDependency(BaseModel):
     type: Literal["add_dependency"] = "add_dependency"
     from_task_id: uuid.UUID
@@ -362,6 +377,18 @@ class ApplyPositions(BaseModel):
     categories: dict[uuid.UUID, uuid.UUID]
 
 
+class ApplyCategoryPositions(BaseModel):
+    """Внутренняя операция: расставить порядок категорий по готовой карте.
+
+    Существует только как обратная к reorder_category — по той же причине, по
+    которой существует apply_positions, и с тем же запретом на провод: карта,
+    присланная клиентом, расставила бы этапы в обход всякой проверки порядка.
+    """
+
+    type: Literal["apply_category_positions"] = "apply_category_positions"
+    positions: dict[uuid.UUID, int]
+
+
 Op = Annotated[
     CreateCategory
     | CreateTask
@@ -379,7 +406,9 @@ Op = Annotated[
     | RenameCategory
     | SetCategoryColor
     | ReorderTask
+    | ReorderCategory
     | ApplyPositions
+    | ApplyCategoryPositions
     | AddDependency
     | RemoveDependency
     | AssignUser
@@ -404,7 +433,9 @@ _MODELS = {
     "rename_category": RenameCategory,
     "set_category_color": SetCategoryColor,
     "reorder_task": ReorderTask,
+    "reorder_category": ReorderCategory,
     "apply_positions": ApplyPositions,
+    "apply_category_positions": ApplyCategoryPositions,
     "add_dependency": AddDependency,
     "remove_dependency": RemoveDependency,
     "assign_user": AssignUser,
@@ -572,6 +603,12 @@ class PublicReorderTask(_Wire):
     position: int = Field(ge=0)
 
 
+class PublicReorderCategory(_Wire):
+    type: Literal["reorder_category"] = "reorder_category"
+    category_id: uuid.UUID
+    position: int = Field(ge=0)
+
+
 class PublicAddDependency(_Wire):
     type: Literal["add_dependency"] = "add_dependency"
     from_task_id: uuid.UUID
@@ -596,7 +633,8 @@ class PublicUnassignUser(_Wire):
     user_id: uuid.UUID
 
 
-# ApplyPositions публичного зеркала не имеет и иметь не должна: она внутренняя.
+# ApplyPositions и ApplyCategoryPositions публичного зеркала не имеют и иметь
+# не должны: обе внутренние.
 
 
 PublicOp = Annotated[
@@ -616,6 +654,7 @@ PublicOp = Annotated[
     | PublicRenameCategory
     | PublicSetCategoryColor
     | PublicReorderTask
+    | PublicReorderCategory
     | PublicAddDependency
     | PublicRemoveDependency
     | PublicAssignUser
@@ -1480,6 +1519,63 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
             "positions": {str(row.id): before_pos[str(row.id)] for row in changed},
             "categories": {str(row.id): before_cat[str(row.id)] for row in changed},
         }
+        return forward, inverse
+
+    if isinstance(op, ReorderCategory):
+        if op.position < 0:
+            raise InvalidOperation("negative_position", "позиция не может быть отрицательной")
+        category = _require_category(db, project, op.category_id)
+
+        # Порядок читается тем же ключом, каким его читает лента: позиция, а
+        # при равенстве — идентификатор. Равенство встречается по-настоящему:
+        # категории создаются с max(position) + 1, но отмена удаления
+        # возвращает этап на его прежний номер, который с тех пор мог достаться
+        # соседу.
+        rows = db.scalars(
+            select(Category)
+            .where(Category.project_id == project.id)
+            .order_by(Category.position, Category.id)
+        ).all()
+        before_pos = {str(row.id): row.position for row in rows}
+
+        others = [row for row in rows if row.id != category.id]
+        # Позиция за концом списка — не отказ: бросок в самый низ присылает
+        # индекс, равный длине.
+        index = min(op.position, len(others))
+        ordered = others[:index] + [category] + others[index:]
+        for slot, row in enumerate(ordered):
+            row.position = slot
+        db.flush()
+
+        # В журнал идёт дифф, а не снимок: перестановка задевает отрезок между
+        # старым и новым местом, а не весь список (см. reorder_task выше).
+        changed = [row for row in rows if before_pos[str(row.id)] != row.position]
+        forward = {
+            "type": "reorder_category",
+            "category_id": str(category.id),
+            "from": {str(row.id): before_pos[str(row.id)] for row in changed},
+            "to": {str(row.id): row.position for row in changed},
+        }
+        inverse = {
+            "type": "apply_category_positions",
+            "positions": {str(row.id): before_pos[str(row.id)] for row in changed},
+        }
+        return forward, inverse
+
+    if isinstance(op, ApplyCategoryPositions):
+        before_categories: dict[str, int] = {}
+        for raw_id, position in op.positions.items():
+            row = _require_category(db, project, raw_id)
+            before_categories[str(row.id)] = row.position
+            row.position = position
+        db.flush()
+        # Ключи приводятся к строкам: в модели они uuid.UUID, а json.dumps на
+        # пути в jsonb на таком ключе падает — запись журнала не легла бы вовсе.
+        forward = {
+            "type": "apply_category_positions",
+            "positions": {str(key): value for key, value in op.positions.items()},
+        }
+        inverse = {"type": "apply_category_positions", "positions": before_categories}
         return forward, inverse
 
     if isinstance(op, ApplyPositions):

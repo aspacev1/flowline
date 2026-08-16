@@ -476,9 +476,14 @@ export function Gantt({
       formatDay={relativeView ? (iso) => relativeDayLabel(t, iso, anchor) : undefined}
     >
     <div
-      className={`gantt gantt--${zoom}${reorder.active ? " is-reordering" : ""}${
-        link.active ? " is-linking" : ""
-      }${view.critical ? " show-critical" : ""}${reducedMotion ? " motion-off" : ""}`}
+      // `can-reorder` — не косметика: колонка названий держит поле под ручку
+      // перестановки этапа, и держать его у того, кто ничего не переставляет,
+      // значило бы отодвинуть имена от края ради невидимой кнопки.
+      className={`gantt gantt--${zoom}${reorder.enabled ? " can-reorder" : ""}${
+        reorder.active ? " is-reordering" : ""
+      }${link.active ? " is-linking" : ""}${view.critical ? " show-critical" : ""}${
+        reducedMotion ? " motion-off" : ""
+      }`}
       // Высота строки, ширина закреплённой колонки и длительность переходов
       // задаются отсюда по одной и той же причине: все три величины знает не
       // только CSS. По высоте строки стрелки считают вертикальные координаты,
@@ -731,8 +736,17 @@ export function Gantt({
                       )}
                     </>
                   );
+                  // Этап, который держат в руке, гаснет весь — вместе со
+                  // своими задачами: переезжает он целиком, и погашенный
+                  // один заголовок обещал бы, что задачи останутся здесь.
+                  const held =
+                    reorder.dragging?.kind === "category" &&
+                    reorder.dragging.id === category.id;
                   return (
-                    <div key={category.id} className="gantt__group">
+                    <div
+                      key={category.id}
+                      className={`gantt__group${held ? " is-dragged" : ""}`}
+                    >
                       <CategoryRow
                         projectId={projectId}
                         category={category}
@@ -742,6 +756,7 @@ export function Gantt({
                         format={format}
                         canWrite={canWrite}
                         moveLabel={t("gantt.move_category", { name: category.name })}
+                        reorderLabel={t("gantt.reorder_category", { name: category.name })}
                         addLabel={t("task.add_to", { category: category.name })}
                         // Плюс на строке категории кладёт задачу в её конец:
                         // место в середине выбирают плюсом на границе строк.
@@ -824,6 +839,27 @@ export function Gantt({
             которые не объясняются легендой из плашек. Включается в «Виде». */}
         {view.caption && <p className="gantt__caption">{t("gantt.caption")}</p>}
         </>
+      )}
+
+      {/* Призрак переносимой строки — то, что сейчас в руке.
+
+          Без него о переносе говорила одна линия вставки: сама строка
+          оставалась стоять, где стояла, и на длинном списке, где взятая строка
+          уже уехала за край экрана, человек вёл курсор, не помня, что именно
+          он ведёт. Поэтому имя едет за курсором, а строка-источник гаснет:
+          полупрозрачность и там, и там означает «это ещё не случилось».
+
+          Стоит по координатам окна и событий не ловит (`pointer-events: none`
+          в стилях): цель броска ищут попаданием в точку, и призрак под
+          курсором закрывал бы собой ровно ту строку, в которую целятся. */}
+      {reorder.ghost && (
+        <div className="gantt__drag-ghost" ref={reorder.ghostRef} aria-hidden="true">
+          <span className="gantt__drag-ghost-grip">⠿</span>
+          {reorder.ghost.color && (
+            <i className="gantt__drag-ghost-dot" style={{ background: reorder.ghost.color }} />
+          )}
+          <span className="gantt__drag-ghost-name">{reorder.ghost.name}</span>
+        </div>
       )}
     </div>
     </BarTipProvider>
