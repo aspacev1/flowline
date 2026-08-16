@@ -1,5 +1,5 @@
 /*
- * Смета: таблица разделов слева, карточка итогов справа.
+ * Смета: одна таблица работ слева, карточка итогов справа.
  *
  * Раскладка та же, что у ленты с карточкой задачи: работа — слева, сводка —
  * узкой колонкой. Итоги не прячутся в подвал таблицы намеренно: вопрос
@@ -26,7 +26,7 @@
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
-  margin-bottom: 20px;
+  margin-bottom: 16px;
 }
 
 .proposal__settings {
@@ -46,59 +46,109 @@
   gap: 8px;
 }
 
-.proposal-category {
-  margin-bottom: 28px;
+.proposal__empty {
+  margin: 24px 0;
 }
 
-.proposal-category__head {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  margin-bottom: 4px;
-}
-
-.proposal-category__name {
-  font-size: 15px;
-  font-weight: 600;
-  margin: 0;
-}
-
-/* Удаление раздела — по наведению, как контролы строк ленты: постоянная
-   кнопка удаления возле каждого заголовка читается как угроза. */
-.proposal-category__head .proposal-category__delete {
-  opacity: 0;
-  transition: opacity 80ms ease;
-}
-
-.proposal-category__head:hover .proposal-category__delete,
-.proposal-category__head:focus-within .proposal-category__delete {
-  opacity: 1;
-}
+/* --- Таблица работ ------------------------------------------------------- */
 
 .proposal-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
 }
 
 .proposal-table th {
   text-align: left;
   font-weight: 500;
   color: var(--text-muted);
-  font-size: 12px;
-  padding: 6px 10px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
 
 .proposal-table td {
-  padding: 7px 10px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--border);
-  vertical-align: top;
+  vertical-align: middle;
 }
 
-.proposal-table tbody tr:hover {
+.proposal-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.proposal-row--task:hover {
   background: var(--hover);
+}
+
+/* Строка раздела — заголовок группы со сводкой: чуть подкрашена, чтобы
+   границы разделов читались при беглом просмотре. */
+.proposal-row--category {
+  background: var(--bg-subtle);
+}
+
+.proposal-row__name {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Работы отступают под свой раздел — на ширину шеврона: имена строк одной
+   природы стоят в одной колонке. */
+.proposal-row__name--task {
+  padding-left: 26px;
+}
+
+.proposal-row__chevron {
+  background: none;
+  border: 0;
+  padding: 0 2px;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.proposal-row__chevron:hover {
+  color: var(--text);
+  background: none;
+}
+
+/* «Плюс» и удаление — по наведению, как контролы строк ленты: постоянные
+   кнопки возле каждого раздела читаются как угроза. */
+.proposal-row__add {
+  background: none;
+  border: 0;
+  padding: 0 4px;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 80ms ease;
+}
+
+.proposal-row__delete {
+  opacity: 0;
+  transition: opacity 80ms ease;
+}
+
+.proposal-row--category:hover .proposal-row__add,
+.proposal-row--category:focus-within .proposal-row__add,
+.proposal-row--category:hover .proposal-row__delete,
+.proposal-row--category:focus-within .proposal-row__delete {
+  opacity: 1;
+}
+
+.proposal-row__add:hover {
+  color: var(--accent);
+  background: none;
 }
 
 .proposal-table__num {
@@ -109,6 +159,11 @@
 
 th.proposal-table__num {
   text-align: right;
+}
+
+/* Цена раздела — итог его строк, полужирным, как в макете. */
+.proposal-table__price {
+  font-weight: 600;
 }
 
 /* Имя строки — кнопка на всю ячейку: карточку открывают щелчком по имени,
@@ -135,33 +190,85 @@ th.proposal-table__num {
 
 /* Счётчик реплик — тихим значком после имени, как на строке ленты. */
 .proposal-table__comments {
-  margin-left: 8px;
   color: var(--text-faint);
   font-size: 12px;
   white-space: nowrap;
 }
 
-/* Строка добавления — тихая, под таблицей: смету пишут списком, и окно на
-   каждую строку означало бы открыть и закрыть его столько раз, сколько строк. */
-.proposal-add {
+/* Поле новой строки — на всю ширину таблицы, как строка новой задачи в
+   ленте: пишут имя, остальное правится в карточке. */
+.proposal-table__input {
+  width: 100%;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--text);
+  padding: 2px 0;
+}
+
+.proposal-table__input:focus {
+  outline: none;
+  box-shadow: none;
+}
+
+/* Описание раздела правится на месте — поле не выглядит полем, пока в него
+   не встали: рамка у каждой строки превратила бы таблицу в анкету. */
+.proposal-table__input--quiet {
+  color: var(--text-muted);
+}
+
+.proposal-table__input--quiet:hover {
+  background: var(--hover);
+  border-radius: 4px;
+}
+
+/* --- Допущения и примечания ---------------------------------------------- */
+
+.proposal-notes {
+  margin-top: 20px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 14px 16px;
+}
+
+.proposal-notes__head {
   display: flex;
-  gap: 8px;
-  margin-top: 8px;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
 }
 
-.proposal-add input {
+.proposal-notes__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
   flex: 1;
-  max-width: 360px;
 }
 
-.proposal__empty {
-  margin: 24px 0;
+.proposal-notes__list {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  color: var(--text-muted);
 }
 
-/* Карточка итогов. Ширина фиксированная: итоговая сумма не должна прыгать
-   вправо-влево от того, насколько длинны имена строк слева. */
+.proposal-notes__list li {
+  margin: 2px 0;
+}
+
+.proposal-notes__field {
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+}
+
+/* --- Итоги --------------------------------------------------------------- */
+
+/* Ширина фиксированная: итоговая сумма не должна прыгать вправо-влево от
+   того, насколько длинны имена строк слева. */
 .proposal-summary {
-  width: 260px;
+  width: 264px;
   flex-shrink: 0;
   position: sticky;
   top: 16px;
@@ -184,6 +291,7 @@ th.proposal-table__num {
 .proposal-summary__row {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
   gap: 12px;
   margin: 0 0 8px;
   font-size: 14px;
@@ -198,15 +306,53 @@ th.proposal-table__num {
   font-variant-numeric: tabular-nums;
 }
 
+/* Черта отделяет деньги от объёма: часы и дни — про работу, суммы — про
+   счёт, и читаются они разными вопросами. */
+.proposal-summary__row--first {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  margin-top: 10px;
+}
+
 .proposal-summary__total {
   border-top: 1px solid var(--border);
-  padding-top: 8px;
-  margin-top: 8px;
+  padding-top: 10px;
+  margin-top: 10px;
   font-weight: 600;
 }
 
 .proposal-summary__total dt {
   color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Код валюты — чипом у слова «Итого», как в макете: большая сумма без
+   валюты — это число, а не деньги. */
+.proposal-summary__currency {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+/* Итоговая сумма — крупно и цветом действия: это ответ, ради которого
+   карточку и открывают. */
+.proposal-summary__amount {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* Перенос в план — главное действие вкладки, на месте главной кнопки
+   макета: смета пишется, чтобы стать планом. */
+.proposal-summary__push {
+  width: 100%;
+  margin-top: 14px;
 }
 
 @media (max-width: 900px) {

@@ -770,7 +770,7 @@
     }
   },
   "proposal": {
-    "empty": "No sections yet — add the first one below",
+    "empty": "No sections yet — add the first one with “New section”",
     "settings": {
       "unit": "Estimate in",
       "unit_days": "Days",
@@ -781,25 +781,39 @@
       "currency_invalid": "A three-letter code, e.g. USD"
     },
     "columns": {
+      "work_item": "Work item",
       "task": "Task",
       "description": "Description",
-      "role": "Role",
+      "effort": "Effort",
+      "hours": "Hours",
       "effort_days": "Effort, days",
       "effort_hours": "Effort, hours",
       "rate": "Rate",
       "price": "Price"
     },
+    "format": {
+      "days": "{value}d",
+      "hours": "{value}h",
+      "per_day": "{rate}/d",
+      "per_hour": "{rate}/h"
+    },
     "category": {
-      "add": "Add section",
-      "name": "Section name",
-      "empty": "No tasks in this section yet",
+      "create": "New section",
+      "new_title": "New section",
+      "name": "Name",
+      "description": "Description",
+      "describe": "Description of section “{name}”",
+      "collapse": "Collapse section “{name}”",
+      "expand": "Expand section “{name}”",
+      "add_task": "Add a work item to “{name}”",
       "delete": "Delete section",
-      "delete_warning": "The section “{name}” will be deleted with all its tasks",
+      "delete_warning": "The section “{name}” will be deleted with all its work items",
       "delete_confirm": "Delete section"
     },
     "task": {
-      "add": "Add task",
-      "name": "New task name",
+      "create": "New work item",
+      "new_label": "New work item in “{name}”",
+      "new_placeholder": "What needs to be done",
       "panel_aria": "Proposal line: {name}",
       "role": "Responsible role",
       "description": "Description",
@@ -807,14 +821,19 @@
       "notes": "Notes",
       "risks": "Risks",
       "assumptions": "Assumptions",
-      "delete": "Delete task",
-      "delete_warning": "The task “{name}” will be deleted with its discussion",
-      "delete_confirm": "Delete task"
+      "delete": "Delete work item",
+      "delete_warning": "The work item “{name}” will be deleted with its discussion",
+      "delete_confirm": "Delete work item"
+    },
+    "notes": {
+      "title": "Assumptions & Notes",
+      "edit": "Edit notes",
+      "empty": "No notes yet — assumptions and caveats for the whole proposal live here, one per line"
     },
     "summary": {
       "title": "Proposal summary",
-      "total_days": "Total days",
       "total_hours": "Total hours",
+      "total_duration": "Total duration",
       "subtotal": "Subtotal",
       "tax": "Tax ({rate}%)",
       "total": "Total"

@@ -45,10 +45,19 @@ class ProposalSettingsIn(BaseModel):
     hours_per_day: int | None = Field(default=None, ge=1, le=24)
     tax_rate_pct: float | None = Field(default=None, ge=0, le=100)
     currency: str | None = Field(default=None, min_length=3, max_length=3)
+    #: Допущения и примечания предложения целиком. Пустая строка — стереть;
+    #: None — не трогать.
+    notes: str | None = None
 
 
 class ProposalCategoryIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
+    description: str = ""
+
+
+class ProposalCategoryPatch(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    description: str | None = None
 
 
 class ProposalTaskIn(BaseModel):
@@ -135,6 +144,8 @@ def update_proposal_settings(
         proposal.tax_rate_pct = Decimal(str(changes["tax_rate_pct"]))
     if "currency" in changes:
         proposal.currency = changes["currency"].upper()
+    if "notes" in changes:
+        proposal.notes = changes["notes"]
     db.flush()
     _publish(background, db, context.project.id, _CHANGED)
     return proposal_state(db, context.project)
@@ -151,29 +162,34 @@ def create_proposal_category(
     name = payload.name.strip()
     if not name:
         raise HTTPException(status_code=422, detail="validation_error")
-    category = add_category(db, ensure_proposal(db, context.project), name)
+    category = add_category(
+        db, ensure_proposal(db, context.project), name, payload.description
+    )
     response = {"id": str(category.id), "name": category.name, "position": category.position}
     _publish(background, db, context.project.id, _CHANGED)
     return response
 
 
 @router.patch("/{project_id}/proposal/categories/{category_id}")
-def rename_proposal_category(
+def update_proposal_category(
     category_id: uuid.UUID,
-    payload: ProposalCategoryIn,
+    payload: ProposalCategoryPatch,
     background: BackgroundTasks,
     context: ProjectContext = Depends(project_context),
     db: DbSession = Depends(get_db),
 ):
     context.require(Action.PROJECT_WRITE)
-    name = payload.name.strip()
-    if not name:
+    changes = payload.model_dump(exclude_unset=True, exclude_none=True)
+    if "name" in changes and not changes["name"].strip():
         raise HTTPException(status_code=422, detail="validation_error")
     try:
         category = require_category(db, ensure_proposal(db, context.project), category_id)
     except ProposalError as error:
         raise _refuse(error)
-    category.name = name
+    if "name" in changes:
+        category.name = changes["name"].strip()
+    if "description" in changes:
+        category.description = changes["description"]
     db.flush()
     response = {"id": str(category.id), "name": category.name, "position": category.position}
     _publish(background, db, context.project.id, _CHANGED)
