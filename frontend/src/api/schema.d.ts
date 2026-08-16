@@ -981,8 +981,8 @@ export interface paths {
         delete: operations["delete_proposal_category_api_projects__project_id__proposal_categories__category_id__delete"];
         options?: never;
         head?: never;
-        /** Rename Proposal Category */
-        patch: operations["rename_proposal_category_api_projects__project_id__proposal_categories__category_id__patch"];
+        /** Update Proposal Category */
+        patch: operations["update_proposal_category_api_projects__project_id__proposal_categories__category_id__patch"];
         trace?: never;
     };
     "/api/projects/{project_id}/proposal/categories/{category_id}/tasks": {
@@ -1697,8 +1697,20 @@ export interface components {
         };
         /** ProposalCategoryIn */
         ProposalCategoryIn: {
+            /**
+             * Description
+             * @default
+             */
+            description: string;
             /** Name */
             name: string;
+        };
+        /** ProposalCategoryPatch */
+        ProposalCategoryPatch: {
+            /** Description */
+            description?: string | null;
+            /** Name */
+            name?: string | null;
         };
         /** ProposalCommentIn */
         ProposalCommentIn: {
@@ -1716,6 +1728,8 @@ export interface components {
             effort_unit?: ("days" | "hours") | null;
             /** Hours Per Day */
             hours_per_day?: number | null;
+            /** Notes */
+            notes?: string | null;
             /** Tax Rate Pct */
             tax_rate_pct?: number | null;
         };
@@ -4099,7 +4113,7 @@ export interface operations {
             };
         };
     };
-    rename_proposal_category_api_projects__project_id__proposal_categories__category_id__patch: {
+    update_proposal_category_api_projects__project_id__proposal_categories__category_id__patch: {
         parameters: {
             query?: never;
             header?: never;
@@ -4113,7 +4127,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["ProposalCategoryIn"];
+                "application/json": components["schemas"]["ProposalCategoryPatch"];
             };
         };
         responses: {

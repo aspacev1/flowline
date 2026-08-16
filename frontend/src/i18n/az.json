@@ -770,7 +770,7 @@
     }
   },
   "proposal": {
-    "empty": "Hələ bölmə yoxdur — birincisini aşağıda əlavə edin",
+    "empty": "Hələ bölmə yoxdur — birincisini «Yeni bölmə» düyməsi ilə yaradın",
     "settings": {
       "unit": "Qiymətləndirmə vahidi",
       "unit_days": "Günlər",
@@ -781,25 +781,39 @@
       "currency_invalid": "Üç hərfli kod, məsələn USD"
     },
     "columns": {
+      "work_item": "İş",
       "task": "Tapşırıq",
       "description": "Təsvir",
-      "role": "Rol",
+      "effort": "Həcm",
+      "hours": "Saatlar",
       "effort_days": "Həcm, gün",
       "effort_hours": "Həcm, saat",
       "rate": "Tarif",
       "price": "Qiymət"
     },
+    "format": {
+      "days": "{value}g",
+      "hours": "{value}s",
+      "per_day": "{rate}/g",
+      "per_hour": "{rate}/s"
+    },
     "category": {
-      "add": "Bölmə əlavə et",
-      "name": "Bölmənin adı",
-      "empty": "Bu bölmədə hələ tapşırıq yoxdur",
+      "create": "Yeni bölmə",
+      "new_title": "Yeni bölmə",
+      "name": "Ad",
+      "description": "Təsvir",
+      "describe": "«{name}» bölməsinin təsviri",
+      "collapse": "«{name}» bölməsini yığ",
+      "expand": "«{name}» bölməsini aç",
+      "add_task": "«{name}» bölməsinə iş əlavə et",
       "delete": "Bölməni sil",
-      "delete_warning": "«{name}» bölməsi bütün tapşırıqları ilə birlikdə silinəcək",
+      "delete_warning": "«{name}» bölməsi bütün işləri ilə birlikdə silinəcək",
       "delete_confirm": "Bölməni sil"
     },
     "task": {
-      "add": "Tapşırıq əlavə et",
-      "name": "Yeni tapşırığın adı",
+      "create": "Yeni iş",
+      "new_label": "«{name}» bölməsində yeni iş",
+      "new_placeholder": "Nə edilməlidir",
       "panel_aria": "Smeta sətri: {name}",
       "role": "Məsul rol",
       "description": "Təsvir",
@@ -807,14 +821,19 @@
       "notes": "Qeydlər",
       "risks": "Risklər",
       "assumptions": "Fərziyyələr",
-      "delete": "Tapşırığı sil",
-      "delete_warning": "«{name}» tapşırığı müzakirəsi ilə birlikdə silinəcək",
-      "delete_confirm": "Tapşırığı sil"
+      "delete": "İşi sil",
+      "delete_warning": "«{name}» işi müzakirəsi ilə birlikdə silinəcək",
+      "delete_confirm": "İşi sil"
+    },
+    "notes": {
+      "title": "Fərziyyələr və qeydlər",
+      "edit": "Qeydləri redaktə et",
+      "empty": "Hələ qeyd yoxdur — bütün təklifə aid fərziyyələr və şərtlər burada, hər sətirdə bir bənd yazılır"
     },
     "summary": {
       "title": "Təklifin yekunu",
-      "total_days": "Cəmi gün",
       "total_hours": "Cəmi saat",
+      "total_duration": "Cəmi gün",
       "subtotal": "Vergisiz məbləğ",
       "tax": "Vergi ({rate}%)",
       "total": "Yekun"

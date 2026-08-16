@@ -1151,6 +1151,11 @@
       },
       "ProposalCategoryIn": {
         "properties": {
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
           "name": {
             "maxLength": 200,
             "minLength": 1,
@@ -1162,6 +1167,36 @@
           "name"
         ],
         "title": "ProposalCategoryIn",
+        "type": "object"
+      },
+      "ProposalCategoryPatch": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "ProposalCategoryPatch",
         "type": "object"
       },
       "ProposalCommentIn": {
@@ -1221,6 +1256,17 @@
               }
             ],
             "title": "Hours Per Day"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
           },
           "tax_rate_pct": {
             "anyOf": [
@@ -5432,7 +5478,7 @@
         ]
       },
       "patch": {
-        "operationId": "rename_proposal_category_api_projects__project_id__proposal_categories__category_id__patch",
+        "operationId": "update_proposal_category_api_projects__project_id__proposal_categories__category_id__patch",
         "parameters": [
           {
             "in": "path",
@@ -5475,7 +5521,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ProposalCategoryIn"
+                "$ref": "#/components/schemas/ProposalCategoryPatch"
               }
             }
           },
@@ -5501,7 +5547,7 @@
             "description": "Validation Error"
           }
         },
-        "summary": "Rename Proposal Category",
+        "summary": "Update Proposal Category",
         "tags": [
           "proposal"
         ]

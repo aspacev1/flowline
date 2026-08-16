@@ -86,10 +86,13 @@ def _next_position(db: DbSession, model, owner_column, owner_id: uuid.UUID) -> i
     )
 
 
-def add_category(db: DbSession, proposal: Proposal, name: str) -> ProposalCategory:
+def add_category(
+    db: DbSession, proposal: Proposal, name: str, description: str = ""
+) -> ProposalCategory:
     category = ProposalCategory(
         proposal_id=proposal.id,
         name=name,
+        description=description,
         position=_next_position(db, ProposalCategory, ProposalCategory.proposal_id, proposal.id),
     )
     db.add(category)
@@ -167,6 +170,7 @@ def proposal_state(db: DbSession, project: Project) -> dict:
             "hours_per_day": 8,
             "tax_rate_pct": 0.0,
             "currency": "USD",
+            "notes": "",
             "categories": [],
         }
 
@@ -210,10 +214,12 @@ def proposal_state(db: DbSession, project: Project) -> dict:
         "hours_per_day": proposal.hours_per_day,
         "tax_rate_pct": float(proposal.tax_rate_pct),
         "currency": proposal.currency,
+        "notes": proposal.notes,
         "categories": [
             {
                 "id": str(category.id),
                 "name": category.name,
+                "description": category.description,
                 "position": category.position,
                 "tasks": by_category.get(category.id, []),
             }

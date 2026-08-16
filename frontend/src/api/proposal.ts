@@ -34,6 +34,8 @@ export type ProposalTask = {
 export type ProposalCategory = {
   id: string;
   name: string;
+  /** Одна строка о разделе целиком — стоит на его строке в таблице. */
+  description: string;
   position: number;
   tasks: ProposalTask[];
 };
@@ -45,6 +47,8 @@ export type ProposalState = {
   tax_rate_pct: number;
   /** Код ISO 4217 — например, «USD». */
   currency: string;
+  /** Допущения и примечания предложения целиком, по пункту на строку. */
+  notes: string;
   categories: ProposalCategory[];
 };
 
@@ -53,6 +57,7 @@ export type ProposalSettingsPatch = Partial<{
   hours_per_day: number;
   tax_rate_pct: number;
   currency: string;
+  notes: string;
 }>;
 
 export type ProposalTaskPatch = Partial<{
@@ -97,21 +102,22 @@ export function updateProposalSettings(
 export function createProposalCategory(
   projectId: string,
   name: string,
+  description = "",
 ): Promise<{ id: string; name: string; position: number }> {
   return request(`/api/projects/${projectId}/proposal/categories`, {
     method: "POST",
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, description }),
   });
 }
 
-export function renameProposalCategory(
+export function updateProposalCategory(
   projectId: string,
   categoryId: string,
-  name: string,
+  patch: Partial<{ name: string; description: string }>,
 ): Promise<{ id: string; name: string; position: number }> {
   return request(`/api/projects/${projectId}/proposal/categories/${categoryId}`, {
     method: "PATCH",
-    body: JSON.stringify({ name }),
+    body: JSON.stringify(patch),
   });
 }
 

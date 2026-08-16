@@ -63,6 +63,7 @@ def test_untouched_project_answers_with_default_proposal(authed, project_id):
         "hours_per_day": 8,
         "tax_rate_pct": 0.0,
         "currency": "USD",
+        "notes": "",
         "categories": [],
     }
 
@@ -112,6 +113,40 @@ def test_settings_patch_changes_only_named_fields(authed, project_id):
     assert state["currency"] == "EUR"
     # Не названное в запросе поле не тронуто.
     assert state["hours_per_day"] == 8
+
+
+def test_category_carries_description_and_takes_patches(authed, project_id):
+    """Описание раздела стоит на его строке в таблице — и правится отдельно
+    от имени: patch меняет только присланные поля."""
+    created = authed.post(
+        f"/api/projects/{project_id}/proposal/categories",
+        json={"name": "Discovery", "description": "Понять цели и требования"},
+    )
+    assert created.status_code == 201
+    category_id = created.json()["id"]
+
+    patched = authed.patch(
+        f"/api/projects/{project_id}/proposal/categories/{category_id}",
+        json={"description": "Цели, люди, требования"},
+    )
+    assert patched.status_code == 200
+
+    state = authed.get(f"/api/projects/{project_id}/proposal").json()
+    category = state["categories"][0]
+    assert category["name"] == "Discovery"
+    assert category["description"] == "Цели, люди, требования"
+
+
+def test_proposal_notes_live_on_the_proposal_itself(authed, project_id):
+    """Допущения и примечания — свойство предложения целиком, не строки."""
+    response = authed.patch(
+        f"/api/projects/{project_id}/proposal",
+        json={"notes": "Оценки по текущему объёму.\nСтавки без лицензий."},
+    )
+    assert response.status_code == 200
+
+    state = authed.get(f"/api/projects/{project_id}/proposal").json()
+    assert state["notes"] == "Оценки по текущему объёму.\nСтавки без лицензий."
 
 
 def test_row_comments_are_signed_and_counted(authed, project_id):

@@ -223,13 +223,13 @@ export function Project({
             {/* Вкладки — в адресе, а не в состоянии экрана: на историю
                 ссылаются в переписке, и ссылка обязана открывать её сразу. */}
             <nav className="tabs" aria-label={t("history.tabs_label")}>
-              {/* Предложение — раньше ленты: смета пишется до плана, и
-                  порядок вкладок повторяет порядок работы. */}
-              <NavLink to={`/projects/${projectId}/proposal`} className={tabClass}>
-                {t("history.tab_proposal")}
-              </NavLink>
               <NavLink to={`/projects/${projectId}`} end className={tabClass}>
                 {t("history.tab_gantt")}
+              </NavLink>
+              {/* Предложение — между лентой и историей, как в макете: лента
+                  остаётся первым экраном проекта, смета — рядом. */}
+              <NavLink to={`/projects/${projectId}/proposal`} className={tabClass}>
+                {t("history.tab_proposal")}
               </NavLink>
               <NavLink to={`/projects/${projectId}/history`} className={tabClass}>
                 {t("history.tab_history")}

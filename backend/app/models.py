@@ -795,6 +795,10 @@ class Proposal(Base):
     # Код ISO 4217. Хранится, а не выводится из языка: язык интерфейса и
     # валюта сделки — независимые вещи.
     currency: Mapped[str] = mapped_column(String(3), default="USD", server_default=text("'USD'"))
+    # Допущения и примечания предложения целиком — «оценки по текущему объёму»,
+    # «ставки без стоимости лицензий». Свободный текст, а не список: пункты
+    # пишут строками, и структура списка не добавила бы к ним ничего.
+    notes: Mapped[str] = mapped_column(Text, default="", server_default=text("''"))
 
 
 class ProposalCategory(Base):
@@ -813,6 +817,9 @@ class ProposalCategory(Base):
         ForeignKey("proposals.id", ondelete="CASCADE"), index=True
     )
     name: Mapped[str] = mapped_column(String(200))
+    # Одна строка о разделе целиком — «понять цели, людей и требования»:
+    # в таблице сметы она стоит на строке раздела, рядом с суммой его работ.
+    description: Mapped[str] = mapped_column(Text, default="", server_default=text("''"))
     position: Mapped[int] = mapped_column(Integer, default=0)
 
 
