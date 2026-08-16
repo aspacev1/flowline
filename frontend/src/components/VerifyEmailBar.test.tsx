@@ -1,0 +1,159 @@
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
+import { describe, expect, it } from "vitest";
+
+import { noteVerificationSent } from "../auth/verificationNotice";
+import { server } from "../test/server";
+import { USER, renderApp, sessionHandlers } from "../test/utils";
+
+const UNVERIFIED = { ...USER, email_verified: false };
+
+/** Список проектов — самый обычный экран под рамой; полоска живёт над ним. */
+function openProjects(user: typeof USER = UNVERIFIED) {
+  server.use(
+    // Профиль — первым: внутри одного вызова побеждает объявленный раньше, а
+    // в наборе окружения профиль уже есть, и там адрес подтверждён.
+    http.get("/api/auth/me", () => HttpResponse.json(user)),
+    ...sessionHandlers(),
+    http.get("/api/projects", () => HttpResponse.json([])),
+  );
+  return renderApp({ route: "/projects", locale: "ru" });
+}
+
+describe("полоска «адрес не подтверждён»", () => {
+  it("висит в раме приложения, а не на отдельном экране", async () => {
+    openProjects();
+
+    expect(await screen.findByText(/адрес a@b\.c не подтверждён/i)).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /отправить письмо ещё раз/i }),
+    ).toBeEnabled();
+  });
+
+  it("не показывается тому, кто адрес уже подтвердил", async () => {
+    openProjects(USER);
+
+    // Экран дорисовался — значит, ответ профиля уже пришёл и полоска решила.
+    await screen.findByRole("heading", { name: /проекты/i });
+    expect(screen.queryByText(/не подтверждён/i)).not.toBeInTheDocument();
+  });
+
+  it("молчит в установке без почты: подтверждать адрес там нечем", async () => {
+    server.use(
+      http.get("/api/config", () =>
+        HttpResponse.json({
+          mail_enabled: false,
+          signup_mode: "open",
+          supported_locales: ["ru"],
+          default_locale: "ru",
+          public_sharing_enabled: true,
+          live_enabled: true,
+        }),
+      ),
+    );
+
+    openProjects();
+
+    await screen.findByRole("heading", { name: /проекты/i });
+    expect(screen.queryByText(/не подтверждён/i)).not.toBeInTheDocument();
+  });
+
+  it("отправляет письмо ещё раз и говорит, на какой адрес", async () => {
+    let asked = 0;
+    server.use(
+      http.post("/api/auth/verify-email/resend", () => {
+        asked += 1;
+        return HttpResponse.json({ sent: true });
+      }),
+    );
+
+    openProjects();
+    await userEvent.click(
+      await screen.findByRole("button", { name: /отправить письмо ещё раз/i }),
+    );
+
+    expect(await screen.findByText(/письмо отправлено на a@b\.c/i)).toBeInTheDocument();
+    expect(asked).toBe(1);
+    // Пауза началась: кнопка сама говорит, сколько ждать, вместо того чтобы
+    // ответить «слишком часто» на второе нажатие.
+    expect(screen.getByRole("button", { name: /ещё раз через/i })).toBeDisabled();
+  });
+
+  it("не обещает письмо, которое не ушло, и оставляет кнопку живой", async () => {
+    server.use(
+      http.post("/api/auth/verify-email/resend", () => HttpResponse.json({ sent: false })),
+    );
+
+    openProjects();
+    await userEvent.click(
+      await screen.findByRole("button", { name: /отправить письмо ещё раз/i }),
+    );
+
+    expect(await screen.findByText(/не удалось отправить/i)).toBeInTheDocument();
+    expect(screen.queryByText(/письмо отправлено на/i)).not.toBeInTheDocument();
+    // Паузы нет: ждать нечего, письма не было.
+    expect(
+      screen.getByRole("button", { name: /отправить письмо ещё раз/i }),
+    ).toBeEnabled();
+  });
+
+  it("после регистрации не предлагает нажать то, что ответит «слишком часто»", async () => {
+    // Ровно то, что оставляет о себе экран регистрации: письмо ушло только
+    // что и на этот адрес.
+    noteVerificationSent(UNVERIFIED.email);
+
+    openProjects();
+
+    expect(await screen.findByText(/письмо отправлено на a@b\.c/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /ещё раз через/i })).toBeDisabled();
+  });
+
+  it("встречает зарегистрировавшегося строкой «письмо отправлено на …»", async () => {
+    // Настоящий путь целиком: форма регистрации, ответ сервера, переход
+    // внутрь. Письмо сервер отправляет сам, следом за ответом, и полоска —
+    // единственное место, где человек об этом узнаёт.
+    server.use(
+      http.get("/api/auth/me", () => HttpResponse.json(UNVERIFIED)),
+      ...sessionHandlers(),
+      http.get("/api/projects", () => HttpResponse.json([])),
+      http.post("/api/auth/register", () => HttpResponse.json(UNVERIFIED, { status: 201 })),
+    );
+
+    renderApp({ route: "/register", locale: "ru" });
+    await userEvent.type(await screen.findByLabelText(/имя/i), "Алексей");
+    await userEvent.type(screen.getByLabelText(/почта/i), UNVERIFIED.email);
+    await userEvent.type(screen.getByLabelText(/пароль/i), "s3cret-pass");
+    await userEvent.click(screen.getByRole("button", { name: /зарегистрироваться/i }));
+
+    expect(await screen.findByText(/письмо отправлено на a@b\.c/i)).toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent("/projects");
+  });
+
+  it("не показывает чужое письмо следующему вошедшему", async () => {
+    noteVerificationSent("someone-else@example.com");
+
+    openProjects();
+
+    expect(await screen.findByText(/адрес a@b\.c не подтверждён/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /отправить письмо ещё раз/i })).toBeEnabled();
+  });
+
+  it("объясняет отказ сервера словами, а не кодом", async () => {
+    server.use(
+      http.post("/api/auth/verify-email/resend", () =>
+        HttpResponse.json({ detail: "too_many_requests" }, { status: 429 }),
+      ),
+    );
+
+    openProjects();
+    await userEvent.click(
+      await screen.findByRole("button", { name: /отправить письмо ещё раз/i }),
+    );
+
+    await waitFor(() =>
+      expect(screen.getByText(/слишком часто/i)).toBeInTheDocument(),
+    );
+    expect(screen.queryByText(/too_many_requests/)).not.toBeInTheDocument();
+  });
+});

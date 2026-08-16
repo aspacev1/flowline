@@ -376,6 +376,10 @@ export interface paths {
          *     сценарий — письмо на телефоне, работа на ноутбуке; сам токен при этом
          *     одноразовый, живёт сутки и достаточно длинный, чтобы его нельзя было
          *     подобрать.
+         *
+         *     Повторное открытие — не отказ, а тот же успех с оговоркой: по ссылке из
+         *     письма ходят дважды, и второй заход должен рассказывать про подтверждённый
+         *     адрес, а не про недействительную ссылку.
          */
         post: operations["verify_email_route_api_auth_verify_email_post"];
         delete?: never;
@@ -2303,6 +2307,18 @@ export interface components {
             /** Token */
             token: string;
         };
+        /**
+         * VerifyEmailOut
+         * @description Итог погашения ссылки.
+         *
+         *     Признак, а не два разных ответа: адрес подтверждён в обоих случаях, и
+         *     интерфейсу нужно только выбрать слова — «адрес подтверждён» или «адрес
+         *     уже подтверждён».
+         */
+        VerifyEmailOut: {
+            /** Already Verified */
+            already_verified: boolean;
+        };
     };
     responses: never;
     parameters: never;
@@ -3033,11 +3049,13 @@ export interface operations {
         };
         responses: {
             /** @description Successful Response */
-            204: {
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["VerifyEmailOut"];
+                };
             };
             /** @description Validation Error */
             422: {

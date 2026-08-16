@@ -88,6 +88,17 @@ class MailResultOut(BaseModel):
     sent: bool
 
 
+class VerifyEmailOut(BaseModel):
+    """Итог погашения ссылки.
+
+    Признак, а не два разных ответа: адрес подтверждён в обоих случаях, и
+    интерфейсу нужно только выбрать слова — «адрес подтверждён» или «адрес
+    уже подтверждён».
+    """
+
+    already_verified: bool
+
+
 def _cookie_is_secure(request: Request) -> bool:
     """Ставить ли на куку флаг Secure.
 
@@ -415,7 +426,7 @@ def close_other_sessions_route(
     )
 
 
-@router.post("/verify-email", status_code=204)
+@router.post("/verify-email", response_model=VerifyEmailOut)
 def verify_email_route(payload: VerifyEmailIn, db: DbSession = Depends(get_db)):
     """Погашение ссылки из письма. Куки не требует.
 
@@ -424,11 +435,16 @@ def verify_email_route(payload: VerifyEmailIn, db: DbSession = Depends(get_db)):
     сценарий — письмо на телефоне, работа на ноутбуке; сам токен при этом
     одноразовый, живёт сутки и достаточно длинный, чтобы его нельзя было
     подобрать.
+
+    Повторное открытие — не отказ, а тот же успех с оговоркой: по ссылке из
+    письма ходят дважды, и второй заход должен рассказывать про подтверждённый
+    адрес, а не про недействительную ссылку.
     """
     try:
-        confirm_email(db, payload.token)
+        confirmation = confirm_email(db, payload.token)
     except VerificationError as exc:
         raise HTTPException(status_code=400, detail=exc.code)
+    return VerifyEmailOut(already_verified=confirmation.already_verified)
 
 
 @router.post("/verify-email/resend", response_model=MailResultOut)
