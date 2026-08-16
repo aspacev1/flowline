@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { captureMutations, projectFixtures, renderProject } from "../test/project";
 import { server } from "../test/server";
-import { USER, renderApp, sessionHandlers } from "../test/utils";
+import { ORG, USER, renderApp, sessionHandlers } from "../test/utils";
 
 const STATE = {
   id: "p1",
@@ -131,14 +131,75 @@ describe("экран проекта", () => {
     renderApp({ route: "/projects/p1", locale: "ru" });
 
     await screen.findByRole("heading", { name: "Редизайн" });
-    // Рядом с названием проекта и с подлежащим в подписи: «Настройки» без него
-    // в колонке рядом ведут в настройки рабочего пространства.
+    // Подпись — одно слово, а вслух называется подлежащее: в колонке рядом
+    // тем же словом подписан вход в настройки рабочего пространства, и на
+    // глаз их различает место, которого не видно тому, кто экран слушает.
     const settings = screen.getByRole("link", { name: "Настройки проекта" });
+    expect(settings).toHaveTextContent(/^Настройки$/);
     expect(settings).toHaveAttribute("href", "/projects/p1/settings");
     expect(settings.closest(".project-head")).not.toBeNull();
     expect(screen.getByRole("link", { name: "Настройки" })).toHaveAttribute("href", "/settings");
     // Кебаб «⋯» не рисуется — в нём был единственный пункт, и тот переехал.
     expect(screen.queryByRole("button", { name: /Ещё действия/i })).not.toBeInTheDocument();
+  });
+
+  it("действия шапки — со значками и ростом с кнопку согласования плана", async () => {
+    server.use(...sessionHandlers(), http.get("/api/projects/p1", () => HttpResponse.json(STATE)));
+
+    renderApp({ route: "/projects/p1", locale: "ru" });
+
+    await screen.findByRole("heading", { name: "Редизайн" });
+    const actions = document.querySelector(".project-head__actions");
+    expect(actions).not.toBeNull();
+    // У каждого действия свой значок, и все они спрятаны от чтения вслух:
+    // рядом стоит слово, и озвученный значок повторил бы его.
+    const icons = actions!.querySelectorAll(".icon");
+    expect(icons).toHaveLength(3);
+    for (const icon of icons) expect(icon).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("пригласить — рядом с «Поделиться», и зовёт в организацию, а не в проект", async () => {
+    server.use(
+      ...sessionHandlers(),
+      http.get("/api/projects/p1", () => HttpResponse.json(STATE)),
+      http.get("/api/org/invitations", () =>
+        HttpResponse.json({ mail_enabled: false, invitations: [] }),
+      ),
+    );
+
+    renderApp({ route: "/projects/p1", locale: "ru" });
+
+    await screen.findByRole("heading", { name: "Редизайн" });
+    const actions = document.querySelector(".project-head__actions");
+    const invite = screen.getByRole("button", { name: "Пригласить" });
+    // В одном ряду с публикацией: обе отвечают на «дать посмотреть».
+    expect(invite.closest(".project-head__actions")).toBe(actions);
+    expect(screen.getByRole("button", { name: "Поделиться" }).closest(".project-head__actions"))
+      .toBe(actions);
+
+    await userEvent.click(invite);
+
+    // То же окно, что и на экране состава: приглашают в организацию, откуда бы
+    // ни звали, — и роль с правами выдаёт именно оно.
+    expect(await screen.findByRole("dialog")).toHaveTextContent("Пригласить в организацию");
+  });
+
+  it("не владельцу приглашать нечем: сервер такую попытку отклонит", async () => {
+    server.use(
+      // Раньше оснастки: из обработчиков одного вызова msw берёт первый
+      // подходящий, и общая организация перебила бы эту. Редактор проект
+      // менять может, а звать людей в организацию — нет.
+      http.get("/api/org", () => HttpResponse.json({ ...ORG, role: "editor" })),
+      ...sessionHandlers(),
+      http.get("/api/projects/p1", () => HttpResponse.json(STATE)),
+    );
+
+    renderApp({ route: "/projects/p1", locale: "ru" });
+
+    await screen.findByRole("heading", { name: "Редизайн" });
+    // Остальные действия при этом на месте: право писать у редактора есть.
+    expect(screen.getByRole("button", { name: "Поделиться" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Пригласить" })).not.toBeInTheDocument();
   });
 });
 

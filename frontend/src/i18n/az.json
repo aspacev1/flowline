@@ -636,7 +636,6 @@
   },
   "members": {
     "title": "İştirakçılar",
-    "invite": "Dəvət et",
     "role": {
       "owner": "Sahib",
       "editor": "Redaktor",
@@ -645,6 +644,7 @@
     }
   },
   "invite": {
+    "open": "Dəvət et",
     "title": "Təşkilata dəvət",
     "emails": "Ünvanlar",
     "emails_hint": "Bir neçəsini birdən yazmaq olar — vergüllə və ya yeni sətirdə",
@@ -745,7 +745,8 @@
     },
     "project": {
       "title": "«{name}» layihəsinin parametrləri",
-      "link": "Layihə parametrləri",
+      "link": "Parametrlər",
+      "link_aria": "Layihə parametrləri",
       "back": "Diaqrama qayıt",
       "name": "Ad",
       "slug": "Ünvan (slug)",

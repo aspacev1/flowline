@@ -636,7 +636,6 @@
   },
   "members": {
     "title": "Members",
-    "invite": "Invite",
     "role": {
       "owner": "Owner",
       "editor": "Editor",
@@ -645,6 +644,7 @@
     }
   },
   "invite": {
+    "open": "Invite",
     "title": "Invite to the organization",
     "emails": "Addresses",
     "emails_hint": "Several at once — separated by commas or line breaks",
@@ -745,7 +745,8 @@
     },
     "project": {
       "title": "Settings for “{name}”",
-      "link": "Project settings",
+      "link": "Settings",
+      "link_aria": "Project settings",
       "back": "Back to the chart",
       "name": "Name",
       "slug": "Address (slug)",

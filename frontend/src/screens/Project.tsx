@@ -8,6 +8,8 @@ import { MEMBERS_QUERY_KEY, members } from "../api/org";
 import { getProject, projectQueryKey } from "../api/projects";
 import type { Category } from "../api/projects";
 import { useCanWrite, useOrgRole } from "../auth/permissions";
+import { IconInvite, IconSettings, IconShare } from "../components/icons";
+import { InviteDialog } from "../components/InviteDialog";
 import { Modal } from "../components/Modal";
 import { Gantt } from "../gantt/Gantt";
 import type { NewTaskAt } from "../gantt/Gantt";
@@ -55,6 +57,10 @@ export function Project({
   // заново, и окно, помнящее объект, называло бы человеку старое имя.
   const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
+  // Окно приглашения в организацию. Открывается прямо с проекта: зовут людей
+  // тогда, когда смотрят на работу, которую собираются им отдать, а не когда
+  // зашли в настройки рабочего пространства.
+  const [inviting, setInviting] = useState(false);
   // Окно привязки плана к дате старта — и переноса уже назначенной даты.
   const [scheduling, setScheduling] = useState(false);
   // Где открыта строка новой задачи. `null` — закрыта.
@@ -193,6 +199,12 @@ export function Project({
               }
               // Гостю кнопки не передаются вовсе: они обещали бы действие,
               // которое сервер отклонит.
+              //
+              // Каждое действие — со значком слева от подписи: ряд одинаковых
+              // плашек различался только словом, и найти в нём нужную можно
+              // было, лишь прочитав все подряд, а рисунок находится глазом
+              // раньше, чем читается слово. Значки `aria-hidden`: вслух они
+              // повторили бы стоящую рядом подпись.
               actions={
                 <>
                   {/* Публикация — действие над проектом, и стоит она в общем
@@ -207,20 +219,53 @@ export function Project({
                       disabled={offline}
                       onClick={() => setSharing(true)}
                     >
+                      <IconShare />
                       {t("share.open")}
+                    </button>
+                  )}
+                  {/* Приглашение стоит рядом с публикацией: обе кнопки отвечают
+                      на «дать посмотреть», и разница между ними — кому. Ссылка
+                      открывает проект на чтение кому угодно, приглашение зовёт
+                      человека в организацию с ролью и правами.
+
+                      Право здесь строже соседей — владелец, а не всякий, кто
+                      может писать: приглашение раздаёт доступ ко всей
+                      организации, и сервер (invitations.py) отвечает на чужую
+                      попытку отказом. Обрыв живой связи кнопку не гасит, в
+                      отличие от публикации: приглашение не пишет в проект и
+                      устаревшего состояния перед собой не имеет. */}
+                  {role === "owner" && (
+                    <button
+                      type="button"
+                      className="button--quiet"
+                      onClick={() => setInviting(true)}
+                    >
+                      <IconInvite />
+                      {t("invite.open")}
                     </button>
                   )}
                   {/* Настройки — здесь, а не в боковом меню, куда они на время
                       уезжали: колонка одна на всё приложение, а настройки —
-                      этого проекта, и слово «Настройки» в общем ряду не
-                      называло, чего именно. Подпись всё равно с подлежащим:
-                      в колонке рядом стоит вход в настройки рабочего
-                      пространства, и два одинаковых слова на одном экране
-                      вернули бы ровно ту двусмысленность, ради которой всё и
-                      разводилось. Право то же, что и у остальных действий:
-                      читателю ссылка обещала бы отказ сервера. */}
+                      этого проекта.
+
+                      Подпись — одно слово, а полное имя действия отдано
+                      `aria-label`: в колонке рядом стоит вход в настройки
+                      рабочего пространства с тем же словом, и различает их
+                      место — ряд действий проекта под его названием — вместе со
+                      значком. Тому, кто слушает экран, места не видно, и ему
+                      по-прежнему называется подлежащее. Видимая подпись входит
+                      в озвученную целиком, поэтому голосовое управление
+                      («нажми настройки») попадает по кнопке.
+
+                      Право то же, что и у остальных действий: читателю ссылка
+                      обещала бы отказ сервера. */}
                   {canWrite && (
-                    <Link to={`/projects/${projectId}/settings`} className="button-link">
+                    <Link
+                      to={`/projects/${projectId}/settings`}
+                      className="button-link"
+                      aria-label={t("settings.project.link_aria")}
+                    >
+                      <IconSettings />
                       {t("settings.project.link")}
                     </Link>
                   )}
@@ -352,6 +397,14 @@ export function Project({
             )}
 
             {sharing && <ShareDialog projectId={projectId} onClose={() => setSharing(false)} />}
+
+            {/* Тот же состав полей, что и на экране состава организации, — и
+                тот же компонент: приглашают одинаково, откуда бы ни звали.
+                Проект передаётся дальше: роль «Клиент» видит только отмеченные
+                проекты, и тот, из которого позвали, отмечен заранее. */}
+            {inviting && (
+              <InviteDialog projectId={projectId} onClose={() => setInviting(false)} />
+            )}
 
             {scheduling && (
               <StartDateDialog

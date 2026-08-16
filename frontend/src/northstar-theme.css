@@ -194,7 +194,25 @@ button.sidebar__button { height: 34px; padding: 0 var(--sidebar-gutter); border-
 
 .project-head__plan-note { color: var(--danger-strong); font-style: normal; font-size: 13px; font-weight: 600; }
 .project-head__actions { gap: 8px; justify-content: flex-end; }
-.project-head__actions a { display: inline-flex; align-items: center; height: var(--control); padding: 0 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-md); text-decoration: none; color: var(--text); }
+/* Рамки здесь нет: ссылке-кнопке её край рисует общее правило `.button-link`
+   тем же внутренним контуром, что и тихим кнопкам рядом, — и настоящая рамка
+   поверх него давала «Настройкам» двойной край, заметный ровно теперь, когда
+   три действия стоят в ряд одного роста. */
+.project-head__actions a { display: inline-flex; align-items: center; border-radius: var(--radius-md); text-decoration: none; color: var(--text); }
+/* Ростом с кнопку согласования плана, стоящую строкой выше, — и по той же
+   причине, по какой невысока она: это действия при проекте, а не сам проект.
+   Три плашки в полный рост стояли вровень с его названием и отбирали у него
+   первый взгляд; здесь же после «Пригласить» их стало ещё больше.
+
+   Селектор ссылки — через `.screen` по той же причине, по какой он двойной у
+   самой ссылки-кнопки: правило `.screen .button-link` задаёт ей рост органа
+   управления, и одинокая пара классов его не перебила бы. */
+.project-head__actions button,
+.screen .project-head__actions .button-link { height: 29px; padding: 0 10px; font-size: 12px; }
+/* Значок на невысокой кнопке — мельче общего: шестнадцать пикселей рядом с
+   двенадцатым кеглем читаются как картинка с подписью, а не как подпись со
+   значком. */
+.project-head__actions .icon { width: 14px; height: 14px; color: var(--text-muted); }
 /* Кнопка согласования стоит в строке плана, сразу за плашкой версии, и её
    высота повторяет высоту плашки — иначе кнопка раздувает строку сводки. */
 .project-head__approval { display: inline-flex; align-items: center; }
