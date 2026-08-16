@@ -237,6 +237,25 @@ def test_switched_off_comments_close_writing_but_not_reading(client, authed, pub
     assert _guest(client, published).json()["comments_enabled"] is False
 
 
+def test_the_guest_counter_leaves_out_the_internal_thread(client, authed, published):
+    project_id, task_id = published["project_id"], published["task_id"]
+    authed.post(
+        f"/api/projects/{project_id}/comments",
+        json={"body": "видно всем", "task_id": task_id},
+    )
+    authed.post(
+        f"/api/projects/{project_id}/comments",
+        json={"body": "в сторону", "task_id": task_id, "internal": True},
+    )
+
+    counts = _guest(client, published, "/comments/counts").json()
+
+    # Число рядом с задачей не должно проговариваться о том, чего в гостевой
+    # ленте нет вовсе: там одна реплика — значит, и в счёте одна.
+    assert counts == {task_id: 1}
+    assert authed.get(f"/api/projects/{project_id}/comments/counts").json() == {task_id: 2}
+
+
 def test_a_flood_of_guest_comments_is_cut_off(client, published, monkeypatch):
     import app.api.public_routes as public_routes
 

@@ -1294,6 +1294,18 @@
             "title": "Name",
             "type": "string"
           },
+          "position": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          },
           "progress_pct": {
             "default": 0,
             "maximum": 100.0,
@@ -4626,6 +4638,64 @@
         ]
       }
     },
+    "/api/projects/{project_id}/comments/counts": {
+      "get": {
+        "description": "Сколько реплик у каждой задачи — числом на строке ленты.\n\nОтдельным маршрутом, а не полем в состоянии проекта: комментарий состояния\nне меняет и ревизии не рождает, поэтому состояние после него не\nперезапрашивается, и счётчик, вшитый в него, показывал бы вчерашнее число\nдо ближайшей правки плана. Здесь же он обновляется вместе с самой лентой\nреплик — по тому же событию сокета.",
+        "operationId": "project_comment_counts_api_projects__project_id__comments_counts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "planora_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Planora Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Project Comment Counts",
+        "tags": [
+          "projects"
+        ]
+      }
+    },
     "/api/projects/{project_id}/mutations": {
       "post": {
         "operationId": "apply_mutation_api_projects__project_id__mutations_post",
@@ -5825,6 +5895,66 @@
           }
         },
         "summary": "Add Public Comment",
+        "tags": [
+          "public"
+        ]
+      }
+    },
+    "/api/public/{org_slug}/{project_slug}/comments/counts": {
+      "get": {
+        "description": "Счётчик реплик на строках публичной ленты — без внутренних.\n\nТот же фильтр, что и у ленты выше: гость внутренних реплик не видит, и\nчисло рядом с задачей не должно проговариваться о том, чего в его ленте\nнет вовсе.",
+        "operationId": "public_comment_counts_api_public__org_slug___project_slug__comments_counts_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "org_slug",
+            "required": true,
+            "schema": {
+              "title": "Org Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_slug",
+            "required": true,
+            "schema": {
+              "title": "Project Slug",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "s",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "S",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Public Comment Counts",
         "tags": [
           "public"
         ]

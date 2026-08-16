@@ -470,16 +470,108 @@ def test_undo_of_a_task_delete_restores_its_original_position(db, project, categ
     assert db.get(Task, second_task_id).position == 1
 
 
+def _make(db, project, category, name: str, position: int | None = None):
+    return apply_op(
+        db,
+        project,
+        CreateTask(
+            category_id=str(category.id),
+            name=name,
+            start_date=date(2026, 3, 4),
+            duration_days=2,
+            position=position,
+        ),
+        actor_id=None,
+    )
+
+
+def _order(db, category) -> list[str]:
+    """Названия строк категории в том порядке, в каком их читает лента."""
+    rows = db.scalars(
+        select(Task).where(Task.category_id == category.id).order_by(Task.position, Task.id)
+    ).all()
+    return [row.name for row in rows]
+
+
+def test_a_task_created_at_a_taken_slot_pushes_the_row_below(db, project, category):
+    _make(db, project, category, "First")
+    _make(db, project, category, "Second")
+
+    # «Плюс» на границе строк: задача заводится там, куда указали, а не в
+    # конце списка.
+    _make(db, project, category, "Between", position=1)
+
+    assert _order(db, category) == ["First", "Between", "Second"]
+
+
+def test_a_task_created_at_a_free_slot_leaves_the_neighbours_alone(db, project, category):
+    first = _make(db, project, category, "First")
+    _make(db, project, category, "Second")
+
+    # Хвост списка ничей: сдвигать ради него некого.
+    _make(db, project, category, "Third", position=2)
+
+    assert _order(db, category) == ["First", "Second", "Third"]
+    assert db.get(Task, first.op["task_id"]).position == 0
+
+
+def test_undo_of_a_delete_returns_the_task_even_when_its_slot_was_retaken(
+    db, project, category
+):
+    """Отмена удаления не падает на занятом номере, а раздвигает список.
+
+    Перестановка перенумеровывает строки подряд и закрывает дыру от удалённой
+    задачи. До этого возврат на прежний номер нарушал бы уникальность
+    (category_id, position) — то есть отменялся бы пятисоткой.
+    """
+    _make(db, project, category, "First")
+    second = _make(db, project, category, "Second")
+    third = _make(db, project, category, "Third")
+
+    deleted = apply_op(db, project, DeleteTask(task_id=second.op["task_id"]), actor_id=None)
+    apply_op(
+        db,
+        project,
+        ReorderTask(
+            task_id=third.op["task_id"], category_id=str(category.id), position=1
+        ),
+        actor_id=None,
+    )
+    assert db.get(Task, third.op["task_id"]).position == 1
+
+    undo(db, project, deleted, actor_id=None)
+
+    assert db.get(Task, second.op["task_id"]).position == 1
+    assert _order(db, category) == ["First", "Second", "Third"]
+
+
+def test_the_wire_carries_the_position_but_still_not_the_identifier(db, project, category):
+    internal = to_internal(
+        PublicCreateTask(
+            category_id=str(category.id),
+            name="Logo",
+            start_date=date(2026, 3, 4),
+            duration_days=5,
+            position=2,
+        )
+    )
+
+    # Место строки выбирает человек, идентификатор — сервер.
+    assert internal.position == 2
+    assert internal.task_id is None
+
+
 def test_public_operations_are_a_subset_of_the_internal_ones():
     """Публичная модель отличается от внутренней ровно полями восстановления.
 
     Пин против расхождения: новое поле, добавленное только во внутреннюю
     модель, — норма, но новое поле восстановления, случайно попавшее в
-    публичную, здесь и всплывёт.
+    публичную, здесь и всплывёт. Позиции задачи в этом списке нет намеренно:
+    она принимается по проводу — место строки выбирает человек (см. комментарий
+    к контракту в mutations.py).
     """
     assert set(PublicCreateTask.model_fields) | {
         "task_id",
-        "position",
         "assignees",
         "dependencies",
         "comments",

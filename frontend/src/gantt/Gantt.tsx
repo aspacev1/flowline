@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { CSSProperties, ReactNode } from "react";
 
 import { TASK_STATUSES } from "../api/projects";
@@ -71,16 +79,27 @@ function byPosition<T extends { position: number; id: string }>(rows: T[]): T[] 
   return [...rows].sort((a, b) => a.position - b.position || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
 
+/**
+ * Куда открыта строка новой задачи.
+ *
+ * `before` — задача, над которой встанет новая; `null` — конец категории.
+ * Место названо строкой, а не номером: номер задачи меняется от чужой
+ * перестановки, а «перед вот этой» остаётся тем же местом и после неё.
+ */
+export type NewTaskAt = { categoryId: string; before: string | null };
+
 export function Gantt({
   projectId,
   state,
   canWrite = false,
   onAddTask,
-  newTaskIn = null,
+  newTaskAt = null,
   onCloseNewTask,
   onDeleteCategory,
   selectedTaskId = null,
   onSelectTask,
+  onOpenComments,
+  commentCounts,
   toolbarAction,
   scheduleAction,
   assigneeNames,
@@ -89,22 +108,38 @@ export function Gantt({
   state: ProjectState;
   /** Может ли этот человек менять проект. Гость только смотрит. */
   canWrite?: boolean;
-  /** Плюс на строке категории. Без него диаграмма остаётся на чтение. */
-  onAddTask?: (categoryId: string) => void;
   /**
-   * Категория, в конце которой открыта строка новой задачи. `null` — закрыта.
+   * Завести задачу: плюсом на строке категории (в её конец) или плюсом на
+   * границе строк (перед названной). Без него диаграмма остаётся на чтение.
+   */
+  onAddTask?: (at: NewTaskAt) => void;
+  /**
+   * Где открыта строка новой задачи. `null` — закрыта.
    *
    * Состоянием снаружи, а не внутри ленты: ту же строку открывает кнопка
    * тулбара, а тулбар приходит с экрана готовым узлом (см. `toolbarAction`), и
    * дотянуться до состояния ленты ему было бы нечем.
    */
-  newTaskIn?: string | null;
+  newTaskAt?: NewTaskAt | null;
   onCloseNewTask?: () => void;
   /** Крестик на строке пустой категории. Без него категории не удаляются. */
   onDeleteCategory?: (categoryId: string) => void;
   /** Задача, карточка которой открыта. */
   selectedTaskId?: string | null;
   onSelectTask?: (taskId: string) => void;
+  /**
+   * Открыть обсуждение задачи — счётчиком реплик на строке.
+   *
+   * Отдельно от `onSelectTask`, а не вторым доводом к нему: лента не знает, из
+   * чего состоит карточка задачи, и называть ей вкладки значило бы завести
+   * второе место, где перечислены разделы карточки.
+   */
+  onOpenComments?: (taskId: string) => void;
+  /**
+   * Сколько реплик у каждой задачи. Пропсом, как и состав организации:
+   * спрашивает экран, лента получает готовое (см. `assigneeNames`).
+   */
+  commentCounts?: ReadonlyMap<string, number>;
   /** Primary project action shown beside the working timeline controls. */
   toolbarAction?: ReactNode;
   /**
@@ -114,7 +149,8 @@ export function Gantt({
    */
   scheduleAction?: ReactNode;
   /**
-   * Имена исполнителей по идентификаторам — для карточки наведения.
+   * Состав организации: имена по идентификаторам. Ими подписаны исполнители в
+   * карточке наведения и в колонке — из них же выбирают новых прямо со строки.
    *
    * Пропсом, а не запросом изнутри: спрашивает экран, лента получает готовое.
    * Признака «это публичная страница» у ленты нет и заводить его не за чем, а
@@ -205,6 +241,7 @@ export function Gantt({
   // не видно, читается как бездействие. Тот же набор возвращается неизменным,
   // когда разворачивать нечего: новый объект здесь тянул бы перерисовку ленты
   // на каждом ответе сервера.
+  const newTaskIn = newTaskAt?.categoryId ?? null;
   useEffect(() => {
     if (newTaskIn === null) return;
     setClosed((current) => {
@@ -345,7 +382,25 @@ export function Gantt({
   // Заводить задачи может только тот, кто может писать: строка ввода у
   // читателя обещала бы отказ сервера. Признак считается один раз — по нему
   // строка и рисуется, и занимает место в счёте строк ниже.
-  const newTaskShown = canWrite && newTaskIn !== null;
+  const newTaskShown = canWrite && newTaskAt !== null;
+
+  /**
+   * Задача, над которой в этой категории открыта строка ввода. `null` — ввод
+   * идёт в конец категории или не в неё вовсе.
+   *
+   * Названной задачи может уже не быть: её удалили в соседней вкладке, пока
+   * поле было открыто. Тогда строка ввода не пропадает вместе с ней, а
+   * съезжает в конец категории — написанное в поле дороже точности места.
+   */
+  const draftBefore = (category: Category): string | null => {
+    if (!newTaskShown || newTaskAt.categoryId !== category.id || newTaskAt.before === null) {
+      return null;
+    }
+    const target = newTaskAt.before;
+    return (tasksByCategory.get(category.id) ?? []).some((task) => task.id === target)
+      ? target
+      : null;
+  };
 
   // Номера строк в том же порядке, в каком они ниже и рисуются: строка
   // категории, затем её задачи. Нужны стрелкам — им неоткуда узнать, на какой
@@ -354,23 +409,42 @@ export function Gantt({
   let rowCount = 0;
   for (const category of categories) {
     rowCount += 1;
+    const open = !closed.has(category.id);
+    const draftIn = newTaskShown && newTaskAt.categoryId === category.id;
+    // Строки ожидания — тоже строки: они стоят в середине ленты, и стрелки
+    // к задачам всех категорий ниже уехали бы на строку вверх, не будь они
+    // здесь сосчитаны. Считаются вместе со строкой ввода: они и рисуются
+    // вместе с ней — там, куда вставляют.
+    const draftRows =
+      (open ? quick.pendingIn(category.id).length : 0) + (draftIn ? 1 : 0);
+    const before = draftBefore(category);
     // Задачи свёрнутой категории строк не занимают, и стрелка к ним не
     // рисуется — ей просто не с чем совпасть (см. Arrows).
-    if (!closed.has(category.id)) {
+    if (open) {
       for (const task of tasksByCategory.get(category.id) ?? []) {
+        if (task.id === before) rowCount += draftRows;
         rowOf.set(task.id, rowCount);
         rowCount += 1;
       }
-      // Строки ожидания — тоже строки: они стоят в середине ленты, и стрелки
-      // к задачам всех категорий ниже уехали бы на строку вверх, не будь они
-      // здесь сосчитаны.
-      rowCount += quick.pendingIn(category.id).length;
     }
     // Строка ввода видна и в свёрнутой категории — потому и сосчитана вне
     // условия: категорию сворачивают и посреди набора, а поле, исчезнувшее
     // из-под курсора, унесло бы с собой написанное.
-    if (newTaskShown && newTaskIn === category.id) rowCount += 1;
+    if (before === null) rowCount += draftRows;
   }
+
+  /**
+   * Номер, на который ляжет новая задача, — или `undefined` для конца списка.
+   *
+   * `sent` — сколько задач эта же строка ввода уже отправила: «а», «б», «в»
+   * подряд обязаны лечь в набранном порядке, а каждая предыдущая сдвигает
+   * названную строку на единицу вниз (см. NewTaskRow).
+   */
+  const insertPosition = (before: string | null, sent: number): number | undefined => {
+    if (before === null) return undefined;
+    const target = state.tasks.find((task) => task.id === before);
+    return target === undefined ? undefined : target.position + sent;
+  };
 
   return (
     // Карточка наведения живёт рядом с лентой, а не внутри неё: она стоит по
@@ -588,6 +662,37 @@ export function Gantt({
                 {categories.map((category: Category) => {
                   const tasks = tasksByCategory.get(category.id) ?? [];
                   const open = !closed.has(category.id);
+                  const before = draftBefore(category);
+                  // Строки ожидания и поле ввода — одним куском: они стоят там,
+                  // куда вставляют, а не всегда в конце категории. Иначе имя,
+                  // только что отправленное, мигало бы внизу списка, чтобы через
+                  // мгновение оказаться посередине.
+                  const draft = (
+                    <>
+                      {open &&
+                        quick.pendingIn(category.id).map((row) => (
+                          <PendingRow
+                            key={row.id}
+                            layout={layout}
+                            scale={scale}
+                            name={row.name}
+                            title={t("task.new.creating")}
+                          />
+                        ))}
+                      {newTaskShown && newTaskAt.categoryId === category.id && (
+                        <NewTaskRow
+                          layout={layout}
+                          scale={scale}
+                          label={t("task.new.aria", { category: category.name })}
+                          placeholder={t("task.new.placeholder")}
+                          onCreate={(name, sent) =>
+                            quick.create(category.id, name, insertPosition(before, sent))
+                          }
+                          onClose={() => onCloseNewTask?.()}
+                        />
+                      )}
+                    </>
+                  );
                   return (
                     <div key={category.id} className="gantt__group">
                       <CategoryRow
@@ -600,7 +705,11 @@ export function Gantt({
                         canWrite={canWrite}
                         moveLabel={t("gantt.move_category", { name: category.name })}
                         addLabel={t("task.add_to", { category: category.name })}
-                        onAddTask={onAddTask}
+                        // Плюс на строке категории кладёт задачу в её конец:
+                        // место в середине выбирают плюсом на границе строк.
+                        onAddTask={
+                          onAddTask && ((categoryId) => onAddTask({ categoryId, before: null }))
+                        }
                         deleteLabel={t("category.delete", { name: category.name })}
                         // Крестик — только у пустой категории: непустую сервер
                         // откажется удалять (сначала разбирают задачи), и
@@ -613,63 +722,56 @@ export function Gantt({
                       />
                       {open &&
                         tasks.map((task) => (
-                        <TaskRow
-                          key={task.id}
-                          projectId={projectId}
-                          task={task}
-                          scale={scale}
-                          calendar={state.calendar}
-                          layout={layout}
-                          cellLabels={cellLabels}
-                          format={format}
-                          canWrite={canWrite}
-                          late={isLate(task)}
-                          lateLabel={t("gantt.late")}
-                          title={
-                            task.milestone
-                              ? `${t("gantt.milestone.short")}, ${formatDay(task.start_date)}`
-                              : `${formatDay(task.start_date)} — ${formatDay(task.end_date)}`
-                          }
-                          selected={task.id === selectedTaskId}
-                          onSelect={onSelectTask}
-                          reorder={reorder}
-                          link={link}
-                          assigneeNames={assigneeNames}
-                          handleLabel={t("gantt.reorder", { name: task.name })}
-                          beyondPlan={isBeyondPlan(state, task)}
-                          beyondPlanLabel={t("gantt.beyond_plan")}
-                          baselineLabel={baselineLabel(task)}
-                          deviationLabel={deviationLabel(task)}
-                          statusLabel={t(`task.status.${task.status}`)}
-                          showBaseline={view.baseline}
-                        />
-                      ))}
-
-                      {/* Отправленное и ещё не подтверждённое — в конце
-                          категории, там же, где сервер положит настоящую
-                          строку: позиция новой задачи — наибольшая занятая
-                          плюс один. */}
-                      {open &&
-                        quick.pendingIn(category.id).map((row) => (
-                          <PendingRow
-                            key={row.id}
-                            layout={layout}
-                            scale={scale}
-                            name={row.name}
-                            title={t("task.new.creating")}
-                          />
+                          <Fragment key={task.id}>
+                            {/* Поле ввода стоит над той строкой, перед которой
+                                вставляют, а не в конце категории. */}
+                            {task.id === before && draft}
+                            <TaskRow
+                              projectId={projectId}
+                              task={task}
+                              scale={scale}
+                              calendar={state.calendar}
+                              layout={layout}
+                              cellLabels={cellLabels}
+                              format={format}
+                              canWrite={canWrite}
+                              late={isLate(task)}
+                              lateLabel={t("gantt.late")}
+                              title={
+                                task.milestone
+                                  ? `${t("gantt.milestone.short")}, ${formatDay(task.start_date)}`
+                                  : `${formatDay(task.start_date)} — ${formatDay(task.end_date)}`
+                              }
+                              selected={task.id === selectedTaskId}
+                              onSelect={onSelectTask}
+                              onOpenComments={onOpenComments}
+                              commentCount={commentCounts?.get(task.id) ?? 0}
+                              // Плюс на границе строк заводит задачу перед этой.
+                              // Только тому, кто может писать: у читателя он
+                              // обещал бы отказ сервера.
+                              onInsertBefore={
+                                canWrite && onAddTask
+                                  ? () => onAddTask({ categoryId: category.id, before: task.id })
+                                  : undefined
+                              }
+                              reorder={reorder}
+                              link={link}
+                              assigneeNames={assigneeNames}
+                              handleLabel={t("gantt.reorder", { name: task.name })}
+                              beyondPlan={isBeyondPlan(state, task)}
+                              beyondPlanLabel={t("gantt.beyond_plan")}
+                              baselineLabel={baselineLabel(task)}
+                              deviationLabel={deviationLabel(task)}
+                              statusLabel={t(`task.status.${task.status}`)}
+                              showBaseline={view.baseline}
+                            />
+                          </Fragment>
                         ))}
 
-                      {newTaskShown && newTaskIn === category.id && (
-                        <NewTaskRow
-                          layout={layout}
-                          scale={scale}
-                          label={t("task.new.aria", { category: category.name })}
-                          placeholder={t("task.new.placeholder")}
-                          onCreate={(name) => quick.create(category.id, name)}
-                          onClose={() => onCloseNewTask?.()}
-                        />
-                      )}
+                      {/* В конце категории — то, что не встало посередине:
+                          строки ожидания и поле ввода, если вставляют не перед
+                          названной задачей, а просто в эту категорию. */}
+                      {before === null && draft}
                     </div>
                   );
                 })}

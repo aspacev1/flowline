@@ -403,9 +403,18 @@ _MODELS = {
 # Границы длин повторяют ширину колонок: без них строка длиннее varchar
 # приезжает в базу и возвращается пятисоткой на ошибке усечения, а не честным
 # отказом клиенту. extra="forbid" выбран сознательно вместо тихого
-# игнорирования: клиент, приславший task_id или position в расчёте, что сервер
-# их учтёт, должен узнать об этом сразу, а не гадать потом, почему строка
-# оказалась не там.
+# игнорирования: клиент, приславший task_id в расчёте, что сервер его учтёт,
+# должен узнать об этом сразу, а не гадать потом, почему строка оказалась не
+# там.
+#
+# Позиция задачи — исключение, и осознанное: место строки в списке выбирает
+# человек, а не сервер. Он и так выбирает его перетаскиванием (reorder_task
+# принимает позицию по проводу с самого начала), а «плюс» на границе строк
+# заводит задачу сразу там, куда указали. Без этого поля вставка посередине
+# была бы парой операций — создать в конце и переставить, — то есть двумя
+# записями в истории и двумя нажатиями «Отменить» на одно действие человека.
+# Назначение идентификаторов за сервером остаётся: task_id по проводу
+# по-прежнему не принимается.
 
 #: Дальний край дат, которые принимает провод. Не date.max: календарь ищет
 #: рабочие дни на годы вперёд от старта (перенос конца за праздники), и дата
@@ -442,6 +451,10 @@ class PublicCreateTask(_Wire):
     name: str = Field(min_length=1, max_length=300)
     start_date: date = Field(le=MAX_WIRE_DATE)
     duration_days: int = Field(ge=1)
+    #: Место строки в списке категории. Не прислана — задача встаёт в конец,
+    #: как и раньше; названная — на этот номер, а занявшие его строки едут
+    #: вниз (см. _create_task).
+    position: int | None = Field(default=None, ge=0)
     description: str = ""
     internal_note: str = ""
     criticality: Criticality = Criticality.NORMAL
@@ -625,6 +638,42 @@ def _require_category(db: DbSession, project: Project, category_id: uuid.UUID) -
     if category is None or category.project_id != project.id:
         raise NotFoundInProject("category_not_found", "категория не найдена в этом проекте")
     return category
+
+
+def _make_room(db: DbSession, category_id: uuid.UUID, position: int) -> None:
+    """Освобождает названный слот в категории, сдвигая занявшие его строки вниз.
+
+    Нужно двум путям сразу. Первый — вставка строки посередине: «плюс» на
+    границе строк заводит задачу там, куда указали, а сосед, стоявший на этом
+    номере, вместе со всеми, кто ниже, съезжает на единицу. Второй — отмена
+    удаления: задача возвращается на свой прежний номер, а он с тех пор мог
+    достаться другой строке (перестановка перенумеровывает список подряд и
+    закрывает дыру от удалённой). Без этого сдвига отмена падала бы нарушением
+    уникальности (category_id, position) — то есть пятисоткой вместо возврата
+    задачи.
+
+    Свободный слот не трогается вовсе: сдвигать соседей ради номера, который и
+    так ничей, значило бы менять порядок там, где его никто не менял.
+
+    Сдвиг на единицу порядок сохраняет и уникальности не нарушает: отображение
+    монотонное, а промежуточные состояния держит отложенная проверка
+    ограничения (DEFERRABLE INITIALLY DEFERRED, см. models.Task).
+    """
+    occupied = db.scalar(
+        select(func.count())
+        .select_from(Task)
+        .where(Task.category_id == category_id, Task.position == position)
+    )
+    if not occupied:
+        return
+    # Строки грузятся объектами, а не сдвигаются одним UPDATE: те же задачи уже
+    # могут лежать в сессии, и массовое обновление мимо ORM оставило бы их с
+    # прежними номерами до конца запроса.
+    for row in db.scalars(
+        select(Task).where(Task.category_id == category_id, Task.position >= position)
+    ).all():
+        row.position += 1
+    db.flush()
 
 
 def _find_dependency(
@@ -884,15 +933,15 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
         # брался по всему проекту, и у категорий были дырявые, зависящие от
         # порядка создания нумерации, которые уникальным ограничением
         # (category_id, position) не удержать.
-        position = (
-            op.position
-            if op.position is not None
-            else db.scalar(
+        if op.position is None:
+            position = db.scalar(
                 select(func.coalesce(func.max(Task.position), -1) + 1).where(
                     Task.category_id == op.category_id
                 )
             )
-        )
+        else:
+            position = op.position
+            _make_room(db, op.category_id, position)
         task = Task(
             id=op.task_id or uuid.uuid4(),
             project_id=project.id,

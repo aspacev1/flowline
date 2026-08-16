@@ -2,11 +2,13 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Link, NavLink, useParams } from "react-router-dom";
 
+import { commentCounts, commentCountsQueryKey } from "../api/comments";
 import { errorKey } from "../api/errors";
 import { MEMBERS_QUERY_KEY, members } from "../api/org";
 import { getProject, projectQueryKey } from "../api/projects";
 import { useCanWrite, useOrgRole } from "../auth/permissions";
 import { Gantt } from "../gantt/Gantt";
+import type { NewTaskAt } from "../gantt/Gantt";
 import { usePrefersReducedMotion } from "../gantt/motion";
 import { useLocale } from "../i18n/LocaleProvider";
 import { LiveProvider } from "../live/LiveProvider";
@@ -22,6 +24,7 @@ import { ShiftReasonProvider } from "../project/ShiftReason";
 import { StartDateDialog } from "../project/StartDateDialog";
 import { UndoHotkey } from "../project/UndoHotkey";
 import { TaskPanel } from "../task/TaskPanel";
+import type { PanelTab } from "../task/TaskPanel";
 import { CategoryForm, suggestColor } from "./CategoryForm";
 import { ShareDialog } from "./ShareDialog";
 
@@ -45,17 +48,31 @@ export function Project({ tab = "gantt" }: { tab?: "gantt" | "history" } = {}) {
   const [sharing, setSharing] = useState(false);
   // Окно привязки плана к дате старта — и переноса уже назначенной даты.
   const [scheduling, setScheduling] = useState(false);
-  // Категория, в конце которой открыта строка новой задачи. `null` — закрыта.
+  // Где открыта строка новой задачи. `null` — закрыта.
   //
   // Задачу заводят прямо в ленте, а не в окне: план пишут списком, и окно
   // между строками означало бы открыть, заполнить и закрыть его столько раз,
   // сколько в плане дел. Спрашивается одно имя, остальное правится в карточке
   // (см. NewTaskRow).
-  const [addingTaskIn, setAddingTaskIn] = useState<string | null>(null);
+  const [addingTaskAt, setAddingTaskAt] = useState<NewTaskAt | null>(null);
   // Задача, карточка которой открыта. Держится идентификатором, а не самой
   // задачей: после каждого изменения состояние приходит с сервера заново, и
   // карточка, помнящая объект, показывала бы устаревшие данные.
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
+  // С какого раздела открыть карточку. Со строки ленты в неё ведут два пути:
+  // по имени и полоске — к свойствам, по счётчику реплик — сразу в обсуждение.
+  // Дальше вкладками управляет сама карточка.
+  const [selectedTaskTab, setSelectedTaskTab] = useState<PanelTab>("details");
+  const openTask = (taskId: string, tab: PanelTab = "details") => {
+    setSelectedTaskTab(tab);
+    // Повторный щелчок по той же строке закрывает карточку: люди делают так не
+    // задумываясь, и без этого щелчок выглядит бездействием. Переход же с имени
+    // на счётчик реплик — не повтор, а другой раздел той же карточки, и
+    // закрывать её он не должен.
+    setSelectedTaskId((current) =>
+      current === taskId && tab === selectedTaskTab ? null : taskId,
+    );
+  };
 
   const query = useQuery({
     queryKey: projectQueryKey(projectId),
@@ -92,6 +109,21 @@ export function Project({ tab = "gantt" }: { tab?: "gantt" | "history" } = {}) {
   const assigneeNames = useMemo(
     () => new Map((membersQuery.data ?? []).map((member) => [member.id, member.name])),
     [membersQuery.data],
+  );
+
+  // Сколько реплик у каждой задачи — число на строке ленты. Отдельным
+  // запросом, а не полем состояния: комментарий состояния не меняет, и
+  // счётчик, вшитый в него, показывал бы вчерашнее число до ближайшей правки
+  // плана. Ключ лежит внутри ключа ленты реплик, поэтому и своя реплика, и
+  // чужая по сокету обновляют его тем же сбросом (см. api/comments.ts).
+  const countsQuery = useQuery({
+    queryKey: commentCountsQueryKey(projectId),
+    queryFn: () => commentCounts(projectId),
+    retry: false,
+  });
+  const commentsByTask = useMemo(
+    () => new Map(Object.entries(countsQuery.data ?? {})),
+    [countsQuery.data],
   );
 
   if (query.isPending) {
@@ -239,7 +271,12 @@ export function Project({ tab = "gantt" }: { tab?: "gantt" | "history" } = {}) {
                           type="button"
                           className="project-toolbar__primary"
                           disabled={offline}
-                          onClick={() => setAddingTaskIn(query.data.categories[0].id)}
+                          onClick={() =>
+                            setAddingTaskAt({
+                              categoryId: query.data.categories[0].id,
+                              before: null,
+                            })
+                          }
                         >
                           {t("task.create")}
                         </button>
@@ -268,17 +305,14 @@ export function Project({ tab = "gantt" }: { tab?: "gantt" | "history" } = {}) {
                     </button>
                   ) : undefined
                 }
-                onAddTask={editable ? setAddingTaskIn : undefined}
-                newTaskIn={addingTaskIn}
-                onCloseNewTask={() => setAddingTaskIn(null)}
+                onAddTask={editable ? setAddingTaskAt : undefined}
+                newTaskAt={addingTaskAt}
+                onCloseNewTask={() => setAddingTaskAt(null)}
                 onDeleteCategory={editable ? removeCategory : undefined}
                 selectedTaskId={selectedTaskId}
-                // Повторный щелчок по той же полоске закрывает карточку: люди
-                // делают так не задумываясь, и без этого щелчок выглядит
-                // бездействием.
-                onSelectTask={(taskId) =>
-                  setSelectedTaskId((current) => (current === taskId ? null : taskId))
-                }
+                onSelectTask={(taskId) => openTask(taskId)}
+                onOpenComments={(taskId) => openTask(taskId, "comments")}
+                commentCounts={commentsByTask}
               />
 
               {selectedTask && (
@@ -287,6 +321,7 @@ export function Project({ tab = "gantt" }: { tab?: "gantt" | "history" } = {}) {
                   task={selectedTask}
                   state={query.data}
                   canWrite={editable}
+                  initialTab={selectedTaskTab}
                   onClose={() => setSelectedTaskId(null)}
                 />
               )}

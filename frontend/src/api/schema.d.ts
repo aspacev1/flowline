@@ -822,6 +822,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project_id}/comments/counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Project Comment Counts
+         * @description Сколько реплик у каждой задачи — числом на строке ленты.
+         *
+         *     Отдельным маршрутом, а не полем в состоянии проекта: комментарий состояния
+         *     не меняет и ревизии не рождает, поэтому состояние после него не
+         *     перезапрашивается, и счётчик, вшитый в него, показывал бы вчерашнее число
+         *     до ближайшей правки плана. Здесь же он обновляется вместе с самой лентой
+         *     реплик — по тому же событию сокета.
+         */
+        get: operations["project_comment_counts_api_projects__project_id__comments_counts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{project_id}/mutations": {
         parameters: {
             query?: never;
@@ -1116,6 +1142,30 @@ export interface paths {
         put?: never;
         /** Add Public Comment */
         post: operations["add_public_comment_api_public__org_slug___project_slug__comments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/{org_slug}/{project_slug}/comments/counts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Public Comment Counts
+         * @description Счётчик реплик на строках публичной ленты — без внутренних.
+         *
+         *     Тот же фильтр, что и у ленты выше: гость внутренних реплик не видит, и
+         *     число рядом с задачей не должно проговариваться о том, чего в его ленте
+         *     нет вовсе.
+         */
+        get: operations["public_comment_counts_api_public__org_slug___project_slug__comments_counts_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1587,6 +1637,8 @@ export interface components {
             milestone: boolean;
             /** Name */
             name: string;
+            /** Position */
+            position?: number | null;
             /**
              * Progress Pct
              * @default 0
@@ -3539,6 +3591,39 @@ export interface operations {
             };
         };
     };
+    project_comment_counts_api_projects__project_id__comments_counts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     apply_mutation_api_projects__project_id__mutations_post: {
         parameters: {
             query?: never;
@@ -4121,6 +4206,40 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    public_comment_counts_api_public__org_slug___project_slug__comments_counts_get: {
+        parameters: {
+            query?: {
+                s?: string;
+            };
+            header?: never;
+            path: {
+                org_slug: string;
+                project_slug: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -149,3 +149,58 @@ def test_comments_of_one_task_are_filtered(authed, project_id):
         f"/api/projects/{project_id}/comments", params={"task_id": task_id}
     ).json()
     assert [c["body"] for c in listed] == ["к задаче"]
+
+
+def _task(authed, project_id: str, name: str) -> str:
+    category_id = authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={"op": {"type": "create_category", "name": "Design", "color": "#3b82f6"}},
+    ).json()["op"]["category_id"]
+    return authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={
+            "op": {
+                "type": "create_task",
+                "category_id": category_id,
+                "name": name,
+                "start_date": "2026-03-06",
+                "duration_days": 3,
+            }
+        },
+    ).json()["op"]["task_id"]
+
+
+def test_the_counter_holds_one_number_per_task(authed, project_id):
+    task_id = _task(authed, project_id, "Logo")
+
+    for text in ("раз", "два"):
+        authed.post(
+            f"/api/projects/{project_id}/comments", json={"body": text, "task_id": task_id}
+        )
+    # Реплика к проекту целиком ничьей строке не принадлежит и в счёт не идёт.
+    authed.post(f"/api/projects/{project_id}/comments", json={"body": "к проекту"})
+
+    counts = authed.get(f"/api/projects/{project_id}/comments/counts").json()
+
+    assert counts == {task_id: 2}
+
+
+def test_a_task_without_comments_is_absent_from_the_counter(authed, project_id):
+    _task(authed, project_id, "Logo")
+
+    # Ноль — это отсутствие ключа: слать сотню нулей ради строк, где ничего не
+    # написано, незачем.
+    assert authed.get(f"/api/projects/{project_id}/comments/counts").json() == {}
+
+
+def test_the_counter_of_a_member_includes_the_internal_thread(authed, project_id):
+    task_id = _task(authed, project_id, "Logo")
+
+    authed.post(
+        f"/api/projects/{project_id}/comments",
+        json={"body": "в сторону", "task_id": task_id, "internal": True},
+    )
+
+    # Участник видит внутренние реплики в самой ленте — значит, и число рядом
+    # с задачей обязано совпадать с тем, что он там найдёт.
+    assert authed.get(f"/api/projects/{project_id}/comments/counts").json() == {task_id: 1}

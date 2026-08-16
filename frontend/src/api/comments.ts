@@ -22,6 +22,29 @@ export function commentsQueryKey(projectId: string, taskId?: string) {
     : (["project", projectId, "comments", taskId] as const);
 }
 
+/**
+ * Ключ счётчика реплик — внутри ключа ленты, а не рядом с ним.
+ *
+ * Счётчик обязан обновляться ровно тогда же, когда сама лента: своей репликой
+ * из карточки и чужой, приехавшей по сокету. Оба места уже сбрасывают ленту
+ * проекта целиком, и вложенный ключ подхватывается тем же вызовом. Отдельный
+ * пришлось бы сбрасывать вторым — и однажды его бы забыли.
+ */
+export function commentCountsQueryKey(projectId: string) {
+  return ["project", projectId, "comments", "counts"] as const;
+}
+
+/**
+ * Сколько реплик у каждой задачи — число, которое лента показывает на строке.
+ *
+ * Отдельным запросом, а не подсчётом по ленте: лента отдаётся хвостом в сотню
+ * реплик, и счёт по ней врал бы ровно там, где переписки много. Задачи без
+ * реплик в ответе отсутствуют: ноль — это отсутствие ключа.
+ */
+export function commentCounts(projectId: string): Promise<Record<string, number>> {
+  return request<Record<string, number>>(`/api/projects/${projectId}/comments/counts`);
+}
+
 export function listComments(projectId: string, taskId?: string): Promise<Comment[]> {
   const query = taskId === undefined ? "" : `?task_id=${encodeURIComponent(taskId)}`;
   return request<Comment[]>(`/api/projects/${projectId}/comments${query}`);

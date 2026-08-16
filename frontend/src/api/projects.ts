@@ -174,6 +174,13 @@ export type Op =
       name: string;
       start_date: string;
       duration_days: number;
+      /**
+       * Место строки в списке категории. Не названо — задача встаёт в конец;
+       * названо — на этот номер, а занявшие его строки едут вниз. Так «плюс»
+       * на границе строк заводит задачу там, куда указали, одной операцией —
+       * то есть одной записью в истории и одним нажатием «Отменить».
+       */
+      position?: number;
       description?: string;
       internal_note?: string;
       criticality?: Criticality;
