@@ -2,13 +2,14 @@ import { useId } from "react";
 import type { CSSProperties, HTMLAttributes, ReactNode, RefCallback } from "react";
 
 import type { Calendar, Category, Task } from "../api/projects";
+import { CommentIcon, EditableCell, RowBadge, RowIcon } from "../components/rows";
 import { useLocale } from "../i18n/LocaleProvider";
 import { baselineOf, endShiftDays } from "../project/baseline";
 import { patchProgress, patchTask } from "../project/optimistic";
 import { useProjectMutation } from "../project/useProjectMutation";
 import { AssignMenu } from "./AssignMenu";
 import { useBarTip } from "./BarTip";
-import { Cell, EditableCell, rollUp } from "./Cells";
+import { Cell, rollUp } from "./Cells";
 import type { ColumnKey, ColumnLayout } from "./columns";
 import { dateOfProjectDay, projectDayNumber } from "./relative";
 import { workingDaysBetween } from "./scale";
@@ -154,9 +155,9 @@ export function CategoryRow({
         <LabelCells
           layout={layout}
           cells={{
-            start: span && <span className="gantt__cell-value">{format.label(span.start)}</span>,
-            end: span && <span className="gantt__cell-value">{format.label(span.end)}</span>,
-            progress: span && <span className="gantt__cell-value">{span.progress}%</span>,
+            start: span && <span className="cell-value">{format.label(span.start)}</span>,
+            end: span && <span className="cell-value">{format.label(span.end)}</span>,
+            progress: span && <span className="cell-value">{span.progress}%</span>,
           }}
           task={
             <>
@@ -165,7 +166,7 @@ export function CategoryRow({
                 // остаётся строкой с полосой охвата, её задачи прячутся.
                 <button
                   type="button"
-                  className="gantt__chevron"
+                  className="row-chevron"
                   aria-expanded={open}
                   aria-label={toggleLabel}
                   title={toggleLabel}
@@ -175,34 +176,21 @@ export function CategoryRow({
                 </button>
               )}
               <span className="gantt__label-name">{category.name}</span>
-              {onAddTask && (
-                // Подпись включает название категории: на десятке категорий десять
-                // кнопок «Добавить задачу» при чтении с экрана неразличимы, и
-                // выбрать нужную нельзя иначе как считая их по порядку.
-                <button
-                  type="button"
-                  className="gantt__add"
-                  aria-label={addLabel}
-                  title={addLabel}
-                  onClick={() => onAddTask(category.id)}
-                >
-                  +
-                </button>
-              )}
-              {onDelete && (
-                // Подпись с названием — по той же причине, что у «плюса»:
-                // безымянные крестики при чтении с экрана неразличимы.
-                // Подтверждения нет намеренно: удаляется только пустая
-                // категория, и отмена возвращает её одной кнопкой.
-                <button
-                  type="button"
-                  className="gantt__remove"
-                  aria-label={deleteLabel}
-                  title={deleteLabel}
-                  onClick={() => onDelete(category.id)}
-                >
-                  ×
-                </button>
+              {(onAddTask || onDelete) && (
+                <span className="row-icons">
+                  {onAddTask && (
+                    <RowIcon label={addLabel} onClick={() => onAddTask(category.id)}>
+                      +
+                    </RowIcon>
+                  )}
+                  {onDelete && deleteLabel !== undefined && (
+                    // Подтверждения нет намеренно: удаляется только пустая
+                    // категория, и отмена возвращает её одной кнопкой.
+                    <RowIcon label={deleteLabel} tone="danger" onClick={() => onDelete(category.id)}>
+                      ×
+                    </RowIcon>
+                  )}
+                </span>
               )}
             </>
           }
@@ -414,21 +402,17 @@ export function TaskRow({
   // вторая кнопка на каждой из ста строк была бы сотней лишних шагов Tab, ни
   // один из которых не ведёт туда, куда нельзя дойти иначе. Числу при этом
   // нужно имя: без него с экрана читается голая цифра.
-  const commentsLabel = t("gantt.comments.aria", { name: task.name, count: commentCount });
+  const commentsLabel = t("comments.aria", { name: task.name, count: commentCount });
   const comments =
     commentCount === 0 && onOpenComments === undefined ? null : (
-      <span
-        className={`gantt__row-action${commentCount > 0 ? " is-set" : ""}${
-          onOpenComments ? " is-clickable" : ""
-        }`}
-        role="img"
-        aria-label={commentsLabel}
-        title={commentsLabel}
+      <RowBadge
+        label={commentsLabel}
+        set={commentCount > 0}
         onClick={onOpenComments ? () => onOpenComments(task.id) : undefined}
       >
         <CommentIcon />
         {commentCount > 0 && commentCount}
-      </span>
+      </RowBadge>
     );
 
   return (
@@ -528,7 +512,7 @@ export function TaskRow({
               ? assign
               : assignees.length > 0
                 ? (
-                    <span className="gantt__cell-value" title={assignees.join(", ")}>
+                    <span className="cell-value" title={assignees.join(", ")}>
                       {assignees.join(", ")}
                     </span>
                   )
@@ -624,7 +608,7 @@ export function TaskRow({
                   только водя мышью по ста строкам), а кнопка, чтобы этот
                   разговор завести, ждёт наведения (см. gantt.css). */}
               {(comments !== null || assignInName !== null) && (
-                <span className="gantt__row-actions">
+                <span className="row-icons">
                   {comments}
                   {assignInName}
                 </span>
@@ -852,21 +836,6 @@ export function TaskRow({
         )}
       </div>
     </div>
-  );
-}
-
-/**
- * Знак «обсуждение» — рисунком, а не эмодзи.
- *
- * Эмодзи рисуется цветной картинкой шрифта системы: в ряду тонких линий ленты
- * это наклейка, да ещё и разная на разных системах. Рисунок берёт цвет текста
- * и гаснет вместе с ним.
- */
-function CommentIcon() {
-  return (
-    <svg className="gantt__glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-      <path d="M13.6 2.8H2.4a1 1 0 0 0-1 1v6.1a1 1 0 0 0 1 1h1.9v2.6l2.9-2.6h6.4a1 1 0 0 0 1-1V3.8a1 1 0 0 0-1-1Z" />
-    </svg>
   );
 }
 

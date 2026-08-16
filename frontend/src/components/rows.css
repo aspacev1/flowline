@@ -1,0 +1,184 @@
+/*
+ * Общий язык строк-таблиц: ленты Ганта и сметы.
+ *
+ * Обе показывают одно и то же — список строк, чьи ячейки правятся на месте, и
+ * знаки действий, молчащие до наведения. Пока правила жили в gantt.css, смета
+ * повторяла их своими: два набора одинаковых чисел, которые однажды разошлись
+ * бы, — и «как в ленте» перестало бы значить «так же».
+ */
+
+/* Значение ячейки. Правится оно или нет, выглядит одинаково: тон значения не
+   должен зависеть от прав смотрящего — иначе у гостя таблица читается как
+   выцветшая, будто числа в ней недостоверны. Возможность правки показывает
+   наведение, а не постоянная рамка. */
+.cell-value {
+  display: block;
+  max-width: 100%;
+  min-width: 0;
+  padding: 2px 4px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm, 6px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cell-value--editable {
+  cursor: text;
+}
+
+.cell-value--editable:hover {
+  border-color: var(--border-strong);
+  background: var(--surface);
+}
+
+/* Поле на месте ячейки: занимает ровно её место, чтобы строка не дёргалась в
+   момент, когда ячейка становится редактируемой. */
+.cell-input {
+  width: 100%;
+  min-width: 0;
+  padding: 1px 3px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm, 6px);
+  background: var(--surface);
+  font: inherit;
+  color: inherit;
+}
+
+/* Шеврон сворачивания — молчаливая кнопка: ни заливки, ни тени базовой
+   кнопки, только знак. */
+.row-chevron {
+  flex: 0 0 auto;
+  width: 13px;
+  height: auto;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.row-chevron:hover {
+  color: var(--text);
+  background: transparent;
+}
+
+/* Хвост строки: знаки действий, прижатые вправо, чтобы имена читались одним
+   столбцом, а не начинались каждое на своём отступе. */
+.row-icons {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+/* Знак действия на строке. Молчит, пока на строку не навели: постоянные
+   кнопки возле каждой строки превращают список в частокол из органов
+   управления, а удаление рядом с каждым именем читается как угроза.
+
+   Появление — тем же временем, что и любой другой отклик на наведение
+   (см. `--motion-fast`). Список повторяет переход базовой кнопки, иначе
+   собственное объявление стирает его целиком и тень с рамкой на фокусе
+   появляются мгновенно. */
+.row-icon {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  background: transparent;
+  color: var(--text-faint);
+  box-shadow: none;
+  font-size: 16px;
+  line-height: 1;
+  opacity: 0;
+  transition:
+    opacity var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
+}
+
+.row-icon:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+/* Удаление — единственный знак, который называет себя цветом: оно
+   необратимо, и рука обязана узнать его раньше, чем прочтёт подпись. */
+.row-icon--danger:hover {
+  color: var(--danger);
+}
+
+.row-icon:focus-visible {
+  opacity: 1;
+}
+
+/* Знаки — рисунком в цвет текста, а не эмодзи: эмодзи рисуется цветной
+   картинкой шрифта системы и в ряду тонких линий таблицы выглядит наклейкой,
+   да ещё и разной на разных системах. */
+.glyph {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.35;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Значок со счётчиком — обсуждение строки. Молчит, пока на строку не навели,
+   но только когда молчать есть о чём: у строки с репликами число видно
+   всегда, иначе о разговоре можно было бы узнать, только водя мышью по сотне
+   строк. */
+.row-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 22px;
+  padding: 0 5px;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-faint);
+  box-shadow: none;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  opacity: 0;
+  transition:
+    opacity var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease);
+}
+
+.row-badge.is-set {
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+/* Указатель — там, где по знаку и правда что-то открывается: у гостя без
+   карточки обещать нажатие не за чем. */
+.row-badge.is-clickable {
+  cursor: pointer;
+}
+
+.row-badge.is-clickable:hover {
+  background: var(--hover);
+  color: var(--accent);
+}
+
+/* Там, где наведения не бывает, — планшет, телефон — знаки строки видны
+   всегда. Иначе они невидимы ровно там, где по ним и нужно попасть пальцем:
+   показать их нечем, а прозрачные они всё равно ловят нажатия — то есть
+   работают, но только вслепую. */
+@media (hover: none) {
+  .row-icon,
+  .row-badge {
+    opacity: 1;
+  }
+}

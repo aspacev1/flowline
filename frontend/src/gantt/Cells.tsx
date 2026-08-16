@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import type { KeyboardEvent, PointerEvent, ReactNode } from "react";
+import { useRef } from "react";
+import type { PointerEvent, ReactNode } from "react";
 
 import type { Task } from "../api/projects";
 import type { ColumnKey, ColumnLayout } from "./columns";
@@ -17,99 +17,13 @@ import { COLUMN_KEYS, MIN_WIDTH, clampWidth } from "./columns";
  * поодиночке: старт, длительность, процент. Дата окончания — показ и только:
  * её считает сервер по календарю проекта, и поле для правки обещало бы
  * влияние, которого нет (та же причина, что и в карточке задачи).
+ *
+ * Сама ячейка, которую правят на месте, живёт не здесь, а в components/rows:
+ * тем же движением правится строка сметы, и второй такой же ячейкой они
+ * разошлись бы на первой правке одной из них.
  */
 
 export type CellText = { text: string; title?: string };
-
-/** Ячейка, которую правят на месте: показ до щелчка, поле после. */
-export function EditableCell({
-  value,
-  display,
-  type,
-  disabled,
-  label,
-  min,
-  max,
-  onCommit,
-}: {
-  /** Значение в том виде, в каком его примет поле ввода. */
-  value: string;
-  /** Значение в том виде, в каком его читают глазами. */
-  display: string;
-  type: "date" | "number";
-  disabled?: boolean;
-  label: string;
-  min?: number;
-  max?: number;
-  onCommit: (value: string) => void;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(value);
-  const input = useRef<HTMLInputElement>(null);
-
-  // Пока ячейку не открывали, черновик обязан идти за правдой: сосед по
-  // проекту двигает полоску, и ячейка рядом не должна показывать вчерашнее
-  // число. Открытую ячейку правда не трогает — иначе чужая правка стирала бы
-  // то, что человек в этот момент набирает.
-  useEffect(() => {
-    if (!editing) setDraft(value);
-  }, [editing, value]);
-
-  useEffect(() => {
-    if (editing) input.current?.focus();
-  }, [editing]);
-
-  if (!editing || disabled) {
-    // Не кнопка — по той же причине, по которой не кнопка имя задачи слева
-    // (см. Row): шесть колонок на сотне строк дали бы шестьсот шагов Tab, и
-    // ни один из них не вёл бы туда, куда нельзя дойти иначе, — те же поля
-    // лежат в карточке задачи, до которой с клавиатуры один шаг. Щелчок
-    // остаётся доступен указателем и не обещает того, чего не выполняет.
-    return (
-      <span
-        className={`gantt__cell-value${disabled ? "" : " gantt__cell-value--editable"}`}
-        title={display}
-        onClick={disabled ? undefined : () => setEditing(true)}
-      >
-        {display === "" ? "—" : display}
-      </span>
-    );
-  }
-
-  const commit = () => {
-    setEditing(false);
-    // Пустое поле — середина набора, а не значение: отправлять его значит
-    // просить сервер отказать в том, чего человек не просил.
-    if (draft !== "" && draft !== value) onCommit(draft);
-  };
-
-  return (
-    <input
-      ref={input}
-      className="gantt__cell-input"
-      type={type}
-      value={draft}
-      min={min}
-      max={max}
-      aria-label={label}
-      onChange={(event) => setDraft(event.target.value)}
-      onBlur={commit}
-      onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
-        if (event.key === "Enter") {
-          event.preventDefault();
-          commit();
-        }
-        if (event.key === "Escape") {
-          // Передумать посреди набора — обычное дело, и выходом иначе было бы
-          // вспомнить прежнее значение и набрать его обратно.
-          event.preventDefault();
-          setDraft(value);
-          setEditing(false);
-        }
-      }}
-    />
-  );
-}
 
 /** Одна ячейка строки: ширину задаёт раскладка, содержимое — вызывающий. */
 export function Cell({

@@ -12,7 +12,8 @@
       "one": "{count} gün",
       "other": "{count} gün"
     },
-    "days_short": "{count} gün"
+    "days_short": "{count} gün",
+    "save": "Yadda saxla"
   },
   "modal": {
     "discard": {
@@ -535,12 +536,6 @@
     },
     "toggle_category": "«{name}» kateqoriyasını qatla və ya aç",
     "insert_before": "«{name}» tapşırığından əvvəl tapşırıq əlavə et",
-    "comments": {
-      "aria": {
-        "one": "«{name}» müzakirəsi: {count} şərh",
-        "other": "«{name}» müzakirəsi: {count} şərh"
-      }
-    },
     "assign": {
       "label": "İcraçılar",
       "empty": "İcraçı təyin et",
@@ -592,7 +587,11 @@
     "your_name": "Adınız",
     "body": "Şərh",
     "send": "Göndər",
-    "closed": "Layihənin sahibi şərhləri bağlayıb"
+    "closed": "Layihənin sahibi şərhləri bağlayıb",
+    "aria": {
+      "one": "«{name}» müzakirəsi: {count} şərh",
+      "other": "«{name}» müzakirəsi: {count} şərh"
+    }
   },
   "public": {
     "badge": "İctimai səhifə"
@@ -806,9 +805,12 @@
       "collapse": "«{name}» bölməsini yığ",
       "expand": "«{name}» bölməsini aç",
       "add_task": "«{name}» bölməsinə iş əlavə et",
-      "delete": "Bölməni sil",
+      "delete": "«{name}» bölməsini sil",
       "delete_warning": "«{name}» bölməsi bütün işləri ilə birlikdə silinəcək",
-      "delete_confirm": "Bölməni sil"
+      "delete_confirm": "Bölməni sil",
+      "rename": "«{name}» bölməsinin adı",
+      "edit": "«{name}» bölməsini redaktə et",
+      "edit_title": "Bölmə"
     },
     "task": {
       "create": "Yeni iş",
@@ -823,7 +825,9 @@
       "assumptions": "Fərziyyələr",
       "delete": "İşi sil",
       "delete_warning": "«{name}» işi müzakirəsi ilə birlikdə silinəcək",
-      "delete_confirm": "İşi sil"
+      "delete_confirm": "İşi sil",
+      "edit": "«{name}» işini redaktə et",
+      "remove": "«{name}» işini sil"
     },
     "notes": {
       "title": "Fərziyyələr və qeydlər",
@@ -844,6 +848,9 @@
         "one": "{count} tapşırıq plana əlavə olundu",
         "other": "{count} tapşırıq plana əlavə olundu"
       }
+    },
+    "cell": {
+      "edit": "«{name}» üçün {column} dəyiş"
     }
   }
 }

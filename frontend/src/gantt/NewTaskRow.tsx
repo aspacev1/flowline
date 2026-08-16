@@ -69,7 +69,7 @@ export function NewTaskRow({
     <NameRow className="gantt__row--new" layout={layout} scale={scale}>
       <input
         ref={input}
-        className="gantt__cell-input"
+        className="cell-input"
         type="text"
         value={name}
         placeholder={placeholder}
