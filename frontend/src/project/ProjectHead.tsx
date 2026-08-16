@@ -6,6 +6,7 @@ import { formatDate } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
 import { changedSinceApproval, isBeyondPlan } from "./baseline";
 import { statusCounts } from "./progress";
+import { pastDeadlineTasks } from "./verdict";
 
 /**
  * Шапка проекта: название с состоянием плана, сводка, действия справа.
@@ -159,9 +160,9 @@ type Metric = { key: string; value: number; warn?: boolean };
  */
 function projectMetrics(state: ProjectState, showPlan: boolean): Metric[] {
   const counts = statusCounts(state.tasks);
-  const { deadline } = state;
-  const overdue =
-    deadline === null ? 0 : state.tasks.filter((task) => task.end_date > deadline).length;
+  // Считает общий модуль: та же величина под тем же именем живёт на карточке
+  // проекта и в отчётах, и три её счёта разошлись бы на первом же спорном дне.
+  const overdue = pastDeadlineTasks(state).length;
 
   const metrics: Metric[] = [
     { key: "total", value: state.tasks.length },

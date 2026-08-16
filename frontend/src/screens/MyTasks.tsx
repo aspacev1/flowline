@@ -7,6 +7,7 @@ import { StatusChip } from "../components/StatusChip";
 import { relativeDayLabel } from "../gantt/relative";
 import { formatShortDate } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
+import { isTaskOverdue } from "../project/verdict";
 import { useProjectStates } from "./projectStates";
 import { useToday } from "../time/useToday";
 
@@ -62,7 +63,11 @@ export function MyTasks() {
       {mine.length > 0 && (
         <ul className="task-list">
           {mine.map(({ task, project }) => {
-            const overdue = task.status !== "done" && task.end_date < today;
+            // Общий счёт просрочки, а не своё сравнение с сегодняшним днём:
+            // у задачи относительного плана «дата» — координата оси от 2001
+            // года, и такое сравнение помечало бы просроченной каждую строку
+            // проекта, которому даты ещё не назначали.
+            const overdue = isTaskOverdue(project, task, today);
             return (
               <li key={task.id} className="task-list__row">
                 <span className="task-list__main">

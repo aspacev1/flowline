@@ -81,7 +81,6 @@
   "nav": {
     "my_tasks": "My tasks",
     "projects": "Projects",
-    "portfolio": "Portfolio",
     "reports": "Reports",
     "logout": "Log out",
     "org_settings": "Organization",
@@ -253,7 +252,35 @@
       "name": "Name"
     },
     "create_with_ai": "Create through an interview",
-    "created": "Project “{name}” created"
+    "created": "Project “{name}” created",
+    "card": {
+      "tasks": {
+        "one": "{count} task",
+        "other": "{count} tasks"
+      },
+      "progress": "{pct}% done",
+      "plan_days": "{days} long"
+    },
+    "mode": {
+      "relative": "Relative plan"
+    },
+    "verdict": {
+      "empty": "No plan yet — add tasks",
+      "overdue": {
+        "one": "{count} overdue",
+        "other": "{count} overdue"
+      },
+      "late": "{days} late",
+      "blocked": {
+        "one": "{count} blocked",
+        "other": "{count} blocked"
+      },
+      "changed": "Changed since approval",
+      "unscheduled": "Set the start date",
+      "draft": "Draft — not approved",
+      "done": "Completed",
+      "on_track": "On track"
+    }
   },
   "project": {
     "period": "{from} — {to}",
@@ -266,19 +293,6 @@
       "not_started": "Not started",
       "not_planned": "Beyond the plan",
       "completed": "Completed"
-    }
-  },
-  "portfolio": {
-    "title": "Portfolio",
-    "greeting": "Hello, {name} — here is your portfolio at a glance",
-    "tasks": {
-      "one": "{count} task",
-      "other": "{count} tasks"
-    },
-    "progress": "{pct}% done",
-    "blocked": {
-      "one": "{count} blocked",
-      "other": "{count} blocked"
     }
   },
   "my_tasks": {

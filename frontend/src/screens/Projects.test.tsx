@@ -1,8 +1,9 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+import type { ProjectState, Task } from "../api/projects";
 import { server } from "../test/server";
 import { ORG, USER, renderApp, sessionHandlers } from "../test/utils";
 
@@ -13,13 +14,82 @@ async function createProjectNamed(name: string) {
   await userEvent.click(screen.getByRole("button", { name: /^создать$/i }));
 }
 
+/**
+ * Спокойная задача: согласована, идёт своим ходом, кончается впереди. Всё
+ * остальное — просрочку, блокировку, расхождение — тест объявляет сам.
+ */
+function task(fields: Partial<Task> = {}): Task {
+  return {
+    id: "t1",
+    category_id: "c1",
+    name: "Логотип",
+    start_date: "2026-03-16",
+    end_date: "2026-03-20",
+    duration_days: 5,
+    milestone: false,
+    critical: false,
+    criticality: "normal",
+    status: "in_progress",
+    progress_pct: 40,
+    position: 0,
+    assignee_ids: [],
+    baseline_start: "2026-03-16",
+    baseline_duration: 5,
+    baseline_end: "2026-03-20",
+    ...fields,
+  };
+}
+
+function state(fields: Partial<ProjectState> = {}): ProjectState {
+  return {
+    id: "p1",
+    name: "Редизайн",
+    slug: "redizayn",
+    deadline: null,
+    project_end: "2026-03-20",
+    schedule_mode: "calendar",
+    start_date: "2026-03-02",
+    plan_approved_at: "2026-03-01T09:00:00+00:00",
+    plan_version: 1,
+    undoable: null,
+    calendar: { working_days: 31, holidays: [], extra_workdays: [] },
+    categories: [{ id: "c1", name: "Дизайн", color: "#3b82f6", position: 0 }],
+    tasks: [task()],
+    dependencies: [],
+    ...fields,
+  };
+}
+
+/**
+ * Список проектов и состояние каждого из них.
+ *
+ * Карточка несёт сводку, а сводного маршрута на сервере нет: список отдаёт
+ * имена, состояния приходят по одному. Тест обязан описать оба конца — иначе
+ * он проверял бы карточку, которой нечего сказать.
+ */
+function projectsWithStates(...states: ProjectState[]) {
+  return [
+    http.get("/api/projects", () =>
+      HttpResponse.json(states.map(({ id, name, slug }) => ({ id, name, slug }))),
+    ),
+    ...states.map((project) =>
+      http.get(`/api/projects/${project.id}`, () => HttpResponse.json(project)),
+    ),
+  ];
+}
+
+/** 11 марта 2026 в Баку — пояс организации, по которому считается «сегодня». */
+function atMarch11(run: () => Promise<void>) {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  vi.setSystemTime(new Date(Date.UTC(2026, 2, 11, 9, 0)));
+  return run().finally(() => vi.useRealTimers());
+}
+
 describe("экран проектов", () => {
   it("переводит интерфейс, но не данные", async () => {
     server.use(
       ...sessionHandlers(),
-      http.get("/api/projects", () =>
-        HttpResponse.json([{ id: "p1", name: "Şəhər Layihəsi", slug: "seher-layihesi" }]),
-      ),
+      ...projectsWithStates(state({ name: "Şəhər Layihəsi", slug: "seher-layihesi" })),
     );
 
     renderApp({ route: "/projects", locale: "ru" });
@@ -94,9 +164,7 @@ describe("экран проектов", () => {
   it("показывает слаг, который сервер выдал, а не выдуманный клиентом", async () => {
     server.use(
       ...sessionHandlers(),
-      http.get("/api/projects", () =>
-        HttpResponse.json([{ id: "p1", name: "Şəhər Layihəsi", slug: "seher-layihesi" }]),
-      ),
+      ...projectsWithStates(state({ name: "Şəhər Layihəsi", slug: "seher-layihesi" })),
     );
 
     renderApp({ route: "/projects", locale: "ru" });
@@ -233,6 +301,161 @@ describe("модальное окно", () => {
     await userEvent.click(screen.getByRole("button", { name: /отмена/i }));
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+});
+
+describe("сводка на карточке", () => {
+  it("называет просрочку числом задач, а не цветом полоски", async () => {
+    await atMarch11(async () => {
+      server.use(
+        ...sessionHandlers(),
+        ...projectsWithStates(
+          state({ tasks: [task({ end_date: "2026-03-05" })] }),
+        ),
+      );
+
+      renderApp({ route: "/projects", locale: "ru" });
+
+      expect(await screen.findByText("1 просрочена")).toBeInTheDocument();
+    });
+  });
+
+  it("помечает относительный план и зовёт назначить дату старта", async () => {
+    server.use(
+      ...sessionHandlers(),
+      ...projectsWithStates(
+        state({
+          schedule_mode: "relative",
+          start_date: null,
+          plan_approved_at: null,
+          plan_version: 0,
+          project_end: "2001-01-05",
+          tasks: [
+            task({
+              start_date: "2001-01-01",
+              end_date: "2001-01-05",
+              baseline_start: null,
+              baseline_duration: null,
+              baseline_end: null,
+            }),
+          ],
+        }),
+      ),
+    );
+
+    renderApp({ route: "/projects", locale: "ru" });
+
+    // Плашка говорит, в каком проект состоянии, вердикт — что с этим делать.
+    expect(await screen.findByText("Относительный план")).toBeInTheDocument();
+    expect(screen.getByText("Назначьте дату старта")).toBeInTheDocument();
+    // Настоящих дат у такого плана нет, и вместо дедлайна карточка называет
+    // длину плана в днях: подставить сюда координату оси значило бы соврать.
+    expect(screen.getByText(/план на 5 дней/)).toBeInTheDocument();
+  });
+
+  it("у проекта без задач зовёт добавить их, а не рапортует «идёт по плану»", async () => {
+    server.use(...sessionHandlers(), ...projectsWithStates(state({ tasks: [] })));
+
+    renderApp({ route: "/projects", locale: "ru" });
+
+    expect(await screen.findByText(/Плана нет/)).toBeInTheDocument();
+  });
+
+  it("поднимает наверх то, что требует действия", async () => {
+    await atMarch11(async () => {
+      server.use(
+        ...sessionHandlers(),
+        ...projectsWithStates(
+          state({ id: "p1", name: "Спокойный", slug: "spokoynyy" }),
+          state({
+            id: "p2",
+            name: "Горит",
+            slug: "gorit",
+            tasks: [task({ end_date: "2026-03-05" })],
+          }),
+        ),
+      );
+
+      renderApp({ route: "/projects", locale: "ru" });
+
+      // Сортировка случается один раз — когда собрана сводка по всем
+      // проектам: карточки, пересобирающиеся по мере ответов, уезжают
+      // из-под курсора у того, кто уже целится в одну из них.
+      await waitFor(() => {
+        const names = screen
+          .getAllByRole("listitem")
+          .map((card) => within(card).getByRole("link").textContent);
+        expect(names).toEqual(["Горит", "Спокойный"]);
+      });
+    });
+  });
+
+  it("не пришедшая сводка одного проекта не превращает список в отказ", async () => {
+    server.use(
+      ...sessionHandlers(),
+      http.get("/api/projects", () =>
+        HttpResponse.json([
+          { id: "p1", name: "Первый", slug: "pervyy" },
+          { id: "p2", name: "Второй", slug: "vtoroy" },
+        ]),
+      ),
+      http.get("/api/projects/p1", () => HttpResponse.json(state({ id: "p1", name: "Первый" }))),
+      http.get("/api/projects/p2", () => HttpResponse.error()),
+    );
+
+    renderApp({ route: "/projects", locale: "ru" });
+
+    // Оба проекта на месте: не пришедшее состояние — это карточка без
+    // сводки, а не экран без проектов.
+    expect(await screen.findByText("Первый")).toBeInTheDocument();
+    expect(screen.getByText("Второй")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("при отказе списка не утверждает, что проектов нет", async () => {
+    server.use(...sessionHandlers(), http.get("/api/projects", () => HttpResponse.error()));
+
+    renderApp({ route: "/projects", locale: "ru" });
+
+    // Пустой список и несостоявшийся ответ — разные вещи: пока причина в
+    // отказе, «проектов нет» было бы враньём поверх баннера ошибки.
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.queryByText(/ни одного проекта/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("адреса списка", () => {
+  it("корень ведёт туда же, куда вход, — на список проектов", async () => {
+    server.use(...sessionHandlers(), http.get("/api/projects", () => HttpResponse.json([])));
+
+    renderApp({ route: "/", locale: "ru" });
+
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/projects"));
+    expect(await screen.findByRole("heading", { name: "Проекты" })).toBeInTheDocument();
+  });
+
+  it("прежний адрес портфеля отвечает переездом, а не «страница не найдена»", async () => {
+    server.use(...sessionHandlers(), http.get("/api/projects", () => HttpResponse.json([])));
+
+    renderApp({ route: "/portfolio", locale: "ru" });
+
+    // Портфель разобран: сводка живёт на карточках списка. По старому адресу
+    // ходили из закладок, и отвечать на него пустотой — расплата за наведение
+    // порядка, которую платит читатель, а не мы.
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/projects"));
+    expect(await screen.findByRole("heading", { name: "Проекты" })).toBeInTheDocument();
+  });
+
+  it("даёт завести проект обоими способами, не уходя со страницы", async () => {
+    server.use(...sessionHandlers(), http.get("/api/projects", () => HttpResponse.json([])));
+
+    renderApp({ route: "/projects", locale: "ru" });
+
+    expect(await screen.findByRole("link", { name: /создать через интервью/i })).toHaveAttribute(
+      "href",
+      "/projects/new/ai",
+    );
+    expect(screen.getByRole("button", { name: /создать проект/i })).toBeInTheDocument();
   });
 });
 

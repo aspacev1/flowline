@@ -1297,11 +1297,10 @@ input[type="checkbox"] {
 
 /* --- списки строк --- */
 
-/* Проекты, участники и приглашения — строки списка, а не карточки: рамка
-   вокруг каждой строки в списке из двадцати рисует решётку, в которой не
-   видно самих строк. Разделяет их линия, а наведение показывает границы
-   строки целиком. */
-.projects,
+/* Участники и приглашения — строки списка, а не карточки: рамка вокруг
+   каждой строки в списке из двадцати рисует решётку, в которой не видно самих
+   строк. Разделяет их линия, а наведение показывает границы строки целиком.
+   Проекты из этого ряда ушли: у них есть сводка, и строка её не вмещает. */
 .members,
 .invites,
 .members__list {
@@ -1312,7 +1311,6 @@ input[type="checkbox"] {
   flex-direction: column;
 }
 
-.projects li,
 .members li,
 .invite,
 .members__row {
@@ -1326,28 +1324,10 @@ input[type="checkbox"] {
   transition: background var(--motion-fast) var(--motion-ease);
 }
 
-.projects li:hover,
 .members li:hover,
 .invite:hover,
 .members__row:hover {
   background: var(--hover);
-}
-
-.projects li a {
-  font-weight: 500;
-  text-decoration: none;
-}
-
-.projects li a:hover {
-  background: transparent;
-  text-decoration: underline;
-  text-decoration-color: rgb(var(--ink) / 25%);
-}
-
-.projects__slug {
-  margin-left: auto;
-  font-size: 12px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 /* Роль — последнее в строке и прижата к правому краю: колонок здесь нет, но
@@ -1946,9 +1926,9 @@ input[type="checkbox"] {
   text-decoration: underline;
 }
 
-/* --- портфель: карточки проектов --- */
+/* --- проекты: карточки со сводкой --- */
 
-.portfolio-cards {
+.projects {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 16px;
@@ -1957,36 +1937,93 @@ input[type="checkbox"] {
   list-style: none;
 }
 
-.portfolio-card {
+.project-card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 20px;
+  gap: 8px;
+  padding: 18px 20px 20px;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
-.portfolio-card__name {
+/* Вердикт — первой строкой карточки и единственным цветным пятном на ней:
+   ради него на карточку и смотрят. Плашка, а не строка текста: цветное пятно
+   находится глазом в сетке из двадцати карточек, строка — нет. */
+.project-card__verdict {
+  align-self: flex-start;
+  margin: 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--surface-sunken, var(--hover));
+  color: var(--text-muted);
+}
+
+.project-card__verdict[data-tone="alarm"] {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.project-card__verdict[data-tone="warn"] {
+  background: #fff4e5;
+  color: #b45309;
+}
+
+.project-card__verdict[data-tone="calm"] {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.project-card__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Название — чернилами и без подчёркивания, и селектор двойной намеренно:
+   `.screen a` красит всякую ссылку страницы и перебил бы одинокий класс. В
+   сетке карточек синее подчёркнутое название читается как «ссылка среди
+   текста», хотя открывается по щелчку карточка целиком. */
+.screen .project-card__name {
   color: var(--text);
   font-size: 17px;
   font-weight: 700;
   text-decoration: none;
 }
 
-.portfolio-card__meta {
+/* Режим плана — приглушённой плашкой, не цветной: это состояние, а не
+   тревога, и спорить с вердиктом над ним ей нечем. */
+.project-card__mode {
+  padding: 2px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.project-card__slug {
+  margin: 0;
+  font-size: 12px;
+}
+
+.project-card__meta {
   margin: 0;
   font-size: 13px;
 }
 
-.portfolio-card__progress {
+.project-card__progress {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 0;
+  margin: 2px 0 0;
 }
 
-.portfolio-card__bar {
+.project-card__bar {
   flex: 1 1 auto;
   height: 8px;
   border-radius: 999px;
@@ -1994,21 +2031,17 @@ input[type="checkbox"] {
   overflow: hidden;
 }
 
-.portfolio-card__bar i {
+.project-card__bar i {
   display: block;
   height: 100%;
   border-radius: 999px;
   background: var(--accent);
 }
 
-.portfolio-card__pct {
+.project-card__pct {
   font-size: 13px;
   font-weight: 700;
   color: var(--accent);
-}
-
-.portfolio-card__blocked {
-  margin: 0;
 }
 
 /* --- мои задачи --- */

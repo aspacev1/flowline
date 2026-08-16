@@ -9,7 +9,6 @@ import { Members } from "./screens/Members";
 import { MyTasks } from "./screens/MyTasks";
 import { Reports } from "./screens/Reports";
 import { OrgSettings } from "./screens/OrgSettings";
-import { Portfolio } from "./screens/Portfolio";
 import { Profile } from "./screens/Profile";
 import { Project } from "./screens/Project";
 import { ProjectSettings } from "./screens/ProjectSettings";
@@ -58,10 +57,6 @@ export function AppRoutes() {
         <Route path="/my-tasks" element={<MyTasks />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/projects" element={<Projects />} />
-        {/* Портфель — обзор «как дела», отдельный раздел со своим именем и
-            своим адресом: список проектов отвечает «куда пойти», а этот —
-            готовностью, сроком и заблокированным по каждому проекту. */}
-        <Route path="/portfolio" element={<Portfolio />} />
         {/* Интервью доступно только при создании нового проекта: запуск
             внутри существующего — следующий этап, не первая версия. */}
         <Route path="/projects/new/ai" element={<AiIntake />} />
@@ -92,6 +87,12 @@ export function AppRoutes() {
             отвечать на них «страница не найдена» из-за переезда — расплата за
             наведение порядка, которую платит читатель, а не мы. */}
         <Route path="/members" element={<Navigate to="/settings/members" replace />} />
+        {/* Портфель разобран: список проектов сам отвечает «как дела» — каждая
+            карточка несёт вердикт, готовность и срок. Два экрана с одним
+            набором проектов и разной полнотой данных заставляли выбирать, на
+            котором смотреть, и ответ «на обоих» был неверным. Адрес отвечает
+            переездом, а не «страница не найдена»: по нему ходили из закладок. */}
+        <Route path="/portfolio" element={<Navigate to="/projects" replace />} />
       </Route>
       {/* Неизвестный адрес ведёт внутрь, а оттуда — на вход, если человек не
           вошёл. Отдельный экран «не найдено» появится, когда появятся адреса,
