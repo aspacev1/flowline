@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { NavLink } from "react-router-dom";
 
 import { ORG_QUERY_KEY, organization } from "../api/org";
 import { useAuth } from "../auth/AuthProvider";
 import { useLocale } from "../i18n/LocaleProvider";
+import { IconBoard, IconChart, IconCheck, IconExit, IconSettings } from "./icons";
 import { LocaleSwitch } from "./LocaleSwitch";
 import { OrgSwitch } from "./OrgSwitch";
 
@@ -121,15 +122,15 @@ export function Header() {
             теперь сводка живёт на самих карточках, и выбирать между двумя
             списками одного и того же больше не нужно. */}
         <NavLink to="/projects" className={navClass}>
-          <IconBoard />
+          <IconBoard className="sidebar__icon" />
           {t("nav.projects")}
         </NavLink>
         <NavLink to="/my-tasks" className={navClass}>
-          <IconCheck />
+          <IconCheck className="sidebar__icon" />
           {t("nav.my_tasks")}
         </NavLink>
         <NavLink to="/reports" className={navClass}>
-          <IconChart />
+          <IconChart className="sidebar__icon" />
           {t("nav.reports")}
         </NavLink>
       </nav>
@@ -158,7 +159,7 @@ export function Header() {
             при этом задано явно — значок `aria-hidden`, и без aria-label
             свёрнутый пункт остался бы безымянным. */}
         <NavLink to="/settings" className={navClass} aria-label={t("nav.settings")}>
-          <IconGear />
+          <IconSettings className="sidebar__icon" />
           <span className="sidebar__label">{t("nav.settings")}</span>
         </NavLink>
         {/* Значок слева — тот же, что у соседних пунктов: без него подпись
@@ -171,7 +172,7 @@ export function Header() {
           aria-label={t("nav.logout")}
           onClick={() => void logout()}
         >
-          <IconExit />
+          <IconExit className="sidebar__icon" />
           <span className="sidebar__label">{t("nav.logout")}</span>
         </button>
       </div>
@@ -187,81 +188,4 @@ export function Header() {
  */
 function navClass({ isActive }: { isActive: boolean }) {
   return `sidebar__link${isActive ? " is-current" : ""}`;
-}
-
-/* Значки нарисованы здесь, а не взяты библиотекой: их пять, каждый — восемь
-   строк разметки, и ради них ставить зависимость с сотней неиспользованных
-   значков не за что. Все они `aria-hidden`: рядом стоит слово, и прочитанный
-   вслух значок только повторил бы его. */
-
-function Icon({ children }: { children: ReactNode }) {
-  return (
-    <svg
-      className="sidebar__icon"
-      width="16"
-      height="16"
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      {children}
-    </svg>
-  );
-}
-
-/* Галочка в круге: «мои задачи» — это то, что с меня спросят. */
-function IconCheck() {
-  return (
-    <Icon>
-      <circle cx="8" cy="8" r="6" />
-      <path d="m5.5 8.2 1.8 1.8 3.2-3.6" />
-    </Icon>
-  );
-}
-
-function IconChart() {
-  return (
-    <Icon>
-      <path d="M2.5 13.5h11" />
-      <path d="M4.5 13V8.5M8 13V4.5M11.5 13V6.5" />
-    </Icon>
-  );
-}
-
-function IconBoard() {
-  return (
-    <Icon>
-      <rect x="2" y="2.5" width="12" height="11" rx="2" />
-      <path d="M2 6h12M6.5 6v7.5" />
-    </Icon>
-  );
-}
-
-/* Дверь и стрелка наружу: рисунок замка означал бы «заперто», а не «выйти».
-   Стрелка смотрит вправо, от проёма, — по ней читается направление действия. */
-function IconExit() {
-  return (
-    <Icon>
-      <path d="M9.5 2.5h-5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h5" />
-      <path d="M11 5.5 13.5 8 11 10.5" />
-      <path d="M13.5 8h-6" />
-    </Icon>
-  );
-}
-
-/* Ползунки, а не шестерня: шестерня в шестнадцати пикселях вырождается в
-   звёздочку и читается как «избранное». */
-function IconGear() {
-  return (
-    <Icon>
-      <path d="M2.5 4.5h11M2.5 11.5h11" />
-      <circle cx="6" cy="4.5" r="1.8" />
-      <circle cx="10.5" cy="11.5" r="1.8" />
-    </Icon>
-  );
 }

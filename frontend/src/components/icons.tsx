@@ -1,0 +1,120 @@
+import type { ReactNode } from "react";
+
+/**
+ * Значки интерфейса.
+ *
+ * Нарисованы здесь, а не взяты библиотекой: каждый — несколько строк разметки,
+ * и ради восьми рисунков ставить зависимость с сотней неиспользованных не за
+ * что.
+ *
+ * Лежат все в одном месте, а не по местам употребления: «настройки» рисуются и
+ * в боковой колонке, и в шапке проекта, и два разных рисунка одного понятия на
+ * одном экране читаются как два разных понятия.
+ *
+ * Все они `aria-hidden`: рядом стоит слово, и прочитанный вслух значок только
+ * повторил бы его.
+ */
+
+type IconProps = {
+  /** Класс для размеров и цвета. По умолчанию — общий `.icon` кнопок. */
+  className?: string;
+};
+
+function Icon({ className = "icon", children }: IconProps & { children: ReactNode }) {
+  return (
+    <svg
+      className={className}
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      focusable="false"
+    >
+      {children}
+    </svg>
+  );
+}
+
+/* Галочка в круге: «мои задачи» — это то, что с меня спросят. */
+export function IconCheck({ className }: IconProps) {
+  return (
+    <Icon className={className}>
+      <circle cx="8" cy="8" r="6" />
+      <path d="m5.5 8.2 1.8 1.8 3.2-3.6" />
+    </Icon>
+  );
+}
+
+export function IconChart({ className }: IconProps) {
+  return (
+    <Icon className={className}>
+      <path d="M2.5 13.5h11" />
+      <path d="M4.5 13V8.5M8 13V4.5M11.5 13V6.5" />
+    </Icon>
+  );
+}
+
+export function IconBoard({ className }: IconProps) {
+  return (
+    <Icon className={className}>
+      <rect x="2" y="2.5" width="12" height="11" rx="2" />
+      <path d="M2 6h12M6.5 6v7.5" />
+    </Icon>
+  );
+}
+
+/* Дверь и стрелка наружу: рисунок замка означал бы «заперто», а не «выйти».
+   Стрелка смотрит вправо, от проёма, — по ней читается направление действия. */
+export function IconExit({ className }: IconProps) {
+  return (
+    <Icon className={className}>
+      <path d="M9.5 2.5h-5a1 1 0 0 0-1 1v9a1 1 0 0 0 1 1h5" />
+      <path d="M11 5.5 13.5 8 11 10.5" />
+      <path d="M13.5 8h-6" />
+    </Icon>
+  );
+}
+
+/* Ползунки, а не шестерня: шестерня в шестнадцати пикселях вырождается в
+   звёздочку и читается как «избранное». */
+export function IconSettings({ className }: IconProps) {
+  return (
+    <Icon className={className}>
+      <path d="M2.5 4.5h11M2.5 11.5h11" />
+      <circle cx="6" cy="4.5" r="1.8" />
+      <circle cx="10.5" cy="11.5" r="1.8" />
+    </Icon>
+  );
+}
+
+/* Три узла и две связи между ними — общепринятый рисунок «поделиться». Цепь
+   звеньями означала бы «ссылка» вообще: её ставят и там, где связывают две
+   задачи, а здесь речь про отдачу проекта наружу. */
+export function IconShare({ className }: IconProps) {
+  return (
+    <Icon className={className}>
+      <circle cx="11.5" cy="3.5" r="1.8" />
+      <circle cx="4.5" cy="8" r="1.8" />
+      <circle cx="11.5" cy="12.5" r="1.8" />
+      <path d="m6 7 4-2.5M6 9l4 2.5" />
+    </Icon>
+  );
+}
+
+/* Человек с плюсом: приглашение добавляет в организацию людей, а не письма.
+   Конверт рядом со словом «Пригласить» обещал бы отправку письма — а
+   приглашение без адреса уходит ссылкой. */
+export function IconInvite({ className }: IconProps) {
+  return (
+    <Icon className={className}>
+      <circle cx="6" cy="5.5" r="2.5" />
+      <path d="M2 13.5a4 4 0 0 1 8 0" />
+      <path d="M12.5 5v4M10.5 7h4" />
+    </Icon>
+  );
+}
