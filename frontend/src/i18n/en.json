@@ -17,7 +17,8 @@
       "one": "{count} task",
       "other": "{count} tasks"
     },
-    "save": "Save"
+    "save": "Save",
+    "close": "Close"
   },
   "modal": {
     "discard": {
@@ -705,25 +706,54 @@
     "line": "Project plan · v{version}",
     "line_draft": "Project plan · draft",
     "changed_count": {
-      "one": "{count} task changed",
-      "other": "{count} tasks changed"
+      "one": "{count} change since v{version}",
+      "other": "{count} changes since v{version}"
     },
     "changes_title": "Changes since v{version}",
     "changes_since": "Plan approved on {date}",
     "changes_open": "View changes",
     "changes_all": "All",
+    "changes_ghost": "Show the approved plan on the chart",
+    "changes_tag": {
+      "shifts": "Shifts",
+      "durations": "Duration",
+      "added": "New",
+      "removed": "Deleted"
+    },
     "changes_group": {
       "shifts": "Date shifts",
       "durations": "Duration",
-      "added": "New tasks",
+      "added": "New tasks · off plan",
       "removed": "Deleted tasks"
     },
     "changes_added_at": "added {date}",
     "changes_removed_note": "was in the approved plan",
+    "changes_also_duration": "duration: {from} → {to}",
     "changes_beyond": "off plan",
-    "changes_reapprove": "Re-approve as v{version}",
-    "changes_reapprove_hint": "These changes become the new baseline that shifts are measured from",
-    "reapprove_summary": "The new baseline will lock in what already changed: {tasks}"
+    "changes_reapprove": "Re-approve…",
+    "changes_reapprove_hint": {
+      "one": "Re-approving locks in this {count} change as the new baseline",
+      "other": "Re-approving locks in these {count} changes as the new baseline"
+    },
+    "reapprove_title": "Re-approve the plan as v{version}?",
+    "reapprove_summary": {
+      "one": "{count} change will be locked in: {parts}.",
+      "other": "{count} changes will be locked in: {parts}."
+    },
+    "reapprove_part": {
+      "shifts": {
+        "one": "{count} shift",
+        "other": "{count} shifts"
+      },
+      "durations": {
+        "one": "{count} duration",
+        "other": "{count} durations"
+      },
+      "added": {
+        "one": "{count} new task",
+        "other": "{count} new tasks"
+      }
+    }
   },
   "shift": {
     "title": "Shift of {days}",

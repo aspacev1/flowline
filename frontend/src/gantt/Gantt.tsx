@@ -97,6 +97,8 @@ export function Gantt({
   onCloseNewTask,
   onAddCategory,
   onDeleteCategory,
+  baselineShown,
+  onBaselineToggle,
   selectedTaskId = null,
   onSelectTask,
   onOpenComments,
@@ -159,6 +161,14 @@ export function Gantt({
    * спрашивает экран, лента получает готовое (см. `assigneeNames`).
    */
   commentCounts?: ReadonlyMap<string, number>;
+  /**
+   * Показывать ли призрак согласованного плана — снаружи.
+   *
+   * Не передано — лента решает сама своим флажком «Вид». Передано — решает
+   * экран, и тот же переключатель стоит в окне изменений.
+   */
+  baselineShown?: boolean;
+  onBaselineToggle?: () => void;
   /** Primary project action shown beside the working timeline controls. */
   toolbarAction?: ReactNode;
   /**
@@ -246,6 +256,17 @@ export function Gantt({
   });
   const toggleView = (flag: keyof ViewFlags) =>
     setView((current) => ({ ...current, [flag]: !current[flag] }));
+
+  // Призрак базового плана — единственный слой, которым управляют и снаружи:
+  // окно изменений показывает те же расхождения списком и включает их же на
+  // ленте. Флажок «Вид» и тумблер в окне обязаны быть одним переключателем, а
+  // не двумя одинаковыми, — иначе один говорит «включено» там, где второй уже
+  // выключил. Своё состояние остаётся про запас: у публичной страницы окна
+  // изменений нет, и поднимать флаг ей некуда.
+  const baselineOn = baselineShown ?? view.baseline;
+  const viewValue = (flag: keyof ViewFlags) => (flag === "baseline" ? baselineOn : view[flag]);
+  const viewToggle = (flag: keyof ViewFlags) =>
+    flag === "baseline" && onBaselineToggle ? onBaselineToggle() : toggleView(flag);
 
   // Свёрнутые категории. Состояние экрана, а не проекта: сосед по проекту не
   // должен получать чужие свёртки, поэтому оно не уходит на сервер.
@@ -576,7 +597,11 @@ export function Gantt({
               ] as const
             ).map(([flag, label]) => (
               <label key={flag} className="menu__item">
-                <input type="checkbox" checked={view[flag]} onChange={() => toggleView(flag)} />
+                <input
+                  type="checkbox"
+                  checked={viewValue(flag)}
+                  onChange={() => viewToggle(flag)}
+                />
                 {label}
               </label>
             ))}
@@ -819,7 +844,7 @@ export function Gantt({
                               baselineLabel={baselineLabel(task)}
                               deviationLabel={deviationLabel(task)}
                               statusLabel={t(`task.status.${task.status}`)}
-                              showBaseline={view.baseline}
+                              showBaseline={baselineOn}
                             />
                           </Fragment>
                         ))}

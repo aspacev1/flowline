@@ -15,10 +15,23 @@ const MOVED: ProjectState = {
   tasks: [{ ...APPROVED.tasks[0], start_date: "2026-03-09", end_date: "2026-03-13" }],
 };
 
-/** Та же задача, растянутая с пяти дней до восьми. */
+/** Та же задача, растянутая с пяти дней до восьми, но с места не сдвинутая. */
 const STRETCHED: ProjectState = {
   ...APPROVED,
   tasks: [{ ...APPROVED.tasks[0], duration_days: 8, end_date: "2026-03-13" }],
+};
+
+/** Задача, которую подвинули и растянули одним движением левой грани. */
+const RESIZED: ProjectState = {
+  ...APPROVED,
+  tasks: [
+    {
+      ...APPROVED.tasks[0],
+      start_date: "2026-03-09",
+      end_date: "2026-03-18",
+      duration_days: 8,
+    },
+  ],
 };
 
 /** Летопись версий: снимок знает задачу, которой в проекте уже нет. */
@@ -37,10 +50,30 @@ function withApprovals(snapshot: Record<string, unknown>) {
   );
 }
 
+/** Одна запись журнала с причиной — то, из чего окно берёт «почему». */
+function withReason(op: Record<string, unknown>, reason: string, at = "2026-03-05T10:00:00+00:00") {
+  server.use(
+    http.get("/api/projects/p1/revisions", () =>
+      HttpResponse.json([
+        {
+          seq: 7,
+          created_at: at,
+          actor: { id: "u1", name: "Алексей" },
+          reason,
+          batch_id: null,
+          undoes_seq: null,
+          op,
+          names: { t1: "Логотип" },
+        },
+      ]),
+    ),
+  );
+}
+
 /** Открыть список изменений так, как его открывает человек, — из шапки. */
 async function openChanges(state: ProjectState = MOVED) {
   renderProject(state);
-  await userEvent.click(await screen.findByRole("button", { name: /изменен/i }));
+  await userEvent.click(await screen.findByRole("button", { name: /изменени/i }));
   return screen.findByRole("dialog");
 }
 
@@ -73,10 +106,38 @@ describe("окно изменений плана", () => {
     expect(within(dialog).getByText("5 дн. → 8 дн.")).toBeInTheDocument();
   });
 
+  it("подвинутая и растянутая задача стоит в одной группе, но называет оба расхождения", async () => {
+    const dialog = await openChanges(RESIZED);
+
+    // Группы делят задачи между собой — иначе сумма подписей тегов разошлась бы
+    // с числом на чипе. Умолчать о втором расхождении при этом нельзя: движение
+    // одно, а поехало у задачи двое.
+    expect(within(dialog).getByText("Сдвиги дат")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Длительность")).toBeNull();
+    expect(within(dialog).getByText("4 мар → 9 мар")).toBeInTheDocument();
+    expect(within(dialog).getByText("длительность: 5 дн. → 8 дн.")).toBeInTheDocument();
+  });
+
+  it("сумма групп сходится с общим счётом", async () => {
+    const dialog = await openChanges({
+      ...APPROVED_WITH_EXTRA,
+      tasks: [
+        { ...APPROVED.tasks[0], start_date: "2026-03-09", end_date: "2026-03-13" },
+        ...APPROVED_WITH_EXTRA.tasks.slice(1),
+      ],
+    });
+
+    // Человек, складывающий подписи тегов, обязан получать то же число, что
+    // написано на «Все» и на чипе в шапке.
+    expect(within(dialog).getByRole("button", { name: "Все · 2" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Сдвиги · 1" })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Новые · 1" })).toBeInTheDocument();
+  });
+
   it("работу сверх плана показывает отдельно: сравнивать её не с чем", async () => {
     const dialog = await openChanges(APPROVED_WITH_EXTRA);
 
-    expect(within(dialog).getByText("Новые задачи")).toBeInTheDocument();
+    expect(within(dialog).getByText("Новые задачи · вне плана")).toBeInTheDocument();
     expect(within(dialog).getByText("вне плана")).toBeInTheDocument();
   });
 
@@ -92,21 +153,9 @@ describe("окно изменений плана", () => {
   });
 
   it("показывает причину сдвига там, где о ней спрашивали", async () => {
-    server.use(
-      http.get("/api/projects/p1/revisions", () =>
-        HttpResponse.json([
-          {
-            seq: 7,
-            created_at: "2026-03-05T10:00:00+00:00",
-            actor: { id: "u1", name: "Алексей" },
-            reason: "Ждали контент от клиента",
-            batch_id: null,
-            undoes_seq: null,
-            op: { type: "move_task", task_id: "t1", start_date: "2026-03-09" },
-            names: { t1: "Логотип" },
-          },
-        ]),
-      ),
+    withReason(
+      { type: "move_task", task_id: "t1", start_date: "2026-03-09" },
+      "Ждали контент от клиента",
     );
     const dialog = await openChanges();
 
@@ -116,108 +165,16 @@ describe("окно изменений плана", () => {
   });
 
   it("причина, названная до согласования, к расхождению не приписывается", async () => {
-    server.use(
-      http.get("/api/projects/p1/revisions", () =>
-        HttpResponse.json([
-          {
-            seq: 3,
-            // Раньше согласования: этот сдвиг сам вошёл в базовый план.
-            created_at: "2026-02-20T10:00:00+00:00",
-            actor: null,
-            reason: "Старое объяснение",
-            batch_id: null,
-            undoes_seq: null,
-            op: { type: "move_task", task_id: "t1", start_date: "2026-03-04" },
-            names: { t1: "Логотип" },
-          },
-        ]),
-      ),
+    // Раньше согласования: этот сдвиг сам вошёл в базовый план.
+    withReason(
+      { type: "move_task", task_id: "t1", start_date: "2026-03-04" },
+      "Старое объяснение",
+      "2026-02-20T10:00:00+00:00",
     );
     const dialog = await openChanges();
 
     await within(dialog).findByText("4 мар → 9 мар");
     expect(within(dialog).queryByText("Старое объяснение")).toBeNull();
-  });
-
-  it("одну причину не печатает дважды, когда задачу и подвинули, и растянули", async () => {
-    server.use(
-      http.get("/api/projects/p1/revisions", () =>
-        HttpResponse.json([
-          {
-            seq: 9,
-            created_at: "2026-03-05T10:00:00+00:00",
-            actor: { id: "u1", name: "Алексей" },
-            reason: "Заказчик расширил объём",
-            batch_id: null,
-            undoes_seq: null,
-            op: {
-              type: "resize_task",
-              task_id: "t1",
-              start_date: "2026-03-09",
-              duration_days: 8,
-            },
-            names: { t1: "Логотип" },
-          },
-        ]),
-      ),
-    );
-    const dialog = await openChanges({
-      ...APPROVED,
-      tasks: [
-        {
-          ...APPROVED.tasks[0],
-          start_date: "2026-03-09",
-          end_date: "2026-03-18",
-          duration_days: 8,
-        },
-      ],
-    });
-
-    // Задача стоит в двух группах, а объяснение у неё одно: напечатанное
-    // подряд дважды, оно читается сбоем, а не причиной.
-    await within(dialog).findByText("Заказчик расширил объём");
-    expect(within(dialog).getAllByText("Заказчик расширил объём")).toHaveLength(1);
-  });
-
-  it("под фильтром по группе причина остаётся при своей строке", async () => {
-    server.use(
-      http.get("/api/projects/p1/revisions", () =>
-        HttpResponse.json([
-          {
-            seq: 9,
-            created_at: "2026-03-05T10:00:00+00:00",
-            actor: null,
-            reason: "Заказчик расширил объём",
-            batch_id: null,
-            undoes_seq: null,
-            op: {
-              type: "resize_task",
-              task_id: "t1",
-              start_date: "2026-03-09",
-              duration_days: 8,
-            },
-            names: { t1: "Логотип" },
-          },
-        ]),
-      ),
-    );
-    const dialog = await openChanges({
-      ...APPROVED,
-      tasks: [
-        {
-          ...APPROVED.tasks[0],
-          start_date: "2026-03-09",
-          end_date: "2026-03-18",
-          duration_days: 8,
-        },
-      ],
-    });
-
-    await within(dialog).findByText("Заказчик расширил объём");
-    await userEvent.click(within(dialog).getByRole("button", { name: "Длительность · 1" }));
-
-    // Соседней строки на экране больше нет, и молчать теперь не о чем.
-    expect(within(dialog).getByText("Заказчик расширил объём")).toBeInTheDocument();
   });
 
   it("фильтр по группе оставляет только её", async () => {
@@ -229,11 +186,24 @@ describe("окно изменений плана", () => {
       ],
     });
 
-    expect(within(dialog).getByText("Новые задачи")).toBeInTheDocument();
-    await userEvent.click(within(dialog).getByRole("button", { name: "Сдвиги дат · 1" }));
+    expect(within(dialog).getByText("Новые задачи · вне плана")).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Сдвиги · 1" }));
 
     expect(within(dialog).getByText("Сдвиги дат")).toBeInTheDocument();
-    expect(within(dialog).queryByText("Новые задачи")).toBeNull();
+    expect(within(dialog).queryByText("Новые задачи · вне плана")).toBeNull();
+  });
+
+  it("тумблер призрака включает тот же слой, что и флажок «Вид»", async () => {
+    const dialog = await openChanges();
+
+    // Список и диаграмма рассказывают одно и то же двумя языками, и
+    // переключатель у них обязан быть один: два одинаковых разошлись бы.
+    expect(screen.getByTestId("ghost-t1")).toBeInTheDocument();
+    await userEvent.click(
+      within(dialog).getByRole("switch", { name: "Показывать утверждённый план на диаграмме" }),
+    );
+
+    expect(screen.queryByTestId("ghost-t1")).toBeNull();
   });
 
   it("имя задачи ведёт в её карточку, а окно уходит с дороги", async () => {
@@ -247,32 +217,30 @@ describe("окно изменений плана", () => {
     expect(await screen.findByRole("complementary")).toBeInTheDocument();
   });
 
-  it("владелец переутверждает прямо отсюда — список он только что прочитал", async () => {
-    const approvals: number[] = [];
-    server.use(
-      http.post("/api/projects/p1/plan/approvals", () => {
-        approvals.push(1);
-        return HttpResponse.json(
-          { version: 2, approved_at: "2026-03-10T09:00:00+00:00" },
-          { status: 201 },
-        );
-      }),
-    );
+  it("закрывается крестиком", async () => {
     const dialog = await openChanges();
 
-    await userEvent.click(
-      within(dialog).getByRole("button", { name: "Переутвердить как v2" }),
-    );
+    await userEvent.click(within(dialog).getByRole("button", { name: "Закрыть" }));
 
-    // Повторного «вы уверены» здесь нет намеренно: окно уже показало поимённо
-    // всё, что станет новой базой.
-    await waitFor(() => expect(approvals).toHaveLength(1));
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("переутверждение отсюда ведёт к тому же вопросу, что и кнопка в шапке", async () => {
+    const dialog = await openChanges();
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "Переутвердить…" }));
+
+    // Не переутверждает молча: подтверждение у действия одно, и второе,
+    // заведённое ради второй кнопки, разошлось бы с первым.
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(
+      await screen.findByText("Переутвердить план как v2?"),
+    ).toBeInTheDocument();
   });
 
   it("не владельцу переутверждения не предлагает вовсе", async () => {
     renderProject(MOVED, { canWrite: false });
-    await userEvent.click(await screen.findByRole("button", { name: /изменен/i }));
+    await userEvent.click(await screen.findByRole("button", { name: /изменени/i }));
 
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).queryByRole("button", { name: /Переутвердить/ })).toBeNull();
@@ -292,15 +260,22 @@ describe("окно изменений плана", () => {
 });
 
 describe("подтверждение переутверждения", () => {
-  it("называет объём того, что станет новой базой", async () => {
-    renderProject(MOVED);
+  it("называет число и перечисляет виды того, что станет новой базой", async () => {
+    renderProject({
+      ...APPROVED_WITH_EXTRA,
+      tasks: [
+        { ...APPROVED.tasks[0], start_date: "2026-03-09", end_date: "2026-03-13" },
+        ...APPROVED_WITH_EXTRA.tasks.slice(1),
+      ],
+    });
 
     await userEvent.click(await screen.findByRole("button", { name: "Пересогласовать" }));
 
-    // Прежде вопрос предупреждал о последствии, но не называл его размера, и
-    // «да» приходилось говорить вслепую.
+    // Прежде вопрос предупреждал о последствии, но не называл ни размера, ни
+    // рода: пять перенесённых задач и пять дописанных — разные новости.
+    expect(await screen.findByText("Переутвердить план как v2?")).toBeInTheDocument();
     expect(
-      screen.getByText("Новой базой станет то, что уже изменено: 1 задача"),
+      screen.getByText(/Будут зафиксированы 2 изменения: 1 сдвиг, 1 новая задача\./),
     ).toBeInTheDocument();
   });
 
@@ -312,5 +287,24 @@ describe("подтверждение переутверждения", () => {
 
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText("4 мар → 9 мар")).toBeInTheDocument();
+  });
+
+  it("подтверждение доводит переутверждение до сервера", async () => {
+    const approvals: number[] = [];
+    server.use(
+      http.post("/api/projects/p1/plan/approvals", () => {
+        approvals.push(1);
+        return HttpResponse.json(
+          { version: 2, approved_at: "2026-03-10T09:00:00+00:00" },
+          { status: 201 },
+        );
+      }),
+    );
+    renderProject(MOVED);
+
+    await userEvent.click(await screen.findByRole("button", { name: "Пересогласовать" }));
+    await userEvent.click(screen.getByRole("button", { name: "Да, пересогласовать" }));
+
+    await waitFor(() => expect(approvals).toHaveLength(1));
   });
 });

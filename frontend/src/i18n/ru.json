@@ -21,7 +21,8 @@
       "many": "{count} задач",
       "other": "{count} задачи"
     },
-    "save": "Сохранить"
+    "save": "Сохранить",
+    "close": "Закрыть"
   },
   "modal": {
     "discard": {
@@ -711,27 +712,66 @@
     "line": "План проекта · v{version}",
     "line_draft": "План проекта · черновик",
     "changed_count": {
-      "one": "изменена {count} задача",
-      "few": "изменены {count} задачи",
-      "many": "изменено {count} задач",
-      "other": "изменено {count} задачи"
+      "one": "{count} изменение после v{version}",
+      "few": "{count} изменения после v{version}",
+      "many": "{count} изменений после v{version}",
+      "other": "{count} изменения после v{version}"
     },
     "changes_title": "Изменения после v{version}",
     "changes_since": "План согласован {date}",
     "changes_open": "Посмотреть изменения",
     "changes_all": "Все",
+    "changes_ghost": "Показывать утверждённый план на диаграмме",
+    "changes_tag": {
+      "shifts": "Сдвиги",
+      "durations": "Длительность",
+      "added": "Новые",
+      "removed": "Удалённые"
+    },
     "changes_group": {
       "shifts": "Сдвиги дат",
       "durations": "Длительность",
-      "added": "Новые задачи",
+      "added": "Новые задачи · вне плана",
       "removed": "Удалённые задачи"
     },
     "changes_added_at": "добавлена {date}",
     "changes_removed_note": "была в согласованном плане",
+    "changes_also_duration": "длительность: {from} → {to}",
     "changes_beyond": "вне плана",
-    "changes_reapprove": "Переутвердить как v{version}",
-    "changes_reapprove_hint": "Эти изменения станут новой базой, от которой считаются сдвиги",
-    "reapprove_summary": "Новой базой станет то, что уже изменено: {tasks}"
+    "changes_reapprove": "Переутвердить…",
+    "changes_reapprove_hint": {
+      "one": "Переутверждение зафиксирует это {count} изменение как новую базу",
+      "few": "Переутверждение зафиксирует эти {count} изменения как новую базу",
+      "many": "Переутверждение зафиксирует эти {count} изменений как новую базу",
+      "other": "Переутверждение зафиксирует эти {count} изменения как новую базу"
+    },
+    "reapprove_title": "Переутвердить план как v{version}?",
+    "reapprove_summary": {
+      "one": "Будет зафиксировано {count} изменение: {parts}.",
+      "few": "Будут зафиксированы {count} изменения: {parts}.",
+      "many": "Будут зафиксированы {count} изменений: {parts}.",
+      "other": "Будут зафиксированы {count} изменения: {parts}."
+    },
+    "reapprove_part": {
+      "shifts": {
+        "one": "{count} сдвиг",
+        "few": "{count} сдвига",
+        "many": "{count} сдвигов",
+        "other": "{count} сдвига"
+      },
+      "durations": {
+        "one": "{count} длительность",
+        "few": "{count} длительности",
+        "many": "{count} длительностей",
+        "other": "{count} длительности"
+      },
+      "added": {
+        "one": "{count} новая задача",
+        "few": "{count} новые задачи",
+        "many": "{count} новых задач",
+        "other": "{count} новые задачи"
+      }
+    }
   },
   "shift": {
     "title": "Сдвиг на {days}",

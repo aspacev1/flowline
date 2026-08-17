@@ -24,6 +24,8 @@ export type PlanChange =
       to: string;
       /** Знак сохранён: минус — задачу приблизили. */
       days: number;
+      /** Длительность, если её меняли тем же движением. `null` — не меняли. */
+      stretch: { from: number; to: number } | null;
     }
   | { kind: "duration"; task: Task; from: number; to: number; days: number }
   | { kind: "added"; task: Task }
@@ -42,10 +44,13 @@ export type PlanChanges = {
   /**
    * Сколько задач разошлось с планом.
    *
-   * Считаются задачи, а не расхождения: одна задача, которую и подвинули, и
-   * растянули, попадает в две группы, но человеку сообщается «изменены 2
-   * задачи», а не «3 изменения» — иначе число зависело бы от того, сколько раз
-   * задачу трогали, и росло бы на ровном месте.
+   * Считаются задачи, а не расхождения: число, растущее от того, сколько раз
+   * задачу трогали, говорило бы о суете, а не о плане.
+   *
+   * Поэтому группы делят задачи, а не пересекаются: задача, которую подвинули
+   * и растянули одним движением, стоит в «сдвигах», а растяжение названо в её
+   * же строке. Иначе сумма групп разошлась бы с этим числом, и человек,
+   * складывающий подписи тегов, получал бы не то, что написано на чипе.
    *
    * Удалённые сюда не входят: их знает только снимок версии, а он грузится
    * отдельно и лишь при открытии окна (см. removedTasks).
@@ -71,6 +76,12 @@ export function planChanges(state: ProjectState): PlanChanges {
     if (baseline === null) continue;
 
     const shift = daysBetween(baseline.start, task.start_date);
+    const stretch = task.duration_days - baseline.duration;
+    if (shift === 0 && stretch === 0) continue;
+
+    // Уехавшее начало старше растянутого срока: «когда начнём» — первое, что
+    // спрашивают у плана, и задача, у которой поехало и то и другое, читается
+    // прежде всего как перенесённая.
     if (shift !== 0) {
       changes.shifts.push({
         kind: "shift",
@@ -78,11 +89,10 @@ export function planChanges(state: ProjectState): PlanChanges {
         from: baseline.start,
         to: task.start_date,
         days: shift,
+        stretch:
+          stretch === 0 ? null : { from: baseline.duration, to: task.duration_days },
       });
-    }
-
-    const stretch = task.duration_days - baseline.duration;
-    if (stretch !== 0) {
+    } else {
       changes.durations.push({
         kind: "duration",
         task,
@@ -92,8 +102,7 @@ export function planChanges(state: ProjectState): PlanChanges {
       });
     }
 
-    // Одна задача — один голос, в скольких бы группах она ни оказалась.
-    if (shift !== 0 || stretch !== 0) changes.taskCount += 1;
+    changes.taskCount += 1;
   }
 
   return changes;

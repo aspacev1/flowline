@@ -5,8 +5,48 @@
    налево ровно так, как её и спрашивают: «на сколько уехало, что именно, как
    называется». */
 
+/* Крестик — единственный в приложении, поэтому опора для него ставится здесь,
+   а не в общем правиле окна: остальные окна закрываются кнопкой формы, Esc и
+   щелчком мимо, и лишний угол им ни к чему. Селектор по содержимому, а не по
+   классу на самом окне: разметка уже сказала всё, что нужно, поставив внутрь
+   этот крестик. */
+.modal:has(.plan-changes__close) {
+  position: relative;
+}
+
+.plan-changes__close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  box-shadow: none;
+  color: var(--text-faint);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.plan-changes__close:hover {
+  background: var(--bg-subtle);
+  color: var(--text);
+}
+
+/* Заголовку нужно место под крестик — иначе длинное «Изменения после v12»
+   уезжает ему под низ. */
+.modal:has(.plan-changes__close) .modal__title {
+  padding-right: 34px;
+  margin-bottom: 4px;
+}
+
 .plan-changes__since {
-  margin: -12px 0 16px;
+  margin: 0 0 14px;
   font-size: 13px;
   color: var(--text-muted);
 }
@@ -21,22 +61,53 @@
 }
 
 /* Тег — не кнопка на вид: он сообщает число и лишь заодно фильтрует. Нажатый
-   набирается акцентом, как и прочие переключатели приложения. */
+   набирается акцентом, как и прочие переключатели приложения.
+
+   Тень и заливка гасятся явно: общее правило кнопки даёт всякой кнопке
+   приложения синюю заливку с подсветкой, и тег без этих строк выглядел бы
+   рядом главным действием окна. По той же причине здесь и `:hover` — иначе
+   наведение красит тег цветом главного действия. */
 .plan-changes__tag {
   height: 24px;
   padding: 0 10px;
   border: 0;
   border-radius: var(--radius-pill);
   background: var(--tag-gray);
+  box-shadow: none;
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 700;
   cursor: pointer;
 }
 
-.plan-changes__tag[aria-pressed="true"] {
+.plan-changes__tag:hover {
+  background: var(--border);
+  box-shadow: none;
+}
+
+.plan-changes__tag[aria-pressed="true"],
+.plan-changes__tag[aria-pressed="true"]:hover {
   background: var(--accent-soft);
+  box-shadow: none;
   color: var(--accent);
+}
+
+/* --- призрак на ленте --- */
+
+/* Переключатель слоя, а не строка списка: стоит между сводкой и группами и
+   отделён от обеих линией — он про диаграмму, а не про перечисленное ниже.
+   Свой нижний отступ рубильника здесь снимается: просвет держат поля обёртки,
+   и два источника одного расстояния разошлись бы. */
+.plan-changes__ghost {
+  margin: 12px 0 0;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.plan-changes__ghost .switch {
+  margin: 0;
 }
 
 /* --- группы --- */
@@ -57,12 +128,27 @@
 }
 
 .plan-changes__group-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 14px 0 2px;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-faint);
+}
+
+/* Счёт при заголовке — тот же, что в теге сводки: тег отвечает на «сколько
+   всего такого», заголовок повторяет его над самим списком, чтобы под
+   фильтром число не пропадало вместе с остальными тегами. */
+.plan-changes__count {
+  padding: 0 7px;
+  border-radius: var(--radius-pill);
+  background: var(--tag-gray);
+  color: var(--text-muted);
+  font-size: 11px;
+  letter-spacing: 0;
 }
 
 .plan-changes__list {
@@ -83,21 +169,33 @@
 }
 
 /* Имя тянет строку, разница и бейдж жмутся вправо и не переносятся: пара
-   «было → стало» разорванной по строкам перестаёт читаться парой. */
+   «было → стало» разорванной по строкам перестаёт читаться парой.
+
+   Имя — текст, по которому можно нажать, а не кнопка: рост, заливка, тень и
+   выключенный перенос приходят от общего правила кнопки и здесь снимаются все
+   разом. Без этого длинное имя задачи не переносится, а короткое стоит
+   посреди своей колонки на залитой плашке. */
 .plan-changes__name {
   flex: 1;
   min-width: 0;
+  height: auto;
   padding: 0;
   border: 0;
+  border-radius: 0;
   background: none;
+  box-shadow: none;
   font: inherit;
   font-weight: 650;
   color: var(--text);
   text-align: left;
+  justify-content: flex-start;
+  white-space: normal;
   cursor: pointer;
 }
 
 .plan-changes__name:hover {
+  background: none;
+  box-shadow: none;
   text-decoration: underline;
 }
 
@@ -128,6 +226,15 @@
 .plan-changes__badge.is-late { background: var(--danger-soft); color: var(--danger-strong); }
 .plan-changes__badge.is-early { background: var(--ok-soft); color: #176842; }
 .plan-changes__badge.is-new { background: var(--warn-soft); color: #785719; }
+
+/* Второе расхождение той же задачи — под парой дат, помельче: главное у
+   перенесённой задачи всё-таки начало, а растяжение — уточнение к нему. */
+.plan-changes__also {
+  margin: 3px 0 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
 
 /* Причина — текст человека: курсивом, как и в ленте истории. */
 .plan-changes__reason {
