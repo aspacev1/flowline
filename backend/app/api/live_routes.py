@@ -213,12 +213,14 @@ async def project_live(
         if project is not None and project.org_id != membership.org_id:
             project = None
         role = None if membership is None else parse_role(membership.role)
+        scoped = membership is not None and membership.project_scoped
         granted = project is not None and has_project_grant(db, project.id, session.user_id)
         # Отказ в чтении — то же закрытие, что и «нет такого проекта», по тому
         # же принципу, что и 404 вместо 403 в HTTP-маршрутах: тот, кому проект
         # не показывают, не должен узнать, что он существует. Роль, которую
-        # зовут в проекты поимённо, без выданного доступа сюда не попадает.
-        if project is None or not can(role, Action.PROJECT_READ, project_granted=granted):
+        # зовут в проекты поимённо (или чьё членство сужено), без выданного
+        # доступа сюда не попадает.
+        if project is None or not can(role, Action.PROJECT_READ, project_granted=granted, scoped=scoped):
             await _refuse(websocket, CLOSE_NOT_FOUND)
             return
 
@@ -243,6 +245,7 @@ async def project_live(
                 parse_role(membership.role),
                 Action.PROJECT_READ,
                 project_granted=has_project_grant(db, project_id, fresh.user_id),
+                scoped=membership.project_scoped,
             )
 
     # Сессия закрыта до accept(): дальше обработчик только ждёт, и держать за

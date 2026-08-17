@@ -88,10 +88,11 @@ export function InviteDialog({
   onClose,
 }: {
   /**
-   * Проект, из которого позвали. Роль `client` видит только отмеченные
-   * проекты, и когда зовут со страницы проекта, отмечать его руками —
-   * лишний шаг ровно там, где ошибиться дороже всего: клиент, приглашённый
-   * без проекта, войдёт и не увидит ничего.
+   * Проект, из которого позвали. Он же отмечается в списке проектов заранее:
+   * когда зовут со страницы проекта, отмечать его руками — лишний шаг ровно
+   * там, где ошибиться дороже всего для роли `client` (она без отметок не
+   * увидит ни одного проекта вовсе); для остальных ролей отметка просто
+   * сужает приглашение до этого проекта, и её можно снять.
    */
   projectId?: string;
   onClose: () => void;
@@ -105,13 +106,10 @@ export function InviteDialog({
   const [deliver, setDeliver] = useState(true);
 
   const invitations = useQuery({ queryKey: INVITATIONS_QUERY_KEY, queryFn: listInvitations });
-  // Проекты нужны только роли client: остальные читают проекты организации по
-  // самой роли, и выбирать им нечего.
-  const projects = useQuery({
-    queryKey: PROJECTS_QUERY_KEY,
-    queryFn: listProjects,
-    enabled: role === "client",
-  });
+  // Список проектов нужен любой роли: отмеченные проекты сужают приглашение
+  // до них же, независимо от того, кого зовут — клиента, редактора или
+  // наблюдателя.
+  const projects = useQuery({ queryKey: PROJECTS_QUERY_KEY, queryFn: listProjects });
 
   const create = useMutation({
     mutationFn: createInvitations,
@@ -136,9 +134,9 @@ export function InviteDialog({
     );
   }
 
-  // Роль и проекты считаются наравне с адресами: список проектов клиента
-  // отмечают галочками по одной, и промах мимо окна снимает их все разом.
-  // Отмеченный за человека проект, из которого позвали, при этом введённым не
+  // Роль и проекты считаются наравне с адресами: список проектов отмечают
+  // галочками по одной, и промах мимо окна снимает их все разом. Отмеченный
+  // за человека проект, из которого позвали, при этом введённым не
   // считается: его не выбирали, и терять там нечего.
   const projectsTouched =
     projectId === undefined
@@ -154,7 +152,7 @@ export function InviteDialog({
           create.mutate({
             emails,
             role,
-            project_ids: role === "client" ? projectIds : [],
+            project_ids: projectIds,
             // Без настроенной почты отправлять нечем — и спрашивать не о чем.
             deliver: mailEnabled && deliver,
           });
@@ -191,28 +189,30 @@ export function InviteDialog({
             отправки приглашения поздно. */}
         <RoleHint role={role} />
 
-        {role === "client" && (
-          <fieldset className="fieldset">
-            <legend>{t("invite.projects")}</legend>
-            <p className="muted">{t("invite.projects_hint")}</p>
-            {projects.data?.map((project) => (
-              <label key={project.id} className="checkbox">
-                <input
-                  type="checkbox"
-                  checked={projectIds.includes(project.id)}
-                  onChange={(event) =>
-                    setProjectIds((chosen) =>
-                      event.target.checked
-                        ? [...chosen, project.id]
-                        : chosen.filter((id) => id !== project.id),
-                    )
-                  }
-                />
-                {project.name}
-              </label>
-            ))}
-          </fieldset>
-        )}
+        {/* Не только для client: отмеченный здесь список сужает любую роль до
+            перечисленных проектов — см. Membership.project_scoped на сервере.
+            Ничего не отмечено — роль ведёт себя как раньше: client не видит
+            ни одного проекта, редактор и наблюдатель видят всю организацию. */}
+        <fieldset className="fieldset">
+          <legend>{t("invite.projects")}</legend>
+          <p className="muted">{t("invite.projects_hint")}</p>
+          {projects.data?.map((project) => (
+            <label key={project.id} className="checkbox">
+              <input
+                type="checkbox"
+                checked={projectIds.includes(project.id)}
+                onChange={(event) =>
+                  setProjectIds((chosen) =>
+                    event.target.checked
+                      ? [...chosen, project.id]
+                      : chosen.filter((id) => id !== project.id),
+                  )
+                }
+              />
+              {project.name}
+            </label>
+          ))}
+        </fieldset>
 
         {mailEnabled && emails.length > 0 && (
           <label className="checkbox">

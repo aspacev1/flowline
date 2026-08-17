@@ -151,3 +151,40 @@ def test_only_the_roles_that_are_invited_project_by_project_need_a_grant():
     assert needs_project_grant(None) is True
     assert needs_project_grant(Role.VIEWER) is False
     assert needs_project_grant(Role.OWNER) is False
+
+
+def test_a_scoped_membership_needs_a_grant_regardless_of_role():
+    """`scoped` — свойство конкретного членства (Membership.project_scoped), а
+    не роли: редактора и наблюдателя можно сузить до отмеченных проектов, не
+    трогая саму матрицу прав."""
+    assert needs_project_grant(Role.EDITOR, scoped=True) is True
+    assert needs_project_grant(Role.VIEWER, scoped=True) is True
+    # Без сужения — прежнее поведение: вся организация по одной роли.
+    assert needs_project_grant(Role.EDITOR, scoped=False) is False
+    assert needs_project_grant(Role.VIEWER, scoped=False) is False
+    # client и гость сужены всегда, scoped им ничего не добавляет и не отнимает.
+    assert needs_project_grant(Role.CLIENT, scoped=False) is True
+    assert needs_project_grant(None, scoped=False) is True
+
+
+def test_owner_is_never_scoped_even_if_the_flag_is_somehow_set():
+    """Владелец распоряжается организацией целиком: запертый в горстке
+    проектов владелец — это организация без администратора. Флаг на записи
+    членства (например, после повышения сужённого редактора) не должен это
+    менять."""
+    assert needs_project_grant(Role.OWNER, scoped=True) is False
+    assert can(Role.OWNER, Action.PROJECT_READ, project_granted=False, scoped=True) is True
+
+
+def test_a_scoped_editor_reads_only_the_granted_project():
+    assert can(Role.EDITOR, Action.PROJECT_READ, project_granted=False, scoped=True) is False
+    assert can(Role.EDITOR, Action.PROJECT_WRITE, project_granted=False, scoped=True) is False
+    assert can(Role.EDITOR, Action.PROJECT_READ, project_granted=True, scoped=True) is True
+    assert can(Role.EDITOR, Action.PROJECT_WRITE, project_granted=True, scoped=True) is True
+
+
+def test_an_unscoped_editor_is_unaffected_by_the_new_parameter():
+    # scoped=False — то же значение по умолчанию, что и раньше: сужение не
+    # включается само по себе.
+    assert can(Role.EDITOR, Action.PROJECT_READ) is True
+    assert can(Role.EDITOR, Action.PROJECT_WRITE) is True

@@ -61,8 +61,12 @@ class ProjectContext:
     def role(self) -> Role | str | None:
         return parse_role(self.membership.role)
 
+    @property
+    def scoped(self) -> bool:
+        return self.membership.project_scoped
+
     def can(self, action: Action) -> bool:
-        return can(self.role, action, project_granted=self.granted)
+        return can(self.role, action, project_granted=self.granted, scoped=self.scoped)
 
     def require(self, action: Action) -> None:
         """Отказ — 403: адрес проекта спрашивающий уже прошёл, значит читать

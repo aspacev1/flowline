@@ -165,6 +165,9 @@ describe("экран проекта", () => {
       http.get("/api/org/invitations", () =>
         HttpResponse.json({ mail_enabled: false, invitations: [] }),
       ),
+      // Форма приглашения запрашивает список проектов для любой роли, не
+      // только для «Клиента» — отмеченный им же проект её и предзаполняет.
+      http.get("/api/projects", () => HttpResponse.json([])),
     );
 
     renderApp({ route: "/projects/p1", locale: "ru" });

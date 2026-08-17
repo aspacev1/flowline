@@ -330,14 +330,54 @@ def test_a_client_invitation_grants_the_projects_it_names(db):
     assert other.id not in granted_project_ids(db, user_id=guest.id)
 
 
-def test_naming_projects_without_the_client_role_is_refused_rather_than_ignored(db):
+def test_an_editor_invited_with_projects_is_scoped_to_them(db):
+    """Отмеченные проекты сужают членство целиком, независимо от роли: у
+    редактора, позванного в конкретные проекты, доступ к организации сузился
+    до них же — той же записью project_access, что и у client."""
+    owner, org_id = _owner(db)
+    project = create_project(db, org_id=org_id, name="Redesign")
+    other = create_project(db, org_id=org_id, name="Internal")
+    db.flush()
+
+    invitation, _ = _invite(db, org_id, owner.id, role="editor", projects=(project.id,))
+    guest = register(db, name="Guest", email="guest@example.com", password="s3cret-pass")
+    db.flush()
+    membership = accept(db, invitation, user=guest, now=NOW)
+
+    assert membership.role == Role.EDITOR
+    assert membership.project_scoped is True
+    assert granted_project_ids(db, user_id=guest.id) == {project.id}
+    assert other.id not in granted_project_ids(db, user_id=guest.id)
+
+
+def test_a_viewer_invited_without_projects_keeps_seeing_the_whole_org(db):
+    """Пустой список проектов ничего не сужает: наблюдатель без отметок ведёт
+    себя ровно так же, как и до появления этой возможности."""
+    owner, org_id = _owner(db)
+    invitation, _ = _invite(db, org_id, owner.id, role="viewer", projects=())
+    guest = register(db, name="Guest", email="guest@example.com", password="s3cret-pass")
+    db.flush()
+
+    membership = accept(db, invitation, user=guest, now=NOW)
+
+    assert membership.role == Role.VIEWER
+    assert membership.project_scoped is False
+    assert granted_project_ids(db, user_id=guest.id) == set()
+
+
+def test_accepting_does_not_scope_the_membership_of_someone_already_inside(db):
+    """Как и роль, сужение существующего членства приглашением не трогается —
+    иначе владелец, открывший собственную же ссылку по невнимательности,
+    оказался бы заперт в списке чужого выбора."""
     owner, org_id = _owner(db)
     project = create_project(db, org_id=org_id, name="Redesign")
     db.flush()
+    invitation, _ = _invite(db, org_id, owner.id, emails=(), role="editor", projects=(project.id,))
 
-    with pytest.raises(InvitationError) as error:
-        _invite(db, org_id, owner.id, role="viewer", projects=(project.id,))
-    assert error.value.code == "project_ids_need_client_role"
+    membership = accept(db, invitation, user=owner, now=NOW)
+
+    assert membership.role == Role.OWNER
+    assert membership.project_scoped is False
 
 
 def test_a_project_of_another_organization_cannot_be_granted(db):

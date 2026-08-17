@@ -31,6 +31,8 @@ function membersHandlers(
     role?: string;
     /** Состав организации. Второй владелец снимает защиту последнего. */
     roster?: unknown[];
+    /** Список проектов: форма приглашения запрашивает его для любой роли. */
+    projects?: unknown[];
   } = {},
 ) {
   const {
@@ -38,6 +40,7 @@ function membersHandlers(
     invitations = [PENDING],
     role = "owner",
     roster = ROSTER,
+    projects = [],
   } = options;
   // Свои ответы идут первыми: msw берёт первый подходящий обработчик, и
   // общий `/api/org` из sessionHandlers перекрыл бы роль, заданную тестом.
@@ -47,6 +50,7 @@ function membersHandlers(
     http.get("/api/org/invitations", () =>
       HttpResponse.json({ mail_enabled: mailEnabled, invitations }),
     ),
+    http.get("/api/projects", () => HttpResponse.json(projects)),
     ...sessionHandlers(),
   ];
 }
@@ -237,24 +241,28 @@ describe("экран участников", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/слишком много приглашений/i);
   });
 
-  it("проекты выбираются только для роли «Клиент»", async () => {
+  it("проекты можно отметить для любой роли, не только «Клиента»", async () => {
     server.use(
-      ...membersHandlers({ invitations: [] }),
-      http.get("/api/projects", () =>
-        HttpResponse.json([{ id: "p1", name: "Şəhər Layihəsi", slug: "seher-layihesi" }]),
-      ),
+      ...membersHandlers({
+        invitations: [],
+        projects: [{ id: "p1", name: "Şəhər Layihəsi", slug: "seher-layihesi" }],
+      }),
     );
 
     renderApp({ route: "/members", locale: "ru" });
     await userEvent.click(await screen.findByRole("button", { name: /пригласить/i }));
 
-    expect(screen.queryByText("Şəhər Layihəsi")).not.toBeInTheDocument();
+    // Роль по умолчанию — «Наблюдатель», и список проектов уже виден: отметка
+    // сужает любую роль, а не только клиента.
+    const checkbox = await screen.findByLabelText("Şəhər Layihəsi");
+    expect(checkbox).toBeInTheDocument();
+    expect(checkbox).not.toBeChecked();
 
-    // Точное имя, а не образец: подписью «Роль: N» подписан выбор роли в
-    // каждой строке состава, и образец нашёл бы их все.
     await userEvent.selectOptions(screen.getByLabelText("Роль"), "client");
 
-    expect(await screen.findByLabelText("Şəhər Layihəsi")).toBeInTheDocument();
+    // Тот же список остаётся на месте и для клиента — форма не пересобирает
+    // его заново при смене роли.
+    expect(screen.getByLabelText("Şəhər Layihəsi")).toBeInTheDocument();
   });
 
   it("не владельцу приглашения не показываются вовсе", async () => {

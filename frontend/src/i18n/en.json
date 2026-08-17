@@ -195,7 +195,6 @@
     "invite_rate_limited": "Too many invitations this hour — try again later",
     "invalid_email": "Check the addresses: one of them is empty or is not an email",
     "unknown_role": "There is no such role",
-    "project_ids_need_client_role": "Projects are chosen for the client role only",
     "organization_not_found": "Organization not found",
     "mail_failed": "The email did not go out — copy the link and send it yourself",
     "mail_not_configured": "Mail is not configured in this installation",
@@ -653,7 +652,7 @@
     "link_only_hint": "With no address you get a link invitation: it belongs to whoever opens it",
     "role": "Role",
     "projects": "Projects",
-    "projects_hint": "A client sees only the projects ticked here",
+    "projects_hint": "The invitee sees only the projects ticked here: a client with none ticked gets no project at all, other roles with none ticked keep access to every project in the organization",
     "deliver": "Send an email",
     "submit": "Create the invitation",
     "list": {
