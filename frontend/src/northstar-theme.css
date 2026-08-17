@@ -58,6 +58,10 @@
   --radius-pill: 20px;
   --sidebar: 232px;
   --control: 36px;
+  /* Рост кнопки. Меньше `--control` намеренно — см. styles.css, где токен
+     заведён: одна высота на все кнопки приложения, взятая у ряда действий в
+     шапке проекта. */
+  --control-button: 29px;
   /* Отклик на наведение и нажатие — одной длительностью на весь продукт.
      Токен, а не число в каждом правиле: стоило одной кнопке написать своё
      значение, и на соседних элементах одного ряда отклик расходился — часть
@@ -199,24 +203,18 @@ button.sidebar__button { height: 34px; padding: 0 var(--sidebar-gutter); border-
    поверх него давала «Настройкам» двойной край, заметный ровно теперь, когда
    три действия стоят в ряд одного роста. */
 .project-head__actions a { display: inline-flex; align-items: center; border-radius: var(--radius-md); text-decoration: none; color: var(--text); }
-/* Ростом с кнопку согласования плана, стоящую строкой выше, — и по той же
-   причине, по какой невысока она: это действия при проекте, а не сам проект.
-   Три плашки в полный рост стояли вровень с его названием и отбирали у него
-   первый взгляд; здесь же после «Пригласить» их стало ещё больше.
+/* Рост этому ряду больше не задаётся: 29 пикселей при 12-м кегле — теперь
+   общая мера кнопки (`--control-button`), и здесь она получается сама.
+   Прежде правило стояло именно тут, и ряд действий проекта был единственным
+   местом приложения, где кнопка невысока; остальные кнопки шли в полный рост
+   поля, и одно и то же действие в шапке и в окне выглядело разным органом.
 
-   Селектор ссылки — через `.screen` по той же причине, по какой он двойной у
-   самой ссылки-кнопки: правило `.screen .button-link` задаёт ей рост органа
-   управления, и одинокая пара классов его не перебила бы. */
-.project-head__actions button,
-.screen .project-head__actions .button-link { height: 29px; padding: 0 10px; font-size: 12px; }
-/* Значок на невысокой кнопке — мельче общего: шестнадцать пикселей рядом с
-   двенадцатым кеглем читаются как картинка с подписью, а не как подпись со
-   значком. */
-.project-head__actions .icon { width: 14px; height: 14px; color: var(--text-muted); }
+   Значку остался только цвет: меру ему задаёт общее правило `.icon`. */
+.project-head__actions .icon { color: var(--text-muted); }
 /* Кнопка согласования стоит в строке плана, сразу за плашкой версии, и её
-   высота повторяет высоту плашки — иначе кнопка раздувает строку сводки. */
+   высота повторяет высоту плашки — иначе кнопка раздувает строку сводки.
+   Своего роста ей тоже не нужно: общая мера кнопки и есть высота плашки. */
 .project-head__approval { display: inline-flex; align-items: center; }
-.project-head__approval button { height: 29px; padding: 0 11px; font-size: 12px; }
 
 /* --- тулбар ленты --- */
 
@@ -224,11 +222,14 @@ button.sidebar__button { height: 34px; padding: 0 var(--sidebar-gutter); border-
    кнопками прежние 78 пикселей оставляли над лентой полосу пустоты выше самой
    шапки ленты. */
 .project-toolbar { display: flex; align-items: center; gap: 8px; min-height: 46px; padding: 5px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
-.project-toolbar__primary { padding: 0 12px; }
+/* Своих полей главной кнопке тулбара не задаётся: лишние два пикселя по бокам
+   отличали её от соседних кнопок ряда, а выделяет её заливка, а не размер. */
 .project-toolbar__divider { width: 1px; height: 24px; margin: 0 4px; background: var(--border); }
 .project-toolbar__spacer { flex: 1; }
-/* Меню тулбара — «Масштаб» и «Вид» — одной высоты между собой. */
-.project-toolbar .menu__button { height: var(--control); }
+/* Меню тулбара — «Масштаб» и «Вид» — одной высоты между собой и со всеми
+   кнопками приложения: своего роста им больше не задаётся, они берут общий.
+   Прежние 36 пикселей поднимали их над переключателем представления, стоящим
+   в том же ряду, и тулбар читался двумя этажами вместо одного. */
 /* Индикатор «Относительный план»: плашка состояния, а не кнопка — до
    назначения даты старта режим один и переключать нечего. */
 .project-toolbar__mode { display: inline-flex; align-items: center; height: 29px; padding: 0 10px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 12px; font-weight: 650; white-space: nowrap; }
@@ -250,12 +251,26 @@ button.sidebar__button { height: 34px; padding: 0 var(--sidebar-gutter); border-
 
 /* --- кнопки --- */
 
-/* Кнопка макета: 36 пикселей, скругление 8, подпись в 13 и волосяная тень
-   вместо цветного ореола. Прежняя тень — синее облако в 18 пикселей — осталась
-   от другого акцента и висела под каждой кнопкой подряд, включая тихие: на
-   экране с пятью действиями это пять «главных». */
-button { height: var(--control); padding: 0 12px; border-radius: var(--radius-md); font-size: 13px; font-weight: 620; box-shadow: 0 2px 5px rgb(83 103 232 / 20%); }
+/* Кнопка: 29 пикселей (`--control-button`), скругление 8, подпись в 12 и
+   волосяная тень вместо цветного ореола. Прежняя тень — синее облако в 18
+   пикселей — осталась от другого акцента и висела под каждой кнопкой подряд,
+   включая тихие: на экране с пятью действиями это пять «главных».
+
+   Рост здесь один на все кнопки приложения. Прежде он был 36 — ростом поля, —
+   и невысокой кнопка была ровно в одном месте, в ряду действий шапки проекта;
+   остальные полтора десятка мест шли в полный рост, а пять из них вдобавок
+   писали своё число (24, 28, 32, 34), и один и тот же орган выходил на экран
+   пятью разными размерами. Кнопка ниже поля намеренно: она действие *при*
+   содержимом, а не само содержимое. */
+button { height: var(--control-button); padding: 0 10px; border-radius: var(--radius-md); font-size: 12px; font-weight: 620; box-shadow: 0 2px 5px rgb(83 103 232 / 20%); }
 button:hover { background: var(--accent-hover); }
+
+/* Значок на кнопке — 14 пикселей, а не 16, которые рисует сама разметка
+   (см. icons.tsx): при подписи в 12-м кегле шестнадцатый читается как
+   картинка с подписью, а не как подпись со значком. Правило общее, а не при
+   шапке проекта, где оно завелось: рост кнопки теперь один на всё приложение,
+   и мера значка обязана следовать за ним, а не за местом. */
+.icon { width: 14px; height: 14px; }
 
 .button--quiet { background: var(--surface); color: var(--text); box-shadow: inset 0 0 0 1px var(--border-strong), var(--shadow-sm); }
 .button--quiet:hover, .button--quiet:disabled:hover { background: var(--bg-subtle); box-shadow: inset 0 0 0 1px var(--border-strong), var(--shadow-sm); }
@@ -270,7 +285,7 @@ button:hover { background: var(--accent-hover); }
    оставаться чернильной, иначе синими окажутся обе. */
 .button-link,
 .screen .button-link,
-.header .button-link { height: var(--control); padding: 0 12px; border-radius: var(--radius-md); font-size: 13px; font-weight: 620; color: var(--text); background: var(--surface); text-decoration: none; box-shadow: inset 0 0 0 1px var(--border-strong), var(--shadow-sm); }
+.header .button-link { height: var(--control-button); padding: 0 10px; border-radius: var(--radius-md); font-size: 12px; font-weight: 620; color: var(--text); background: var(--surface); text-decoration: none; box-shadow: inset 0 0 0 1px var(--border-strong), var(--shadow-sm); }
 .button-link:hover, .screen .button-link:hover, .header .button-link:hover { background: var(--bg-subtle); }
 
 .locale-switch { padding: 3px; border-radius: 9px; background: #f1f3f7; }
@@ -374,12 +389,14 @@ textarea:focus {
 .toast__check { width: 18px; height: 18px; border-color: rgb(255 255 255 / 45%); font-size: 10px; }
 .toast__message { flex: 1; }
 
+/* Рост и кегль — общие кнопочные: «Вернуть» в плашке остаётся тем же органом,
+   что и кнопка на странице, и своего размера ему не положено. */
 .toast__action {
-  height: 32px;
-  padding: 0 9px;
+  height: var(--control-button);
+  padding: 0 10px;
   border-radius: var(--radius-sm);
   color: var(--overlay-accent);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
 }
 

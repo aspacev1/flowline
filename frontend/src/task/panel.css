@@ -91,9 +91,13 @@
   background: var(--surface);
 }
 
+/* Рост и поля — общие кнопочные (`--control-button`): «Сохранить» в подвале
+   карточки — та же кнопка, что и всюду, и собственные 34 пикселя ставили её
+   рядом с «Отменой» лесенкой. Заливка и вес — свои: это главное действие
+   карточки. */
 .panel__save {
-  height: 34px;
-  padding: 0 16px;
+  height: var(--control-button);
+  padding: 0 10px;
   border-radius: var(--radius);
   background: var(--accent);
   color: var(--accent-text);
@@ -467,12 +471,12 @@
    число уже есть в поле процента и на полосе. */
 .panel__progress-day {
   flex: 0 0 auto;
-  height: 34px;
-  padding: 0 16px;
+  height: var(--control-button);
+  padding: 0 10px;
   border-radius: var(--radius);
   background: var(--accent);
   color: var(--accent-text);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
 }
