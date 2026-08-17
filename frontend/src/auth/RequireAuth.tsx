@@ -2,6 +2,7 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 
 import { Header } from "../components/Header";
 import { ToastProvider } from "../components/toast";
+import { VerifyEmailBar } from "../components/VerifyEmailBar";
 import { useLocale } from "../i18n/LocaleProvider";
 import { useAuth } from "./AuthProvider";
 
@@ -36,11 +37,15 @@ export function RequireAuth() {
   // читается как первый блок страницы, а не как её рама.
   // Тосты живут на раме, а не на отдельном экране: подтверждение с «Отменить»
   // одинаково по устройству везде, где что-то меняют.
+  // Полоска «адрес не подтверждён» — по той же причине над содержимым, а не
+  // внутри экрана: она про учётную запись, а не про то, что человек сейчас
+  // открыл, и попадаться на глаза обязана в любом разделе.
   return (
     <ToastProvider>
       <div className="app">
         <Header />
         <div className="app__main">
+          <VerifyEmailBar />
           <Outlet />
         </div>
       </div>

@@ -16,7 +16,7 @@ describe("подтверждение адреса", () => {
       http.post("/api/auth/verify-email", async ({ request }) => {
         const body = (await request.json()) as { token: string };
         tokens.push(body.token);
-        return new HttpResponse(null, { status: 204 });
+        return HttpResponse.json({ already_verified: false });
       }),
     );
 
@@ -28,12 +28,28 @@ describe("подтверждение адреса", () => {
     expect(tokens).toEqual(["abc123"]);
   });
 
+  it("на повторное открытие ссылки говорит «уже подтверждён», а не «не подходит»", async () => {
+    server.use(
+      http.get("/api/auth/me", () => HttpResponse.json(USER)),
+      http.post("/api/auth/verify-email", () => HttpResponse.json({ already_verified: true })),
+    );
+
+    renderApp({ route: "/verify-email?token=abc123", locale: "ru" });
+
+    expect(await screen.findByText(/адрес уже подтверждён/i)).toBeInTheDocument();
+    // Ни красной плашки, ни предложения просить новое письмо: просить нечего.
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /отправить письмо ещё раз/i }),
+    ).not.toBeInTheDocument();
+  });
+
   it("не требует сессии: письмо читают в другом браузере", async () => {
     server.use(
       http.get("/api/auth/me", () =>
         HttpResponse.json({ detail: "not_authenticated" }, { status: 401 }),
       ),
-      http.post("/api/auth/verify-email", () => new HttpResponse(null, { status: 204 })),
+      http.post("/api/auth/verify-email", () => HttpResponse.json({ already_verified: false })),
     );
 
     renderApp({ route: "/verify-email?token=abc123", locale: "ru" });
@@ -94,7 +110,7 @@ describe("подтверждение адреса", () => {
       http.get("/api/auth/me", () => HttpResponse.json(UNVERIFIED)),
       http.post("/api/auth/verify-email", () => {
         asked = true;
-        return new HttpResponse(null, { status: 204 });
+        return HttpResponse.json({ already_verified: false });
       }),
     );
 

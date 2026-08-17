@@ -134,7 +134,11 @@
       "title": "Email confirmation",
       "checking": "Checking the link…",
       "done": "Your email address is confirmed",
+      "already": "The address is already confirmed — this link has been used",
       "resend": "Send the letter again",
+      "resend_in": "Again in {seconds} s",
+      "unverified": "The address {email} is not confirmed — open the link from the letter",
+      "sent_to": "The letter is on its way to {email} — open the link from it",
       "resent": "The letter is on its way — check your inbox",
       "not_sent": "The letter could not be sent. Try again later",
       "link_projects": "Go to projects"

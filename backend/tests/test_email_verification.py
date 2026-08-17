@@ -20,6 +20,7 @@ from app.email_verification import (
     confirm_email,
     issue_token,
     send_verification,
+    sent_recently,
     verification_link,
 )
 from app.main import app
@@ -67,14 +68,36 @@ def test_confirming_stamps_the_user_and_burns_the_token(db, user):
 
     confirmed = confirm_email(db, raw)
 
-    assert confirmed.id == user.id
-    assert confirmed.email_verified_at is not None
-    assert db.query(EmailVerification).filter_by(user_id=user.id).count() == 0
+    assert confirmed.user.id == user.id
+    assert confirmed.already_verified is False
+    assert confirmed.user.email_verified_at is not None
+    # Строка осталась, но погашена: подтвердить ею второй раз нечего.
+    record = db.query(EmailVerification).filter_by(user_id=user.id).one()
+    assert record.used_at is not None
 
-    # Вторая попытка по той же ссылке ничего не даёт: токен погашен.
-    with pytest.raises(VerificationError) as exc_info:
-        confirm_email(db, raw)
-    assert exc_info.value.code == "invalid_token"
+
+def test_the_same_link_opened_again_says_the_address_is_already_confirmed(db, user):
+    """По ссылке из письма ходят дважды — второй заход не ошибка."""
+    raw = issue_token(db, user)
+    stamped = confirm_email(db, raw).user.email_verified_at
+
+    again = confirm_email(db, raw)
+
+    assert again.already_verified is True
+    assert again.user.id == user.id
+    # Отметка о подтверждении та же самая: второй заход ничего не переписывает.
+    assert again.user.email_verified_at == stamped
+
+
+def test_a_burnt_link_stays_good_for_the_answer_even_past_its_expiry(db, user):
+    """Срок годности погашенной ссылки уже ни на что не влияет."""
+    raw = issue_token(db, user)
+    confirm_email(db, raw)
+    record = db.query(EmailVerification).filter_by(user_id=user.id).one()
+    record.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+    db.flush()
+
+    assert confirm_email(db, raw).already_verified is True
 
 
 def test_an_unknown_token_is_rejected(db, user):
@@ -103,7 +126,23 @@ def test_a_new_link_invalidates_the_previous_one(db, user):
 
     with pytest.raises(VerificationError):
         confirm_email(db, first)
-    assert confirm_email(db, second).email_verified_at is not None
+    assert confirm_email(db, second).user.email_verified_at is not None
+
+
+def test_confirming_sweeps_links_that_expired_elsewhere(db, user):
+    """У погашенной ссылки нет второго повода зайти в таблицу — уборка здесь."""
+    stale = register(db, name="Ким", email="kim@example.com", password="s3cret-pass")
+    db.flush()
+    issue_token(db, stale)
+    db.query(EmailVerification).filter_by(user_id=stale.id).one().expires_at = datetime.now(
+        timezone.utc
+    ) - timedelta(seconds=1)
+    db.flush()
+
+    confirm_email(db, issue_token(db, user))
+
+    assert db.query(EmailVerification).filter_by(user_id=stale.id).count() == 0
+    assert db.query(EmailVerification).filter_by(user_id=user.id).count() == 1
 
 
 def test_the_link_is_built_from_the_public_base_url(db, user):
@@ -132,7 +171,7 @@ def test_the_letter_goes_out_in_the_language_of_its_recipient(db, user, mailbox)
 
     # Ссылка из письма действительно работает — иначе проверять текст
     # письма бессмысленно.
-    assert confirm_email(db, _token_of(letter.body)).email_verified_at is not None
+    assert confirm_email(db, _token_of(letter.body)).user.email_verified_at is not None
 
 
 def test_an_undelivered_letter_still_leaves_a_usable_token(db, user, monkeypatch):
@@ -147,7 +186,17 @@ def test_an_undelivered_letter_still_leaves_a_usable_token(db, user, monkeypatch
     assert send_verification(db, user) is False
     # Токен выдан: человек может попросить письмо ещё раз, когда сервер
     # починят, — и старая ссылка при этом уступит место новой.
-    assert db.query(EmailVerification).filter_by(user_id=user.id).count() == 1
+    record = db.query(EmailVerification).filter_by(user_id=user.id).one()
+    # Паузу неотправленное письмо не заводит: ждать нечего.
+    assert record.sent_at is None
+    assert sent_recently(db, user) is False
+
+
+def test_a_letter_that_went_out_starts_the_pause(db, user, mailbox):
+    assert send_verification(db, user) is True
+
+    assert db.query(EmailVerification).filter_by(user_id=user.id).one().sent_at is not None
+    assert sent_recently(db, user) is True
 
 
 # ---- Маршруты ---------------------------------------------------------------
@@ -194,7 +243,23 @@ def test_the_link_from_the_letter_confirms_without_a_session(client, mailbox):
 
     response = client.post("/api/auth/verify-email", json={"token": token})
 
-    assert response.status_code == 204
+    assert response.status_code == 200
+    assert response.json() == {"already_verified": False}
+
+
+def test_opening_the_link_a_second_time_is_not_an_error(client, mailbox):
+    """Ссылку из письма открывают дважды — второй раз это не отказ."""
+    client.post(
+        "/api/auth/register",
+        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+    )
+    token = _token_of(mailbox[0].body)
+    client.post("/api/auth/verify-email", json={"token": token})
+
+    response = client.post("/api/auth/verify-email", json={"token": token})
+
+    assert response.status_code == 200
+    assert response.json() == {"already_verified": True}
 
 
 def test_me_reports_the_address_as_confirmed_afterwards(client, mailbox):
@@ -226,15 +291,35 @@ def test_resend_waits_out_the_cooldown(client, db, mailbox):
 
     assert client.post("/api/auth/verify-email/resend").status_code == 429
 
-    # Отматываем выдачу назад — как если бы прошла минута.
+    # Отматываем отправку назад — как если бы прошла минута.
     record = db.query(EmailVerification).one()
-    record.created_at = datetime.now(timezone.utc) - RESEND_COOLDOWN - timedelta(seconds=1)
+    record.sent_at = datetime.now(timezone.utc) - RESEND_COOLDOWN - timedelta(seconds=1)
     db.flush()
 
     response = client.post("/api/auth/verify-email/resend")
     assert response.status_code == 200
     assert response.json() == {"sent": True}
     assert len(mailbox) == 2
+
+
+def test_a_letter_that_never_went_out_does_not_lock_the_button(client, db, monkeypatch):
+    """Пауза считается от письма: за неотправленное ждать нечего."""
+    import app.mail as mail_module
+
+    class Broken:
+        def deliver(self, letter):
+            raise mail_module.MailError("почтовый сервер лежит")
+
+    monkeypatch.setattr(mail_module, "build_transport", lambda settings: Broken())
+
+    client.post(
+        "/api/auth/register",
+        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+    )
+
+    # Первое же нажатие: отказ здесь означал бы минуту ожидания письма,
+    # которого никто не отправлял.
+    assert client.post("/api/auth/verify-email/resend").json() == {"sent": False}
 
 
 def test_resend_says_so_when_the_letter_did_not_go_out(client, db, monkeypatch, mailbox):
@@ -244,7 +329,7 @@ def test_resend_says_so_when_the_letter_did_not_go_out(client, db, monkeypatch, 
         "/api/auth/register",
         json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
     )
-    db.query(EmailVerification).one().created_at = (
+    db.query(EmailVerification).one().sent_at = (
         datetime.now(timezone.utc) - RESEND_COOLDOWN - timedelta(seconds=1)
     )
     db.flush()

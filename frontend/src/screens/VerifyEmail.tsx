@@ -4,6 +4,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { ME_QUERY_KEY, resendVerification, verifyEmail } from "../api/auth";
 import { errorKey } from "../api/errors";
 import { useAuth } from "../auth/AuthProvider";
+import { noteVerificationSent } from "../auth/verificationNotice";
 import { useLocale } from "../i18n/LocaleProvider";
 
 /**
@@ -30,11 +31,11 @@ export function VerifyEmail() {
   const verification = useQuery({
     queryKey: ["verify-email", token],
     queryFn: async () => {
-      await verifyEmail(token);
+      const result = await verifyEmail(token);
       // Профиль в кэше держит прежний ответ /me, где адрес ещё не
       // подтверждён; без сброса подсказка осталась бы висеть до перезагрузки.
       await queryClient.invalidateQueries({ queryKey: ME_QUERY_KEY });
-      return true;
+      return result;
     },
     enabled: token !== "",
     retry: false,
@@ -42,7 +43,15 @@ export function VerifyEmail() {
     refetchOnWindowFocus: false,
   });
 
-  const resend = useMutation({ mutationFn: resendVerification });
+  const resend = useMutation({
+    mutationFn: resendVerification,
+    onSuccess: (result) => {
+      // Полоска в раме приложения считает паузу от этой отметки — иначе
+      // человек, ушедший отсюда к проектам, увидел бы там кнопку, которая
+      // ответит «слишком часто» на письмо, отправленное секунду назад.
+      if (result.sent && user) noteVerificationSent(user.email);
+    },
+  });
 
   return (
     <main className="screen screen--narrow">
@@ -58,7 +67,15 @@ export function VerifyEmail() {
         <p role="status">{t("auth.verify.checking")}</p>
       )}
 
-      {verification.isSuccess && <p role="status">{t("auth.verify.done")}</p>}
+      {/* Повторное открытие погашенной ссылки — не ошибка, а тот же успех
+          другими словами: по ссылке из письма ходят дважды (из письма и из
+          истории браузера, с телефона и с ноутбука), и красная плашка
+          отвечала бы отказом человеку, у которого всё в порядке. */}
+      {verification.isSuccess && (
+        <p role="status">
+          {t(verification.data.already_verified ? "auth.verify.already" : "auth.verify.done")}
+        </p>
+      )}
 
       {verification.isError && (
         <>

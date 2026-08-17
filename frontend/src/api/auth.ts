@@ -77,9 +77,15 @@ export function updateProfile(patch: {
     body: JSON.stringify(patch),
   });
 }
-/** Погашение ссылки из письма. Куки не требует: почту читают в другом месте. */
-export function verifyEmail(token: string): Promise<void> {
-  return request<void>("/api/auth/verify-email", {
+/**
+ * Погашение ссылки из письма. Куки не требует: почту читают в другом месте.
+ *
+ * `already_verified` — ссылку открыли не в первый раз. Это не отказ: адрес
+ * подтверждён, и человеку остаётся только выбрать слова — «подтверждён» или
+ * «уже подтверждён».
+ */
+export function verifyEmail(token: string): Promise<{ already_verified: boolean }> {
+  return request<{ already_verified: boolean }>("/api/auth/verify-email", {
     method: "POST",
     body: JSON.stringify({ token }),
   });

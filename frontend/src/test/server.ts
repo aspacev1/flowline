@@ -16,8 +16,22 @@ import { setupServer } from "msw/node";
  * Счётчик реплик спрашивает всякий экран с лентой — и рабочий, и публичный.
  * Пустой ответ означает «нигде ещё не обсуждали»: с этого начинается всякий
  * проект, и на строках ленты в этом состоянии нет ни одного числа.
+ *
+ * Настройки установки спрашивает рама приложения — полоска «адрес не
+ * подтверждён». Почта включена: это обычная установка, и тест про
+ * подтверждение адреса не должен начинаться с объявления почтового сервера.
  */
 export const server = setupServer(
+  http.get("/api/config", () =>
+    HttpResponse.json({
+      mail_enabled: true,
+      signup_mode: "open",
+      supported_locales: ["az", "en", "ru"],
+      default_locale: "az",
+      public_sharing_enabled: true,
+      live_enabled: true,
+    }),
+  ),
   http.get("/api/org/list", () => HttpResponse.json([])),
   http.get("/api/projects/:projectId/comments/counts", () => HttpResponse.json({})),
   http.get("/api/public/:orgSlug/:projectSlug/comments/counts", () => HttpResponse.json({})),

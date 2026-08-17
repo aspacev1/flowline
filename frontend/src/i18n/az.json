@@ -134,7 +134,11 @@
       "title": "Ünvanın təsdiqi",
       "checking": "Keçid yoxlanılır…",
       "done": "E-poçt ünvanı təsdiqləndi",
+      "already": "Ünvan artıq təsdiqlənib — bu keçiddən artıq istifadə olunub",
       "resend": "Məktubu yenidən göndər",
+      "resend_in": "{seconds} san sonra yenidən",
+      "unverified": "{email} ünvanı təsdiqlənməyib — məktubdakı keçidi açın",
+      "sent_to": "Məktub {email} ünvanına göndərildi — ondakı keçidi açın",
       "resent": "Məktub göndərildi — poçtunuzu yoxlayın",
       "not_sent": "Məktubu göndərmək alınmadı. Bir azdan yenidən cəhd edin",
       "link_projects": "Layihələrə keç"

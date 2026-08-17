@@ -7,6 +7,7 @@ import type { User } from "../api/auth";
 import { errorKey } from "../api/errors";
 import { afterAuthPath } from "../auth/afterAuth";
 import { forgetInvite, withInvite } from "../auth/invite";
+import { noteVerificationSent } from "../auth/verificationNotice";
 import { inviteQueryKey, previewInvitation } from "../api/invitations";
 import { Field } from "../components/Field";
 import { useLocale } from "../i18n/LocaleProvider";
@@ -60,6 +61,11 @@ export function Register() {
       // Держать его дальше значило бы уводить человека на экран уже принятого
       // приглашения при следующем же входе.
       if (inviteToken !== null) forgetInvite();
+      // Письмо с подтверждением сервер отправляет сам, следом за ответом.
+      // Полоска в раме приложения прочитает эту отметку и скажет, на какой
+      // адрес ушло письмо, — вместо кнопки, которая на первое же нажатие
+      // ответила бы «слишком часто».
+      noteVerificationSent(user.email);
       // Тот же возврат, что и на входе: человек мог прийти по ссылке на проект
       // и завести аккаунт прямо здесь.
       navigate(afterAuthPath(location.state));
