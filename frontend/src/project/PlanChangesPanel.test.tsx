@@ -74,10 +74,10 @@ function withReason(op: Record<string, unknown>, reason: string, at = "2026-03-0
 async function openChanges(state: ProjectState = MOVED) {
   renderProject(state);
   await userEvent.click(await screen.findByRole("button", { name: /изменени/i }));
-  return screen.findByRole("dialog");
+  return screen.findByRole("complementary", { name: "Изменения после v1" });
 }
 
-describe("окно изменений плана", () => {
+describe("панель изменений плана", () => {
   it("называет сдвиг парой «было → стало» и величиной", async () => {
     const dialog = await openChanges();
 
@@ -193,6 +193,16 @@ describe("окно изменений плана", () => {
     expect(within(dialog).queryByText("Новые задачи · вне плана")).toBeNull();
   });
 
+  it("не накрывает ленту подложкой: список читают вместе с диаграммой", async () => {
+    const dialog = await openChanges();
+
+    // Ради этого список и не стал окном: подложка гасила бы диаграмму ровно
+    // тогда, когда рубильник в шапке панели включает на ней призраки плана.
+    expect(screen.queryByTestId("modal-backdrop")).toBeNull();
+    expect(within(dialog).getByText("4 мар → 9 мар")).toBeInTheDocument();
+    expect(screen.getByTestId("ghost-t1")).toBeInTheDocument();
+  });
+
   it("тумблер призрака включает тот же слой, что и флажок «Вид»", async () => {
     const dialog = await openChanges();
 
@@ -212,9 +222,10 @@ describe("окно изменений плана", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "Логотип" }));
 
     // Увидев расхождение, идут чинить именно эту задачу — и путь туда не должен
-    // проходить через закрытие окна и поиск строки глазами.
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    expect(await screen.findByRole("complementary")).toBeInTheDocument();
+    // проходить через закрытие панели и поиск строки глазами. Карточка выезжает
+    // на то же место справа, поэтому список ей это место уступает.
+    expect(await screen.findByRole("complementary", { name: "Задача «Логотип»" })).toBeInTheDocument();
+    expect(screen.queryByRole("complementary", { name: "Изменения после v1" })).toBeNull();
   });
 
   it("закрывается крестиком", async () => {
@@ -222,7 +233,7 @@ describe("окно изменений плана", () => {
 
     await userEvent.click(within(dialog).getByRole("button", { name: "Закрыть" }));
 
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("complementary", { name: "Изменения после v1" })).toBeNull();
   });
 
   it("переутверждение отсюда ведёт к тому же вопросу, что и кнопка в шапке", async () => {
@@ -232,7 +243,9 @@ describe("окно изменений плана", () => {
 
     // Не переутверждает молча: подтверждение у действия одно, и второе,
     // заведённое ради второй кнопки, разошлось бы с первым.
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    await waitFor(() =>
+      expect(screen.queryByRole("complementary", { name: "Изменения после v1" })).toBeNull(),
+    );
     expect(
       await screen.findByText("Переутвердить план как v2?"),
     ).toBeInTheDocument();
@@ -242,7 +255,7 @@ describe("окно изменений плана", () => {
     renderProject(MOVED, { canWrite: false });
     await userEvent.click(await screen.findByRole("button", { name: /изменени/i }));
 
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await screen.findByRole("complementary", { name: "Изменения после v1" });
     expect(within(dialog).queryByRole("button", { name: /Переутвердить/ })).toBeNull();
   });
 
@@ -285,7 +298,7 @@ describe("подтверждение переутверждения", () => {
     await userEvent.click(await screen.findByRole("button", { name: "Пересогласовать" }));
     await userEvent.click(screen.getByRole("button", { name: "Посмотреть изменения" }));
 
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await screen.findByRole("complementary", { name: "Изменения после v1" });
     expect(within(dialog).getByText("4 мар → 9 мар")).toBeInTheDocument();
   });
 

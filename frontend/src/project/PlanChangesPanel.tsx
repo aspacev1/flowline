@@ -6,14 +6,19 @@ import { listPlanApprovals } from "../api/projects";
 import type { ProjectState } from "../api/projects";
 import { feedQueryKey, listProjectRevisions } from "../api/revisions";
 import type { RevisionEntry } from "../api/revisions";
-import { Modal } from "../components/Modal";
 import { Switch } from "../components/Switch";
+import { useEscape } from "../components/useEscape";
 import { relativeDayLabel } from "../gantt/relative";
 import { formatDate, formatShortDate } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
 import { planChanges, removedTasks } from "./planChanges";
 import type { PlanChange } from "./planChanges";
 
+// Слой и три яруса панель берёт у карточки задачи — стили оттуда же, а не
+// переписанные заново: две выдвижные колонки на одном месте обязаны выезжать
+// одинаково, иначе переход из списка в карточку выглядит переездом в другое
+// приложение.
+import "../task/panel.css";
 import "./planChanges.css";
 
 /**
@@ -28,18 +33,20 @@ const DATE_OPS = ["move_task", "set_duration", "resize_task", "move_category"];
 type GroupKey = "shifts" | "durations" | "added" | "removed";
 
 /**
- * Окно «что изменилось после согласования».
+ * Боковая панель «что изменилось после согласования».
  *
- * Отвечает на один вопрос целиком: что разошлось с планом, насколько и почему.
- * Читают его и закрывают, а не держат открытым рядом с лентой.
+ * Панель, а не окно с подложкой: список и лента рассказывают одно и то же
+ * двумя языками — строками и призраками полосок, — и читать их нужно вместе.
+ * Окно накрывало бы диаграмму ровно в тот миг, когда тумблер «показывать
+ * утверждённый план» включает на ней то, ради чего его и включают.
  *
  * Считается всё из состояния проекта — оно уже на экране. Два запроса, которые
- * окно всё же делает, лениво и только за тем, чего в состоянии нет по
+ * панель всё же делает, лениво и только за тем, чего в состоянии нет по
  * определению: снимок версии знает удалённые задачи, журнал — причины сдвигов.
- * Обоих может не быть (отказ, роль без права на журнал) — тогда окно показывает
- * то же, что и без них, и молчит: список расхождений от этого не портится.
+ * Обоих может не быть (отказ, роль без права на журнал) — тогда панель
+ * показывает то же, что и без них, и молчит: список расхождений от этого не портится.
  */
-export function PlanChangesDialog({
+export function PlanChangesPanel({
   projectId,
   state,
   canReapprove,
@@ -108,54 +115,83 @@ export function PlanChangesDialog({
   // бы пометку, которая его открыла.
   const total = filled.reduce((sum, row) => sum + row.rows.length, 0);
 
+  // Esc через общую стопку слоёв: панель почти всегда всплывает поверх ленты,
+  // а поверх неё могут открыться окно сдвига или вопрос о переутверждении, и
+  // собственный слушатель на документе закрывал бы всех разом.
+  useEscape(onClose);
+
+  const title = t("plan.changes_title", { version: state.plan_version });
+
   return (
-    <Modal title={t("plan.changes_title", { version: state.plan_version })} onClose={onClose}>
-      {/* Когда согласовали и кто — то, относительно чего считается весь список.
-          Без этой строки «после v1» остаётся отсылкой к неизвестной дате. */}
-      {state.plan_approved_at && (
-        <p className="plan-changes__since">
-          {t("plan.changes_since", { date: formatDate(t, state.plan_approved_at.slice(0, 10)) })}
-          {/* Имя человека — содержимое пользователя: без перевода. */}
-          {approvedBy && <span className="muted"> · {approvedBy.name}</span>}
-        </p>
-      )}
-
-      {/* Сводка отвечает на «что вообще случилось» до того, как список прочитан,
-          и она же фильтр: у групп разная срочность, и «покажи только сдвиги» —
-          первое, что просят, увидев число. Пустые группы не показываются: тег с
-          нулём предлагает открыть пустоту. */}
-      <div className="plan-changes__summary">
-        <GroupTag active={group === "all"} onClick={() => setGroup("all")}>
-          {t("plan.changes_all")} · {total}
-        </GroupTag>
-        {filled.map((row) => (
-          <GroupTag
-            key={row.key}
-            active={group === row.key}
-            onClick={() => setGroup(group === row.key ? "all" : row.key)}
+    // Панель, а не окно: подложки у неё нет намеренно — лента слева остаётся и
+    // видимой, и рабочей, и призраки согласованного плана на ней читаются
+    // вместе со списком.
+    <aside className="panel plan-changes" role="complementary" aria-label={title}>
+      {/* Шапка закреплена: заголовок, сводка и рубильник призрака не уезжают с
+          прокруткой списка — фильтр нужен ровно тогда, когда список длинный. */}
+      <header className="panel__head plan-changes__head">
+        <div className="panel__head-top">
+          <h2 className="panel__title">{title}</h2>
+          <button
+            type="button"
+            className="panel__close"
+            aria-label={t("common.close")}
+            title={t("common.close")}
+            onClick={onClose}
           >
-            {t(`plan.changes_tag.${row.key}`)} · {row.rows.length}
+            ×
+          </button>
+        </div>
+
+        {/* Когда согласовали и кто — то, относительно чего считается весь
+            список. Без этой строки «после v1» остаётся отсылкой к неизвестной
+            дате. */}
+        {state.plan_approved_at && (
+          <p className="plan-changes__since">
+            {t("plan.changes_since", { date: formatDate(t, state.plan_approved_at.slice(0, 10)) })}
+            {/* Имя человека — содержимое пользователя: без перевода. */}
+            {approvedBy && <span className="muted"> · {approvedBy.name}</span>}
+          </p>
+        )}
+
+        {/* Сводка отвечает на «что вообще случилось» до того, как список
+            прочитан, и она же фильтр: у групп разная срочность, и «покажи
+            только сдвиги» — первое, что просят, увидев число. Пустые группы не
+            показываются: тег с нулём предлагает открыть пустоту. */}
+        <div className="plan-changes__summary">
+          <GroupTag active={group === "all"} onClick={() => setGroup("all")}>
+            {t("plan.changes_all")} · {total}
           </GroupTag>
-        ))}
-      </div>
+          {filled.map((row) => (
+            <GroupTag
+              key={row.key}
+              active={group === row.key}
+              onClick={() => setGroup(group === row.key ? "all" : row.key)}
+            >
+              {t(`plan.changes_tag.${row.key}`)} · {row.rows.length}
+            </GroupTag>
+          ))}
+        </div>
 
-      {/* Тот же слой, что включает флажок «Вид» на ленте, — не второй такой же:
-          список и диаграмма рассказывают одно и то же двумя языками, и
-          переключаться между ними человек должен там, где смотрит.
+        {/* Тот же слой, что включает флажок «Вид» на ленте, — не второй такой
+            же: список и диаграмма рассказывают одно и то же двумя языками, и
+            переключаться между ними человек должен там, где смотрит. Ради
+            этого рубильника панель и не накрывает ленту.
 
-          Рубильником, а не флажком: состояние меняется сразу и без кнопки
-          «сохранить» — это ровно тот случай, ради которого в приложении и
-          заведён `Switch`. */}
-      <div className="plan-changes__ghost">
-        <Switch
-          id="plan-changes-ghost"
-          label={t("plan.changes_ghost")}
-          checked={baselineShown}
-          onChange={onBaselineToggle}
-        />
-      </div>
+            Рубильником, а не флажком: состояние меняется сразу и без кнопки
+            «сохранить» — это ровно тот случай, ради которого в приложении и
+            заведён `Switch`. */}
+        <div className="plan-changes__ghost">
+          <Switch
+            id="plan-changes-ghost"
+            label={t("plan.changes_ghost")}
+            checked={baselineShown}
+            onChange={onBaselineToggle}
+          />
+        </div>
+      </header>
 
-      <div className="plan-changes__groups">
+      <div className="panel__body">
         {shown.map(({ key, rows }) => (
           <section key={key} className="plan-changes__group">
             <h3 className="plan-changes__group-title">
@@ -168,8 +204,10 @@ export function PlanChangesDialog({
                   <div className="plan-changes__main">
                     {/* Имя задачи ведёт в её карточку: увидев расхождение, идут
                         чинить именно эту задачу, и путь туда не должен идти
-                        через закрытие окна и поиск строки глазами. У удалённой
-                        задачи вести некуда — она остаётся текстом. */}
+                        через закрытие панели и поиск строки глазами. Панель при
+                        этом уходит: карточка выезжает на то же место справа, и
+                        двум панелям там не разойтись. У удалённой задачи вести
+                        некуда — она остаётся текстом. */}
                     {change.kind === "removed" ? (
                       <span className="plan-changes__name plan-changes__name--gone">
                         {change.name}
@@ -214,13 +252,13 @@ export function PlanChangesDialog({
         ))}
       </div>
 
-      {/* Переутверждение отсюда ведёт к тому же вопросу, что и кнопка в шапке, —
-          не к своему собственному: подтверждение у действия одно, и второе,
-          заведённое ради второй кнопки, однажды разойдётся с первым в
+      {/* Переутверждение отсюда ведёт к тому же вопросу, что и кнопка в шапке
+          проекта, — не к своему собственному: подтверждение у действия одно, и
+          второе, заведённое ради второй кнопки, однажды разойдётся с первым в
           формулировке или в правах. Многоточие на кнопке о том и говорит:
           нажатие не переутверждает, а спрашивает. */}
       {canReapprove && (
-        <div className="plan-changes__foot">
+        <div className="panel__foot plan-changes__foot">
           <span className="plan-changes__hint">
             {t("plan.changes_reapprove_hint", { count: total })}
           </span>
@@ -236,19 +274,7 @@ export function PlanChangesDialog({
           </button>
         </div>
       )}
-
-      {/* Крестик — последним в разметке, хотя стоит в правом верхнем углу:
-          окно ставит фокус на первый орган управления, и им обязан быть фильтр,
-          а не выход. Место ему даёт стиль, порядок — это правило. */}
-      <button
-        type="button"
-        className="plan-changes__close"
-        aria-label={t("common.close")}
-        onClick={onClose}
-      >
-        ✕
-      </button>
-    </Modal>
+    </aside>
   );
 }
 

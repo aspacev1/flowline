@@ -22,7 +22,7 @@ import { DependencyNudge, DependencyNudgeProvider } from "../project/DependencyN
 import { deleteCategory } from "../project/optimistic";
 import { useProjectMutation } from "../project/useProjectMutation";
 import { PlanApproval } from "../project/PlanApproval";
-import { PlanChangesDialog } from "../project/PlanChangesDialog";
+import { PlanChangesPanel } from "../project/PlanChangesPanel";
 import { ProjectHead } from "../project/ProjectHead";
 import { Proposal } from "../proposal/Proposal";
 import { ProjectHistory } from "../project/ProjectHistory";
@@ -70,10 +70,10 @@ export function Project({
   // подтверждении переутверждения, — и оба стоят в разных поддеревьях.
   const [showingChanges, setShowingChanges] = useState(false);
   // Задан ли вопрос о переутверждении. Тоже здесь: его задают и кнопкой в
-  // шапке, и из подвала окна изменений, а вопрос у действия один.
+  // шапке, и из подвала панели изменений, а вопрос у действия один.
   const [reapproving, setReapproving] = useState(false);
   // Показывает ли лента призрак согласованного плана. Поднят из ленты, потому
-  // что тем же слоем управляет тумблер в окне изменений: список и диаграмма
+  // что тем же слоем управляет тумблер в панели изменений: список и диаграмма
   // рассказывают одно и то же двумя языками, и переключатель у них общий.
   const [showBaseline, setShowBaseline] = useState(true);
   // Где открыта строка новой задачи. `null` — закрыта.
@@ -93,6 +93,10 @@ export function Project({
   const [selectedTaskTab, setSelectedTaskTab] = useState<PanelTab>("details");
   const openTask = (taskId: string, tab: PanelTab = "details") => {
     setSelectedTaskTab(tab);
+    // Карточка выезжает на то же место справа, что и список расхождений: двум
+    // выдвижным колонкам там не разойтись, и открытая последней занимает его
+    // одна. Закрывается именно список — за карточкой пришли только что.
+    setShowingChanges(false);
     // Повторный щелчок по той же строке закрывает карточку: люди делают так не
     // задумываясь, и без этого щелчок выглядит бездействием. Переход же с имени
     // на счётчик реплик — не повтор, а другой раздел той же карточки, и
@@ -437,12 +441,15 @@ export function Project({
               />
             )}
 
-            {/* Список расхождений с планом. Открыт может быть на любой вкладке:
-                пометка о расхождении стоит в шапке, а шапка одна на все три. С
-                имени задачи он ведёт в её карточку — а та живёт только на
-                ленте, поэтому переход туда заодно и возвращает на неё. */}
+            {/* Список расхождений с планом — выдвижной колонкой справа, без
+                подложки: лента слева остаётся видимой и рабочей, и призраки
+                согласованного плана на ней читаются вместе со списком. Открыт
+                может быть на любой вкладке: пометка о расхождении стоит в
+                шапке, а шапка одна на все три. С имени задачи ведёт в её
+                карточку — а та живёт только на ленте, поэтому переход туда
+                заодно и возвращает на неё. */}
             {showingChanges && (
-              <PlanChangesDialog
+              <PlanChangesPanel
                 projectId={projectId}
                 state={query.data}
                 canReapprove={role === "owner" && !offline}
