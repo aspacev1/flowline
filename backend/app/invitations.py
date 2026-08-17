@@ -90,19 +90,20 @@ def _parse_role(raw: str) -> Role:
 
 
 def _checked_project_ids(
-    db: DbSession, *, org_id: uuid.UUID, role: Role, project_ids: list[uuid.UUID]
+    db: DbSession, *, org_id: uuid.UUID, project_ids: list[uuid.UUID]
 ) -> list[str]:
     """Проекты, к которым приглашение сразу даёт доступ.
 
-    Пустой список для любой роли, кроме `client`: остальные роли читают
-    проекты организации по самой роли, и запись поимённого доступа им не
-    значила бы ничего. Молча выбросить лишнее нельзя — приглашающий выбрал
-    проекты и вправе узнать, что выбор не имеет смысла.
+    Доступна любой приглашаемой роли, не только `client`: отмеченные проекты
+    сужают членство целиком (см. Membership.project_scoped в app.models) — то
+    есть позволяют позвать редактора или наблюдателя в конкретные проекты
+    вместо всей организации сразу. Пустой список ничего не сужает: роль
+    остаётся при своём — `client` по-прежнему не видит ни одного проекта, пока
+    её не позовут поимённо, а `editor`/`viewer` видят всю организацию, как и
+    без этой возможности.
     """
     if not project_ids:
         return []
-    if role is not Role.CLIENT:
-        raise InvitationError("project_ids_need_client_role")
 
     found = set(
         db.scalars(
@@ -196,9 +197,7 @@ def create(
     удобно. Такое приглашение достаётся предъявителю, и это осознанный размен.
     """
     parsed_role = _parse_role(role)
-    stored_projects = _checked_project_ids(
-        db, org_id=org_id, role=parsed_role, project_ids=project_ids
-    )
+    stored_projects = _checked_project_ids(db, org_id=org_id, project_ids=project_ids)
 
     normalized: list[str | None] = []
     for raw in emails:
@@ -319,7 +318,9 @@ def accept(db: DbSession, invitation: Invitation, *, user: User, now: datetime) 
     человека, а не способ переписать роль тому, кто уже внутри: иначе
     приглашение, выписанное на свой же адрес и принятое по невнимательности,
     разжаловало бы последнего владельца организации, и починить это стало бы
-    некому.
+    некому. По той же причине не трогается и сужение (project_scoped)
+    существующего членства: приглашение с отмеченными проектами, принятое тем,
+    кто уже видел всю организацию, не должно молча урезать его до этого списка.
     """
     state = status_of(invitation, now)
     if state is not Status.PENDING:
@@ -332,7 +333,15 @@ def accept(db: DbSession, invitation: Invitation, *, user: User, now: datetime) 
         )
     )
     if membership is None:
-        membership = Membership(org_id=invitation.org_id, user_id=user.id, role=invitation.role)
+        membership = Membership(
+            org_id=invitation.org_id,
+            user_id=user.id,
+            role=invitation.role,
+            # Отмеченные в приглашении проекты сужают новое членство целиком,
+            # какой бы ни была роль: пустой список ничего не сужает — роль
+            # остаётся при своём поведении по умолчанию (см. _checked_project_ids).
+            project_scoped=bool(invitation.project_ids),
+        )
         db.add(membership)
 
     grant_project_access(db, user_id=user.id, project_ids=invitation.project_ids)

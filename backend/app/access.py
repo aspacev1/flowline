@@ -43,7 +43,8 @@ _MATRIX: dict[Role | None, frozenset[Action]] = {
     None: frozenset({Action.PROJECT_READ, Action.COMMENT}),
 }
 
-# Роли, которые видят только те проекты, куда их позвали явно.
+# Роли, которые видят только те проекты, куда их позвали явно, — независимо от
+# того, сужено ли конкретное членство (см. needs_project_grant).
 _NEEDS_GRANT: frozenset[Role | None] = frozenset({Role.CLIENT, None})
 
 
@@ -67,27 +68,45 @@ def parse_role(raw: str | None) -> Role | str | None:
         return UNKNOWN_ROLE
 
 
-def needs_project_grant(role: Role | str | None) -> bool:
-    """Видит ли эта роль только те проекты, куда её позвали поимённо.
+def needs_project_grant(role: Role | str | None, *, scoped: bool = False) -> bool:
+    """Видит ли эта роль (или это конкретное членство) только те проекты,
+    куда её позвали поимённо.
+
+    `scoped` — не свойство роли, а свойство членства (Membership.project_scoped):
+    приглашающий вправе сузить и редактора, и наблюдателя до конкретных
+    проектов, не трогая саму роль и её матрицу прав. `client` и гость по
+    ссылке сужены всегда, независимо от значения `scoped`, — их и спрашивать
+    не о чем, отсюда `or`, а не замена.
+
+    Владелец не сужается никогда, даже если на его записи членства зачем-то
+    стоит `project_scoped=True` (например, редактора с сужением повысили): он
+    один распоряжается организацией целиком, и запертый в горстке проектов
+    владелец — это организация без администратора.
 
     Спрашивается снаружи — списком проектов и загрузкой одного проекта: им
     нужно знать не только «можно ли», но и «по какому правилу отбирать».
     Знание о том, какие роли устроены так, остаётся здесь, в единственном
     месте, где решается доступ.
     """
-    return role in _NEEDS_GRANT
+    if role is Role.OWNER:
+        return False
+    return role in _NEEDS_GRANT or scoped
 
 
-def can(role: Role | None, action: Action, *, project_granted: bool = False) -> bool:
-    if role in _NEEDS_GRANT and not project_granted:
+def can(
+    role: Role | None, action: Action, *, project_granted: bool = False, scoped: bool = False
+) -> bool:
+    if needs_project_grant(role, scoped=scoped) and not project_granted:
         return False
     # .get с пустым множеством по умолчанию: незнакомая роль не находит себя в
     # матрице и не может ничего — матрица заперта по умолчанию.
     return action in _MATRIX.get(role, frozenset())
 
 
-def require(role: Role | None, action: Action, *, project_granted: bool = False) -> None:
-    if not can(role, action, project_granted=project_granted):
+def require(
+    role: Role | None, action: Action, *, project_granted: bool = False, scoped: bool = False
+) -> None:
+    if not can(role, action, project_granted=project_granted, scoped=scoped):
         raise PermissionError(f"{role or 'guest'} не может выполнить {action}")
 
 

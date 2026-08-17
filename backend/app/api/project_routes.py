@@ -83,7 +83,14 @@ def create_project(
     membership: Membership = Depends(current_membership),
     db: DbSession = Depends(get_db),
 ):
-    if not can(parse_role(membership.role), Action.PROJECT_WRITE):
+    # scoped=... и здесь, не только у чтения: у нового проекта нет и не может
+    # быть заранее выданного доступа, а сужённой роли он нужен на любое
+    # действие — значит can() отказывает ей всегда, и это верно. Другой ответ
+    # был бы дырой в самом сужении: редактор, запертый в горстке проектов,
+    # заводил бы себе новые в обход списка — и не видел бы их потом в
+    # /api/projects, потому что там та же проверка спрашивает выданный доступ,
+    # а не создателя.
+    if not can(parse_role(membership.role), Action.PROJECT_WRITE, scoped=membership.project_scoped):
         raise HTTPException(status_code=403, detail="forbidden")
 
     project = create_project_entity(db, org_id=membership.org_id, name=payload.name)
@@ -105,8 +112,9 @@ def list_projects(
         raise HTTPException(status_code=404, detail="project_not_found")
 
     query = select(Project).where(Project.org_id == membership.org_id)
-    if needs_project_grant(role):
-        # Роль, которую зовут в проекты поимённо, видит ровно их. Фильтр
+    if needs_project_grant(role, scoped=membership.project_scoped):
+        # Роль, которую зовут в проекты поимённо (или чьё собственное членство
+        # сужено, см. Membership.project_scoped), видит ровно их. Фильтр
         # запросом, а не отсевом в Python: список проектов организации — это
         # ровно то, что от неё скрывают.
         query = query.join(ProjectAccess, ProjectAccess.project_id == Project.id).where(

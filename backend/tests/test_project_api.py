@@ -160,6 +160,17 @@ def _grant_project_access(authed, db, project_id: str) -> None:
     db.flush()
 
 
+def _scope_own_membership(authed, db) -> None:
+    """Сужает членство зарегистрированного пользователя — так же, как это
+    сделает приглашение с отмеченными проектами для роли, отличной от client."""
+    from app.models import Membership
+
+    user_id = authed.get("/api/auth/me").json()["id"]
+    membership = db.scalar(select(Membership).where(Membership.user_id == user_id))
+    membership.project_scoped = True
+    db.flush()
+
+
 def test_client_without_a_grant_does_not_see_the_project(authed, db):
     # access._MATRIX: client входит в _NEEDS_GRANT и без выданного доступа к
     # проекту не имеет даже PROJECT_READ — маршруты чтения обязаны спросить
@@ -224,6 +235,55 @@ def test_client_with_a_grant_reads_the_project_without_the_internal_note(authed,
     # полями, и лента карточки задачи — вторая дверь к тому же полю.
     revisions = authed.get(f"/api/projects/{project_id}/revisions").json()
     assert all("internal_note" not in revision["op"] for revision in revisions)
+
+
+def test_a_scoped_editor_sees_only_the_granted_project(authed, db):
+    """Сужение (Membership.project_scoped) работает для editor так же, как
+    _NEEDS_GRANT работает для client — только без смены роли."""
+    granted = authed.post("/api/projects", json={"name": "Redesign"}).json()["id"]
+    other = authed.post("/api/projects", json={"name": "Внутренний"}).json()["id"]
+
+    _demote_own_membership(authed, db, "editor")
+    _scope_own_membership(authed, db)
+    _grant_project_access(authed, db, granted)
+
+    listed = [project["id"] for project in authed.get("/api/projects").json()]
+    assert listed == [granted]
+    assert authed.get(f"/api/projects/{granted}").status_code == 200
+    assert authed.get(f"/api/projects/{other}").status_code == 404
+
+
+def test_a_scoped_editor_without_any_grant_sees_no_projects(authed, db):
+    authed.post("/api/projects", json={"name": "Redesign"})
+
+    _demote_own_membership(authed, db, "editor")
+    _scope_own_membership(authed, db)
+
+    assert authed.get("/api/projects").json() == []
+
+
+def test_an_unscoped_editor_still_sees_the_whole_organization(authed, db):
+    # Контрольный случай: сужение — не побочный эффект самой роли editor, оно
+    # включается только явным project_scoped=True на записи членства.
+    granted = authed.post("/api/projects", json={"name": "Redesign"}).json()["id"]
+    other = authed.post("/api/projects", json={"name": "Внутренний"}).json()["id"]
+
+    _demote_own_membership(authed, db, "editor")
+
+    listed = {project["id"] for project in authed.get("/api/projects").json()}
+    assert listed == {granted, other}
+
+
+def test_a_scoped_editor_cannot_create_a_new_project_to_escape_the_scope(authed, db):
+    # Новый проект не может нести заранее выданный доступ — можно только
+    # завести его и молча остаться без него самому. Отказ здесь и есть верный
+    # ответ: он не даёт сужённой роли обойти список отметкой «создать ещё один».
+    _demote_own_membership(authed, db, "editor")
+    _scope_own_membership(authed, db)
+
+    response = authed.post("/api/projects", json={"name": "Побег"})
+
+    assert response.status_code == 403
 
 
 def test_role_without_read_internal_note_permission_does_not_see_it_in_mutation_response(

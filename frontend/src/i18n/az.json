@@ -195,7 +195,6 @@
     "invite_rate_limited": "Bir saatda həddindən çox dəvət — bir azdan yenidən cəhd edin",
     "invalid_email": "Ünvanları yoxlayın: biri boşdur və ya poçt ünvanına oxşamır",
     "unknown_role": "Belə rol yoxdur",
-    "project_ids_need_client_role": "Layihələr yalnız «Müştəri» rolu üçün seçilir",
     "organization_not_found": "Təşkilat tapılmadı",
     "mail_failed": "Məktub getmədi — keçidi köçürüb özünüz göndərin",
     "mail_not_configured": "Bu quraşdırmada poçt konfiqurasiya olunmayıb",
@@ -653,7 +652,7 @@
     "link_only_hint": "Ünvan yazmasanız, keçid-dəvət alınır: onu kim açsa, ona çatacaq",
     "role": "Rol",
     "projects": "Layihələr",
-    "projects_hint": "Müştəri yalnız burada seçilmiş layihələri görür",
+    "projects_hint": "Dəvət olunan yalnız burada işarələnmiş layihələri görəcək: heç nə işarələnməyibsə, müştəri heç bir layihəyə çıxış almayacaq, digər rollarda isə təşkilatın bütün layihələrinə çıxış saxlanılacaq",
     "deliver": "Məktub göndər",
     "submit": "Dəvəti yarat",
     "list": {
