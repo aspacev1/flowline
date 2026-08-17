@@ -208,6 +208,9 @@
     "invite_for_another_address": "The invitation is addressed to someone else",
     "email_not_verified": "Confirm your own address first",
     "role_not_invitable": "An owner cannot be appointed by invitation — pick another role",
+    "already_member": "That person is in the organization already: an invitation adds nothing",
+    "last_owner": "The organization must keep at least one owner",
+    "member_not_found": "That member is no longer in the organization",
     "verification_not_found": "That confirmation link no longer works",
     "llm_not_configured": "No LLM is connected",
     "llm_unreachable": "The model is unreachable",
@@ -645,6 +648,29 @@
       "editor": "Editor",
       "viewer": "Viewer",
       "client": "Client"
+    },
+    "role_about": {
+      "owner": "Runs the organization: settings, invitations, roles, deleting projects",
+      "editor": "Runs projects: edits the plan, adds tasks, approves dates",
+      "viewer": "Reads the organization's projects and comments, but changes nothing",
+      "client": "Sees only the projects they were named into, and comments on those"
+    },
+    "role_of": "Role: {name}",
+    "role_changed": "{name} is now {role}",
+    "last_owner_hint": "The only owner: an organization without one is locked — there would be nobody left to appoint a new one",
+    "remove": {
+      "label": "Remove",
+      "warning": "{name} loses access to the organization's projects. Only a new invitation brings them back",
+      "confirm": "Yes, remove",
+      "done": "{name} is no longer in the organization"
+    },
+    "leave": {
+      "title": "Leave the organization",
+      "about": "The projects of {org} stop opening. Only a new invitation brings you back",
+      "warning": "Access to this organization's projects goes away at once, and you will have no way to ask back in",
+      "confirm": "Yes, leave",
+      "done": "You have left {org}",
+      "last_owner": "You are the only owner: appoint someone else first — otherwise the organization is left without one"
     }
   },
   "invite": {

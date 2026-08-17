@@ -690,6 +690,19 @@
         "title": "MemberOut",
         "type": "object"
       },
+      "MemberRoleIn": {
+        "properties": {
+          "role": {
+            "title": "Role",
+            "type": "string"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "title": "MemberRoleIn",
+        "type": "object"
+      },
       "OrganizationOut": {
         "properties": {
           "id": {
@@ -4282,6 +4295,127 @@
           }
         },
         "summary": "List Members",
+        "tags": [
+          "org"
+        ]
+      }
+    },
+    "/api/org/members/{user_id}": {
+      "delete": {
+        "description": "Выводит человека из организации — или выпускает его самого.\n\nОдин маршрут на оба действия, потому что действие и правда одно: членства\nбольше нет. Разными их делает только то, кто вправе его выполнить —\nвладелец над любым или человек над собой. Уход своими руками не требует\nправ в организации вовсе: роль `client` не видит даже её состава, и\nотдельного права «выйти» у неё нет и быть не должно — иначе позванный\nоднажды остаётся внутри навсегда.",
+        "operationId": "remove_member_api_org_members__user_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "planora_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Planora Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Member",
+        "tags": [
+          "org"
+        ]
+      },
+      "patch": {
+        "description": "Меняет роль участника. Правит владелец, и только он.\n\nСвою собственную роль владелец сменить может — пока он не последний.\nЗапрещать это отдельно незачем: пока владельцев двое, разжалование\nотыгрывает назад второй, а на последнем срабатывает та же защита, что и\nна всех остальных путях остаться без владельца.",
+        "operationId": "update_member_role_api_org_members__user_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "planora_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Planora Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberRoleIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Member Role",
         "tags": [
           "org"
         ]

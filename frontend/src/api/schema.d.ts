@@ -668,6 +668,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/org/members/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Member
+         * @description Выводит человека из организации — или выпускает его самого.
+         *
+         *     Один маршрут на оба действия, потому что действие и правда одно: членства
+         *     больше нет. Разными их делает только то, кто вправе его выполнить —
+         *     владелец над любым или человек над собой. Уход своими руками не требует
+         *     прав в организации вовсе: роль `client` не видит даже её состава, и
+         *     отдельного права «выйти» у неё нет и быть не должно — иначе позванный
+         *     однажды остаётся внутри навсегда.
+         */
+        delete: operations["remove_member_api_org_members__user_id__delete"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Member Role
+         * @description Меняет роль участника. Правит владелец, и только он.
+         *
+         *     Свою собственную роль владелец сменить может — пока он не последний.
+         *     Запрещать это отдельно незачем: пока владельцев двое, разжалование
+         *     отыгрывает назад второй, а на последнем срабатывает та же защита, что и
+         *     на всех остальных путях остаться без владельца.
+         */
+        patch: operations["update_member_role_api_org_members__user_id__patch"];
+        trace?: never;
+    };
     "/api/org/slug-check": {
         parameters: {
             query?: never;
@@ -1548,6 +1584,11 @@ export interface components {
             id: string;
             /** Name */
             name: string;
+            /** Role */
+            role: string;
+        };
+        /** MemberRoleIn */
+        MemberRoleIn: {
             /** Role */
             role: string;
         };
@@ -3474,6 +3515,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MemberOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_member_api_org_members__user_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_member_role_api_org_members__user_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemberRoleIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MemberOut"];
                 };
             };
             /** @description Validation Error */

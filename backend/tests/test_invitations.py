@@ -27,6 +27,7 @@ from app.invitations import (
     status_of,
 )
 from app.models import Invitation, Membership, Project, ProjectAccess, Role
+from app.orgs import member_of, remove_membership
 from app.projects import create_project
 from app.security import hash_token
 
@@ -236,11 +237,18 @@ def test_a_second_invitation_to_the_same_address_reissues_the_live_one(db):
 
 
 def test_a_new_invitation_is_issued_once_the_previous_one_is_accepted(db):
+    """Принятое приглашение не переиздаётся: на его месте выпускается новое.
+
+    Позвать по тому же адресу второй раз можно ровно тогда, когда человек из
+    организации вышел, — пока он внутри, выпуск отвечает `already_member`.
+    Именно этот путь здесь и проходится: принял, ушёл, позвали заново.
+    """
     owner, org_id = _owner(db)
     first_invitation, _ = _invite(db, org_id, owner.id)
     guest = register(db, name="Guest", email="guest@example.com", password="s3cret-pass")
     db.flush()
     accept(db, first_invitation, user=guest, now=NOW)
+    remove_membership(db, member_of(db, org_id=org_id, user_id=guest.id))
 
     second_invitation, _ = _invite(db, org_id, owner.id)
 
@@ -371,11 +379,14 @@ def test_a_project_deleted_between_the_invitation_and_the_acceptance_is_skipped(
 def test_accepting_does_not_rewrite_the_role_of_an_existing_membership(db):
     """Приглашение зовёт снаружи, а не переписывает роль тому, кто уже внутри.
 
-    Иначе владелец, выписавший приглашение на свой же адрес и принявший его по
-    невнимательности, разжаловал бы сам себя — и починить это стало бы некому.
+    Иначе владелец, открывший собственную же ссылку по невнимательности,
+    разжаловал бы сам себя — и починить это стало бы некому. Приглашение здесь
+    именно ссылочное: выпуск на свой адрес отбивается раньше, кодом
+    `already_member`, а ссылка без адреса достаётся предъявителю и до `accept`
+    доходит.
     """
     owner, org_id = _owner(db)
-    invitation, _ = _invite(db, org_id, owner.id, emails=("owner@example.com",), role="viewer")
+    invitation, _ = _invite(db, org_id, owner.id, emails=(), role="viewer")
 
     membership = accept(db, invitation, user=owner, now=NOW)
 
@@ -386,15 +397,18 @@ def test_accepting_does_not_rewrite_the_role_of_an_existing_membership(db):
 
 
 def test_accepting_twice_over_does_not_duplicate_project_access(db):
+    # Приглашения ссылочные: позвать по адресу того, кто уже внутри, выпуск не
+    # даёт (`already_member`), а ссылка без адреса до приёма доходит — и второй
+    # приём обязан оставить доступ к проекту одним, а не двумя.
     owner, org_id = _owner(db)
     project = create_project(db, org_id=org_id, name="Redesign")
     db.flush()
     guest = register(db, name="Guest", email="guest@example.com", password="s3cret-pass")
     db.flush()
 
-    first, _ = _invite(db, org_id, owner.id, role="client", projects=(project.id,))
+    first, _ = _invite(db, org_id, owner.id, role="client", emails=(), projects=(project.id,))
     accept(db, first, user=guest, now=NOW)
-    second, _ = _invite(db, org_id, owner.id, role="client", projects=(project.id,))
+    second, _ = _invite(db, org_id, owner.id, role="client", emails=(), projects=(project.id,))
     accept(db, second, user=guest, now=NOW)
 
     rows = db.scalars(select(ProjectAccess).where(ProjectAccess.user_id == guest.id)).all()
@@ -444,7 +458,7 @@ def test_the_owner_role_is_not_handed_out_by_an_invitation(db):
 
     Владелец распоряжается организацией целиком, а приглашение без адреса вдобавок
     достаётся предъявителю: владельцем становился любой, кто открыл переславшуюся
-    ссылку. Отыграть это назад нечем — смены роли участнику в продукте пока нет.
+    ссылку. Назначают его поимённо и другим действием — PATCH /api/org/members.
     Код отказа отдельный, а не общий `unknown_role`: роль существует, её просто
     нельзя выдать этим способом.
     """
@@ -454,6 +468,78 @@ def test_the_owner_role_is_not_handed_out_by_an_invitation(db):
         _invite(db, org_id, owner.id, role="owner")
 
     assert failure.value.code == "role_not_invitable"
+
+
+def test_an_address_already_inside_the_organization_is_refused(db):
+    """Звать того, кто уже внутри, нечем: приглашение ничего бы не изменило.
+
+    `accept` роли действующего членства не трогает — то есть такое приглашение
+    выглядело бы действием, ничего не делая. Зовущий узнаёт об этом сразу, а не
+    через неделю ожидания, что человек «наконец войдёт».
+    """
+    owner, org_id = _owner(db)
+    guest = register(db, name="Guest", email="guest@example.com", password="s3cret-pass")
+    db.add(Membership(org_id=org_id, user_id=guest.id, role="viewer"))
+    db.flush()
+
+    with pytest.raises(InvitationError) as failure:
+        _invite(db, org_id, owner.id, emails=("guest@example.com",))
+
+    assert failure.value.code == "already_member"
+
+
+def test_one_address_already_inside_refuses_the_whole_batch(db):
+    """Отказ на весь список, и до того, как выпущено хоть одно приглашение.
+
+    Иначе часть приглашений уже существовала бы к моменту отказа, и повторная
+    отправка исправленного списка выпустила бы их второй раз — с новыми
+    ссылками взамен только что разосланных.
+    """
+    owner, org_id = _owner(db)
+    guest = register(db, name="Guest", email="guest@example.com", password="s3cret-pass")
+    db.add(Membership(org_id=org_id, user_id=guest.id, role="viewer"))
+    db.flush()
+
+    with pytest.raises(InvitationError):
+        create(
+            db,
+            org_id=org_id,
+            inviter_id=owner.id,
+            role="viewer",
+            emails=["fresh@example.com", "guest@example.com"],
+            project_ids=[],
+            now=NOW,
+        )
+
+    assert db.scalars(select(Invitation).where(Invitation.org_id == org_id)).all() == []
+
+
+def test_a_member_of_another_organization_is_still_invitable(db):
+    """Проверка смотрит на эту организацию, а не на пользователей вообще.
+
+    Человек, работающий в чужой компании, — самый обычный приглашаемый: своя
+    организация у него есть у каждого, кто пришёл с улицы.
+    """
+    owner, org_id = _owner(db)
+    register(db, name="Stranger", email="stranger@example.com", password="s3cret-pass")
+    db.flush()
+
+    invitation, _ = _invite(db, org_id, owner.id, emails=("stranger@example.com",))
+
+    assert invitation.email == "stranger@example.com"
+
+
+def test_a_bearer_invitation_is_not_measured_against_the_roster(db):
+    """У ссылки без адреса адресата нет — сверять не с чем.
+
+    Отказывать ей потому, что «кто-то в организации уже есть», значило бы
+    запретить второй способ доставки во всякой непустой организации.
+    """
+    owner, org_id = _owner(db)
+
+    invitation, _ = _invite(db, org_id, owner.id, emails=())
+
+    assert invitation.email is None
 
 
 def test_a_bearer_invitation_cannot_smuggle_the_owner_role_either(db):

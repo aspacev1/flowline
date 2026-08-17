@@ -119,6 +119,40 @@ def test_an_unknown_role_is_422_with_its_own_code(owner):
     assert response.json()["detail"] == "unknown_role"
 
 
+def test_the_owner_role_is_refused_by_the_server_and_not_only_hidden_in_the_form(owner):
+    """Список ролей в форме владельца не показывает — но защищает не он.
+
+    Спрятанная строка выпадающего списка не мешает отправить запрос руками, и
+    правило живёт на сервере. Код отдельный: роль существует, её просто не
+    выдают этим способом — назначают поимённо, PATCH /api/org/members.
+    """
+    response = _invite(owner, role="owner")
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "role_not_invitable"
+
+
+def test_inviting_someone_who_is_already_inside_answers_409(owner, clients, db):
+    """Не 422: форма запроса безупречна, звать просто больше некуда.
+
+    Такое приглашение ничего бы не изменило — `accept` роли действующего
+    членства не трогает, — но выглядело бы отправленным.
+    """
+    from app.models import Membership as MembershipModel
+
+    org_id = owner.get("/api/org").json()["id"]
+    guest = clients()
+    _register(guest, "Guest", "guest@example.com")
+    guest_id = guest.get("/api/auth/me").json()["id"]
+    db.add(MembershipModel(org_id=org_id, user_id=guest_id, role="viewer"))
+    db.flush()
+
+    response = _invite(owner, emails=("guest@example.com",))
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "already_member"
+
+
 def test_the_hourly_ceiling_answers_429(owner, monkeypatch):
     monkeypatch.setenv("INVITE_RATE_LIMIT", "1")
     get_settings.cache_clear()

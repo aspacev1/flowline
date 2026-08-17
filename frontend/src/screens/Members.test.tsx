@@ -25,14 +25,25 @@ const PENDING = {
 };
 
 function membersHandlers(
-  options: { mailEnabled?: boolean; invitations?: unknown[]; role?: string } = {},
+  options: {
+    mailEnabled?: boolean;
+    invitations?: unknown[];
+    role?: string;
+    /** Состав организации. Второй владелец снимает защиту последнего. */
+    roster?: unknown[];
+  } = {},
 ) {
-  const { mailEnabled = false, invitations = [PENDING], role = "owner" } = options;
+  const {
+    mailEnabled = false,
+    invitations = [PENDING],
+    role = "owner",
+    roster = ROSTER,
+  } = options;
   // Свои ответы идут первыми: msw берёт первый подходящий обработчик, и
   // общий `/api/org` из sessionHandlers перекрыл бы роль, заданную тестом.
   return [
     http.get("/api/org", () => HttpResponse.json({ ...ORG, role })),
-    http.get("/api/org/members", () => HttpResponse.json(ROSTER)),
+    http.get("/api/org/members", () => HttpResponse.json(roster)),
     http.get("/api/org/invitations", () =>
       HttpResponse.json({ mail_enabled: mailEnabled, invitations }),
     ),
@@ -42,7 +53,9 @@ function membersHandlers(
 
 describe("экран участников", () => {
   it("показывает состав организации с ролями", async () => {
-    server.use(...membersHandlers());
+    // Не владельцу роли показываются словами: править их он всё равно не
+    // может, и выпадающий список обещал бы действие, которого нет.
+    server.use(...membersHandlers({ role: "viewer" }));
 
     renderApp({ route: "/members", locale: "ru" });
 
@@ -237,7 +250,9 @@ describe("экран участников", () => {
 
     expect(screen.queryByText("Şəhər Layihəsi")).not.toBeInTheDocument();
 
-    await userEvent.selectOptions(screen.getByLabelText(/роль/i), "client");
+    // Точное имя, а не образец: подписью «Роль: N» подписан выбор роли в
+    // каждой строке состава, и образец нашёл бы их все.
+    await userEvent.selectOptions(screen.getByLabelText("Роль"), "client");
 
     expect(await screen.findByLabelText("Şəhər Layihəsi")).toBeInTheDocument();
   });
@@ -329,12 +344,208 @@ describe("роль в форме приглашения", () => {
     renderApp({ route: "/members", locale: "ru" });
     await userEvent.click(await screen.findByRole("button", { name: /пригласить/i }));
 
-    const select = screen.getByLabelText(/роль/i);
+    const select = screen.getByLabelText("Роль");
     const values = within(select)
       .getAllByRole("option")
       .map((option) => (option as HTMLOptionElement).value);
 
     expect(values).toEqual(["editor", "viewer", "client"]);
     expect(values).not.toContain("owner");
+  });
+
+  it("под выбором роли написано, что она даёт", async () => {
+    server.use(
+      ...membersHandlers(),
+      // Выбор «Клиента» спрашивает проекты: отмечать нечего, но запрос уходит.
+      http.get("/api/projects", () => HttpResponse.json([])),
+    );
+
+    renderApp({ route: "/members", locale: "ru" });
+    await userEvent.click(await screen.findByRole("button", { name: /пригласить/i }));
+
+    // «Наблюдатель» и «Клиент» отличаются не словом, а тем, что видит первый:
+    // все проекты организации против отмеченных поимённо. Узнать это после
+    // отправки приглашения поздно.
+    expect(screen.getByText(/читает проекты организации/i)).toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByLabelText("Роль"), "client");
+
+    expect(screen.getByText(/только те проекты, куда его позвали/i)).toBeInTheDocument();
+  });
+
+  it("позвать того, кто уже внутри, нельзя — и сказано словами", async () => {
+    server.use(
+      ...membersHandlers({ invitations: [] }),
+      http.post("/api/org/invitations", () =>
+        HttpResponse.json({ detail: "already_member" }, { status: 409 }),
+      ),
+    );
+
+    renderApp({ route: "/members", locale: "ru" });
+
+    await userEvent.click(await screen.findByRole("button", { name: /пригласить/i }));
+    await userEvent.type(screen.getByLabelText(/адреса/i), "m@b.c");
+    await userEvent.click(screen.getByRole("button", { name: /создать приглашение/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/уже в организации/i);
+  });
+});
+
+describe("управление составом", () => {
+  it("владелец меняет роль участника прямо в строке", async () => {
+    let sent: unknown = null;
+    server.use(
+      ...membersHandlers(),
+      http.patch("/api/org/members/u2", async ({ request }) => {
+        sent = await request.json();
+        return HttpResponse.json({ ...ROSTER[1], role: "viewer" });
+      }),
+    );
+
+    renderApp({ route: "/members", locale: "ru" });
+
+    await userEvent.selectOptions(await screen.findByLabelText("Роль: Мария"), "viewer");
+
+    await waitFor(() => expect(sent).toEqual({ role: "viewer" }));
+    // Тост, а не молчание: строка меняется на одно слово, и без подтверждения
+    // непонятно, дошло ли действие до сервера.
+    expect(await screen.findByText(/Мария теперь Наблюдатель/i)).toBeInTheDocument();
+  });
+
+  it("владельца назначают здесь — приглашением его не выдают", async () => {
+    server.use(...membersHandlers());
+
+    renderApp({ route: "/members", locale: "ru" });
+
+    const values = within(await screen.findByLabelText("Роль: Мария"))
+      .getAllByRole("option")
+      .map((option) => (option as HTMLOptionElement).value);
+
+    expect(values).toEqual(["owner", "editor", "viewer", "client"]);
+  });
+
+  it("единственного владельца не разжаловать, и объяснено почему", async () => {
+    server.use(...membersHandlers());
+
+    renderApp({ route: "/members", locale: "ru" });
+
+    expect(await screen.findByLabelText("Роль: Алексей")).toBeDisabled();
+    expect(screen.getByText(/организация без владельца заперта/i)).toBeInTheDocument();
+  });
+
+  it("второй владелец снимает запрет с первого", async () => {
+    server.use(...membersHandlers({ roster: [ROSTER[0], { ...ROSTER[1], role: "owner" }] }));
+
+    renderApp({ route: "/members", locale: "ru" });
+
+    expect(await screen.findByLabelText("Роль: Алексей")).toBeEnabled();
+    expect(screen.queryByText(/организация без владельца заперта/i)).not.toBeInTheDocument();
+  });
+
+  it("вывод из организации спрашивает, и от него можно отказаться", async () => {
+    let removed = false;
+    server.use(
+      ...membersHandlers(),
+      http.delete("/api/org/members/u2", () => {
+        removed = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    renderApp({ route: "/members", locale: "ru" });
+
+    await userEvent.click(await screen.findByRole("button", { name: /^убрать$/i }));
+    expect(screen.getByText(/Мария потеряет доступ/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /^отмена$/i }));
+    expect(removed).toBe(false);
+
+    await userEvent.click(screen.getByRole("button", { name: /^убрать$/i }));
+    await userEvent.click(screen.getByRole("button", { name: /да, убрать/i }));
+
+    await waitFor(() => expect(removed).toBe(true));
+  });
+
+  it("себя из списка не убирают: для этого есть «Покинуть организацию»", async () => {
+    server.use(...membersHandlers({ roster: [ROSTER[0], { ...ROSTER[1], role: "owner" }] }));
+
+    renderApp({ route: "/members", locale: "ru" });
+
+    // Вошедший — u1: кнопки «убрать» в его собственной строке нет, а уход
+    // стоит отдельным разделом и назван своими словами.
+    const mine = (await screen.findByText("a@b.c")).closest("li") as HTMLElement;
+    expect(within(mine).queryByRole("button", { name: /убрать/i })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /покинуть организацию/i }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("покинуть организацию", () => {
+  it("спрашивает, уводит на проекты и подтверждает уход", async () => {
+    let left = false;
+    server.use(
+      ...membersHandlers({ roster: [ROSTER[0], { ...ROSTER[1], role: "owner" }] }),
+      http.delete("/api/org/members/u1", () => {
+        left = true;
+        return new HttpResponse(null, { status: 204 });
+      }),
+      // Уход уводит на список проектов — тот сразу же за ними и идёт.
+      http.get("/api/projects", () => HttpResponse.json([])),
+    );
+
+    renderApp({ route: "/members", locale: "ru" });
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: /покинуть организацию/i }),
+    );
+    expect(screen.getByText(/доступ к проектам этой организации пропадёт сразу/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /да, покинуть/i }));
+
+    await waitFor(() => expect(left).toBe(true));
+    expect(await screen.findByTestId("location")).toHaveTextContent("/projects");
+  });
+
+  it("последний владелец не уходит, и ему сказано, что сделать сначала", async () => {
+    server.use(...membersHandlers());
+
+    renderApp({ route: "/members", locale: "ru" });
+
+    expect(await screen.findByText(/сначала назначьте владельцем кого-то ещё/i)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /покинуть организацию/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("роль «Клиент» состава не видит, но уйти может", async () => {
+    // Сервер отвечает ей отказом на состав: без раздела ухода позванный
+    // однажды остался бы внутри навсегда.
+    server.use(
+      ...membersHandlers({ role: "client" }),
+      http.get("/api/org/members", () => HttpResponse.json({ detail: "forbidden" }, { status: 403 })),
+    );
+
+    renderApp({ route: "/members", locale: "ru" });
+
+    expect(
+      await screen.findByRole("button", { name: /покинуть организацию/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("отказ сервера доходит до человека словами", async () => {
+    server.use(
+      ...membersHandlers({ roster: [ROSTER[0], { ...ROSTER[1], role: "owner" }] }),
+      http.delete("/api/org/members/u1", () =>
+        HttpResponse.json({ detail: "last_owner" }, { status: 409 }),
+      ),
+    );
+
+    renderApp({ route: "/members", locale: "ru" });
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: /покинуть организацию/i }),
+    );
+    await userEvent.click(screen.getByRole("button", { name: /да, покинуть/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/хотя бы один владелец/i);
   });
 });

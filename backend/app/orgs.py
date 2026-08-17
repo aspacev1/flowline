@@ -9,12 +9,12 @@
 import uuid
 
 from fastapi import Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session as DbSession
 
 from app.auth import current_session
 from app.db import get_db
-from app.models import Membership, Organization, Session
+from app.models import Membership, Organization, Project, ProjectAccess, Role, Session
 
 
 def memberships_of(db: DbSession, user_id: uuid.UUID) -> list[tuple[Membership, Organization]]:
@@ -92,3 +92,88 @@ def current_membership(
     if membership is None:
         raise HTTPException(status_code=403, detail="no_organization")
     return membership
+
+
+# ---- состав: роли и вывод из организации ----------------------------------
+
+
+class LastOwner(Exception):
+    """Организация осталась бы без владельца, а починить это было бы некому.
+
+    Владелец — единственная роль, которая правит настройки, зовёт людей и
+    раздаёт роли. Организация, потерявшая последнего, не разжалована, а
+    заперта навсегда: назначить нового владельца в ней больше нечем. Отсюда
+    отказ, а не предупреждение, — и отсюда же то, что он одинаков для
+    разжалования, вывода чужими руками и ухода своими.
+    """
+
+
+def owner_count(db: DbSession, org_id: uuid.UUID) -> int:
+    return db.scalar(
+        select(func.count())
+        .select_from(Membership)
+        .where(Membership.org_id == org_id, Membership.role == Role.OWNER.value)
+    )
+
+
+def is_last_owner(db: DbSession, membership: Membership) -> bool:
+    """Держится ли организация на этом человеке одном."""
+    return membership.role == Role.OWNER.value and owner_count(db, membership.org_id) == 1
+
+
+def member_of(db: DbSession, *, org_id: uuid.UUID, user_id: uuid.UUID) -> Membership | None:
+    return db.scalar(
+        select(Membership).where(Membership.org_id == org_id, Membership.user_id == user_id)
+    )
+
+
+def set_role(db: DbSession, membership: Membership, role: Role) -> None:
+    """Меняет роль участника. Последнего владельца разжаловать нельзя.
+
+    Назначение владельцем живёт именно здесь, а не в приглашении: приглашение
+    без адреса достаётся предъявителю, и владельцем становился бы любой, кто
+    открыл переславшуюся ссылку (см. NOT_INVITABLE в app.invitations). Здесь
+    же адресат назван поимённо — это действующий участник, которого зовущий
+    видит в списке.
+    """
+    if role is not Role.OWNER and is_last_owner(db, membership):
+        raise LastOwner()
+    membership.role = role.value
+    db.flush()
+
+
+def remove_membership(db: DbSession, membership: Membership) -> None:
+    """Выводит человека из организации. Последнего владельца — нельзя.
+
+    Поимённые доступы к проектам этой организации уходят вместе с членством:
+    без них они означали бы «позвали обратно — и он снова видит всё, что
+    видел», причём молча. Назначения на задачи, наоборот, остаются: снять их
+    можно и с ушедшего (см. UnassignUser в app.mutations), а тихо стереть
+    исполнителя со всех его задач значит переписать план в ответ на кадровое
+    решение.
+
+    Выбранная организация в сессиях ушедшего сбрасывается: без этого его
+    сессия продолжала бы указывать на организацию, в которую он больше не
+    входит. Отказом это не оборачивается — active_membership всё равно берёт
+    первую доступную, — но указатель на чужое место лучше убрать сразу.
+    """
+    if is_last_owner(db, membership):
+        raise LastOwner()
+
+    org_projects = select(Project.id).where(Project.org_id == membership.org_id)
+    db.execute(
+        delete(ProjectAccess).where(
+            ProjectAccess.user_id == membership.user_id,
+            ProjectAccess.project_id.in_(org_projects),
+        )
+    )
+    db.execute(
+        update(Session)
+        .where(
+            Session.user_id == membership.user_id,
+            Session.active_org_id == membership.org_id,
+        )
+        .values(active_org_id=None)
+    )
+    db.delete(membership)
+    db.flush()

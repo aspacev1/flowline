@@ -7,21 +7,7 @@ import type { Issued } from "../api/invitations";
 import { PROJECTS_QUERY_KEY, listProjects } from "../api/projects";
 import { useLocale } from "../i18n/LocaleProvider";
 import { Modal } from "./Modal";
-
-/**
- * Роли, которые можно выдать приглашением. Владельца среди них нет.
- *
- * Владелец распоряжается организацией целиком: удаляет проекты, переутверждает
- * планы, зовёт кого угодно. Выдавать такое выпадающим списком из четырёх слов,
- * где промах на одну строку ничем себя не выдаёт, — слишком дёшево; а
- * приглашение без адреса вдобавок достаётся предъявителю, то есть владельцем
- * становился любой, кто открыл переславшуюся ссылку. Отыграть это назад
- * нечем: смены роли участнику в продукте пока нет.
- *
- * Сервер держит то же правило сам (invitations.py), а не полагается на этот
- * список: спрятанная кнопка ничего не защищает.
- */
-const ROLES = ["editor", "viewer", "client"] as const;
+import { INVITABLE_ROLES, RoleHint } from "./roles";
 
 /** Адреса вводятся списком: запятыми, точками с запятой или переводами строк. */
 function parseEmails(raw: string): string[] {
@@ -192,13 +178,18 @@ export function InviteDialog({
         <p className="field">
           <label htmlFor="invite-role">{t("invite.role")}</label>
           <select id="invite-role" value={role} onChange={(event) => setRole(event.target.value)}>
-            {ROLES.map((name) => (
+            {INVITABLE_ROLES.map((name) => (
               <option key={name} value={name}>
                 {t(`members.role.${name}`)}
               </option>
             ))}
           </select>
         </p>
+        {/* Пояснение под самим выбором, а не в справке рядом: разница между
+            наблюдателем и клиентом — это разница между «видит все проекты
+            организации» и «видит только отмеченные», и узнавать её после
+            отправки приглашения поздно. */}
+        <RoleHint role={role} />
 
         {role === "client" && (
           <fieldset className="fieldset">
