@@ -2,41 +2,43 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 
 import { errorKey } from "../api/errors";
-import type { Project, ProjectState } from "../api/projects";
+import type { ProjectState } from "../api/projects";
 import { roleCanWrite, useOrgRole } from "../auth/permissions";
 import { CreateProjectActions } from "../components/CreateProjectActions";
 import { Menu } from "../components/Menu";
 import { Modal } from "../components/Modal";
-import { projectDayNumber } from "../gantt/relative";
 import { formatShortDate } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
-import type { Params } from "../i18n";
-import { progressOf } from "../project/progress";
+import { progressOf, statusCounts } from "../project/progress";
 import { useDeleteProject } from "../project/useDeleteProject";
-import { projectVerdict, severityOf } from "../project/verdict";
-import type { Verdict } from "../project/verdict";
+import { deadlineOverrunDays, overdueTasks } from "../project/verdict";
 import { useToday } from "../time/useToday";
 import { useProjectStates } from "./projectStates";
 
 /**
- * Проекты: единственный список проектов и единственный ответ на «как дела».
+ * Проекты: единственный список проектов, единственная сводка «как идут дела»
+ * и место, откуда их заводят и где с ними расстаются.
  *
- * Раньше эти две работы делали два экрана — список и «Портфель», — и человек
- * не мог понять, на котором из них стоит: один заголовок, один набор проектов,
- * разная полнота данных. Портфель убран, его сводка переехала сюда: на
- * карточку смотрят, чтобы решить, куда идти, и «куда идти» решается тем, где
- * горит.
+ * Раньше это были два экрана про один и тот же набор проектов — карточки
+ * заводили проект и звали посмотреть на цветной вердикт, соседняя таблица
+ * «Отчётов» сверяла готовность и сроки по строкам. Выбирать, на каком из двух
+ * смотреть, было незачем: те же шесть чисел сравниваются по столбцу лучше,
+ * чем по карточкам, — и раздел, который заводит и удаляет проекты, стал тем
+ * же разделом, что показывает их сводку.
  *
- * Сортировка по срочности — только когда сводка собралась целиком: карточки,
- * пересобирающиеся по мере прихода ответов, уезжают из-под курсора у того, кто
- * уже целится в одну из них.
+ * Пока список и все состояния не пришли разом, экран показывает одну надпись
+ * «Загрузка», а не строки с прочерками на месте чисел, которых ещё нет.
+ * Дальше строки друг от друга не зависят: не пришедшая сводка одного проекта —
+ * это баннер отказа сверху, а не пропавшая строка соседа, у которого всё
+ * посчиталось.
  */
 export function Projects() {
   const { t } = useLocale();
-  // Проектов здесь много, и у каждого мог быть свой пояс: просрочка на общем
-  // списке считается по суткам читателя, а не по суткам одного из них.
+  // Проектов в списке может быть много, и у каждого мог быть свой пояс:
+  // просрочка считается по суткам того, кто на список смотрит, а не по
+  // суткам одного из них.
   const today = useToday();
-  const { pending, listPending, listError, projects, stateById } = useProjectStates();
+  const { pending, error, states } = useProjectStates();
   // Удаление — право владельца, как и в настройках проекта: редактор правит
   // план, но не расстаётся с проектом целиком. Решает всё равно сервер, здесь
   // лишь не предлагается действие, которое кончится отказом.
@@ -45,23 +47,12 @@ export function Projects() {
   // Создание — по тому же правилу, что и удаление, и по той же причине: сервер
   // решает про оба одинаково (PROJECT_WRITE), и предлагать наблюдателю кнопку,
   // которая ответит отказом, — значит встречать нового участника отказом на
-  // первом же нажатии. Раньше шестерёнка удаления роль спрашивала, а кнопка
-  // создания — нет.
+  // первом же нажатии.
   const canCreate = roleCanWrite(role);
   // Проект, о котором задан вопрос, а не «окно открыто»: окно называет имя, и
   // держать его отдельным состоянием значило бы завести второй источник того
   // же самого. Окно одно на список: вопрос задают об одном проекте за раз.
-  const [deleting, setDeleting] = useState<Project | null>(null);
-
-  const cards = projects.map((project) => {
-    const state = stateById.get(project.id);
-    return { project, state, verdict: state ? projectVerdict(state, today) : null };
-  });
-  if (!pending) {
-    // Сортировка устойчива: у карточек с одинаковой срочностью остаётся
-    // порядок, в котором их прислал сервер.
-    cards.sort((a, b) => severityOf(b.verdict) - severityOf(a.verdict));
-  }
+  const [deleting, setDeleting] = useState<ProjectState | null>(null);
 
   return (
     <main className="screen">
@@ -70,15 +61,15 @@ export function Projects() {
         {canCreate && <CreateProjectActions />}
       </div>
 
-      {listPending && <p role="status">{t("common.loading")}</p>}
+      {pending && <p role="status">{t("common.loading")}</p>}
 
-      {listError !== null && (
+      {error !== null && (
         <p className="error" role="alert">
-          {t(errorKey(listError))}
+          {t(errorKey(error))}
         </p>
       )}
 
-      {!listPending && listError === null && projects.length === 0 && (
+      {!pending && error === null && states.length === 0 && (
         // Пустой список значит разное для разных ролей, и одно объяснение на
         // оба случая обманывает половину читателей. У того, кто может писать,
         // проектов действительно нет. У наблюдателя и клиента они, скорее
@@ -94,20 +85,40 @@ export function Projects() {
         </div>
       )}
 
-      {cards.length > 0 && (
-        <ul className="projects">
-          {cards.map((card) => (
-            <ProjectCard
-              key={card.project.id}
-              {...card}
-              onDelete={canDelete ? () => setDeleting(card.project) : undefined}
-            />
-          ))}
-        </ul>
+      {states.length > 0 && (
+        <table className="report">
+          <thead>
+            <tr>
+              <th scope="col">{t("reports.col.project")}</th>
+              <th scope="col">{t("reports.col.progress")}</th>
+              <th scope="col">{t("task.status.in_progress")}</th>
+              <th scope="col">{t("task.status.blocked")}</th>
+              <th scope="col">{t("reports.col.overdue")}</th>
+              <th scope="col">{t("reports.col.deadline")}</th>
+              {/* Столбец есть только там, где есть чем его заполнить: без
+                  права удалять в нём не нашлось бы ни одной ячейки. */}
+              {canDelete && (
+                <th scope="col" className="report__actions">
+                  {t("reports.col.actions")}
+                </th>
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {states.map((state) => (
+              <ProjectRow
+                key={state.id}
+                state={state}
+                today={today}
+                onDelete={canDelete ? () => setDeleting(state) : undefined}
+              />
+            ))}
+          </tbody>
+        </table>
       )}
 
-      {/* Окно живёт на экране, а не внутри карточки: карточка удалённого
-          проекта исчезает в тот же миг, что и он сам, и окно, живущее в ней,
+      {/* Окно живёт на экране, а не в строке таблицы: строка удалённого
+          проекта исчезает в тот же миг, что и он сам, и окно внутри неё
           унесло бы с собой отказ сервера, если тот откажет. */}
       {deleting && <DeleteProjectDialog project={deleting} onClose={() => setDeleting(null)} />}
     </main>
@@ -115,15 +126,21 @@ export function Projects() {
 }
 
 /**
- * Вопрос перед удалением — окном, а не выноской на карточке.
+ * Вопрос перед удалением — окном, а не выноской на строке.
  *
  * Окно здесь не «на всякий случай»: удаление проекта единственное действие
  * продукта, которое не отменяется ничем — вместе с проектом уходит журнал
- * ревизий, — а нажимают его в сетке одинаковых карточек, где промах на одну
- * колонку ничем не выдаёт себя. Окно называет имя проекта: это единственное
- * место, где человек может заметить, что целился в соседний.
+ * ревизий, — а нажимают его в таблице из одинаковых строк, где промах на
+ * одну выше или ниже ничем не выдаёт себя. Окно называет имя проекта: это
+ * единственное место, где человек может заметить, что целился в соседний.
  */
-function DeleteProjectDialog({ project, onClose }: { project: Project; onClose: () => void }) {
+function DeleteProjectDialog({
+  project,
+  onClose,
+}: {
+  project: ProjectState;
+  onClose: () => void;
+}) {
   const { t } = useLocale();
   const remove = useDeleteProject({ onDeleted: onClose });
 
@@ -162,53 +179,42 @@ function DeleteProjectDialog({ project, onClose }: { project: Project; onClose: 
   );
 }
 
-function ProjectCard({
-  project,
+function ProjectRow({
   state,
-  verdict,
+  today,
   onDelete,
 }: {
-  project: Project;
-  /** Нет, пока не пришло состояние: карточка живёт и без сводки. */
-  state?: ProjectState;
-  verdict: Verdict | null;
-  /** Нет — удалять этот проект человеку не позволено, и шестерни на карточке нет. */
+  state: ProjectState;
+  today: string;
+  /** Нет — удалять этот проект человеку не позволено, и шестерни в строке нет. */
   onDelete?: () => void;
 }) {
   const { t } = useLocale();
-  const progress = state ? progressOf(state.tasks) : null;
+  const progress = progressOf(state.tasks);
+  const counts = statusCounts(state.tasks);
+  // Считает общий модуль, а не эта строка: «просрочено» здесь и «после
+  // дедлайна проекта» в шапке проекта — две разные величины с одним именем, и
+  // третий их счёт разошёлся бы с обоими.
+  const overdue = overdueTasks(state, today).length;
 
   return (
-    <li className="project-card">
-      {/* Вердикт — первой строкой, на месте, где раньше стояла нарисованная
-          в CSS полоска: она была одинаковой на всех карточках, но читалась
-          как готовность проекта. Единственный знак наверху карточки обязан
-          что-то значить. */}
-      {verdict && (
-        <p className="project-card__verdict" data-tone={verdict.tone}>
-          {verdictLabel(t, verdict)}
-        </p>
-      )}
-
-      <div className="project-card__head">
+    <tr>
+      <th scope="row">
         {/* Название проекта — содержимое пользователя: не переводится. */}
-        <Link to={`/projects/${project.id}`} className="project-card__name">
-          {project.name}
-        </Link>
-        {/* Режим плана — не вердикт, а состояние: вердикт зовёт назначить дату
-            старта, плашка объясняет, почему на карточке нет ни одной. */}
-        {state?.schedule_mode === "relative" && (
-          <span className="project-card__mode">{t("projects.mode.relative")}</span>
-        )}
-
-        {/* Шестерёнка — у правого края строки с названием: действия над
-            проектом целиком, а не над тем, что внутри него. Одно нажатие она
-            не делает ничего необратимого — раскрывает список, — и потому
-            стоит прямо на карточке, рядом с тем, к чему относится. */}
-        {onDelete && (
+        <Link to={`/projects/${state.id}`}>{state.name}</Link>
+      </th>
+      <td>{progress === null ? "—" : `${progress}%`}</td>
+      <td>{counts.in_progress}</td>
+      <td className={counts.blocked > 0 ? "report__warn" : undefined}>{counts.blocked}</td>
+      <td className={overdue > 0 ? "report__late" : undefined}>{overdue}</td>
+      <td>
+        <Deadline state={state} />
+      </td>
+      {onDelete && (
+        <td className="report__actions">
           <Menu
             label={<GearIcon />}
-            buttonClass="project-card__gear"
+            buttonClass="report__gear"
             showCaret={false}
             buttonLabel={t("projects.card.menu")}
           >
@@ -216,35 +222,9 @@ function ProjectCard({
               {t("settings.project.delete")}
             </button>
           </Menu>
-        )}
-      </div>
-
-      {/* Слаг показывается ровно тем, что прислал сервер. Собрать его
-          в браузере по своей таблице транслитерации нельзя: правило
-          живёт на сервере, и расхождение дало бы ссылку, которая
-          никуда не ведёт. */}
-      <p className="project-card__slug muted">{project.slug}</p>
-
-      {state && (
-        <p className="project-card__meta muted">
-          {t("projects.card.tasks", { count: state.tasks.length })}
-          <CardPeriod state={state} />
-        </p>
+        </td>
       )}
-
-      {progress !== null && (
-        <p
-          className="project-card__progress"
-          role="img"
-          aria-label={t("projects.card.progress", { pct: progress })}
-        >
-          <span className="project-card__bar">
-            <i style={{ width: `${progress}%` }} />
-          </span>
-          <span className="project-card__pct">{progress}%</span>
-        </p>
-      )}
-    </li>
+    </tr>
   );
 }
 
@@ -283,46 +263,32 @@ function GearIcon() {
 }
 
 /**
- * Хвост строки сводки: дедлайн у календарного плана, длина плана у
- * относительного.
- *
- * У плана без дат настоящих сроков нет, и подставить сюда координату оси
- * значило бы назвать выдуманную дату. Длина в днях — то, что про такой план
- * известно достоверно.
+ * Вердикт по сроку — словами, а не датой: дату пришлось бы сравнивать в уме,
+ * а «+4 дня» — уже ответ. Без дедлайна вердикта нет: писать «успеваем» там,
+ * где успевать не к чему, — выдумывать смысл. У относительного плана его нет
+ * по той же причине: сравнивать дедлайн не с чем, пока не назначен старт, и
+ * «укладываемся» про такой проект было бы обещанием, взятым из воздуха.
  */
-function CardPeriod({ state }: { state: ProjectState }) {
+function Deadline({ state }: { state: ProjectState }) {
   const { t } = useLocale();
-
-  if (state.schedule_mode === "relative") {
-    const days = planLengthDays(state);
-    if (days === null) return null;
-    return <> · {t("projects.card.plan_days", { days: t("common.days", { count: days }) })}</>;
+  if (
+    state.schedule_mode !== "calendar" ||
+    state.deadline === null ||
+    state.project_end === null
+  ) {
+    return <span className="muted">—</span>;
   }
-
-  if (state.deadline === null) return null;
-  return <> · {t("gantt.deadline", { date: formatShortDate(t, state.deadline) })}</>;
-}
-
-/** Номер последнего занятого дня относительного плана. `null` — плана нет. */
-function planLengthDays(state: ProjectState): number | null {
-  if (state.tasks.length === 0) return null;
-  // Строки ISO сравниваются лексикографически ровно как даты.
-  const last = state.tasks.map((task) => task.end_date).reduce((a, b) => (a > b ? a : b));
-  return projectDayNumber(last);
-}
-
-/**
- * Подпись вердикта. Живёт здесь, а не в `verdict.ts`: тот считает состояние,
- * а словарь — дело экрана, который его показывает.
- */
-function verdictLabel(t: (key: string, params?: Params) => string, verdict: Verdict): string {
-  if (verdict.days !== undefined) {
-    return t(`projects.verdict.${verdict.kind}`, {
-      days: t("common.days", { count: verdict.days }),
-    });
+  const overrun = deadlineOverrunDays(state);
+  if (overrun !== null) {
+    return (
+      <span className="report__late">
+        {t("reports.deadline_late", { days: t("common.days", { count: overrun }) })}
+      </span>
+    );
   }
-  if (verdict.count !== undefined) {
-    return t(`projects.verdict.${verdict.kind}`, { count: verdict.count });
-  }
-  return t(`projects.verdict.${verdict.kind}`);
+  return (
+    <span className="report__fine">
+      {t("reports.deadline_fits", { date: formatShortDate(t, state.deadline) })}
+    </span>
+  );
 }

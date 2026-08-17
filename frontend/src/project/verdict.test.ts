@@ -1,13 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ProjectState, Task } from "../api/projects";
-import {
-  deadlineOverrunDays,
-  overdueTasks,
-  pastDeadlineTasks,
-  projectVerdict,
-  severityOf,
-} from "./verdict";
+import { deadlineOverrunDays, overdueTasks, pastDeadlineTasks } from "./verdict";
 
 const TODAY = "2026-03-15";
 
@@ -84,7 +78,6 @@ describe("просрочка", () => {
     const state = relative();
 
     expect(overdueTasks(state, TODAY)).toEqual([]);
-    expect(projectVerdict(state, TODAY).kind).not.toBe("overdue");
   });
 });
 
@@ -120,113 +113,5 @@ describe("выход за дедлайн проекта", () => {
     // меняет: это другая величина, чем просрочка выше.
     expect(pastDeadlineTasks(state)).toHaveLength(2);
     expect(overdueTasks(state, TODAY)).toHaveLength(1);
-  });
-});
-
-describe("вердикт", () => {
-  it("у проекта без задач — «плана нет», а не «идёт по плану»", () => {
-    expect(projectVerdict(project({ tasks: [] }), TODAY).kind).toBe("empty");
-    // И у относительного тоже: назначать старт пустому плану нечему.
-    expect(projectVerdict(relative({ tasks: [] }), TODAY).kind).toBe("empty");
-  });
-
-  it("просрочка бьёт блокировку: и то и другое верно, срочнее первое", () => {
-    const state = project({
-      tasks: [task({ end_date: "2026-03-10" }), task({ id: "t2", status: "blocked" })],
-    });
-
-    const verdict = projectVerdict(state, TODAY);
-    expect(verdict).toMatchObject({ kind: "overdue", tone: "alarm", count: 1 });
-  });
-
-  it("блокировка бьёт черновик: даты согласуют когда угодно, работа стоит сейчас", () => {
-    const state = project({ tasks: [task({ status: "blocked" })] });
-
-    expect(projectVerdict(state, TODAY)).toMatchObject({ kind: "blocked", tone: "warn", count: 1 });
-  });
-
-  it("называет опоздание в днях", () => {
-    const state = project({ deadline: "2026-06-01", project_end: "2026-06-08" });
-
-    expect(projectVerdict(state, TODAY)).toMatchObject({ kind: "late", tone: "alarm", days: 7 });
-  });
-
-  it("замечает расхождение с согласованным планом", () => {
-    const state = project({
-      plan_approved_at: "2026-03-01T09:00:00+00:00",
-      plan_version: 1,
-      tasks: [
-        task({
-          start_date: "2026-03-18",
-          baseline_start: "2026-03-16",
-          baseline_duration: 5,
-          baseline_end: "2026-03-20",
-        }),
-      ],
-    });
-
-    expect(projectVerdict(state, TODAY)).toMatchObject({ kind: "changed", tone: "warn" });
-  });
-
-  it("зовёт назначить дату старта у относительного плана", () => {
-    expect(projectVerdict(relative(), TODAY)).toMatchObject({
-      kind: "unscheduled",
-      tone: "neutral",
-    });
-  });
-
-  it("зовёт согласовать календарный план, которого не согласовывали", () => {
-    expect(projectVerdict(project(), TODAY).kind).toBe("draft");
-  });
-
-  it("завершённый проект не зовут ни согласовывать, ни назначать старт", () => {
-    const done = project({ tasks: [task({ status: "done", progress_pct: 100 })] });
-    const doneRelative = relative({
-      tasks: [task({ start_date: "2001-01-01", end_date: "2001-01-05", status: "done", progress_pct: 100 })],
-    });
-
-    expect(projectVerdict(done, TODAY).kind).toBe("done");
-    expect(projectVerdict(doneRelative, TODAY).kind).toBe("done");
-  });
-
-  it("молчит про согласованный план, идущий своим ходом", () => {
-    const state = project({
-      plan_approved_at: "2026-03-01T09:00:00+00:00",
-      plan_version: 1,
-      tasks: [
-        task({
-          baseline_start: "2026-03-16",
-          baseline_duration: 5,
-          baseline_end: "2026-03-20",
-        }),
-      ],
-    });
-
-    expect(projectVerdict(state, TODAY)).toMatchObject({ kind: "on_track", tone: "calm" });
-  });
-});
-
-describe("срочность", () => {
-  it("ставит требующее действия выше спокойного", () => {
-    const order = (state: ProjectState) => severityOf(projectVerdict(state, TODAY));
-
-    const overdue = order(project({ tasks: [task({ end_date: "2026-03-10" })] }));
-    const blocked = order(project({ tasks: [task({ status: "blocked" })] }));
-    const draft = order(project());
-    const empty = order(project({ tasks: [] }));
-    const done = order(project({ tasks: [task({ status: "done", progress_pct: 100 })] }));
-
-    expect(overdue).toBeGreaterThan(blocked);
-    expect(blocked).toBeGreaterThan(draft);
-    expect(draft).toBeGreaterThan(empty);
-    expect(empty).toBeGreaterThan(done);
-  });
-
-  it("проект без пришедшей сводки не выдаёт себя за спокойный и за тревожный", () => {
-    const done = severityOf(projectVerdict(project({ tasks: [task({ status: "done", progress_pct: 100 })] }), TODAY));
-    const blocked = severityOf(projectVerdict(project({ tasks: [task({ status: "blocked" })] }), TODAY));
-
-    expect(severityOf(null)).toBeGreaterThan(done);
-    expect(severityOf(null)).toBeLessThan(blocked);
   });
 });

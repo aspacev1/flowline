@@ -50,15 +50,6 @@ export function IconCheck({ className }: IconProps) {
   );
 }
 
-export function IconChart({ className }: IconProps) {
-  return (
-    <Icon className={className}>
-      <path d="M2.5 13.5h11" />
-      <path d="M4.5 13V8.5M8 13V4.5M11.5 13V6.5" />
-    </Icon>
-  );
-}
-
 export function IconBoard({ className }: IconProps) {
   return (
     <Icon className={className}>

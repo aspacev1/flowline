@@ -63,9 +63,9 @@ function state(fields: Partial<ProjectState> = {}): ProjectState {
 /**
  * Список проектов и состояние каждого из них.
  *
- * Карточка несёт сводку, а сводного маршрута на сервере нет: список отдаёт
+ * Строка несёт сводку, а сводного маршрута на сервере нет: список отдаёт
  * имена, состояния приходят по одному. Тест обязан описать оба конца — иначе
- * он проверял бы карточку, которой нечего сказать.
+ * он проверял бы строку, которой нечего сказать.
  */
 function projectsWithStates(...states: ProjectState[]) {
   return [
@@ -82,7 +82,7 @@ function projectsWithStates(...states: ProjectState[]) {
  * Два проекта и сервер, который и правда с ними расстаётся.
  *
  * Список отдаёт то, что живо, удалённый проект отвечает 404-м — иначе тест
- * про исчезнувшую карточку проходил бы и в том случае, когда клиент лишь
+ * про исчезнувшую строку проходил бы и в том случае, когда клиент лишь
  * убрал её у себя, а на сервере ничего не случилось.
  */
 function deletableProjects() {
@@ -121,15 +121,15 @@ function deletableProjects() {
   };
 }
 
-/** Шестерёнка на карточке названного проекта — не на соседней. */
+/** Шестерёнка на строке названного проекта — не на соседней. */
 async function gearOf(name: string): Promise<HTMLElement> {
-  const cards = await screen.findAllByRole("listitem");
-  const card = cards.find((node) => within(node).queryByRole("link", { name }) !== null);
-  if (card === undefined) throw new Error(`карточки «${name}» на экране нет`);
-  return within(card).findByRole("button", { name: "Действия проекта" });
+  const rows = await screen.findAllByRole("row");
+  const row = rows.find((node) => within(node).queryByRole("link", { name }) !== null);
+  if (row === undefined) throw new Error(`строки «${name}» на экране нет`);
+  return within(row).findByRole("button", { name: "Действия проекта" });
 }
 
-/** Раскрыть шестерёнку карточки и выбрать в ней удаление. */
+/** Раскрыть шестерёнку строки и выбрать в ней удаление. */
 async function askToDelete(name: string) {
   await userEvent.click(await gearOf(name));
   await userEvent.click(screen.getByRole("button", { name: "Удалить проект" }));
@@ -154,8 +154,7 @@ describe("экран проектов", () => {
     // Заголовок, а не любой текст: слово «Проекты» есть и в колонке.
     expect(await screen.findByRole("heading", { name: "Проекты" })).toBeInTheDocument();
     // А название проекта осталось азербайджанским на русском интерфейсе: это
-    // содержимое пользователя, и переводится интерфейс, а не данные. Сам
-    // переключатель языка живёт теперь на экране профиля — там он и проверен.
+    // содержимое пользователя, и переводится интерфейс, а не данные.
     expect(await screen.findByText("Şəhər Layihəsi")).toBeInTheDocument();
   });
 
@@ -216,17 +215,6 @@ describe("экран проектов", () => {
     await waitFor(() =>
       expect(screen.getByTestId("location")).toHaveTextContent("/projects/p1"),
     );
-  });
-
-  it("показывает слаг, который сервер выдал, а не выдуманный клиентом", async () => {
-    server.use(
-      ...sessionHandlers(),
-      ...projectsWithStates(state({ name: "Şəhər Layihəsi", slug: "seher-layihesi" })),
-    );
-
-    renderApp({ route: "/projects", locale: "ru" });
-
-    expect(await screen.findByText("seher-layihesi")).toBeInTheDocument();
   });
 
   it("не даёт отправить пустое название", async () => {
@@ -361,93 +349,85 @@ describe("модальное окно", () => {
   });
 });
 
-describe("сводка на карточке", () => {
-  it("называет просрочку числом задач, а не цветом полоски", async () => {
+describe("сводка в таблице", () => {
+  it("столбцы называют готовность, работу, блокировку и просрочку числом", async () => {
     await atMarch11(async () => {
       server.use(
         ...sessionHandlers(),
         ...projectsWithStates(
-          state({ tasks: [task({ end_date: "2026-03-05" })] }),
-        ),
-      );
-
-      renderApp({ route: "/projects", locale: "ru" });
-
-      expect(await screen.findByText("1 просрочена")).toBeInTheDocument();
-    });
-  });
-
-  it("помечает относительный план и зовёт назначить дату старта", async () => {
-    server.use(
-      ...sessionHandlers(),
-      ...projectsWithStates(
-        state({
-          schedule_mode: "relative",
-          start_date: null,
-          plan_approved_at: null,
-          plan_version: 0,
-          project_end: "2001-01-05",
-          tasks: [
-            task({
-              start_date: "2001-01-01",
-              end_date: "2001-01-05",
-              baseline_start: null,
-              baseline_duration: null,
-              baseline_end: null,
-            }),
-          ],
-        }),
-      ),
-    );
-
-    renderApp({ route: "/projects", locale: "ru" });
-
-    // Плашка говорит, в каком проект состоянии, вердикт — что с этим делать.
-    expect(await screen.findByText("Относительный план")).toBeInTheDocument();
-    expect(screen.getByText("Назначьте дату старта")).toBeInTheDocument();
-    // Настоящих дат у такого плана нет, и вместо дедлайна карточка называет
-    // длину плана в днях: подставить сюда координату оси значило бы соврать.
-    expect(screen.getByText(/план на 5 дней/)).toBeInTheDocument();
-  });
-
-  it("у проекта без задач зовёт добавить их, а не рапортует «идёт по плану»", async () => {
-    server.use(...sessionHandlers(), ...projectsWithStates(state({ tasks: [] })));
-
-    renderApp({ route: "/projects", locale: "ru" });
-
-    expect(await screen.findByText(/Плана нет/)).toBeInTheDocument();
-  });
-
-  it("поднимает наверх то, что требует действия", async () => {
-    await atMarch11(async () => {
-      server.use(
-        ...sessionHandlers(),
-        ...projectsWithStates(
-          state({ id: "p1", name: "Спокойный", slug: "spokoynyy" }),
           state({
-            id: "p2",
-            name: "Горит",
-            slug: "gorit",
-            tasks: [task({ end_date: "2026-03-05" })],
+            tasks: [
+              task({ id: "t1", status: "in_progress", progress_pct: 50 }),
+              // Заблокирована и вдобавок не закрыта, а её срок уже прошёл.
+              task({ id: "t2", status: "blocked", progress_pct: 0, end_date: "2026-03-05" }),
+            ],
           }),
         ),
       );
 
       renderApp({ route: "/projects", locale: "ru" });
 
-      // Сортировка случается один раз — когда собрана сводка по всем
-      // проектам: карточки, пересобирающиеся по мере ответов, уезжают
-      // из-под курсора у того, кто уже целится в одну из них.
-      await waitFor(() => {
-        const names = screen
-          .getAllByRole("listitem")
-          .map((card) => within(card).getByRole("link").textContent);
-        expect(names).toEqual(["Горит", "Спокойный"]);
-      });
+      const name = await screen.findByRole("link", { name: "Редизайн" });
+      const cells = within(name.closest("tr")!).getAllByRole("cell");
+      expect(cells[0]).toHaveTextContent("25%");
+      expect(cells[1]).toHaveTextContent("1");
+      expect(cells[2]).toHaveTextContent("1");
+      expect(cells[3]).toHaveTextContent("1");
     });
   });
 
-  it("не пришедшая сводка одного проекта не превращает список в отказ", async () => {
+  it("готовность проекта без задач — прочерк, а не 0%", async () => {
+    server.use(...sessionHandlers(), ...projectsWithStates(state({ tasks: [] })));
+
+    renderApp({ route: "/projects", locale: "ru" });
+
+    const name = await screen.findByRole("link", { name: "Редизайн" });
+    expect(within(name.closest("tr")!).getAllByRole("cell")[0]).toHaveTextContent("—");
+  });
+
+  it("столбец «Дедлайн» называет опоздание в днях", async () => {
+    server.use(
+      ...sessionHandlers(),
+      ...projectsWithStates(state({ deadline: "2026-06-01", project_end: "2026-06-08" })),
+    );
+
+    renderApp({ route: "/projects", locale: "ru" });
+
+    expect(await screen.findByText("Опоздание на 7 дней")).toBeInTheDocument();
+  });
+
+  it("столбец «Дедлайн» называет дату, когда проект укладывается в срок", async () => {
+    server.use(
+      ...sessionHandlers(),
+      ...projectsWithStates(state({ deadline: "2026-06-08", project_end: "2026-06-01" })),
+    );
+
+    renderApp({ route: "/projects", locale: "ru" });
+
+    expect(await screen.findByText("Укладываемся в 8 июн")).toBeInTheDocument();
+  });
+
+  it("у относительного плана столбец «Дедлайн» — прочерк, а не выдуманный срок", async () => {
+    server.use(
+      ...sessionHandlers(),
+      ...projectsWithStates(
+        state({
+          schedule_mode: "relative",
+          start_date: null,
+          deadline: "2026-06-01",
+          project_end: "2001-01-05",
+          tasks: [task({ start_date: "2001-01-01", end_date: "2001-01-05" })],
+        }),
+      ),
+    );
+
+    renderApp({ route: "/projects", locale: "ru" });
+
+    const name = await screen.findByRole("link", { name: "Редизайн" });
+    expect(within(name.closest("tr")!).getAllByRole("cell")[4]).toHaveTextContent("—");
+  });
+
+  it("не пришедшая сводка одного проекта не молчит, но и не прячет остальные", async () => {
     server.use(
       ...sessionHandlers(),
       http.get("/api/projects", () =>
@@ -462,11 +442,11 @@ describe("сводка на карточке", () => {
 
     renderApp({ route: "/projects", locale: "ru" });
 
-    // Оба проекта на месте: не пришедшее состояние — это карточка без
-    // сводки, а не экран без проектов.
+    // Строка с посчитанной сводкой остаётся на месте — незачем прятать то,
+    // что и так готово; а баннер сверху честно называет то, что не пришло.
     expect(await screen.findByText("Первый")).toBeInTheDocument();
-    expect(screen.getByText("Второй")).toBeInTheDocument();
-    expect(screen.queryByRole("alert")).toBeNull();
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.queryByText("Второй")).not.toBeInTheDocument();
   });
 
   it("при отказе списка не утверждает, что проектов нет", async () => {
@@ -481,7 +461,7 @@ describe("сводка на карточке", () => {
   });
 });
 
-describe("удаление проекта с карточки", () => {
+describe("удаление проекта из таблицы", () => {
   it("пункт меню сперва спрашивает, а не удаляет", async () => {
     const { deleted, handlers } = deletableProjects();
     server.use(...sessionHandlers(), ...handlers);
@@ -490,8 +470,8 @@ describe("удаление проекта с карточки", () => {
     await askToDelete("Редизайн");
 
     const dialog = screen.getByRole("dialog");
-    // Окно называет имя проекта: в сетке одинаковых карточек это единственное
-    // место, где видно, что целились в соседнюю.
+    // Окно называет имя проекта: в таблице из одинаковых строк это
+    // единственное место, где видно, что целились в соседнюю.
     expect(
       within(dialog).getByRole("heading", { name: "Удалить проект «Редизайн»?" }),
     ).toBeInTheDocument();
@@ -512,7 +492,7 @@ describe("удаление проекта с карточки", () => {
     expect(screen.getByRole("button", { name: "Отмена" })).toHaveFocus();
   });
 
-  it("подтверждённое удаление убирает карточку и называет проект", async () => {
+  it("подтверждённое удаление убирает строку и называет проект", async () => {
     const { deleted, handlers } = deletableProjects();
     server.use(...sessionHandlers(), ...handlers);
 
@@ -520,12 +500,12 @@ describe("удаление проекта с карточки", () => {
     await askToDelete("Редизайн");
     await userEvent.click(screen.getByRole("button", { name: "Да, удалить проект" }));
 
-    // Удалён названный проект, а не соседний по сетке.
+    // Удалён названный проект, а не соседний по таблице.
     await waitFor(() => expect(deleted).toEqual(["p1"]));
     await waitFor(() => expect(screen.queryByText("Редизайн")).toBeNull());
     expect(screen.getByText("Смета")).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).toBeNull();
-    // Список после удаления выглядит так же, как после промаха мимо кнопки:
+    // Таблица после удаления выглядит так же, как после промаха мимо кнопки:
     // отчитаться о тихой операции обязан тост, и называет он то, что удалено.
     expect(await screen.findByText("Проект «Редизайн» удалён")).toBeInTheDocument();
   });
@@ -543,7 +523,7 @@ describe("удаление проекта с карточки", () => {
     expect(deleted).toEqual([]);
   });
 
-  it("отказ сервера остаётся в окне, а карточка — на месте", async () => {
+  it("отказ сервера остаётся в окне, а строка — на месте", async () => {
     const { handlers } = deletableProjects();
     server.use(...sessionHandlers(), ...handlers);
     // Отдельным вызовом, а не последним доводом в предыдущем: msw отдаёт
@@ -560,13 +540,13 @@ describe("удаление проекта с карточки", () => {
     await userEvent.click(screen.getByRole("button", { name: "Да, удалить проект" }));
 
     // Окно не закрывается на отказе: закрытое, оно унесло бы с собой и
-    // объяснение, и карточка молча осталась бы на месте без причины.
+    // объяснение, и строка молча осталась бы на месте без причины.
     expect(await screen.findByText(/у вас нет прав/i)).toBeInTheDocument();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText("Редизайн")).toBeInTheDocument();
   });
 
-  it("редактору шестерёнки на карточке нет", async () => {
+  it("редактору шестерёнки в таблице нет", async () => {
     const { handlers } = deletableProjects();
     server.use(...sessionHandlers(), ...handlers);
     // Отдельным вызовом: см. соседний тест про отказ сервера.
@@ -595,9 +575,21 @@ describe("адреса списка", () => {
 
     renderApp({ route: "/portfolio", locale: "ru" });
 
-    // Портфель разобран: сводка живёт на карточках списка. По старому адресу
+    // Портфель разобран: сводка живёт в таблице списка. По старому адресу
     // ходили из закладок, и отвечать на него пустотой — расплата за наведение
     // порядка, которую платит читатель, а не мы.
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/projects"));
+    expect(await screen.findByRole("heading", { name: "Проекты" })).toBeInTheDocument();
+  });
+
+  it("прежний адрес отчётов отвечает переездом, а не «страница не найдена»", async () => {
+    server.use(...sessionHandlers(), http.get("/api/projects", () => HttpResponse.json([])));
+
+    renderApp({ route: "/reports", locale: "ru" });
+
+    // Таблица отчётов переехала в «Проекты» и стала тем, чем этот раздел
+    // показывает сводку. По старому адресу ходили и из колонки, и из
+    // закладок — переезд отвечает им обоим, а не «страница не найдена».
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/projects"));
     expect(await screen.findByRole("heading", { name: "Проекты" })).toBeInTheDocument();
   });
