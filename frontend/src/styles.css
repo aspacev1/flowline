@@ -1610,18 +1610,84 @@ input[type="checkbox"] {
   background: var(--danger-soft);
 }
 
+/* Вопрос о переутверждении — карточка под строкой плана, а не строка в один
+   ряд с плашками.
+
+   Прежде здесь стояла та же тесная полоска, что и у прочих подтверждений, и
+   для «да/нет» её хватало. Теперь вопрос называет число, перечисляет виды
+   изменений и предлагает на них посмотреть — в строку шапки это не встаёт, а
+   встав, вытеснило бы из неё имя проекта. Ширина ограничена: фраза во весь
+   экран читается хуже, чем в три коротких строки. */
+.plan-reapprove {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-width: 480px;
+  padding: 12px 14px;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
+  background: var(--danger-soft);
+}
+
+/* Карточка встаёт под строку плана целой строкой, а не втискивается между
+   плашками: обёртка кнопки согласования для этого раздаётся на всю ширину, как
+   только вопрос в ней развернулся. Иначе карточка уезжает в правый край, где
+   на ней остаётся полторы колонки и три переноса. */
+.project-head__approval:has(.plan-reapprove) {
+  flex-basis: 100%;
+  margin-top: 4px;
+}
+
+/* Пока в строке одни плашки, они и имя проекта стоят на одной оси. Когда
+   развернулась карточка вопроса, ось теряет смысл: имя уехало бы на середину
+   карточки в полтора десятка строк. */
+.project-head__title-row:has(.plan-reapprove) {
+  align-items: flex-start;
+}
+
+.plan-reapprove__title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.plan-reapprove__text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.plan-reapprove__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
 /* «Посмотреть изменения» внутри подтверждения — ссылка, а не третья кнопка:
    в строке уже стоят две, и орган, который ничего не решает, не должен
-   выглядеть равным тем, что решают. */
+   выглядеть равным тем, что решают. Ссылка живёт внутри фразы, поэтому от
+   общего правила кнопки снимается всё, что делает её плашкой: рост, заливка,
+   тень и собственная строка. */
 .plan__link {
+  display: inline;
+  height: auto;
   padding: 0;
   border: none;
+  border-radius: 0;
   background: none;
+  box-shadow: none;
   font: inherit;
   font-weight: 600;
   color: var(--accent);
   text-decoration: underline;
+  white-space: normal;
   cursor: pointer;
+}
+
+.plan__link:hover {
+  background: none;
+  box-shadow: none;
+  color: var(--accent-hover);
 }
 
 /* Предложение подвинуть связанную задачу. Ненавязчивое: приглушённая выноска

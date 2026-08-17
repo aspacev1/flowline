@@ -210,6 +210,9 @@ button.sidebar__button { height: 34px; padding: 0 var(--sidebar-gutter); border-
   border: 1px solid #f0c2cf;
   border-radius: var(--radius-pill);
   background: var(--danger-soft);
+  /* Общее правило кнопки даёт всякой кнопке синеватую подсветку — на алой
+     плашке она читалась бы грязью вокруг края. */
+  box-shadow: none;
   color: var(--danger-strong);
   font-family: inherit;
   font-size: 12px;
@@ -233,7 +236,11 @@ button.project-head__plan-note {
   transition: background var(--motion-fast) var(--motion-ease);
 }
 
-button.project-head__plan-note:hover { background: #ffe3ea; }
+button.project-head__plan-note:hover { background: #ffe3ea; box-shadow: none; }
+
+/* Уголок мельче подписи и приглушён: он обещает продолжение, а не спорит с
+   числом за внимание. */
+.project-head__plan-chevron { font-size: 9px; opacity: 0.7; }
 .project-head__actions { gap: 8px; justify-content: flex-end; }
 /* Рамки здесь нет: ссылке-кнопке её край рисует общее правило `.button-link`
    тем же внутренним контуром, что и тихим кнопкам рядом, — и настоящая рамка

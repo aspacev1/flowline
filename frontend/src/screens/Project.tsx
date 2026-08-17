@@ -69,6 +69,13 @@ export function Project({
   // шапке: открывают его из двух мест — пометкой о расхождении и ссылкой в
   // подтверждении переутверждения, — и оба стоят в разных поддеревьях.
   const [showingChanges, setShowingChanges] = useState(false);
+  // Задан ли вопрос о переутверждении. Тоже здесь: его задают и кнопкой в
+  // шапке, и из подвала окна изменений, а вопрос у действия один.
+  const [reapproving, setReapproving] = useState(false);
+  // Показывает ли лента призрак согласованного плана. Поднят из ленты, потому
+  // что тем же слоем управляет тумблер в окне изменений: список и диаграмма
+  // рассказывают одно и то же двумя языками, и переключатель у них общий.
+  const [showBaseline, setShowBaseline] = useState(true);
   // Где открыта строка новой задачи. `null` — закрыта.
   //
   // Задачу заводят прямо в ленте, а не в окне: план пишут списком, и окно
@@ -202,6 +209,8 @@ export function Project({
                   // Пересогласование — право владельца: оно сдвигает базу, от
                   // которой считаются все объяснённые сдвиги.
                   canReapprove={role === "owner" && !offline}
+                  confirming={reapproving}
+                  onConfirmingChange={setReapproving}
                   onShowChanges={() => setShowingChanges(true)}
                 />
               }
@@ -321,6 +330,8 @@ export function Project({
                 state={query.data}
                 canWrite={editable}
                 assigneeNames={assigneeNames}
+                baselineShown={showBaseline}
+                onBaselineToggle={() => setShowBaseline((shown) => !shown)}
                 toolbarAction={
                   canWrite ? (
                     <>
@@ -435,6 +446,9 @@ export function Project({
                 projectId={projectId}
                 state={query.data}
                 canReapprove={role === "owner" && !offline}
+                baselineShown={showBaseline}
+                onBaselineToggle={() => setShowBaseline((shown) => !shown)}
+                onReapprove={() => setReapproving(true)}
                 onOpenTask={(taskId) => {
                   navigate(`/projects/${projectId}`);
                   openTask(taskId);

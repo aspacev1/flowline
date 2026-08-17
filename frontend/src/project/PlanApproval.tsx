@@ -1,5 +1,4 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
 
 import { errorKey } from "../api/errors";
 import { approvePlan, projectQueryKey } from "../api/projects";
@@ -51,6 +50,8 @@ export function PlanApproval({
   state,
   canApprove,
   canReapprove,
+  confirming,
+  onConfirmingChange,
   onShowChanges,
 }: {
   projectId: string;
@@ -58,45 +59,76 @@ export function PlanApproval({
   canApprove: boolean;
   canReapprove: boolean;
   /**
+   * Задан ли сейчас вопрос о переутверждении.
+   *
+   * Состоянием снаружи, а не своим: этот же вопрос задаёт кнопка в подвале окна
+   * изменений, а вопрос у действия обязан быть один. Второй, заведённый ради
+   * второй кнопки, однажды разойдётся с первым в формулировке или в правах.
+   */
+  confirming: boolean;
+  onConfirmingChange: (confirming: boolean) => void;
+  /**
    * Показать, что именно будет зафиксировано. Не передано — подтверждение
    * обходится своей сводкой: она называет объём, но не поимённо.
    */
   onShowChanges?: () => void;
 }) {
   const { t } = useLocale();
-  const [confirming, setConfirming] = useState(false);
 
   const approved = state.plan_approved_at !== null;
-  const changed = planChanges(state).taskCount;
+  const changes = planChanges(state);
+  const changed = changes.taskCount;
 
-  const mutation = useApprovePlan(projectId, () => setConfirming(false));
+  const mutation = useApprovePlan(projectId, () => onConfirmingChange(false));
 
   if (approved ? !canReapprove : !canApprove) return null;
 
   if (approved && confirming) {
     return (
-      <span className="plan__confirm">
-        {/* Сколько задач станет новой базой — прежде вопрос предупреждал о
-            последствии, но не называл его размера, и «да» приходилось говорить
-            вслепую. Ссылка рядом показывает те же задачи поимённо: смотреть
-            необязательно, но возможность обязана быть под рукой ровно в тот
-            миг, когда решение принимается. */}
-        <span className="muted">
+      // Вопрос — карточкой, а не строкой в ряд с плашками: он называет число,
+      // перечисляет виды изменений и предлагает на них посмотреть, и всё это
+      // в одну строку шапки не встаёт, а встав — вытесняет из неё имя проекта.
+      <span className="plan-reapprove" role="group">
+        <strong className="plan-reapprove__title">
+          {t("plan.reapprove_title", { version: state.plan_version + 1 })}
+        </strong>
+        {/* Прежде вопрос предупреждал о последствии, но не называл его размера,
+            и «да» приходилось говорить вслепую. Ссылка рядом показывает те же
+            задачи поимённо: смотреть необязательно, но возможность обязана быть
+            под рукой ровно в тот миг, когда решение принимается. */}
+        <p className="plan-reapprove__text">
           {changed > 0
-            ? t("plan.reapprove_summary", { tasks: t("common.tasks", { count: changed }) })
+            ? `${t("plan.reapprove_summary", {
+                count: changed,
+                parts: partsOf(changes, t),
+              })} ${t("plan.reapprove_warning")}`
             : t("plan.reapprove_warning")}
-        </span>
-        {changed > 0 && onShowChanges && (
-          <button type="button" className="plan__link" onClick={onShowChanges}>
-            {t("plan.changes_open")}
+          {changed > 0 && onShowChanges && (
+            <>
+              {" "}
+              <button type="button" className="plan__link" onClick={onShowChanges}>
+                {t("plan.changes_open")}
+              </button>
+            </>
+          )}
+        </p>
+        <span className="plan-reapprove__actions">
+          <button
+            type="button"
+            className="button--danger"
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending}
+          >
+            {t("plan.reapprove_confirm")}
           </button>
-        )}
-        <button type="button" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-          {t("plan.reapprove_confirm")}
-        </button>
-        <button type="button" className="button--quiet" onClick={() => setConfirming(false)}>
-          {t("common.cancel")}
-        </button>
+          <button
+            type="button"
+            className="button--quiet"
+            onClick={() => onConfirmingChange(false)}
+          >
+            {t("common.cancel")}
+          </button>
+        </span>
       </span>
     );
   }
@@ -112,7 +144,7 @@ export function PlanApproval({
       <button
         type="button"
         className={`button--quiet${approved ? " button--alert" : ""}`}
-        onClick={() => (approved ? setConfirming(true) : mutation.mutate())}
+        onClick={() => (approved ? onConfirmingChange(true) : mutation.mutate())}
         disabled={mutation.isPending}
       >
         {approved ? t("plan.reapprove") : t("plan.approve")}
@@ -124,4 +156,30 @@ export function PlanApproval({
       )}
     </>
   );
+}
+
+/**
+ * Перечисление видов изменений: «2 сдвига, 1 длительность, 1 новая задача».
+ *
+ * Число само по себе говорит, сколько работы разошлось с планом, но не о чём
+ * речь: пять перенесённых задач и пять дописанных — разные новости, и решение
+ * о переутверждении принимают по второму, а не только по первому.
+ *
+ * Удалённых здесь нет: их знает лишь снимок версии, а он грузится только при
+ * открытии окна. Перечисление называет то, что известно наверняка.
+ */
+function partsOf(
+  changes: ReturnType<typeof planChanges>,
+  t: (key: string, params?: Record<string, string | number>) => string,
+): string {
+  return (
+    [
+      ["shifts", changes.shifts.length],
+      ["durations", changes.durations.length],
+      ["added", changes.added.length],
+    ] as const
+  )
+    .filter(([, count]) => count > 0)
+    .map(([key, count]) => t(`plan.reapprove_part.${key}`, { count }))
+    .join(", ");
 }

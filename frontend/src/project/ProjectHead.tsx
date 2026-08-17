@@ -96,11 +96,24 @@ export function ProjectHead({
                       className="project-head__plan-note"
                       onClick={onShowChanges}
                     >
-                      {t("plan.changed_count", { count: changed })}
+                      {t("plan.changed_count", {
+                        count: changed,
+                        version: state.plan_version,
+                      })}
+                      {/* Уголок — тот же знак, каким приложение обозначает
+                          разворачивающееся: он обещает продолжение и отличает
+                          нажимаемую плашку от соседней, которая просто
+                          сообщает. */}
+                      <span className="project-head__plan-chevron" aria-hidden="true">
+                        ▾
+                      </span>
                     </button>
                   ) : (
                     <span className="project-head__plan-note">
-                      {t("plan.changed_count", { count: changed })}
+                      {t("plan.changed_count", {
+                        count: changed,
+                        version: state.plan_version,
+                      })}
                     </span>
                   ))}
                 {planAction && <span className="project-head__approval">{planAction}</span>}

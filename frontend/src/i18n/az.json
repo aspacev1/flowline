@@ -17,7 +17,8 @@
       "one": "{count} tapşırıq",
       "other": "{count} tapşırıq"
     },
-    "save": "Yadda saxla"
+    "save": "Yadda saxla",
+    "close": "Bağla"
   },
   "modal": {
     "discard": {
@@ -705,25 +706,54 @@
     "line": "Layihə planı · v{version}",
     "line_draft": "Layihə planı · qaralama",
     "changed_count": {
-      "one": "{count} tapşırıq dəyişib",
-      "other": "{count} tapşırıq dəyişib"
+      "one": "v{version}-dən sonra {count} dəyişiklik",
+      "other": "v{version}-dən sonra {count} dəyişiklik"
     },
     "changes_title": "v{version}-dən sonrakı dəyişikliklər",
     "changes_since": "Plan {date} tarixində təsdiqlənib",
     "changes_open": "Dəyişikliklərə bax",
     "changes_all": "Hamısı",
+    "changes_ghost": "Təsdiqlənmiş planı diaqramda göstər",
+    "changes_tag": {
+      "shifts": "Sürüşmələr",
+      "durations": "Müddət",
+      "added": "Yeni",
+      "removed": "Silinmiş"
+    },
     "changes_group": {
       "shifts": "Tarix sürüşmələri",
       "durations": "Müddət",
-      "added": "Yeni tapşırıqlar",
+      "added": "Yeni tapşırıqlar · plandan kənar",
       "removed": "Silinmiş tapşırıqlar"
     },
     "changes_added_at": "{date} əlavə edilib",
     "changes_removed_note": "təsdiqlənmiş planda var idi",
+    "changes_also_duration": "müddət: {from} → {to}",
     "changes_beyond": "plandan kənar",
-    "changes_reapprove": "v{version} kimi yenidən təsdiqlə",
-    "changes_reapprove_hint": "Bu dəyişikliklər sürüşmələrin sayıldığı yeni baza olacaq",
-    "reapprove_summary": "Yeni baza artıq dəyişəni sabitləyəcək: {tasks}"
+    "changes_reapprove": "Yenidən təsdiqlə…",
+    "changes_reapprove_hint": {
+      "one": "Yenidən təsdiq bu {count} dəyişikliyi yeni baza kimi sabitləyəcək",
+      "other": "Yenidən təsdiq bu {count} dəyişikliyi yeni baza kimi sabitləyəcək"
+    },
+    "reapprove_title": "Plan v{version} kimi yenidən təsdiqlənsin?",
+    "reapprove_summary": {
+      "one": "{count} dəyişiklik sabitlənəcək: {parts}.",
+      "other": "{count} dəyişiklik sabitlənəcək: {parts}."
+    },
+    "reapprove_part": {
+      "shifts": {
+        "one": "{count} sürüşmə",
+        "other": "{count} sürüşmə"
+      },
+      "durations": {
+        "one": "{count} müddət",
+        "other": "{count} müddət"
+      },
+      "added": {
+        "one": "{count} yeni tapşırıq",
+        "other": "{count} yeni tapşırıq"
+      }
+    }
   },
   "shift": {
     "title": "{days} sürüşmə",
