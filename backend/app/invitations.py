@@ -73,9 +73,9 @@ def _unavailable(state: Status) -> InvitationError:
 #: Роли, которые приглашением не выдаются. Владелец распоряжается организацией
 #: целиком — удаляет проекты, переутверждает планы, зовёт кого угодно, — а
 #: приглашение без адреса вдобавок достаётся предъявителю: владельцем
-#: становился любой, кто открыл переславшуюся ссылку. Отыграть это назад нечем,
-#: смены роли участнику в продукте пока нет. Владельца назначает владелец,
-#: действующему участнику и отдельным действием — когда оно появится.
+#: становился любой, кто открыл переславшуюся ссылку. Владельца назначает
+#: владелец, действующему участнику и отдельным действием — тем самым
+#: `PATCH /api/org/members/{user_id}`, где адресат назван поимённо.
 NOT_INVITABLE: frozenset[Role] = frozenset({Role.OWNER})
 
 
@@ -146,6 +146,25 @@ def _expiry(now: datetime) -> datetime:
     return now + timedelta(days=get_settings().invite_ttl_days)
 
 
+def _is_member(db: DbSession, *, org_id: uuid.UUID, email: str) -> bool:
+    """Состоит ли обладатель этого адреса в организации уже сейчас.
+
+    Спрашивается до выпуска, а не после приёма: приглашение действующему
+    участнику ничего не меняет — `accept` роли не трогает, — но выглядит как
+    действие. Зовущий, промахнувшийся строкой в списке адресов, увидел бы
+    «приглашение отправлено» и стал бы ждать, пока человек «войдёт», хотя тот
+    внутри со вчера. Отказ называет это словами.
+    """
+    return (
+        db.scalar(
+            select(Membership.id)
+            .join(User, User.id == Membership.user_id)
+            .where(Membership.org_id == org_id, User.email == email)
+        )
+        is not None
+    )
+
+
 def _pending_for(
     db: DbSession, *, org_id: uuid.UUID, email: str, now: datetime
 ) -> Invitation | None:
@@ -186,6 +205,14 @@ def create(
         address = normalize_email(raw)
         if not address:
             raise InvitationError("invalid_email")
+        # Отказ на весь список, а не пропуск одного адреса: список набирают
+        # вставкой из письма, и «пятерых позвали, шестого молча не стали»
+        # обнаружилось бы через неделю по отсутствию человека. Проверка идёт
+        # до создания записей — иначе часть приглашений уже существовала бы к
+        # моменту отказа, и повторная отправка исправленного списка выпустила
+        # бы их второй раз.
+        if _is_member(db, org_id=org_id, email=address):
+            raise InvitationError("already_member")
         if address not in normalized:
             normalized.append(address)
     recipients: list[str | None] = normalized or [None]

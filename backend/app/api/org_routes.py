@@ -9,8 +9,16 @@ from sqlalchemy.orm import Session as DbSession
 from app.access import Action, can, parse_role
 from app.auth import current_session
 from app.db import get_db
-from app.models import Membership, Organization, Session, User
-from app.orgs import current_membership, memberships_of, switch
+from app.models import Membership, Organization, Role, Session, User
+from app.orgs import (
+    LastOwner,
+    current_membership,
+    member_of,
+    memberships_of,
+    remove_membership,
+    set_role,
+    switch,
+)
 from app.settings_input import OrganizationSettingsIn, changes
 from app.slugs import slug_check
 
@@ -55,6 +63,10 @@ class OrganizationOut(BaseModel):
 
 class SwitchIn(BaseModel):
     org_id: uuid.UUID
+
+
+class MemberRoleIn(BaseModel):
+    role: str
 
 
 def _to_out(org: Organization, role: str) -> OrganizationOut:
@@ -214,6 +226,90 @@ def list_members(
         .order_by(User.name, User.id)
     ).all()
     return [
-        MemberOut(id=str(member.id), name=member.name, email=member.email, role=role)
-        for member, role in rows
+        MemberOut(id=str(person.id), name=person.name, email=person.email, role=role)
+        for person, role in rows
     ]
+
+
+def _target(db: DbSession, membership: Membership, user_id: uuid.UUID) -> Membership:
+    """Членство человека, о котором идёт речь, в организации спрашивающего.
+
+    Чужой участник неотличим от несуществующего: 404 на оба случая — иначе
+    перебор по адресу превращается в способ выяснить, кто в этой установке
+    вообще заведён.
+    """
+    found = member_of(db, org_id=membership.org_id, user_id=user_id)
+    if found is None:
+        raise HTTPException(status_code=404, detail="member_not_found")
+    return found
+
+
+def _parse_assignable_role(raw: str) -> Role:
+    """Роль из запроса. Владелец здесь допустим — в отличие от приглашения.
+
+    Приглашение владельца не выдаёт (NOT_INVITABLE в app.invitations): ссылка
+    без адреса достаётся предъявителю, и владельцем становился бы всякий, кто
+    её открыл. Здесь адресат — действующий участник, названный поимённо тем,
+    кто и так распоряжается организацией целиком; это то самое «отдельное
+    действие», ради которого приглашению владельца запрещено.
+    """
+    try:
+        return Role(raw)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail="unknown_role") from error
+
+
+@router.patch("/members/{user_id}", response_model=MemberOut)
+def update_member_role(
+    user_id: uuid.UUID,
+    payload: MemberRoleIn,
+    membership: Membership = Depends(current_membership),
+    db: DbSession = Depends(get_db),
+):
+    """Меняет роль участника. Правит владелец, и только он.
+
+    Свою собственную роль владелец сменить может — пока он не последний.
+    Запрещать это отдельно незачем: пока владельцев двое, разжалование
+    отыгрывает назад второй, а на последнем срабатывает та же защита, что и
+    на всех остальных путях остаться без владельца.
+    """
+    if not can(parse_role(membership.role), Action.ORG_ADMIN):
+        raise HTTPException(status_code=403, detail="forbidden")
+
+    role = _parse_assignable_role(payload.role)
+    target = _target(db, membership, user_id)
+    try:
+        set_role(db, target, role)
+    except LastOwner:
+        raise HTTPException(status_code=409, detail="last_owner")
+
+    person = db.get(User, target.user_id)
+    return MemberOut(
+        id=str(person.id), name=person.name, email=person.email, role=target.role
+    )
+
+
+@router.delete("/members/{user_id}", status_code=204)
+def remove_member(
+    user_id: uuid.UUID,
+    membership: Membership = Depends(current_membership),
+    db: DbSession = Depends(get_db),
+):
+    """Выводит человека из организации — или выпускает его самого.
+
+    Один маршрут на оба действия, потому что действие и правда одно: членства
+    больше нет. Разными их делает только то, кто вправе его выполнить —
+    владелец над любым или человек над собой. Уход своими руками не требует
+    прав в организации вовсе: роль `client` не видит даже её состава, и
+    отдельного права «выйти» у неё нет и быть не должно — иначе позванный
+    однажды остаётся внутри навсегда.
+    """
+    leaving = user_id == membership.user_id
+    if not leaving and not can(parse_role(membership.role), Action.ORG_ADMIN):
+        raise HTTPException(status_code=403, detail="forbidden")
+
+    target = _target(db, membership, user_id)
+    try:
+        remove_membership(db, target)
+    except LastOwner:
+        raise HTTPException(status_code=409, detail="last_owner")

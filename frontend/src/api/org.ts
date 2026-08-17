@@ -99,3 +99,33 @@ export function updateOrganization(
 export function checkOrgSlug(slug: string): Promise<SlugCheck> {
   return request<SlugCheck>(`/api/org/slug-check?slug=${encodeURIComponent(slug)}`);
 }
+
+/**
+ * Меняет роль участника. Правит владелец, и только он.
+ *
+ * Владельца назначают именно отсюда, а не приглашением: приглашение без адреса
+ * достаётся предъявителю, и владельцем становился бы всякий, кто открыл
+ * переславшуюся ссылку. Здесь адресат назван поимённо.
+ *
+ * Последнего владельца разжаловать нельзя — сервер отвечает `last_owner`.
+ * Организация без владельца не разжалована, а заперта: назначить нового в ней
+ * больше нечем.
+ */
+export function updateMemberRole(userId: string, role: string): Promise<Member> {
+  return request<Member>(`/api/org/members/${encodeURIComponent(userId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ role }),
+  });
+}
+
+/**
+ * Выводит человека из организации — или выпускает его самого.
+ *
+ * Один маршрут на оба действия: членства в обоих случаях больше нет, и
+ * разными их делает только то, кто вправе его выполнить — владелец над любым
+ * или человек над собой. Отсюда и «Покинуть организацию»: это тот же вызов со
+ * своим собственным идентификатором.
+ */
+export function removeMember(userId: string): Promise<void> {
+  return request<void>(`/api/org/members/${encodeURIComponent(userId)}`, { method: "DELETE" });
+}

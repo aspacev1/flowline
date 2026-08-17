@@ -208,6 +208,9 @@
     "invite_for_another_address": "Dəvət başqa ünvana ünvanlanıb",
     "email_not_verified": "Əvvəlcə öz ünvanınızı təsdiqləyin",
     "role_not_invitable": "Sahibi dəvətlə təyin etmək olmaz — başqa rol seçin",
+    "already_member": "Bu adam artıq təşkilatdadır: dəvət heç nə əlavə etməyəcək",
+    "last_owner": "Təşkilatda ən azı bir sahib qalmalıdır",
+    "member_not_found": "Belə iştirakçı artıq təşkilatda yoxdur",
     "verification_not_found": "Təsdiq keçidi işləmir",
     "llm_not_configured": "LLM qoşulmayıb",
     "llm_unreachable": "Model əlçatan deyil",
@@ -645,6 +648,29 @@
       "editor": "Redaktor",
       "viewer": "İzləyici",
       "client": "Müştəri"
+    },
+    "role_about": {
+      "owner": "Təşkilatı idarə edir: parametrlər, dəvətlər, rollar, layihələrin silinməsi",
+      "editor": "Layihələri aparır: planı dəyişir, tapşırıq yaradır, müddətləri təsdiqləyir",
+      "viewer": "Təşkilatın layihələrini oxuyur və şərh yazır, amma heç nəyi dəyişmir",
+      "client": "Yalnız adbaad dəvət olunduğu layihələri görür və onlara şərh yazır"
+    },
+    "role_of": "Rol: {name}",
+    "role_changed": "{name} indi {role}",
+    "last_owner_hint": "Yeganə sahib: sahibsiz təşkilat kilidlənir — yenisini təyin edəcək kimsə qalmaz",
+    "remove": {
+      "label": "Çıxar",
+      "warning": "{name} təşkilatın layihələrinə girişini itirir. Geri qaytarmaq yalnız yeni dəvətlə mümkündür",
+      "confirm": "Bəli, çıxar",
+      "done": "{name} artıq təşkilatda deyil"
+    },
+    "leave": {
+      "title": "Təşkilatı terk et",
+      "about": "«{org}» layihələri artıq açılmayacaq. Geri qayıtmaq yalnız yeni dəvətlə mümkündür",
+      "warning": "Bu təşkilatın layihələrinə giriş dərhal itir və geri qayıtmağı özün istəyə bilməyəcəksən",
+      "confirm": "Bəli, terk et",
+      "done": "«{org}» təşkilatını tərk etdiniz",
+      "last_owner": "Siz yeganə sahibsiniz: əvvəlcə başqasını sahib təyin edin — yoxsa təşkilat sahibsiz qalar"
     }
   },
   "invite": {
