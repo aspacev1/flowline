@@ -485,11 +485,6 @@
       "week": "Week {number}",
       "day": "Day {number}"
     },
-    "mode": {
-      "label": "Timeline view",
-      "relative": "Relative",
-      "calendar": "Calendar"
-    },
     "empty": "This project has no categories yet. Create a category — tasks live inside it",
     "today": "Today",
     "moved": "Task moved to {date}",
