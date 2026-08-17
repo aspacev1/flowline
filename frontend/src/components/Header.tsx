@@ -5,7 +5,7 @@ import { NavLink } from "react-router-dom";
 import { ORG_QUERY_KEY, organization } from "../api/org";
 import { useAuth } from "../auth/AuthProvider";
 import { useLocale } from "../i18n/LocaleProvider";
-import { IconBoard, IconChart, IconCheck, IconExit, IconSettings } from "./icons";
+import { IconBoard, IconCheck, IconExit, IconSettings } from "./icons";
 import { LocaleSwitch } from "./LocaleSwitch";
 import { OrgSwitch } from "./OrgSwitch";
 
@@ -117,10 +117,12 @@ export function Header() {
             остаётся подсвеченным, пока человек ходит внутри. Иначе на
             `/projects/42` колонка не подсвечивает ничего, и по ней не видно,
             где ты. */}
-        {/* Один пункт про проекты, а не два. Соседний «Портфель» показывал те
-            же проекты и тот же заголовок, отличаясь только полнотой карточек;
-            теперь сводка живёт на самих карточках, и выбирать между двумя
-            списками одного и того же больше не нужно. */}
+        {/* Один пункт про проекты, а не три. Прежние соседи — «Портфель» и
+            «Отчёты» — показывали тот же набор проектов под своим заголовком:
+            один сводился к карточкам с вердиктом, другой — к таблице с
+            готовностью и сроками. Раздел один, и сводка живёт в его таблице —
+            выбирать, на котором из трёх смотреть, больше не нужно. Значок тот
+            же, что раньше отличал именно «Проекты» от чисел «Отчётов». */}
         <NavLink to="/projects" className={navClass}>
           <IconBoard className="sidebar__icon" />
           {t("nav.projects")}
@@ -128,10 +130,6 @@ export function Header() {
         <NavLink to="/my-tasks" className={navClass}>
           <IconCheck className="sidebar__icon" />
           {t("nav.my_tasks")}
-        </NavLink>
-        <NavLink to="/reports" className={navClass}>
-          <IconChart className="sidebar__icon" />
-          {t("nav.reports")}
         </NavLink>
       </nav>
 

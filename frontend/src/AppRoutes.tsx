@@ -7,7 +7,6 @@ import { Invite } from "./screens/Invite";
 import { Login } from "./screens/Login";
 import { Members } from "./screens/Members";
 import { MyTasks } from "./screens/MyTasks";
-import { Reports } from "./screens/Reports";
 import { OrgSettings } from "./screens/OrgSettings";
 import { Profile } from "./screens/Profile";
 import { Project } from "./screens/Project";
@@ -55,7 +54,6 @@ export function AppRoutes() {
             которую ни один пункт колонки не подсвечивал. */}
         <Route path="/" element={<Navigate to="/projects" replace />} />
         <Route path="/my-tasks" element={<MyTasks />} />
-        <Route path="/reports" element={<Reports />} />
         <Route path="/projects" element={<Projects />} />
         {/* Интервью доступно только при создании нового проекта: запуск
             внутри существующего — следующий этап, не первая версия. */}
@@ -93,6 +91,12 @@ export function AppRoutes() {
             котором смотреть, и ответ «на обоих» был неверным. Адрес отвечает
             переездом, а не «страница не найдена»: по нему ходили из закладок. */}
         <Route path="/portfolio" element={<Navigate to="/projects" replace />} />
+        {/* Отчёты разобраны тем же способом, что раньше портфель: их таблица
+            переехала в «Проекты» и стала тем, чем этот раздел показывает
+            сводку, — второго раздела с тем же набором проектов не осталось.
+            Адрес отвечает переездом, а не «страница не найдена»: по нему
+            ходили и из колонки, и из закладок. */}
+        <Route path="/reports" element={<Navigate to="/projects" replace />} />
       </Route>
       {/* Неизвестный адрес ведёт внутрь, а оттуда — на вход, если человек не
           вошёл. Отдельный экран «не найдено» появится, когда появятся адреса,

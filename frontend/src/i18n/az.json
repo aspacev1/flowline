@@ -85,7 +85,6 @@
   "nav": {
     "my_tasks": "Tapşırıqlarım",
     "projects": "Layihələr",
-    "reports": "Hesabatlar",
     "logout": "Çıxış",
     "org_settings": "Təşkilat",
     "settings": "Parametrlər",
@@ -266,35 +265,9 @@
     "create_with_ai": "Müsahibə ilə yarat",
     "created": "«{name}» layihəsi yaradıldı",
     "card": {
-      "tasks": {
-        "one": "{count} tapşırıq",
-        "other": "{count} tapşırıq"
-      },
-      "progress": "{pct}% hazırdır",
-      "plan_days": "{days}lük plan",
       "menu": "Layihə əməlləri"
     },
-    "delete_title": "«{name}» layihəsi silinsin?",
-    "mode": {
-      "relative": "Nisbi plan"
-    },
-    "verdict": {
-      "empty": "Plan boşdur — tapşırıq əlavə edin",
-      "overdue": {
-        "one": "{count} gecikib",
-        "other": "{count} gecikib"
-      },
-      "late": "{days} gecikmə",
-      "blocked": {
-        "one": "{count} bloklanıb",
-        "other": "{count} bloklanıb"
-      },
-      "changed": "Razılaşdırmadan sonra dəyişib",
-      "unscheduled": "Başlama tarixini təyin edin",
-      "draft": "Qaralama — razılaşdırılmayıb",
-      "done": "Tamamlanıb",
-      "on_track": "Plan üzrə gedir"
-    }
+    "delete_title": "«{name}» layihəsi silinsin?"
   },
   "project": {
     "period": "{from} — {to}",
@@ -318,12 +291,12 @@
     "overdue": "Son tarixi keçib"
   },
   "reports": {
-    "title": "Hesabatlar",
     "col": {
       "project": "Layihə",
       "progress": "Hazırdır",
       "overdue": "Gecikib",
-      "deadline": "Son tarix"
+      "deadline": "Son tarix",
+      "actions": "Əməliyyatlar"
     },
     "deadline_late": "{days} gecikmə",
     "deadline_fits": "{date} tarixinə çatırıq"

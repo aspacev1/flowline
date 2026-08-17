@@ -31,15 +31,17 @@ describe("шапка", () => {
       "href",
       "/projects",
     );
-    // Про проекты в колонке один пункт, а не два: соседний «Портфель» показывал
-    // те же проекты под тем же заголовком, и различить их снаружи было нечем.
+    // Про проекты в колонке один пункт, а не три: соседние «Портфель» и
+    // «Отчёты» показывали те же проекты под своим заголовком, и различить их
+    // снаружи было нечем.
     expect(screen.queryByRole("link", { name: "Портфель" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Отчёты" })).toBeNull();
   });
 
   it("подсвечивает ровно один раздел — тот, на котором стоит человек", async () => {
-    renderApp({ route: "/reports", locale: "ru" });
+    renderApp({ route: "/my-tasks", locale: "ru" });
 
-    expect(await screen.findByRole("link", { name: "Отчёты" })).toHaveClass("is-current");
+    expect(await screen.findByRole("link", { name: "Мои задачи" })).toHaveClass("is-current");
     expect(screen.getByRole("link", { name: "Проекты" })).not.toHaveClass("is-current");
   });
 

@@ -2032,151 +2032,6 @@ input[type="checkbox"] {
   text-decoration: underline;
 }
 
-/* --- проекты: карточки со сводкой --- */
-
-.projects {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 16px;
-  margin: 20px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.project-card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 18px 20px 20px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-}
-
-/* Вердикт — первой строкой карточки и единственным цветным пятном на ней:
-   ради него на карточку и смотрят. Плашка, а не строка текста: цветное пятно
-   находится глазом в сетке из двадцати карточек, строка — нет. */
-.project-card__verdict {
-  align-self: flex-start;
-  margin: 0;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-  background: var(--surface-sunken, var(--hover));
-  color: var(--text-muted);
-}
-
-.project-card__verdict[data-tone="alarm"] {
-  background: var(--danger-soft);
-  color: var(--danger);
-}
-
-.project-card__verdict[data-tone="warn"] {
-  background: #fff4e5;
-  color: #b45309;
-}
-
-.project-card__verdict[data-tone="calm"] {
-  background: var(--ok-soft);
-  color: var(--ok);
-}
-
-.project-card__head {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-/* Название — чернилами и без подчёркивания, и селектор двойной намеренно:
-   `.screen a` красит всякую ссылку страницы и перебил бы одинокий класс. В
-   сетке карточек синее подчёркнутое название читается как «ссылка среди
-   текста», хотя открывается по щелчку карточка целиком. */
-.screen .project-card__name {
-  color: var(--text);
-  font-size: 17px;
-  font-weight: 700;
-  text-decoration: none;
-}
-
-/* Режим плана — приглушённой плашкой, не цветной: это состояние, а не
-   тревога, и спорить с вердиктом над ним ей нечем. */
-.project-card__mode {
-  padding: 2px 8px;
-  border: 1px solid var(--border-strong);
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
-/* Шестерёнка — у правого края строки с названием, а не в потоке за ним:
-   карточки в сетке разной ширины, и знак, едущий следом за названием, каждый
-   раз оказывался бы в новом месте. По центру строки, а не по базовой линии:
-   базовой линии у значка нет, и `align-items: baseline` головы прижал бы его
-   нижним краем к тексту. */
-.project-card__head .menu {
-  margin-left: auto;
-  align-self: center;
-}
-
-/* Кнопка без подписи: квадратная, прозрачная и приглушённая — это вход в
-   список действий, а не действие. Синей заливки кнопок она не получает: на
-   карточке уже есть то, ради чего на неё смотрят, и вторым синим пятном
-   шестерёнка спорила бы с названием. */
-.project-card__gear {
-  width: var(--control);
-  padding: 0;
-  background: transparent;
-  box-shadow: none;
-  color: var(--text-muted);
-}
-
-.project-card__gear:hover {
-  background: var(--hover);
-  color: var(--text);
-}
-
-.project-card__slug {
-  margin: 0;
-  font-size: 12px;
-}
-
-.project-card__meta {
-  margin: 0;
-  font-size: 13px;
-}
-
-.project-card__progress {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 2px 0 0;
-}
-
-.project-card__bar {
-  flex: 1 1 auto;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--active);
-  overflow: hidden;
-}
-
-.project-card__bar i {
-  display: block;
-  height: 100%;
-  border-radius: 999px;
-  background: var(--accent);
-}
-
-.project-card__pct {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--accent);
-}
-
 /* --- мои задачи --- */
 
 .task-list {
@@ -2235,6 +2090,10 @@ input[type="checkbox"] {
 
 /* --- отчёты --- */
 
+/* Без overflow:hidden — строка держит выпадающее меню действий, а оно должно
+   уметь раскрыться ниже последней строки таблицы, а не обрезаться по её
+   нижнему краю. Собственного фона у ячеек нет, и скруглённые углы таблицы
+   от этого не страдают. */
 .report {
   width: 100%;
   margin-top: 20px;
@@ -2242,7 +2101,6 @@ input[type="checkbox"] {
   border-radius: var(--radius-lg);
   border-spacing: 0;
   background: var(--surface);
-  overflow: hidden;
 }
 
 .report th,
@@ -2284,4 +2142,29 @@ input[type="checkbox"] {
 
 .report__fine {
   color: var(--ok);
+}
+
+/* Столбец действий — по ширине кнопки, а не по ширине заголовка: строка с
+   одной шестерёнкой не должна отъедать у чисел место под пустую четверть
+   таблицы. */
+.report__actions {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+/* Та же тихая, приглушённая шестерёнка, что раньше стояла на карточке
+   проекта: заливки кнопок она не получает, чтобы не спорить цветом с
+   числами строки. */
+.report__gear {
+  width: var(--control);
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+}
+
+.report__gear:hover {
+  background: var(--hover);
+  color: var(--text);
 }
