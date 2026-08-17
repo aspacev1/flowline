@@ -1,0 +1,164 @@
+/* Окно «что изменилось после согласования».
+
+   Список пар «было → стало», сгруппированный по роду расхождения. Строка
+   держит три вещи в одной линии — имя, разницу и бейдж, — и читается справа
+   налево ровно так, как её и спрашивают: «на сколько уехало, что именно, как
+   называется». */
+
+.plan-changes__since {
+  margin: -12px 0 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* --- сводка-фильтр --- */
+
+.plan-changes__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+/* Тег — не кнопка на вид: он сообщает число и лишь заодно фильтрует. Нажатый
+   набирается акцентом, как и прочие переключатели приложения. */
+.plan-changes__tag {
+  height: 24px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--tag-gray);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.plan-changes__tag[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+/* --- группы --- */
+
+/* Список длиннее экрана прокручивается внутри окна, а не уносит вниз его дно:
+   кнопка переутверждения обязана оставаться на виду — ради неё окно и открыли.
+   Высота — доля окна просмотра, а не число строк: у окна над списком ещё три
+   яруса, и фиксированный предел на низком экране прятал бы подвал. */
+.plan-changes__groups {
+  max-height: min(52vh, 420px);
+  overflow-y: auto;
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+
+.plan-changes__group + .plan-changes__group {
+  margin-top: 14px;
+}
+
+.plan-changes__group-title {
+  margin: 14px 0 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.plan-changes__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.plan-changes__row {
+  padding: 9px 0;
+  border-top: 1px solid var(--border);
+}
+
+.plan-changes__main {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+/* Имя тянет строку, разница и бейдж жмутся вправо и не переносятся: пара
+   «было → стало» разорванной по строкам перестаёт читаться парой. */
+.plan-changes__name {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-weight: 650;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.plan-changes__name:hover {
+  text-decoration: underline;
+}
+
+/* Удалённой задачи в проекте нет: вести с её имени некуда, и оно набрано как
+   текст — приглушённо и без подчёркивания по наведению. */
+.plan-changes__name--gone {
+  color: var(--text-muted);
+  cursor: default;
+  text-decoration: line-through;
+}
+
+.plan-changes__diff {
+  color: var(--text-muted);
+  font-size: 13px;
+  white-space: nowrap;
+  /* Цифры дат и длительностей стоят столбиком у правого края списка. */
+  font-variant-numeric: tabular-nums;
+}
+
+.plan-changes__badge {
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.plan-changes__badge.is-late { background: var(--danger-soft); color: var(--danger-strong); }
+.plan-changes__badge.is-early { background: var(--ok-soft); color: #176842; }
+.plan-changes__badge.is-new { background: var(--warn-soft); color: #785719; }
+
+/* Причина — текст человека: курсивом, как и в ленте истории. */
+.plan-changes__reason {
+  margin: 3px 0 0;
+  font-size: 12px;
+  font-style: italic;
+  color: var(--text-muted);
+}
+
+/* --- подвал --- */
+
+.plan-changes__foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.plan-changes__hint {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+@media (max-width: 520px) {
+  /* Подпись и кнопка встают друг под друга: вдвоём в строку они не помещаются,
+     и кнопка сжималась бы до нечитаемой. */
+  .plan-changes__foot {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

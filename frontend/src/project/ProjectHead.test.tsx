@@ -47,7 +47,7 @@ describe("шапка проекта", () => {
     renderProject();
 
     expect(await screen.findByText("План проекта · черновик")).toBeInTheDocument();
-    expect(screen.queryByText("изменён после согласования")).toBeNull();
+    expect(screen.queryByText(/изменен/i)).toBeNull();
   });
 
   it("согласованный план показывает версию", async () => {
@@ -56,7 +56,7 @@ describe("шапка проекта", () => {
     expect(await screen.findByText("План проекта · v1")).toBeInTheDocument();
     // Даты совпадают с базовым планом: расхождению взяться неоткуда, и
     // пометка о нём была бы ложной тревогой.
-    expect(screen.queryByText("изменён после согласования")).toBeNull();
+    expect(screen.queryByText(/изменен/i)).toBeNull();
   });
 
   it("бейдж плана называет своё состояние, а не только текст", async () => {
@@ -93,7 +93,7 @@ describe("шапка проекта", () => {
   it("работа сверх плана помечает план как изменённый", async () => {
     renderProject(APPROVED_WITH_EXTRA);
 
-    expect(await screen.findByText("изменён после согласования")).toBeInTheDocument();
+    expect(await screen.findByText("изменена 1 задача")).toBeInTheDocument();
   });
 
   it("уехавшая от базового плана задача помечает план как изменённый", async () => {
@@ -102,7 +102,55 @@ describe("шапка проекта", () => {
       tasks: [{ ...APPROVED.tasks[0], start_date: "2026-03-11", end_date: "2026-03-17" }],
     });
 
-    expect(await screen.findByText("изменён после согласования")).toBeInTheDocument();
+    expect(await screen.findByText("изменена 1 задача")).toBeInTheDocument();
+  });
+
+  it("пометка называет число разошедшихся задач, а не один лишь факт", async () => {
+    // Две задачи уехали от базового плана, третья стоит на месте: число
+    // отвечает на «насколько всё серьёзно» до того, как список открыт.
+    renderProject({
+      ...APPROVED,
+      tasks: [
+        { ...APPROVED.tasks[0], id: "t1", start_date: "2026-03-11", end_date: "2026-03-17" },
+        {
+          ...APPROVED.tasks[0],
+          id: "t2",
+          name: "Вторая",
+          position: 1,
+          duration_days: 9,
+          baseline_duration: 5,
+        },
+        { ...APPROVED.tasks[0], id: "t3", name: "Третья", position: 2 },
+      ],
+    });
+
+    expect(await screen.findByText("изменены 2 задачи")).toBeInTheDocument();
+  });
+
+  it("задача, которую и подвинули, и растянули, считается один раз", async () => {
+    // Иначе число зависело бы от того, сколько раз задачу трогали, и росло бы
+    // там, где расходится с планом всё та же одна строка.
+    renderProject({
+      ...APPROVED,
+      tasks: [
+        {
+          ...APPROVED.tasks[0],
+          start_date: "2026-03-11",
+          end_date: "2026-03-20",
+          duration_days: 8,
+        },
+      ],
+    });
+
+    expect(await screen.findByText("изменена 1 задача")).toBeInTheDocument();
+  });
+
+  it("пометка ведёт в список изменений, а не просто сообщает о них", async () => {
+    renderProject(APPROVED_WITH_EXTRA);
+
+    // Кнопка, а не набор: за пометкой есть куда пойти, и это должно быть видно
+    // до нажатия — иначе список остаётся никому не известным.
+    expect(await screen.findByRole("button", { name: "изменена 1 задача" })).toBeInTheDocument();
   });
 });
 

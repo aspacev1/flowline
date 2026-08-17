@@ -4,7 +4,8 @@ import type { ProjectState } from "../api/projects";
 import { relativeDayLabel } from "../gantt/relative";
 import { formatDate } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
-import { changedSinceApproval, isBeyondPlan } from "./baseline";
+import { isBeyondPlan } from "./baseline";
+import { planChanges } from "./planChanges";
 import { statusCounts } from "./progress";
 import { pastDeadlineTasks } from "./verdict";
 
@@ -25,6 +26,7 @@ export function ProjectHead({
   state,
   actions,
   planAction,
+  onShowChanges,
   showPlan = false,
 }: {
   state: ProjectState;
@@ -32,6 +34,11 @@ export function ProjectHead({
   actions?: ReactNode;
   /** Кнопка согласования плана. Своей строки не рисует — становится в строку названия. */
   planAction?: ReactNode;
+  /**
+   * Показать, что именно разошлось с согласованным планом. Не передано —
+   * пометка о расхождении остаётся текстом и никуда не ведёт.
+   */
+  onShowChanges?: () => void;
   /**
    * Показывать ли строку плана. Публичная страница её не показывает: версия
    * плана и расхождение с ним — внутренняя кухня, а не то, что обещано клиенту
@@ -41,6 +48,9 @@ export function ProjectHead({
 }) {
   const { t } = useLocale();
   const period = projectPeriod(state);
+  // Сколько задач разошлось с согласованным планом. Тот же счёт, что показывает
+  // открытое окно: пометка в шапке и список в нём обязаны знать одно и то же.
+  const changed = planChanges(state).taskCount;
 
   return (
     <header className="project-head">
@@ -68,9 +78,31 @@ export function ProjectHead({
                     ? t("plan.line", { version: state.plan_version })
                     : t("plan.line_draft")}
                 </span>
-                {changedSinceApproval(state) && (
-                  <span className="project-head__plan-note">{t("plan.changed")}</span>
-                )}
+                {/* Расхождение с планом называет себя числом задач, а не одним
+                    лишь фактом: «изменены 3 задачи» отвечает на «насколько всё
+                    серьёзно» до того, как список открыт, а прежнее «изменён
+                    после согласования» заставляло открывать его всегда.
+                    Считаются задачи, а не правки: число, растущее от повторных
+                    движений одной полоски, говорило бы о суете, а не о плане.
+
+                    Кнопка, а не набор: за пометкой теперь есть куда пойти. Там,
+                    где идти некуда (публичная страница), она остаётся текстом —
+                    орган управления, ничего не делающий по нажатию, хуже, чем
+                    его отсутствие. */}
+                {changed > 0 &&
+                  (onShowChanges ? (
+                    <button
+                      type="button"
+                      className="project-head__plan-note"
+                      onClick={onShowChanges}
+                    >
+                      {t("plan.changed_count", { count: changed })}
+                    </button>
+                  ) : (
+                    <span className="project-head__plan-note">
+                      {t("plan.changed_count", { count: changed })}
+                    </span>
+                  ))}
                 {planAction && <span className="project-head__approval">{planAction}</span>}
               </span>
             )}

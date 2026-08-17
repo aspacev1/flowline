@@ -710,7 +710,28 @@
     "deviation_summary": "Отклонение от плана: {days}",
     "line": "План проекта · v{version}",
     "line_draft": "План проекта · черновик",
-    "changed": "изменён после согласования"
+    "changed_count": {
+      "one": "изменена {count} задача",
+      "few": "изменены {count} задачи",
+      "many": "изменено {count} задач",
+      "other": "изменено {count} задачи"
+    },
+    "changes_title": "Изменения после v{version}",
+    "changes_since": "План согласован {date}",
+    "changes_open": "Посмотреть изменения",
+    "changes_all": "Все",
+    "changes_group": {
+      "shifts": "Сдвиги дат",
+      "durations": "Длительность",
+      "added": "Новые задачи",
+      "removed": "Удалённые задачи"
+    },
+    "changes_added_at": "добавлена {date}",
+    "changes_removed_note": "была в согласованном плане",
+    "changes_beyond": "вне плана",
+    "changes_reapprove": "Переутвердить как v{version}",
+    "changes_reapprove_hint": "Эти изменения станут новой базой, от которой считаются сдвиги",
+    "reapprove_summary": "Новой базой станет то, что уже изменено: {tasks}"
   },
   "shift": {
     "title": "Сдвиг на {days}",
