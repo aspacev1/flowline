@@ -95,6 +95,7 @@ export function Gantt({
   onAddTask,
   newTaskAt = null,
   onCloseNewTask,
+  onAddCategory,
   onDeleteCategory,
   selectedTaskId = null,
   onSelectTask,
@@ -122,6 +123,16 @@ export function Gantt({
    */
   newTaskAt?: NewTaskAt | null;
   onCloseNewTask?: () => void;
+  /**
+   * Завести первую категорию — кнопкой посреди пустой ленты.
+   *
+   * Отдельно от `toolbarAction`, хотя окно открывают одно и то же: пустая
+   * лента — единственное место экрана, где больше нечего сделать, и «плюс»
+   * посреди неё обязан нажиматься. Нарисованный плюс, похожий на кнопку, но не
+   * нажимающийся, отправлял бы искать действие в тулбаре — мимо того самого
+   * пятна, на которое человек уже смотрит.
+   */
+  onAddCategory?: () => void;
   /**
    * Крестик на строке категории. Без него категории не удаляются.
    *
@@ -611,7 +622,24 @@ export function Gantt({
       {view.legend && categories.length > 0 && <Legend />}
 
       {categories.length === 0 ? (
-        <p className="empty gantt__empty">{t("gantt.empty")}</p>
+        /* Пустая лента предлагает единственное, что здесь вообще можно
+           сделать, — завести первую категорию: без неё задаче некуда лечь.
+           Предлагает кнопкой, а не рисунком: нарисованный плюс из `.empty`
+           обещал действие, но не выполнял его, и человеку оставалось искать
+           «Новую категорию» в тулбаре. Названа кнопка так же, как та, — одно
+           действие, одно имя. Без права на запись остаётся одна строка:
+           обещать гостю действие, которого у него нет, не за чем. */
+        <div className={`empty gantt__empty${onAddCategory ? " gantt__empty--action" : ""}`}>
+          {onAddCategory && (
+            <button type="button" className="gantt__empty-add" onClick={onAddCategory}>
+              <span className="gantt__empty-plus" aria-hidden="true">
+                +
+              </span>
+              {t("category.create")}
+            </button>
+          )}
+          <p>{t("gantt.empty")}</p>
+        </div>
       ) : (
         <>
         <div className="gantt__scroll" ref={scroller} onScroll={rememberFocus}>
