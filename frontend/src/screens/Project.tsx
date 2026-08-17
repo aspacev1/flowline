@@ -373,6 +373,10 @@ export function Project({
                 onAddTask={editable ? setAddingTaskAt : undefined}
                 newTaskAt={addingTaskAt}
                 onCloseNewTask={() => setAddingTaskAt(null)}
+                // Кнопка в пустой ленте открывает то же окно, что и «Новая
+                // категория» в тулбаре: пустому проекту действие называют там,
+                // куда он смотрит, а не только в ряду настроек показа.
+                onAddCategory={editable ? () => setAddingCategory(true) : undefined}
                 // Крестик на строке категории только спрашивает: удаление
                 // уносит с собой весь этап, и назвать, что именно уйдёт,
                 // нужно до того, как оно ушло, — а не тостом после.

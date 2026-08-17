@@ -1,10 +1,10 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 
 import { server } from "../test/server";
-import { renderApp, renderWithProviders, sessionHandlers } from "../test/utils";
+import { ORG, renderApp, renderWithProviders, sessionHandlers } from "../test/utils";
 import { CATEGORY_COLORS, CategoryForm, suggestColor } from "./CategoryForm";
 
 const STATE = {
@@ -213,6 +213,47 @@ describe("создание категории", () => {
 
     await waitFor(() => expect(sent).toHaveLength(1));
     expect(sent[0].op.color).toBe("#ec4899");
+  });
+
+  it("на пустой ленте первую категорию заводит кнопка в самой ленте", async () => {
+    // Пустой проект — единственный экран, где в ленте нечего нажать, кроме
+    // этого. Раньше на этом месте был нарисованный плюс: он выглядел органом
+    // управления, не будучи им, и первую категорию заводили, уйдя за ней в
+    // тулбар — мимо того самого пятна, на которое человек смотрел.
+    server.use(
+      ...sessionHandlers(),
+      http.get("/api/projects/p1", () =>
+        HttpResponse.json({ ...STATE, categories: [], tasks: [] }),
+      ),
+    );
+
+    renderApp({ route: "/projects/p1", locale: "ru" });
+
+    const empty = (await screen.findByText(/ни одной категории/i)).closest(".empty");
+    await userEvent.click(within(empty as HTMLElement).getByRole("button", { name: /категория/i }));
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByLabelText(/название/i)).toBeInTheDocument();
+  });
+
+  it("гостю пустая лента кнопки не обещает", async () => {
+    // Право писать проверяет экран: рисунок, зовущий завести категорию,
+    // читателю пришлось бы упереться в отказ — обещание без исполнения.
+    server.use(
+      // Своя роль идёт первой: msw берёт первый подходящий обработчик, и общий
+      // `/api/org` из оснастки перекрыл бы наблюдателя, ради которого тест и
+      // написан.
+      http.get("/api/org", () => HttpResponse.json({ ...ORG, role: "viewer" })),
+      http.get("/api/projects/p1", () =>
+        HttpResponse.json({ ...STATE, categories: [], tasks: [] }),
+      ),
+      ...sessionHandlers(),
+    );
+
+    renderApp({ route: "/projects/p1", locale: "ru" });
+
+    const empty = (await screen.findByText(/ни одной категории/i)).closest(".empty");
+    expect(within(empty as HTMLElement).queryByRole("button")).not.toBeInTheDocument();
   });
 
   it("не даёт отправить пустое название", async () => {
