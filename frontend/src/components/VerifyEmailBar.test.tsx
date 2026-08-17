@@ -122,6 +122,7 @@ describe("полоска «адрес не подтверждён»", () => {
 
     renderApp({ route: "/register", locale: "ru" });
     await userEvent.type(await screen.findByLabelText(/имя/i), "Алексей");
+    await userEvent.type(screen.getByLabelText(/компани/i), "Acme");
     await userEvent.type(screen.getByLabelText(/почта/i), UNVERIFIED.email);
     await userEvent.type(screen.getByLabelText(/пароль/i), "s3cret-pass");
     await userEvent.click(screen.getByRole("button", { name: /зарегистрироваться/i }));

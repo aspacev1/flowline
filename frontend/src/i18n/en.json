@@ -99,6 +99,7 @@
     "greeting": "Hello, {name}",
     "field": {
       "name": "Name",
+      "company_name": "Company name",
       "email": "Email",
       "password": "Password",
       "new_password": "New password"
@@ -151,6 +152,7 @@
       "session_expired": "Your session has expired, log in again",
       "validation_error": "Check the form: some fields are filled in incorrectly",
       "password_too_short": "The password must be at least 8 characters long",
+      "company_name_required": "Enter your company name",
       "missing_token": "The link carries no token — copy it from the letter in full",
       "invalid_token": "This link does not work: it has probably been used already",
       "token_expired": "The link has expired",

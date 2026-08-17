@@ -143,6 +143,8 @@ describe("регистрация по приглашению", () => {
     // Сначала дожидаемся приглашения: до его прихода форма не отправляется —
     // адрес в ней ещё пуст, и заполнить его человек не может.
     await screen.findByDisplayValue("a@b.c");
+    // Организация уже есть — заводить вторую нечем, и поле для неё не показано.
+    expect(screen.queryByLabelText(/компани/i)).not.toBeInTheDocument();
     await userEvent.type(screen.getByLabelText(/имя/i), "Гость");
     await userEvent.type(screen.getByLabelText(/пароль/i), "s3cret-pass");
     await userEvent.click(screen.getByRole("button", { name: /зарегистрироваться/i }));
@@ -150,6 +152,7 @@ describe("регистрация по приглашению", () => {
     // См. комментарий к такому же ожиданию выше: waitFor, а не findByTestId.
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/projects"));
     expect(sent).toMatchObject({ email: "a@b.c", invite_token: TOKEN });
+    expect(sent).not.toHaveProperty("company_name");
   });
 
   it("мёртвая ссылка объясняется до того, как человек заполнит форму", async () => {

@@ -22,7 +22,10 @@ beforeEach(() => {
 });
 
 async function fillAndSubmit() {
-  await userEvent.type(screen.getByLabelText(/ad|name|имя/i), "Алексей");
+  // Заякорено на весь текст подписи: «Şirkətin adı» и «Company name» тоже
+  // содержат «ad»/«name» кусками, а этому полю нужно ровно имя человека.
+  await userEvent.type(screen.getByLabelText(/^(ad|name|имя)$/i), "Алексей");
+  await userEvent.type(screen.getByLabelText(/şirkət|company|компани/i), "Acme");
   await userEvent.type(screen.getByLabelText(/e-?poçt|email|почта/i), "a@b.c");
   await userEvent.type(screen.getByLabelText(/parol|password|пароль/i), "s3cret-pass");
   await userEvent.click(screen.getByRole("button", { name: /qeydiyyat|register|зарегистр/i }));
@@ -56,6 +59,39 @@ describe("экран регистрации", () => {
 
     expect(await screen.findByText("Этот адрес уже занят")).toBeInTheDocument();
     expect(screen.queryByText("email_taken")).not.toBeInTheDocument();
+  });
+
+  it("отправляет название компании вместе с остальной формой", async () => {
+    let sent: Record<string, unknown> | null = null;
+    server.use(
+      http.post("/api/auth/register", async ({ request }) => {
+        sent = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json(
+          { id: "u1", name: "Алексей", email: "a@b.c", locale: "az" },
+          { status: 201 },
+        );
+      }),
+    );
+
+    renderWithProviders(<Register />);
+    await fillAndSubmit();
+
+    await waitFor(() => expect(navigateSpy).toHaveBeenCalledWith("/projects"));
+    expect(sent).toMatchObject({ company_name: "Acme" });
+  });
+
+  it("показывает пустое название компании переведённым текстом, а не кодом", async () => {
+    server.use(
+      http.post("/api/auth/register", () =>
+        HttpResponse.json({ detail: "company_name_required" }, { status: 422 }),
+      ),
+    );
+
+    renderWithProviders(<Register />, { locale: "ru" });
+    await fillAndSubmit();
+
+    expect(await screen.findByText("Укажите название компании")).toBeInTheDocument();
+    expect(screen.queryByText("company_name_required")).not.toBeInTheDocument();
   });
 
   it("не отправляет форму с коротким паролем и объясняет почему", async () => {

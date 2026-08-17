@@ -2089,6 +2089,18 @@
       },
       "RegisterIn": {
         "properties": {
+          "company_name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Name"
+          },
           "email": {
             "format": "email",
             "title": "Email",

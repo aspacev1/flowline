@@ -91,7 +91,12 @@ def test_the_whole_way_from_interview_to_the_public_link(client, guest, db, monk
     # 1. Человек регистрируется и оказывается внутри со своей организацией.
     client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
         headers={"Accept-Language": "ru-RU,ru;q=0.9"},
     )
     assert client.get("/api/auth/me").json()["locale"] == "ru"
@@ -198,7 +203,12 @@ def test_the_whole_way_from_interview_to_the_public_link(client, guest, db, monk
 def test_a_guest_cannot_comment_when_comments_are_off(client, guest, db):
     client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
     project_id = client.post("/api/projects", json={"name": "Сайт"}).json()["id"]
     share = client.post(f"/api/projects/{project_id}/share", json={}).json()
@@ -218,7 +228,12 @@ def test_a_guest_cannot_comment_when_comments_are_off(client, guest, db):
 def test_a_guest_must_name_themselves(client, guest, db):
     client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
     project_id = client.post("/api/projects", json={"name": "Сайт"}).json()["id"]
     path = _public_path(client.post(f"/api/projects/{project_id}/share", json={}).json()["url"])
@@ -233,7 +248,12 @@ def test_a_guest_must_name_themselves(client, guest, db):
 def test_a_revoked_link_is_indistinguishable_from_a_missing_one(client, guest, db):
     client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
     project_id = client.post("/api/projects", json={"name": "Сайт"}).json()["id"]
     path = _public_path(client.post(f"/api/projects/{project_id}/share", json={}).json()["url"])
@@ -250,7 +270,12 @@ def test_a_revoked_link_is_indistinguishable_from_a_missing_one(client, guest, d
 def test_public_sharing_can_be_switched_off_by_the_organization(client, db):
     client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
     project_id = client.post("/api/projects", json={"name": "Сайт"}).json()["id"]
     client.patch("/api/org", json={"public_sharing_enabled": False})
@@ -273,7 +298,12 @@ def test_the_guest_comment_rate_limit_bites(client, guest, db, monkeypatch):
 
     client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
     project_id = client.post("/api/projects", json={"name": "Сайт"}).json()["id"]
     path = _with_comments(

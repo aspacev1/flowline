@@ -51,10 +51,24 @@ class RegisterIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     email: EmailStr
     password: str = Field(min_length=8, max_length=200)
+    #: Название компании — так называется организация, которую регистрация
+    #: заводит вместе с аккаунтом. Поле не Field(min_length=1): пустую строку
+    #: нормализует валидатор ниже, а обязательность проверяется в маршруте, а
+    #: не здесь — решает это приглашение (см. company_name_required), которого
+    #: схема сама по себе не видит.
+    company_name: str | None = Field(default=None, max_length=200)
     #: Приглашение, по которому человек пришёл. С ним аккаунт заводится сразу
     #: внутри позвавшей организации — и заводится даже в установке, где
     #: свободная регистрация выключена.
     invite_token: str | None = None
+
+    @field_validator("company_name")
+    @classmethod
+    def _blank_company_name_is_no_company_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped or None
 
 
 class LoginIn(BaseModel):
@@ -216,12 +230,19 @@ def register_route(
     if mode == "invite_only" and invitation is None:
         raise HTTPException(status_code=403, detail="signup_disabled")
 
+    # Название компании обязательно ровно там, где регистрация заводит свою
+    # организацию. У пришедшего по приглашению она уже есть — спрашивать имя
+    # для организации, которую он не заводит, было бы вопросом не по делу.
+    if invitation is None and payload.company_name is None:
+        raise HTTPException(status_code=422, detail="company_name_required")
+
     try:
         user = register(
             db,
             name=payload.name,
             email=payload.email,
             password=payload.password,
+            company_name=payload.company_name,
             # Единственное место, где заголовок вообще читается: язык при
             # первом появлении человека. Дальше он живёт в профиле.
             locale=locale_from_request(accept_language),
