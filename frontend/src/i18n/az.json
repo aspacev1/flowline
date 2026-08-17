@@ -485,11 +485,6 @@
       "week": "Həftə {number}",
       "day": "Gün {number}"
     },
-    "mode": {
-      "label": "Şkala görünüşü",
-      "relative": "Nisbi",
-      "calendar": "Təqvim"
-    },
     "empty": "Layihədə hələ bir dənə də kateqoriya yoxdur. Kateqoriya yaradın, tapşırıqlar isə onun içində olacaq",
     "today": "Bu gün",
     "moved": "Tapşırıq {date} tarixinə keçirildi",

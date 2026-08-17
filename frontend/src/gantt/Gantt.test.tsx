@@ -584,22 +584,35 @@ describe("относительная шкала", () => {
     expect(screen.getByText("Относительный план")).toBeInTheDocument();
   });
 
-  it("календарный проект с датой старта умеет показать себя неделями проекта", async () => {
-    const user = userEvent.setup();
-    // Старт — понедельник 2 марта: задача 4–10 марта попадает во «Неделю 1-2».
+  it("календарный проект с датой старта не предлагает переключиться в относительный вид", () => {
+    // Старт — понедельник 2 марта: задача 4–10 марта легла бы во «Неделю 1-2»
+    // относительной оси, будь она показана, — но показывать её больше нечем:
+    // у календарного проекта переключателя представления в тулбаре нет.
     const bound: ProjectState = { ...STATE, start_date: "2026-03-02" };
-    const { container } = draw(bound);
+    draw(bound);
 
-    // По умолчанию — настоящие даты и никакого переключателя у ленты без даты.
     expect(screen.queryByText("Месяц 1")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Относительный" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Календарный" })).not.toBeInTheDocument();
+  });
 
-    await user.click(screen.getByRole("button", { name: "Относительный" }));
+  it("индикатор «Относительный план» гаснет сразу же, как только назначена дата старта", () => {
+    const { rerender } = draw(RELATIVE);
+    expect(screen.getByText("Относительный план")).toBeInTheDocument();
 
-    expect(screen.getByText("Месяц 1")).toBeInTheDocument();
-    // Линия «сегодня» гаснет и здесь: представление говорит неделями проекта.
-    expect(container.querySelector(".gantt__today")).toBeNull();
+    // Тот же пропс, что лента получает после успешного применения
+    // StartDateDialog: мутация кладёт в кэш готовое календарное состояние, и
+    // вниз оно приходит без промежуточного кадра — рендер бьёт этот переход
+    // напрямую, а не через кэш запроса.
+    rerender(
+      <Providers locale="ru">
+        <Gantt
+          projectId="p1"
+          state={{ ...RELATIVE, schedule_mode: "calendar", start_date: "2001-01-01", deadline: null }}
+        />
+      </Providers>,
+    );
 
-    await user.click(screen.getByRole("button", { name: "Календарный" }));
-    expect(screen.queryByText("Месяц 1")).not.toBeInTheDocument();
+    expect(screen.queryByText("Относительный план")).not.toBeInTheDocument();
   });
 });

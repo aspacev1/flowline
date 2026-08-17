@@ -287,15 +287,12 @@ export function Gantt({
 
   // Относительная ось: план ещё не привязан к датам, шкала считает недели
   // проекта от эпохи. Свойство проекта, а не экрана — приходит с сервера.
+  // Календарный проект относительным видом больше не притворяется: как
+  // только назначена дата старта, лента показывает только настоящие даты.
   const relativeAxis = state.schedule_mode === "relative";
-  // Представление уже календарного проекта: назначенные даты никуда не
-  // деваются, но план можно снова показать заказчику как «12 недель».
-  // Состояние экрана, как масштаб: сосед по проекту его не получает.
-  const [calendarView, setCalendarView] = useState(true);
-  const relativeView = relativeAxis || (!calendarView && state.start_date !== null);
-  // Якорь относительного представления: эпоха у плана без дат, назначенный
-  // старт у календарного, показанного в неделях проекта.
-  const anchor = relativeAxis ? RELATIVE_EPOCH : (state.start_date ?? RELATIVE_EPOCH);
+  // Якорь относительной оси — всегда эпоха: у плана без дат других координат
+  // не бывает.
+  const anchor = RELATIVE_EPOCH;
 
   // Сегодня — в поясе проекта, а не по UTC: линия сегодняшнего дня обязана
   // стоять там, где у читателя сегодня, и в поясе восточнее Гринвича по UTC
@@ -305,18 +302,18 @@ export function Gantt({
   // сервер присылает новый объект состояния, и шкала, привязанная к его
   // тождеству, пересобиралась бы всякий раз — вместе со всеми делениями и
   // месяцами, которые от правки одной задачи не изменились.
-  const { from, to } = relativeView ? relativeWindow(state, anchor) : projectWindow(state, today);
+  const { from, to } = relativeAxis ? relativeWindow(state, anchor) : projectWindow(state, today);
   const dayWidth = DAY_WIDTH[zoom];
   const scale = useMemo(() => buildScale({ from, to, dayWidth }), [dayWidth, from, to]);
 
-  // В относительном представлении вместо дат — дни проекта: настоящей даты
-  // либо ещё нет, либо её просили не показывать.
+  // В относительном представлении вместо дат — дни проекта: настоящей даты у
+  // плана без назначенного старта ещё нет.
   const formatDay = (iso: string) =>
-    relativeView ? relativeDayLabel(t, iso, anchor) : formatDate(t, iso);
+    relativeAxis ? relativeDayLabel(t, iso, anchor) : formatDate(t, iso);
 
   // Как строки показывают даты и как принимают их обратно. Ввод зеркален
   // показу: там, где строка показала «День 8», она и принимает восьмой день.
-  const format: DayFormat = { label: formatDay, relative: relativeView, anchor };
+  const format: DayFormat = { label: formatDay, relative: relativeAxis, anchor };
 
   // Подписи ячеек — один раз на ленту, а не по словарю в каждой строке: на
   // сотне задач это сотня одинаковых обращений за теми же шестью строками.
@@ -484,7 +481,7 @@ export function Gantt({
     // координатам окна, и полоса прокрутки ленты не должна её обрезать.
     <BarTipProvider
       names={assigneeNames}
-      formatDay={relativeView ? (iso) => relativeDayLabel(t, iso, anchor) : undefined}
+      formatDay={relativeAxis ? (iso) => relativeDayLabel(t, iso, anchor) : undefined}
     >
     <div
       // `can-reorder` — не косметика: колонка названий держит поле под ручку
@@ -519,37 +516,12 @@ export function Gantt({
           <span className="project-toolbar__spacer" />
 
           {/* Индикатор режима: пока план относительный, об этом сказано
-              словами, а не только шкалой без месяцев. */}
+              словами, а не только шкалой без месяцев. Дата старта назначена —
+              индикатор гаснет вместе с относительным режимом: у календарного
+              проекта переключателя обратно в «Месяц 1 / Неделя 1» больше нет,
+              назначенная дата старта окончательна. */}
           {relativeAxis && (
             <span className="project-toolbar__mode">{t("gantt.relative.badge")}</span>
-          )}
-
-          {/* Календарный проект помнит, что был относительным: два взгляда на
-              одни и те же полоски. Переключатель представления, а не режима —
-              назначенные даты никуда не деваются. */}
-          {!relativeAxis && state.start_date !== null && (
-            <span
-              className="project-toolbar__views"
-              role="group"
-              aria-label={t("gantt.mode.label")}
-            >
-              {(
-                [
-                  ["relative", t("gantt.mode.relative")],
-                  ["calendar", t("gantt.mode.calendar")],
-                ] as const
-              ).map(([mode, label]) => (
-                <button
-                  key={mode}
-                  type="button"
-                  className="project-toolbar__view"
-                  aria-pressed={calendarView === (mode === "calendar")}
-                  onClick={() => setCalendarView(mode === "calendar")}
-                >
-                  {label}
-                </button>
-              ))}
-            </span>
           )}
 
           {scheduleAction}
@@ -671,7 +643,7 @@ export function Gantt({
                   <FoldIcon open={!layout.collapsed} />
                 </button>
               </div>
-              {relativeView ? (
+              {relativeAxis ? (
                 <RelativeHeader
                   scale={scale}
                   calendar={state.calendar}
@@ -697,7 +669,7 @@ export function Gantt({
                 deadline={state.deadline}
                 // Пустая строка вместо даты: линии «сегодня» в относительном
                 // представлении нет — настоящих дат на этой шкале не рисуют.
-                today={relativeView ? "" : today}
+                today={relativeAxis ? "" : today}
                 deadlineLabel={
                   state.deadline ? t("gantt.deadline", { date: formatDay(state.deadline) }) : ""
                 }
