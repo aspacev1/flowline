@@ -5,6 +5,29 @@ import { errorKey } from "../api/errors";
 import { approvePlan, projectQueryKey } from "../api/projects";
 import type { ProjectState } from "../api/projects";
 import { useLocale } from "../i18n/LocaleProvider";
+import { planChanges } from "./planChanges";
+
+/**
+ * Согласование плана как действие — одно на всё приложение.
+ *
+ * Зовут его из двух мест: кнопкой в шапке и из окна изменений, где человек
+ * только что прочитал, что именно фиксирует. Сама отправка и, главное, сброс
+ * состояния после неё у обоих обязаны быть одни: базовые значения меняются
+ * сразу у всех задач, и второй вызов, забывший перезапросить проект, оставил
+ * бы на экране пометку о расхождении с планом, которого больше нет.
+ */
+export function useApprovePlan(projectId: string, onDone?: () => void) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () => approvePlan(projectId),
+    onSuccess: async () => {
+      onDone?.();
+      // Состояние проекта перезапрашивается целиком, а не правится по месту.
+      await queryClient.invalidateQueries({ queryKey: projectQueryKey(projectId) });
+    },
+  });
+}
 
 /**
  * Кнопка «Согласовать план» — она же «Пересогласовать».
@@ -28,34 +51,46 @@ export function PlanApproval({
   state,
   canApprove,
   canReapprove,
+  onShowChanges,
 }: {
   projectId: string;
   state: ProjectState;
   canApprove: boolean;
   canReapprove: boolean;
+  /**
+   * Показать, что именно будет зафиксировано. Не передано — подтверждение
+   * обходится своей сводкой: она называет объём, но не поимённо.
+   */
+  onShowChanges?: () => void;
 }) {
   const { t } = useLocale();
-  const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState(false);
 
   const approved = state.plan_approved_at !== null;
+  const changed = planChanges(state).taskCount;
 
-  const mutation = useMutation({
-    mutationFn: () => approvePlan(projectId),
-    onSuccess: async () => {
-      setConfirming(false);
-      // Базовые значения задач изменились у всех разом: состояние проекта
-      // перезапрашивается целиком, а не правится по месту.
-      await queryClient.invalidateQueries({ queryKey: projectQueryKey(projectId) });
-    },
-  });
+  const mutation = useApprovePlan(projectId, () => setConfirming(false));
 
   if (approved ? !canReapprove : !canApprove) return null;
 
   if (approved && confirming) {
     return (
       <span className="plan__confirm">
-        <span className="muted">{t("plan.reapprove_warning")}</span>
+        {/* Сколько задач станет новой базой — прежде вопрос предупреждал о
+            последствии, но не называл его размера, и «да» приходилось говорить
+            вслепую. Ссылка рядом показывает те же задачи поимённо: смотреть
+            необязательно, но возможность обязана быть под рукой ровно в тот
+            миг, когда решение принимается. */}
+        <span className="muted">
+          {changed > 0
+            ? t("plan.reapprove_summary", { tasks: t("common.tasks", { count: changed }) })
+            : t("plan.reapprove_warning")}
+        </span>
+        {changed > 0 && onShowChanges && (
+          <button type="button" className="plan__link" onClick={onShowChanges}>
+            {t("plan.changes_open")}
+          </button>
+        )}
         <button type="button" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
           {t("plan.reapprove_confirm")}
         </button>

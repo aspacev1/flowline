@@ -196,7 +196,44 @@ button.sidebar__button { height: 34px; padding: 0 var(--sidebar-gutter); border-
 .project-head__plan-label[data-state="approved"] { border-color: #bde5ce; background: var(--ok-soft); color: #176842; }
 .project-head__plan-label[data-state="approved"]::before { background: var(--ok); }
 
-.project-head__plan-note { color: var(--danger-strong); font-style: normal; font-size: 13px; font-weight: 600; }
+/* Расхождение с планом — такая же пилюля, как плашка версии рядом, но в цвете
+   тревоги и с точкой: две плашки в строке читаются парой «состояние плана и
+   что с ним не так». Прежде здесь стоял голый набор, и то, что по нему можно
+   нажать, ничем не сообщалось. Рост общий с соседями по строке — иначе плашки
+   стоят на разных уровнях и строка выглядит собранной случайно. */
+.project-head__plan-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 29px;
+  padding: 0 11px;
+  border: 1px solid #f0c2cf;
+  border-radius: var(--radius-pill);
+  background: var(--danger-soft);
+  color: var(--danger-strong);
+  font-family: inherit;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.project-head__plan-note::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+
+/* Кнопкой она становится только там, где ей есть куда вести: правило
+   опирается на сам элемент, а не на класс-модификатор, — разметка уже сказала
+   всё, что нужно, выбрав `button` вместо `span`. */
+button.project-head__plan-note {
+  cursor: pointer;
+  transition: background var(--motion-fast) var(--motion-ease);
+}
+
+button.project-head__plan-note:hover { background: #ffe3ea; }
 .project-head__actions { gap: 8px; justify-content: flex-end; }
 /* Рамки здесь нет: ссылке-кнопке её край рисует общее правило `.button-link`
    тем же внутренним контуром, что и тихим кнопкам рядом, — и настоящая рамка

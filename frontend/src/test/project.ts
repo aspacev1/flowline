@@ -386,6 +386,10 @@ export function projectFixtures() {
     // Лента комментариев — по той же причине пустая: тест, которому разговор
     // важен, объявляет его сам.
     http.get("/api/projects/p1/comments", () => HttpResponse.json([])),
+    // Летопись согласований — тоже пустая: её спрашивают и лента истории, и
+    // окно изменений, а нужна она там лишь для имён — согласовавшего и
+    // удалённых задач. Тест, которому версии важны, объявляет их сам.
+    http.get("/api/projects/p1/plan/approvals", () => HttpResponse.json([])),
     http.post("/api/projects/p1/mutations", async ({ request }) => {
       const body = (await request.json()) as Sent;
       sent.push(body);

@@ -704,7 +704,26 @@
     "deviation_summary": "Deviation from the plan: {days}",
     "line": "Project plan · v{version}",
     "line_draft": "Project plan · draft",
-    "changed": "changed after approval"
+    "changed_count": {
+      "one": "{count} task changed",
+      "other": "{count} tasks changed"
+    },
+    "changes_title": "Changes since v{version}",
+    "changes_since": "Plan approved on {date}",
+    "changes_open": "View changes",
+    "changes_all": "All",
+    "changes_group": {
+      "shifts": "Date shifts",
+      "durations": "Duration",
+      "added": "New tasks",
+      "removed": "Deleted tasks"
+    },
+    "changes_added_at": "added {date}",
+    "changes_removed_note": "was in the approved plan",
+    "changes_beyond": "off plan",
+    "changes_reapprove": "Re-approve as v{version}",
+    "changes_reapprove_hint": "These changes become the new baseline that shifts are measured from",
+    "reapprove_summary": "The new baseline will lock in what already changed: {tasks}"
   },
   "shift": {
     "title": "Shift of {days}",

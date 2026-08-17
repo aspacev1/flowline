@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { Link, NavLink, useParams } from "react-router-dom";
+import { Link, NavLink, useNavigate, useParams } from "react-router-dom";
 
 import { commentCounts, commentCountsQueryKey } from "../api/comments";
 import { errorKey } from "../api/errors";
@@ -22,6 +22,7 @@ import { DependencyNudge, DependencyNudgeProvider } from "../project/DependencyN
 import { deleteCategory } from "../project/optimistic";
 import { useProjectMutation } from "../project/useProjectMutation";
 import { PlanApproval } from "../project/PlanApproval";
+import { PlanChangesDialog } from "../project/PlanChangesDialog";
 import { ProjectHead } from "../project/ProjectHead";
 import { Proposal } from "../proposal/Proposal";
 import { ProjectHistory } from "../project/ProjectHistory";
@@ -46,6 +47,7 @@ export function Project({
 }: { tab?: "gantt" | "history" | "proposal" } = {}) {
   const { t } = useLocale();
   const { projectId = "" } = useParams();
+  const navigate = useNavigate();
   const canWrite = useCanWrite();
   const role = useOrgRole();
   // Тот же признак, что и у ленты: выезд карточки — такое же движение, как
@@ -63,6 +65,10 @@ export function Project({
   const [inviting, setInviting] = useState(false);
   // Окно привязки плана к дате старта — и переноса уже назначенной даты.
   const [scheduling, setScheduling] = useState(false);
+  // Открыт ли список расхождений с согласованным планом. Живёт здесь, а не в
+  // шапке: открывают его из двух мест — пометкой о расхождении и ссылкой в
+  // подтверждении переутверждения, — и оба стоят в разных поддеревьях.
+  const [showingChanges, setShowingChanges] = useState(false);
   // Где открыта строка новой задачи. `null` — закрыта.
   //
   // Задачу заводят прямо в ленте, а не в окне: план пишут списком, и окно
@@ -187,6 +193,7 @@ export function Project({
             <ProjectHead
               state={query.data}
               showPlan
+              onShowChanges={() => setShowingChanges(true)}
               planAction={
                 <PlanApproval
                   projectId={projectId}
@@ -195,6 +202,7 @@ export function Project({
                   // Пересогласование — право владельца: оно сдвигает базу, от
                   // которой считаются все объяснённые сдвиги.
                   canReapprove={role === "owner" && !offline}
+                  onShowChanges={() => setShowingChanges(true)}
                 />
               }
               // Гостю кнопки не передаются вовсе: они обещали бы действие,
@@ -415,6 +423,23 @@ export function Project({
                 projectId={projectId}
                 state={query.data}
                 onClose={() => setScheduling(false)}
+              />
+            )}
+
+            {/* Список расхождений с планом. Открыт может быть на любой вкладке:
+                пометка о расхождении стоит в шапке, а шапка одна на все три. С
+                имени задачи он ведёт в её карточку — а та живёт только на
+                ленте, поэтому переход туда заодно и возвращает на неё. */}
+            {showingChanges && (
+              <PlanChangesDialog
+                projectId={projectId}
+                state={query.data}
+                canReapprove={role === "owner" && !offline}
+                onOpenTask={(taskId) => {
+                  navigate(`/projects/${projectId}`);
+                  openTask(taskId);
+                }}
+                onClose={() => setShowingChanges(false)}
               />
             )}
 
