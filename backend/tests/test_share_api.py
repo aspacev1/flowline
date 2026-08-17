@@ -26,7 +26,12 @@ def client(db):
 def authed(client):
     client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
     return client
 
@@ -70,7 +75,7 @@ def test_publishing_returns_a_readable_address(authed, project_id, monkeypatch):
     response = authed.post(f"/api/projects/{project_id}/share")
 
     assert response.status_code == 201
-    assert response.json()["url"].startswith("https://planora.example.com/p/alex/redesign?s=")
+    assert response.json()["url"].startswith("https://planora.example.com/p/acme/redesign?s=")
 
 
 def test_reissuing_changes_the_address_and_kills_the_old_one(authed, project_id):

@@ -46,6 +46,7 @@ def register(
     email: str,
     password: str,
     locale: str | None = None,
+    company_name: str | None = None,
     invitation: Invitation | None = None,
 ) -> User:
     """Заводит аккаунт. С приглашением на руках — сразу внутрь позвавшей
@@ -57,6 +58,13 @@ def register(
     организации, но с правом звать в неё кого угодно, то есть в обход
     закрытости. Правило «при регистрации создаётся своя организация» описывает
     свободный вход с улицы; вход по приглашению — другая дверь.
+
+    `company_name` называет эту новую организацию. HTTP-маршрут требует его
+    всегда, когда организация действительно заводится (см. auth_routes.py,
+    company_name_required), а здесь параметр остаётся необязательным: этой
+    функцией пользуются и вызовы рангом ниже маршрута — например, тесты,
+    которым имя организации безразлично, — и без компании они по-прежнему
+    получают организацию, названную именем самого человека.
     """
     normalized = normalize_email(email)
     if db.scalar(select(User).where(User.email == normalized)) is not None:
@@ -87,7 +95,7 @@ def register(
         accept_invitation(db, invitation, user=user, now=datetime.now(timezone.utc))
         return user
 
-    org_name = name.strip()
+    org_name = (company_name or name).strip()
     # Язык организации — язык её основателя, а не значение по умолчанию из
     # модели. На этом языке уходят письма организации, и прежде всего
     # приглашения: их язык брался из `organizations.default_locale`, куда при

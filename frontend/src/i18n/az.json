@@ -99,6 +99,7 @@
     "greeting": "Salam, {name}",
     "field": {
       "name": "Ad",
+      "company_name": "Şirkətin adı",
       "email": "E-poçt",
       "password": "Parol",
       "new_password": "Yeni parol"
@@ -151,6 +152,7 @@
       "session_expired": "Sessiyanın vaxtı bitdi, yenidən daxil olun",
       "validation_error": "Formu yoxlayın: bəzi sahələr düzgün doldurulmayıb",
       "password_too_short": "Parol ən azı 8 simvol olmalıdır",
+      "company_name_required": "Şirkətin adını daxil edin",
       "missing_token": "Keçiddə token yoxdur: onu məktubdan tam kopyalayın",
       "invalid_token": "Keçid işləmir: yəqin ki, ondan artıq istifadə olunub",
       "token_expired": "Keçidin müddəti bitib",

@@ -2211,6 +2211,8 @@ export interface components {
         };
         /** RegisterIn */
         RegisterIn: {
+            /** Company Name */
+            company_name?: string | null;
             /**
              * Email
              * Format: email

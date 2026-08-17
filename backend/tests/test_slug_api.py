@@ -21,7 +21,12 @@ def client(db):
 def authed(client):
     client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
     return client
 
@@ -49,7 +54,7 @@ def test_renaming_the_slug_moves_the_published_address(authed, project_id):
     after = authed.get(f"/api/projects/{project_id}/share").json()["url"]
 
     assert before != after
-    assert "/p/alex/redesign-2027?" in after
+    assert "/p/acme/redesign-2027?" in after
 
 
 def test_a_taken_slug_is_refused_and_a_free_one_is_suggested(authed, project_id):
@@ -81,7 +86,7 @@ def test_a_slug_that_normalizes_to_nothing_is_refused(authed, project_id):
     response = authed.patch(f"/api/projects/{project_id}", json={"slug": "..."})
 
     # Пустой слаг до базы не доходит: нормализация подставляет запасное слово,
-    # и адрес остаётся открываемым, а не превращается в «/p/alex/».
+    # и адрес остаётся открываемым, а не превращается в «/p/acme/».
     assert response.status_code == 200
     assert response.json()["slug"] == "project"
 

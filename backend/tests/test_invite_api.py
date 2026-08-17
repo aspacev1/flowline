@@ -41,10 +41,14 @@ def clients(db):
 
 
 def _register(client, name, email, **extra):
-    return client.post(
-        "/api/auth/register",
-        json={"name": name, "email": email, "password": PASSWORD, **extra},
-    )
+    # company_name по умолчанию — то же имя, что у человека: так вело себя
+    # старое правило «организация называется как основатель», и большинству
+    # тестов здесь важен не он, а сам факт регистрации. При регистрации по
+    # приглашению (**extra несёт invite_token) значение всё равно уезжает в
+    # запросе, но маршрут его не читает — организация уже есть.
+    payload = {"name": name, "email": email, "password": PASSWORD, "company_name": name}
+    payload.update(extra)
+    return client.post("/api/auth/register", json=payload)
 
 
 @pytest.fixture
@@ -561,7 +565,12 @@ def test_the_invitation_letter_speaks_the_language_of_the_founder(clients, mail_
     owner = clients()
     owner.post(
         "/api/auth/register",
-        json={"name": "Алексей", "email": "founder@example.com", "password": PASSWORD},
+        json={
+            "name": "Алексей",
+            "email": "founder@example.com",
+            "password": PASSWORD,
+            "company_name": "Алексей и Ко",
+        },
         headers={"Accept-Language": "ru-RU,ru;q=0.9"},
     )
     # Письмо подтверждения адреса к делу не относится: оно и раньше уходило на

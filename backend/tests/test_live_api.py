@@ -40,7 +40,12 @@ def client(db):
 def authed(client):
     client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
     return client
 

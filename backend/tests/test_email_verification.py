@@ -205,7 +205,12 @@ def test_a_letter_that_went_out_starts_the_pause(db, user, mailbox):
 def test_registration_sends_the_letter_and_leaves_the_address_unconfirmed(client, mailbox):
     response = client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
 
     assert response.status_code == 201
@@ -225,7 +230,12 @@ def test_registration_survives_a_dead_mail_server(client, monkeypatch):
 
     response = client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
 
     assert response.status_code == 201
@@ -234,7 +244,12 @@ def test_registration_survives_a_dead_mail_server(client, monkeypatch):
 def test_the_link_from_the_letter_confirms_without_a_session(client, mailbox):
     client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
     token = _token_of(mailbox[0].body)
     # Письмо открывают в том браузере, куда пришла почта, а не обязательно
@@ -251,7 +266,12 @@ def test_opening_the_link_a_second_time_is_not_an_error(client, mailbox):
     """Ссылку из письма открывают дважды — второй раз это не отказ."""
     client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
     token = _token_of(mailbox[0].body)
     client.post("/api/auth/verify-email", json={"token": token})
@@ -265,7 +285,12 @@ def test_opening_the_link_a_second_time_is_not_an_error(client, mailbox):
 def test_me_reports_the_address_as_confirmed_afterwards(client, mailbox):
     client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
     client.post("/api/auth/verify-email", json={"token": _token_of(mailbox[0].body)})
 
@@ -286,7 +311,12 @@ def test_resend_needs_a_session(client):
 def test_resend_waits_out_the_cooldown(client, db, mailbox):
     client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
 
     assert client.post("/api/auth/verify-email/resend").status_code == 429
@@ -314,7 +344,12 @@ def test_a_letter_that_never_went_out_does_not_lock_the_button(client, db, monke
 
     client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
 
     # Первое же нажатие: отказ здесь означал бы минуту ожидания письма,
@@ -327,7 +362,12 @@ def test_resend_says_so_when_the_letter_did_not_go_out(client, db, monkeypatch, 
 
     client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
     db.query(EmailVerification).one().sent_at = (
         datetime.now(timezone.utc) - RESEND_COOLDOWN - timedelta(seconds=1)
@@ -348,7 +388,12 @@ def test_resend_says_so_when_the_letter_did_not_go_out(client, db, monkeypatch, 
 def test_resend_refuses_once_the_address_is_confirmed(client, mailbox):
     client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
     client.post("/api/auth/verify-email", json={"token": _token_of(mailbox[0].body)})
 

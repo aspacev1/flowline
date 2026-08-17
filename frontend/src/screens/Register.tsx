@@ -29,6 +29,7 @@ export function Register() {
   const inviteToken = params.get("invite");
 
   const [name, setName] = useState("");
+  const [companyName, setCompanyName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [localErrorKey, setLocalErrorKey] = useState<string | null>(null);
@@ -85,6 +86,9 @@ export function Register() {
       name,
       email: boundEmail ?? email,
       password,
+      // Название компании — только у свободной регистрации: по приглашению
+      // организация уже есть, и заводить вторую было бы не тем полем.
+      ...(inviteToken === null ? { company_name: companyName } : {}),
       ...(inviteToken === null ? {} : { invite_token: inviteToken }),
     });
   }
@@ -120,6 +124,19 @@ export function Register() {
           autoComplete="name"
           required
         />
+        {/* Название компании только у свободной регистрации: по приглашению
+            организация уже есть, и спрашивать имя для той, что человек не
+            заводит, — вопрос не по делу. */}
+        {inviteToken === null && (
+          <Field
+            id="company_name"
+            label={t("auth.field.company_name")}
+            value={companyName}
+            onChange={setCompanyName}
+            autoComplete="organization"
+            required
+          />
+        )}
         <Field
           id="email"
           label={t("auth.field.email")}

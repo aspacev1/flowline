@@ -68,7 +68,12 @@ def test_the_case_of_the_tag_does_not_depend_on_the_locale_of_the_process():
 def test_registration_takes_the_language_from_the_browser(client):
     response = client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
         headers={"Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8"},
     )
 
@@ -79,7 +84,12 @@ def test_registration_takes_the_language_from_the_browser(client):
 def test_registration_falls_back_to_azerbaijani(client):
     response = client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
         headers={"Accept-Language": "fr-FR,de;q=0.8"},
     )
 
@@ -94,7 +104,12 @@ def test_the_header_is_never_asked_again(client):
     """
     client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
         headers={"Accept-Language": "ru"},
     )
     client.patch("/api/auth/me", json={"locale": "az"})

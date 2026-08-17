@@ -184,7 +184,12 @@ def client(db):
 def test_register_route_returns_201_and_sets_an_httponly_cookie(client):
     response = client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
     assert response.status_code == 201
     body = response.json()
@@ -195,10 +200,52 @@ def test_register_route_returns_201_and_sets_an_httponly_cookie(client):
     assert "HttpOnly" in set_cookie_header
 
 
+def test_register_route_names_the_new_organization_after_the_company_field(client, db):
+    """Организация называется компанией из формы, а не именем человека —
+    иначе поле company_name было бы витриной, ничего не решающей."""
+    response = client.post(
+        "/api/auth/register",
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme Corp",
+        },
+    )
+    assert response.status_code == 201
+
+    membership = db.query(Membership).filter_by(user_id=response.json()["id"]).one()
+    org = db.get(Organization, membership.org_id)
+    assert org.name == "Acme Corp"
+
+
+def test_register_route_requires_a_company_name_for_free_signup(client):
+    """Без приглашения регистрация заводит новую организацию — и обязана
+    знать, как её назвать. Пустая и отсутствующая строка — тот же отказ:
+    валидатор схемы сводит одно к другому."""
+    for payload in (
+        {"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        {
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "   ",
+        },
+    ):
+        response = client.post("/api/auth/register", json=payload)
+        assert response.status_code == 422
+        assert response.json()["detail"] == "company_name_required"
+
+
 def test_me_route_returns_the_authenticated_user(client):
     register_response = client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
     user_id = register_response.json()["id"]
 
@@ -215,11 +262,21 @@ def test_me_route_without_a_cookie_is_401(client):
 def test_register_route_rejects_a_duplicate_address_with_409(client):
     client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
     response = client.post(
         "/api/auth/register",
-        json={"name": "Other", "email": "ALEX@example.com", "password": "other-pass"},
+        json={
+            "name": "Other",
+            "email": "ALEX@example.com",
+            "password": "other-pass",
+            "company_name": "Other Co",
+        },
     )
     assert response.status_code == 409
 
@@ -227,7 +284,12 @@ def test_register_route_rejects_a_duplicate_address_with_409(client):
 def test_login_route_rejects_a_wrong_password_with_401(client):
     client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
     response = client.post(
         "/api/auth/login", json={"email": "alex@example.com", "password": "wrong"}
@@ -249,7 +311,12 @@ def test_register_route_maps_an_unprotected_integrity_error_to_409(client, monke
 
     response = client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
     assert response.status_code == 409
 
@@ -257,7 +324,12 @@ def test_register_route_maps_an_unprotected_integrity_error_to_409(client, monke
 def test_logout_route_kills_the_session_so_the_same_cookie_stops_working(client):
     register_response = client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
     assert register_response.status_code == 201
 
@@ -342,7 +414,12 @@ def test_a_corrupted_hash_answers_401_instead_of_500(client, db):
 
     client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
     user = db.scalar(select(User).where(User.email == "alex@example.com"))
     user.password_hash = "испорчено"
@@ -358,7 +435,12 @@ def test_a_corrupted_hash_answers_401_instead_of_500(client, db):
 def test_the_session_cookie_lives_exactly_as_long_as_the_session(client):
     response = client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
     header = response.headers["set-cookie"]
     assert f"Max-Age={int(SESSION_TTL.total_seconds())}" in header

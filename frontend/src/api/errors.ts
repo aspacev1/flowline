@@ -13,6 +13,7 @@ const AUTH_CODES = new Set([
   "session_expired",
   "validation_error",
   "password_too_short",
+  "company_name_required",
   "invalid_token",
   "token_expired",
   "already_verified",

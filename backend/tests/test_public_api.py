@@ -25,7 +25,12 @@ def client(db):
 def authed(client):
     client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
     return client
 
@@ -74,7 +79,7 @@ def published(authed):
         "project_id": project_id,
         "task_id": task_id,
         "token": token,
-        "path": f"/api/public/alex/redesign",
+        "path": f"/api/public/acme/redesign",
     }
 
 
@@ -93,7 +98,7 @@ def test_a_guest_reads_the_shared_project(client, published):
     # Даты окончания считает сервер и на публичной странице тоже: гость
     # видит ту же диаграмму, а не её упрощённую копию.
     assert body["tasks"][0]["end_date"] == "2026-03-10"
-    assert body["org"]["name"] == "Alex"
+    assert body["org"]["name"] == "Acme"
 
 
 def test_a_guest_sees_the_task_status(client, published):
@@ -129,7 +134,7 @@ def test_a_guest_does_not_see_who_works_on_the_project(client, authed, published
 def test_a_wrong_token_is_indistinguishable_from_a_missing_project(client, published):
     assert client.get(published["path"], params={"s": "not-the-token"}).status_code == 404
     assert client.get(published["path"]).status_code == 404
-    assert client.get("/api/public/alex/no-such-project", params={"s": published["token"]}).status_code == 404
+    assert client.get("/api/public/acme/no-such-project", params={"s": published["token"]}).status_code == 404
 
 
 def test_a_guest_signs_his_comment_with_a_name(client, published):

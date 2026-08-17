@@ -42,7 +42,12 @@ def client(db):
 def authed(client):
     client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
     return client
 
@@ -157,12 +162,22 @@ def test_signups_from_one_address_hit_a_ceiling(client, monkeypatch):
     monkeypatch.setattr(get_settings(), "signup_rate_limit_per_ip", 1)
     first = client.post(
         "/api/auth/register",
-        json={"name": "A", "email": "a@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "A",
+            "email": "a@example.com",
+            "password": "s3cret-pass",
+            "company_name": "A Co",
+        },
     )
     assert first.status_code == 201
     second = client.post(
         "/api/auth/register",
-        json={"name": "B", "email": "b@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "B",
+            "email": "b@example.com",
+            "password": "s3cret-pass",
+            "company_name": "B Co",
+        },
     )
     assert second.status_code == 429
 
@@ -400,7 +415,12 @@ def test_close_others_keeps_only_this_device(authed, db):
 def test_login_sweeps_the_users_expired_sessions(client, db):
     client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
     user = db.scalar(select(User))
     stale = Session(

@@ -28,7 +28,12 @@ def client(db):
 def authed(client):
     client.post(
         "/api/auth/register",
-        json={"name": "Alex", "email": "alex@example.com", "password": "s3cret-pass"},
+        json={
+            "name": "Alex",
+            "email": "alex@example.com",
+            "password": "s3cret-pass",
+            "company_name": "Acme",
+        },
     )
     return client
 
@@ -58,8 +63,8 @@ def test_current_organization_is_named(authed):
     response = authed.get("/api/org")
     assert response.status_code == 200
     body = response.json()
-    assert body["name"] == "Alex"
-    assert body["slug"] == "alex"
+    assert body["name"] == "Acme"
+    assert body["slug"] == "acme"
     assert body["role"] == "owner"
 
 
@@ -131,7 +136,7 @@ def test_a_client_does_not_see_the_organization_roster(authed, db):
 def _register(client, name, email):
     return client.post(
         "/api/auth/register",
-        json={"name": name, "email": email, "password": "s3cret-pass"},
+        json={"name": name, "email": email, "password": "s3cret-pass", "company_name": name},
     )
 
 
