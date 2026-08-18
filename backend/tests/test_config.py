@@ -15,7 +15,12 @@ from app.config import Settings
 def _settings(**env: str) -> Settings:
     # _env_file=None: иначе рядом лежащий .env разработчика перебьёт то, что
     # тест задаёт явно, и проверка станет зависеть от чужой машины.
-    return Settings(_env_file=None, app_secret="test-secret-not-for-production", **env)
+    return Settings(
+        _env_file=None,
+        app_secret="test-secret-not-for-production",
+        director_email="director@example.com",
+        **env,
+    )
 
 
 @pytest.mark.parametrize(

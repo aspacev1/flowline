@@ -280,6 +280,7 @@ def test_the_placeholder_secret_refuses_to_start():
         Settings(
             _env_file=None,
             app_secret="change-me-to-a-long-random-string",
+            director_email="director@example.com",
             database_url="postgresql+psycopg://u:p@host/db",
         )
 
@@ -289,6 +290,30 @@ def test_a_short_secret_refuses_to_start():
         Settings(
             _env_file=None,
             app_secret="short",
+            director_email="director@example.com",
+            database_url="postgresql+psycopg://u:p@host/db",
+        )
+
+
+# --- 2.7: DIRECTOR_EMAIL ------------------------------------------------------
+
+
+def test_the_placeholder_director_email_refuses_to_start():
+    with pytest.raises(Exception, match="DIRECTOR_EMAIL"):
+        Settings(
+            _env_file=None,
+            app_secret="test-secret-not-for-production",
+            director_email="change-me-to-your-email@example.com",
+            database_url="postgresql+psycopg://u:p@host/db",
+        )
+
+
+def test_a_blank_director_email_refuses_to_start():
+    with pytest.raises(Exception, match="DIRECTOR_EMAIL"):
+        Settings(
+            _env_file=None,
+            app_secret="test-secret-not-for-production",
+            director_email="   ",
             database_url="postgresql+psycopg://u:p@host/db",
         )
 

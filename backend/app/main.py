@@ -67,6 +67,7 @@ def configure_logging() -> None:
 configure_logging()
 logger = logging.getLogger("app.main")
 from app.api import (
+    admin_routes,
     ai_routes,
     auth_routes,
     invite_routes,
@@ -218,6 +219,7 @@ app.include_router(share_routes.router)
 app.include_router(public_routes.router)
 app.include_router(live_routes.router)
 app.include_router(ai_routes.router)
+app.include_router(admin_routes.router)
 
 
 @app.get("/api/health")

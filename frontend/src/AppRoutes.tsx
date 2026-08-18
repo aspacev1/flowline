@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import { RequireAuth } from "./auth/RequireAuth";
+import { Admin } from "./screens/Admin";
 import { AiIntake } from "./screens/AiIntake";
 import { ForgotPassword } from "./screens/ForgotPassword";
 import { Invite } from "./screens/Invite";
@@ -81,6 +82,14 @@ export function AppRoutes() {
           <Route path="members" element={<Members />} />
           <Route path="profile" element={<Profile />} />
         </Route>
+        {/* Панель директора — не вкладка настроек: настройки правят рабочее
+            пространство одной организации, а здесь список регистраций всей
+            установки, за которым может смотреть и человек вовсе без
+            организации на этом экране. Доступ решает не RequireAuth и не
+            роль в организации — сервер отвечает 403 всякому, кто не носит
+            роль директора (см. app.director), а экран показывает этот отказ
+            тем же баннером, что и любой другой закрытый маршрут. */}
+        <Route path="/admin" element={<Admin />} />
         {/* Прежний короткий адрес состава: на него уже разосланы ссылки, и
             отвечать на них «страница не найдена» из-за переезда — расплата за
             наведение порядка, которую платит читатель, а не мы. */}

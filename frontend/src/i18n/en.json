@@ -88,6 +88,7 @@
     "projects": "Projects",
     "logout": "Log out",
     "org_settings": "Organization",
+    "admin": "Admin panel",
     "settings": "Settings",
     "sidebar_collapse": "Hide menu",
     "sidebar_expand": "Show menu"
@@ -642,6 +643,22 @@
       "done": "You have left {org}",
       "last_owner": "You are the only owner: appoint someone else first — otherwise the organization is left without one"
     }
+  },
+  "admin": {
+    "title": "Installation users",
+    "subtitle": "Every registration, its organizations, and last activity",
+    "search_placeholder": "Name or email…",
+    "col": {
+      "user": "User",
+      "organizations": "Organizations",
+      "registered": "Registered",
+      "last_active": "Last active"
+    },
+    "no_organization": "no organization",
+    "never_active": "never signed in",
+    "empty": "Nobody has registered yet",
+    "no_match": "Nobody matches",
+    "count": "Total: {count}"
   },
   "invite": {
     "open": "Invite",

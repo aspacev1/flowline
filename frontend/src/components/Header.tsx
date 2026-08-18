@@ -5,7 +5,7 @@ import { NavLink } from "react-router-dom";
 import { ORG_QUERY_KEY, organization } from "../api/org";
 import { useAuth } from "../auth/AuthProvider";
 import { useLocale } from "../i18n/LocaleProvider";
-import { IconBoard, IconCheck, IconExit, IconSettings } from "./icons";
+import { IconBoard, IconCheck, IconExit, IconSettings, IconShield } from "./icons";
 import { LocaleSwitch } from "./LocaleSwitch";
 import { OrgSwitch } from "./OrgSwitch";
 
@@ -38,7 +38,7 @@ function storedCollapsed(): boolean {
 
 export function Header() {
   const { t } = useLocale();
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const [collapsed, setCollapsed] = useState(storedCollapsed);
 
   const toggleCollapsed = () => {
@@ -151,6 +151,20 @@ export function Header() {
             профиля пишет он же: второй копии, которая разъехалась бы с этой на
             первой правке, ни здесь, ни на экране профиля больше нет. */}
         <LocaleSwitch />
+        {/* Видна только директору — единственной роли уровня всей установки,
+            закреплённой на сервере за одним адресом (см. UserOut.is_director
+            и app.director). Остальным пункт не просто спрятан для порядка:
+            сервер и так ответит отказом, а показывать дорогу к заведомому 403
+            незачем никому. Стоит над «Настройками» — оба пункта не про
+            личное, но панель директора касается не одной организации, а
+            установки целиком, и ставить её вровень с языком, а не внутрь
+            настроек рабочего пространства, здесь честнее. */}
+        {user?.is_director && (
+          <NavLink to="/admin" className={navClass} aria-label={t("nav.admin")}>
+            <IconShield className="sidebar__icon" />
+            <span className="sidebar__label">{t("nav.admin")}</span>
+          </NavLink>
+        )}
         {/* Подпись — отдельным узлом, потому что на узком экране нижний блок
             переезжает в верхнюю строку и подписи в нём скрываются: места на
             них там нет, а сами пункты обязаны остаться. Имя для чтения вслух

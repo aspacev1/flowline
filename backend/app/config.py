@@ -36,6 +36,13 @@ class Settings(BaseSettings):
 
     database_url: str
     app_secret: str
+    #: Единственный адрес, за которым закреплена роль директора — панель
+    #: /admin и всё, что к ней когда-нибудь добавится. Обязателен и без
+    #: значения по умолчанию: роль директора не должна доставаться первому,
+    #: кто забыл её настроить. Не роль в организации (Role.OWNER имеет смысл
+    #: только внутри одной организации, а владельцев организаций в установке
+    #: может быть сколько угодно) — свойство самой установки.
+    director_email: str
 
     public_base_url: str = _LOCAL_BASE_URL
     #: Флаг Secure сессионной куки. None — вывести автоматически: из схемы
@@ -129,6 +136,28 @@ class Settings(BaseSettings):
         if len(value) < 16:
             raise ValueError("APP_SECRET короче 16 символов — задай длиннее: openssl rand -hex 32")
         return value
+
+    @field_validator("director_email")
+    @classmethod
+    def _refuse_a_director_email_that_is_not_one(cls, value: str) -> str:
+        """Отказывается стартовать с адресом-заглушкой или пустотой.
+
+        DIRECTOR_EMAIL решает, кто видит панель директора (/admin). Значение
+        из .env.example, оставшееся как есть, означает, что роль директора
+        досталась бы адресу, который есть в каждой копии репозитория, — это
+        должно быть отказом старта, а не тихой дырой. Пустое значение —
+        та же дыра наоборот: панель не видна вовсе никому.
+        """
+        stripped = value.strip()
+        if not stripped:
+            raise ValueError(
+                "DIRECTOR_EMAIL не задан — без него роль директора не достаётся никому."
+            )
+        if stripped == "change-me-to-your-email@example.com":
+            raise ValueError(
+                "DIRECTOR_EMAIL остался значением из .env.example — задай свой адрес."
+            )
+        return stripped
 
     @field_validator("database_url")
     @classmethod

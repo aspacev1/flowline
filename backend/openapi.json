@@ -1,6 +1,54 @@
 {
   "components": {
     "schemas": {
+      "AdminUserOut": {
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "last_active_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Active At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "organizations": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Organizations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email",
+          "created_at",
+          "last_active_at",
+          "organizations"
+        ],
+        "title": "AdminUserOut",
+        "type": "object"
+      },
       "AnswerIn": {
         "additionalProperties": false,
         "properties": {
@@ -2352,6 +2400,10 @@
             "title": "Id",
             "type": "string"
           },
+          "is_director": {
+            "title": "Is Director",
+            "type": "boolean"
+          },
           "locale": {
             "title": "Locale",
             "type": "string"
@@ -2378,7 +2430,8 @@
           "email",
           "locale",
           "timezone",
-          "email_verified"
+          "email_verified",
+          "is_director"
         ],
         "title": "UserOut",
         "type": "object"
@@ -2460,6 +2513,60 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/admin/users": {
+      "get": {
+        "description": "Все аккаунты установки — самые новые регистрации первыми.\n\nОрганизации подтягиваются одним отдельным запросом и раскладываются по\nвладельцу в памяти, а не join'ом к списку пользователей: join размножил\nбы строку человека на число его организаций и потребовал бы схлопывать\nдубликаты здесь же.",
+        "operationId": "list_users_api_admin_users_get",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "planora_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Planora Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AdminUserOut"
+                  },
+                  "title": "Response List Users Api Admin Users Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Users",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/api/ai/credential": {
       "get": {
         "operationId": "read_credential_api_ai_credential_get",

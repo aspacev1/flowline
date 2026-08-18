@@ -29,6 +29,7 @@ from app.auth import (
 )
 from app.config import get_settings
 from app.db import get_db
+from app.director import is_director
 from app.email_verification import (
     VerificationError,
     confirm_email,
@@ -94,6 +95,13 @@ class UserOut(BaseModel):
     # «подтвердите адрес», а точное время подтверждения ему не нужно ни для
     # чего — и не стоит того, чтобы разбирать формат даты на клиенте.
     email_verified: bool
+    #: Носит ли этот человек роль директора — единственную роль уровня всей
+    #: установки (см. app.director), а не одной организации. Решает, виден
+    #: ли пункт «Админ-панель» в колонке; то же правило проверяет и сам
+    #: маршрут панели (см. app.api.admin_routes.current_director) — здесь оно
+    #: продублировано только затем, чтобы колонка не показывала пункт меню,
+    #: ведущий заведомо в отказ.
+    is_director: bool
 
 
 class MailResultOut(BaseModel):
@@ -167,6 +175,7 @@ def _to_out(user: User) -> UserOut:
         locale=user.locale,
         timezone=user.timezone,
         email_verified=user.email_verified_at is not None,
+        is_director=is_director(user.email),
     )
 
 
