@@ -7,43 +7,14 @@ import { applyOp, projectQueryKey } from "../api/projects";
 import { Field } from "../components/Field";
 import { Modal } from "../components/Modal";
 import { useLocale } from "../i18n/LocaleProvider";
+import { CATEGORY_COLORS, suggestColor } from "../project/categoryColors";
 
-/**
- * Палитра для новых категорий.
- *
- * Живёт в браузере, а не на сервере: это оформление, а не свойство плана.
- * Предлагается по числу уже существующих категорий — так две подряд созданные
- * категории не оказываются одного цвета, и человеку не приходится подбирать
- * цвет вручную каждый раз. Выбор всё равно остаётся за ним: подобранное
- * автоматически совпадение цветов на одиннадцатой категории должно чиниться,
- * а не терпеться.
- *
- * Готовый набор — это и есть весь выбор: произвольный цвет из системной
- * пипетки умеет быть неотличимым от соседнего, нечитаемым на светлой доске
- * и разным у двух людей, договорившихся «покрасить в синий». Десять
- * различимых между собой цветов закрывают задачу «отличить категории друг от
- * друга» и делают выбор делом одного щелчка.
- *
- * Ключ подписи (`name`) — машинный: сам текст живёт в словарях, потому что
- * читалка обязана назвать кружок словом на языке человека, а не кодом
- * `#3b82f6`.
- */
-export const CATEGORY_COLORS = [
-  { value: "#3b82f6", name: "blue" },
-  { value: "#a855f7", name: "purple" },
-  { value: "#f97316", name: "orange" },
-  { value: "#10b981", name: "green" },
-  { value: "#ef4444", name: "red" },
-  { value: "#eab308", name: "yellow" },
-  { value: "#06b6d4", name: "cyan" },
-  { value: "#ec4899", name: "pink" },
-  { value: "#64748b", name: "slate" },
-  { value: "#b45309", name: "brown" },
-] as const;
-
-export function suggestColor(existing: number): string {
-  return CATEGORY_COLORS[existing % CATEGORY_COLORS.length].value;
-}
+// Палитра и подбор цвета переехали в `project/categoryColors.ts` — у них
+// появился второй потребитель (быстрое добавление категории с низа ленты), и
+// вторая копия тех же чисел однажды разошлась бы с этой. Реэкспорт оставляет
+// прежний путь импорта рабочим — форма как звалась их источником, так им и
+// осталась для всех, кто уже на неё ссылается.
+export { CATEGORY_COLORS, suggestColor };
 
 export function CategoryForm({
   projectId,

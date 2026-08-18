@@ -16,6 +16,7 @@ import { endShiftDays, isBeyondPlan } from "../project/baseline";
 import { formatDate, formatMonth, weekdayNarrow } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
 import { BarTipProvider } from "./BarTip";
+import { AddCategoryRow, AddTaskRow, NewCategoryRow, PendingCategoryRow } from "./BottomActions";
 import { HeadCells } from "./Cells";
 import { Grid } from "./Grid";
 import { Header, RelativeHeader } from "./Header";
@@ -26,6 +27,7 @@ import { CategoryRow, TaskRow } from "./Row";
 import type { CellLabels, DayFormat } from "./Row";
 import { MOTION_MS, usePrefersReducedMotion } from "./motion";
 import { useLinkDrag } from "./useLinkDrag";
+import { useQuickCategory } from "./useQuickCategory";
 import { useQuickTask } from "./useQuickTask";
 import { useReorder } from "./useReorder";
 import {
@@ -193,6 +195,7 @@ export function Gantt({
   const reorder = useReorder({ projectId, state, canWrite });
   const link = useLinkDrag({ projectId, state, canWrite });
   const quick = useQuickTask({ projectId, state });
+  const quickCategory = useQuickCategory({ projectId, state });
   const reducedMotion = usePrefersReducedMotion();
   // Лента по умолчанию открывается в дневном масштабе — самом крупном: на
   // нём у деления хватает места на день недели над числом, и первое, что
@@ -305,6 +308,20 @@ export function Gantt({
     setLayoutState(next);
     rememberLayout(projectId, next);
   }, [newTaskIn, layout, projectId]);
+
+  // Строка ввода новой категории — с самого низа ленты (см. «+ Новая
+  // категория» ниже). Состояние экрана, как и свёртка категорий: соседу по
+  // проекту чужое открытое поле ни к чему, и на сервер оно не уходит.
+  const [composingCategory, setComposingCategory] = useState(false);
+
+  // По той же причине, что и у задачи чуть выше: имя категории пишут в
+  // колонке, которой у свёрнутой таблицы нет.
+  useEffect(() => {
+    if (!composingCategory || !layout.collapsed) return;
+    const next = { ...layout, collapsed: false };
+    setLayoutState(next);
+    rememberLayout(projectId, next);
+  }, [composingCategory, layout, projectId]);
 
   // Относительная ось: план ещё не привязан к датам, шкала считает недели
   // проекта от эпохи. Свойство проекта, а не экрана — приходит с сервера.
@@ -866,6 +883,67 @@ export function Gantt({
                     </div>
                   );
                 })}
+
+                {/* Низ ленты — продолжение списка, а не его край: строки ниже
+                    стоят один раз, после самой последней категории, и едут
+                    вниз вместе с новым содержимым сами — потому что стоят
+                    после него в том же потоке разметки (см. BottomActions.tsx
+                    и Grid.tsx о том, почему сетка Ганта справа растягивается
+                    вместе с ними). */}
+                {onAddTask && (
+                  <AddTaskRow
+                    scale={scale}
+                    label={t("gantt.row_menu.add_task")}
+                    // Отдельная подпись для читалки: видимый текст один на
+                    // всю ленту и не называет категорию, в которую ляжет
+                    // задача, а до неё — единственной, куда кладёт эта строка
+                    // — стоит сказать вслух.
+                    ariaLabel={t("task.add_to", {
+                      category: categories[categories.length - 1].name,
+                    })}
+                    onClick={() =>
+                      onAddTask({
+                        categoryId: categories[categories.length - 1].id,
+                        before: null,
+                      })
+                    }
+                  />
+                )}
+                {canWrite && (
+                  <>
+                    {quickCategory.pending.map((row) => (
+                      <PendingCategoryRow
+                        key={row.id}
+                        scale={scale}
+                        name={row.name}
+                        title={t("category.quick.creating")}
+                      />
+                    ))}
+                    {composingCategory && (
+                      <NewCategoryRow
+                        scale={scale}
+                        label={t("category.quick.aria")}
+                        placeholder={t("category.quick.placeholder")}
+                        onCreate={(name) => quickCategory.create(name)}
+                        onClose={() => setComposingCategory(false)}
+                      />
+                    )}
+                    {/* Кнопка остаётся на месте и тогда, когда поле над ней
+                        уже открыто: ею заводят следующую категорию, когда
+                        эта сохранится, — по тому же приёму, что и у «плюса»
+                        задачи на строке категории. */}
+                    <AddCategoryRow
+                      scale={scale}
+                      label={t("category.create")}
+                      onClick={() => setComposingCategory(true)}
+                    />
+                  </>
+                )}
+
+                {/* Воздух после последней строки: конец списка читается как
+                    место, где проект продолжают, а не как обрыв таблицы у
+                    нижней границы экрана. */}
+                <div className="gantt__bottom-space" aria-hidden="true" />
               </div>
             </div>
           </div>

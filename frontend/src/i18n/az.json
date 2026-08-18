@@ -328,6 +328,11 @@
         "slate": "Boz",
         "brown": "Qəhvəyi"
       }
+    },
+    "quick": {
+      "placeholder": "Kateqoriyanın adı, sonra Enter",
+      "aria": "Yeni kateqoriya",
+      "creating": "Yaradılır…"
     }
   },
   "task": {

@@ -34,8 +34,23 @@ const STATE = {
   dependencies: [],
 };
 
+/**
+ * Кнопка тулбара, а не «+ Новая категория» с низа ленты: у ленты теперь два
+ * пути завести категорию — эта форма (с выбором цвета) и короткий путь снизу
+ * списка (см. `gantt/BottomActions.tsx`), и у обеих одно и то же имя для
+ * читалки, потому что они и делают одно и то же. Различает их только место —
+ * тулбар рождается вместе с данными проекта, поэтому ищем сначала его.
+ */
+async function toolbarAddCategoryButton() {
+  return waitFor(() => {
+    const toolbar = document.querySelector(".project-toolbar");
+    if (!toolbar) throw new Error("toolbar not rendered yet");
+    return within(toolbar as HTMLElement).getByRole("button", { name: /категория/i });
+  });
+}
+
 async function createCategoryNamed(name: string) {
-  await userEvent.click(await screen.findByRole("button", { name: /категория/i }));
+  await userEvent.click(await toolbarAddCategoryButton());
   await userEvent.type(screen.getByLabelText(/название/i), name);
   await userEvent.click(screen.getByRole("button", { name: /^создать$/i }));
 }
@@ -116,7 +131,7 @@ describe("создание категории", () => {
     );
 
     renderApp({ route: "/projects/p1", locale: "ru" });
-    await userEvent.click(await screen.findByRole("button", { name: /категория/i }));
+    await userEvent.click(await toolbarAddCategoryButton());
     await userEvent.type(screen.getByLabelText(/название/i), "аналитика");
 
     // Регистр поднимает браузер при выводе, а значение остаётся набранным:
@@ -175,7 +190,7 @@ describe("создание категории", () => {
     );
 
     renderApp({ route: "/projects/p1", locale: "ru" });
-    await userEvent.click(await screen.findByRole("button", { name: /категория/i }));
+    await userEvent.click(await toolbarAddCategoryButton());
 
     // Выбор — это набор готовых цветов, а не пипетка: произвольный цвет умеет
     // быть неотличимым от соседнего и нечитаемым на доске.
@@ -204,7 +219,7 @@ describe("создание категории", () => {
     );
 
     renderApp({ route: "/projects/p1", locale: "ru" });
-    await userEvent.click(await screen.findByRole("button", { name: /категория/i }));
+    await userEvent.click(await toolbarAddCategoryButton());
     await userEvent.type(screen.getByLabelText(/название/i), "Аналитика");
     // Кружок назван словом, а не кодом цвета: читалка обязана произнести
     // выбор, а `#ec4899` произнести нечем.
@@ -263,7 +278,7 @@ describe("создание категории", () => {
     );
 
     renderApp({ route: "/projects/p1", locale: "ru" });
-    await userEvent.click(await screen.findByRole("button", { name: /категория/i }));
+    await userEvent.click(await toolbarAddCategoryButton());
 
     expect(screen.getByRole("button", { name: /^создать$/i })).toBeDisabled();
   });
