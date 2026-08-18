@@ -116,7 +116,11 @@ describe("отмена с клавиатуры", () => {
     renderProject(UNDOABLE);
     await drawn();
 
-    await userEvent.click(screen.getByRole("button", { name: "Новая категория" }));
+    // Тулбар, а не «+ Новая категория» с низа ленты: у обеих кнопок теперь
+    // одно и то же имя для читалки — они делают одно и то же, — и различает
+    // их только место (см. `gantt/BottomActions.tsx`).
+    const toolbar = document.querySelector(".project-toolbar") as HTMLElement;
+    await userEvent.click(within(toolbar).getByRole("button", { name: "Новая категория" }));
     const dialog = await screen.findByRole("dialog");
     // Фокус — на кнопке окна, а не в его поле: правило про поля ввода здесь
     // ни при чём, проверяется именно открытое окно.

@@ -23,9 +23,19 @@ function field() {
   return screen.getByRole("textbox", { name: "Новая задача в «Дизайн»" });
 }
 
-/** Строка новой задачи открывается «плюсом» на строке категории. */
+/**
+ * Строка новой задачи открывается «плюсом» на строке категории.
+ *
+ * У самой последней категории то же имя для читалки носит и строка
+ * «+ Добавить задачу» с низа ленты (см. `gantt/BottomActions.tsx`) — она
+ * целится в ту же категорию, и оба «плюса» делают одно и то же. Здесь берём
+ * именно строку категории: тест проверяет её собственный «плюс», а не низ
+ * ленты, у которого своя проверка ниже.
+ */
 async function openRow(category = "Дизайн") {
-  await userEvent.click(screen.getByRole("button", { name: `Добавить задачу в «${category}»` }));
+  const buttons = screen.getAllByRole("button", { name: `Добавить задачу в «${category}»` });
+  const button = buttons.find((candidate) => candidate.closest(".gantt__row--category")) ?? buttons[0];
+  await userEvent.click(button);
 }
 
 describe("новая задача", () => {

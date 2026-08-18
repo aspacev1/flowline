@@ -328,6 +328,11 @@
         "slate": "Grey",
         "brown": "Brown"
       }
+    },
+    "quick": {
+      "placeholder": "Category name, then Enter",
+      "aria": "New category",
+      "creating": "Creating…"
     }
   },
   "task": {

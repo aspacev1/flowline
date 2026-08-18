@@ -1,4 +1,4 @@
-import { act, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -18,6 +18,19 @@ import { FakeWebSocket, lastSocket } from "../test/socket";
 async function goOffline() {
   await act(async () => lastSocket().accept());
   await act(async () => lastSocket().drop());
+}
+
+/**
+ * Кнопка тулбара «Новая категория» — не «+ Новая категория» с низа ленты
+ * (см. `gantt/BottomActions.tsx`): у обеих одно и то же имя для читалки, а
+ * заперта обрывом связи только эта, явным пропом `disabled` (см. Project.tsx).
+ * Строка снизу ленты о разрыве не знает вовсе и остаётся нажимаемой — как и
+ * прочие «плюсы» внутри ленты, она полагается на общий запрет в
+ * `useProjectMutation`, а не на собственный признак.
+ */
+function toolbarAddCategoryButton() {
+  const toolbar = document.querySelector(".project-toolbar") as HTMLElement;
+  return within(toolbar).getByRole("button", { name: "Новая категория" });
 }
 
 beforeEach(projectFixtures);
@@ -41,11 +54,11 @@ describe("экран проекта при обрыве связи", () => {
   it("запирает редактирование, пока связи нет", async () => {
     renderProject(STATE);
     await screen.findByRole("button", { name: /Логотип/ });
-    expect(screen.getByRole("button", { name: "Новая категория" })).toBeEnabled();
+    expect(toolbarAddCategoryButton()).toBeEnabled();
 
     await goOffline();
 
-    expect(screen.getByRole("button", { name: "Новая категория" })).toBeDisabled();
+    expect(toolbarAddCategoryButton()).toBeDisabled();
     expect(screen.getByRole("button", { name: "Новая задача" })).toBeDisabled();
   });
 
@@ -70,15 +83,13 @@ describe("экран проекта при обрыве связи", () => {
     renderProject(STATE);
     await screen.findByRole("button", { name: /Логотип/ });
     await goOffline();
-    expect(screen.getByRole("button", { name: "Новая категория" })).toBeDisabled();
+    expect(toolbarAddCategoryButton()).toBeDisabled();
 
     // Переподключение: следующий сокет открывается по таймеру отката.
     await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(2));
     await act(async () => lastSocket().accept());
 
-    await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Новая категория" })).toBeEnabled(),
-    );
+    await waitFor(() => expect(toolbarAddCategoryButton()).toBeEnabled());
     expect(screen.queryByText(/нет связи/i)).not.toBeInTheDocument();
   });
 
@@ -116,6 +127,6 @@ describe("экран проекта при обрыве связи", () => {
     await act(async () => lastSocket().drop());
 
     expect(screen.queryByText(/нет связи/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Новая категория" })).toBeEnabled();
+    expect(toolbarAddCategoryButton()).toBeEnabled();
   });
 });
