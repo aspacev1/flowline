@@ -409,6 +409,12 @@ export function Gantt({
   for (const task of byPosition(state.tasks)) {
     tasksByCategory.set(task.category_id, [...(tasksByCategory.get(task.category_id) ?? []), task]);
   }
+  // Сколько задач уже в каждой категории — знает пункт «Переместить» в меню
+  // строки: перенесённая задача встаёт в конец, а конец — это и есть текущее
+  // число строк там, куда её кладут.
+  const taskCountByCategory = new Map<string, number>(
+    categories.map((category) => [category.id, tasksByCategory.get(category.id)?.length ?? 0]),
+  );
 
   const isLate = (task: Task) => state.deadline !== null && task.end_date > state.deadline;
 
@@ -727,7 +733,7 @@ export function Gantt({
               )}
 
               <div className="gantt__rows">
-                {categories.map((category: Category) => {
+                {categories.map((category: Category, categoryIndex: number) => {
                   const tasks = tasksByCategory.get(category.id) ?? [];
                   const open = !closed.has(category.id);
                   const before = draftBefore(category);
@@ -800,6 +806,8 @@ export function Gantt({
                         open={open}
                         onToggle={() => toggleCategory(category.id)}
                         toggleLabel={t("gantt.toggle_category", { name: category.name })}
+                        index={categoryIndex}
+                        categoriesCount={categories.length}
                       />
                       {open &&
                         tasks.map((task) => (
@@ -838,6 +846,8 @@ export function Gantt({
                               reorder={reorder}
                               link={link}
                               assigneeNames={assigneeNames}
+                              categories={categories}
+                              taskCountByCategory={taskCountByCategory}
                               handleLabel={t("gantt.reorder", { name: task.name })}
                               beyondPlan={isBeyondPlan(state, task)}
                               beyondPlanLabel={t("gantt.beyond_plan")}

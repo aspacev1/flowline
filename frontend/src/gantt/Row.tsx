@@ -1,17 +1,26 @@
-import { useId } from "react";
+import { useId, useState } from "react";
 import type { CSSProperties, HTMLAttributes, ReactNode, RefCallback } from "react";
 
 import type { Calendar, Category, Task } from "../api/projects";
-import { CommentIcon, EditableCell, RowBadge, RowIcon } from "../components/rows";
+import { Avatar } from "../components/Avatar";
+import { CommentIcon, EditableCell, PencilIcon, RowBadge, RowIcon } from "../components/rows";
 import { useLocale } from "../i18n/LocaleProvider";
 import { baselineOf, endShiftDays } from "../project/baseline";
-import { patchProgress, patchTask } from "../project/optimistic";
+import {
+  deleteTask,
+  patchProgress,
+  patchTask,
+  renameCategory,
+  reorderCategory,
+  reorderTask,
+} from "../project/optimistic";
 import { useProjectMutation } from "../project/useProjectMutation";
-import { AssignMenu } from "./AssignMenu";
+import { AssignMenu, PeopleIcon } from "./AssignMenu";
 import { useBarTip } from "./BarTip";
 import { Cell, rollUp, shownColumns } from "./Cells";
 import type { ColumnKey, ColumnLayout } from "./columns";
 import { dateOfProjectDay, projectDayNumber } from "./relative";
+import { MenuAction, MenuBack, MenuSeparator, RowMenu } from "./RowMenu";
 import { workingDaysBetween } from "./scale";
 import { useBarMotion } from "./useBarMotion";
 import { useDragCategory } from "./useDragCategory";
@@ -19,6 +28,7 @@ import { useDragDates } from "./useDragDates";
 import type { LinkDrag } from "./useLinkDrag";
 import { halfOf } from "./useReorder";
 import type { Reorder } from "./useReorder";
+import { useTruncatedTitle } from "./useTruncatedTitle";
 import type { Scale } from "./timescale";
 
 /**
@@ -105,6 +115,8 @@ export function CategoryRow({
   open = true,
   onToggle,
   toggleLabel,
+  index = 0,
+  categoriesCount = 1,
 }: {
   projectId: string;
   category: Category;
@@ -130,7 +142,15 @@ export function CategoryRow({
   open?: boolean;
   onToggle?: () => void;
   toggleLabel?: string;
+  /** Место категории в списке этапов — знает пункт «Переместить» в меню. */
+  index?: number;
+  categoriesCount?: number;
 }) {
+  const { t } = useLocale();
+  const { apply } = useProjectMutation(projectId);
+  // Узел с названием категории: им описана кнопка «⋯» — так же, как у строки
+  // задачи (см. nameId в TaskRow и describedBy в RowMenu).
+  const categoryNameId = useId();
   const span = rollUp(tasks);
   const drag = useDragCategory({
     projectId,
@@ -139,6 +159,31 @@ export function CategoryRow({
     // Пустую категорию двигать нечем: сервер откажет, полосы на ленте и так нет.
     enabled: canWrite && tasks.length > 0,
   });
+
+  // Открывает поле названия не щелчком по нему, а пунктом «Переименовать
+  // категорию» в меню «⋯». Число, а не признак: второй выбор того же пункта
+  // подряд (передумал, отменил, выбрал снова) обязан открыть поле заново, а
+  // неизменный `true` для эффекта — не повод.
+  const [renameToken, setRenameToken] = useState(0);
+  // Вложенный вид меню — список этапов у пункта «Переместить». Живёт здесь, а
+  // не внутри RowMenu: панель не помнит своего содержимого, и `onClose` ниже
+  // возвращает вид в корень при любом способе закрытия.
+  const [menuView, setMenuView] = useState<"root" | "move">("root");
+
+  const duplicate = () => {
+    void apply(
+      { type: "create_category", name: `${category.name} ${t("gantt.row_menu.copy_suffix")}`, color: category.color },
+      (state) => state,
+    ).catch(() => {});
+  };
+
+  const moveBy = (delta: number) => {
+    const position = index + delta;
+    void apply(
+      { type: "reorder_category", category_id: category.id, position },
+      (state) => reorderCategory(state, category.id, position),
+    ).catch(() => {});
+  };
 
   return (
     <div
@@ -212,22 +257,132 @@ export function CategoryRow({
                   {open ? "▾" : "▸"}
                 </button>
               )}
-              <span className="gantt__label-name">{category.name}</span>
-              {(onAddTask || onDelete) && (
+              <EditableCell
+                type="text"
+                value={category.name}
+                display={category.name}
+                disabled={!canWrite}
+                className="gantt__label-name"
+                id={categoryNameId}
+                editTrigger={renameToken}
+                label={t("category.rename", { name: category.name })}
+                onCommit={(value) => {
+                  const name = value.trim();
+                  if (name === "" || name === category.name) return;
+                  void apply(
+                    { type: "rename_category", category_id: category.id, name },
+                    (state) => renameCategory(state, category.id, name),
+                  ).catch(() => {});
+                }}
+              />
+              {/* Быстрое добавление задачи остаётся своим знаком рядом с
+                  именем — категория заводит задачи чаще, чем всё остальное,
+                  что есть в меню «⋯», и просить два щелчка там, где хватало
+                  одного, было бы шагом назад. Остальные действия — в меню. */}
+              {onAddTask && (
                 <span className="row-icons">
-                  {onAddTask && (
-                    <RowIcon label={addLabel} onClick={() => onAddTask(category.id)}>
-                      +
-                    </RowIcon>
-                  )}
-                  {onDelete && deleteLabel !== undefined && (
-                    // Сам крестик ничего не удаляет: он открывает вопрос
-                    // «вместе с этими задачами?», который задаёт экран.
-                    <RowIcon label={deleteLabel} tone="danger" onClick={() => onDelete(category.id)}>
-                      ×
-                    </RowIcon>
-                  )}
+                  <RowIcon label={addLabel} onClick={() => onAddTask(category.id)}>
+                    +
+                  </RowIcon>
                 </span>
+              )}
+              {(onAddTask || onDelete || canWrite) && (
+                <RowMenu
+                  label={t("gantt.row_menu.category_label")}
+                  describedBy={categoryNameId}
+                  onClose={() => setMenuView("root")}
+                  testId={`category-menu-${category.id}`}
+                >
+                  {(close) =>
+                    menuView === "move" ? (
+                      <>
+                        <MenuBack label={t("gantt.row_menu.move")} onClick={() => setMenuView("root")} />
+                        <MenuAction
+                          icon={<span aria-hidden="true">↑</span>}
+                          disabled={index <= 0}
+                          onClick={() => {
+                            moveBy(-1);
+                            close();
+                          }}
+                        >
+                          {t("gantt.row_menu.move_up")}
+                        </MenuAction>
+                        <MenuAction
+                          icon={<span aria-hidden="true">↓</span>}
+                          disabled={index >= categoriesCount - 1}
+                          onClick={() => {
+                            moveBy(1);
+                            close();
+                          }}
+                        >
+                          {t("gantt.row_menu.move_down")}
+                        </MenuAction>
+                      </>
+                    ) : (
+                      <>
+                        {onAddTask && (
+                          <MenuAction
+                            icon={<span aria-hidden="true">+</span>}
+                            onClick={() => {
+                              onAddTask(category.id);
+                              close();
+                            }}
+                          >
+                            {t("gantt.row_menu.add_task")}
+                          </MenuAction>
+                        )}
+                        {canWrite && (
+                          <MenuAction
+                            icon={<PencilIcon />}
+                            onClick={() => {
+                              setRenameToken((current) => current + 1);
+                              close();
+                            }}
+                          >
+                            {t("gantt.row_menu.rename_category")}
+                          </MenuAction>
+                        )}
+                        {canWrite && (
+                          <MenuAction
+                            icon={<span aria-hidden="true">⧉</span>}
+                            onClick={() => {
+                              duplicate();
+                              close();
+                            }}
+                          >
+                            {t("gantt.row_menu.duplicate")}
+                          </MenuAction>
+                        )}
+                        {canWrite && categoriesCount > 1 && (
+                          <MenuAction
+                            icon={<span aria-hidden="true">↔</span>}
+                            onClick={() => setMenuView("move")}
+                          >
+                            {t("gantt.row_menu.move")}
+                          </MenuAction>
+                        )}
+                        {onDelete && deleteLabel !== undefined && (
+                          <>
+                            <MenuSeparator />
+                            <MenuAction
+                              icon={<span aria-hidden="true">×</span>}
+                              tone="danger"
+                              onClick={() => {
+                                // Сам пункт ничего не удаляет: он открывает
+                                // вопрос «вместе с этими задачами?», который
+                                // задаёт экран (см. onDeleteCategory в Gantt).
+                                onDelete(category.id);
+                                close();
+                              }}
+                            >
+                              {t("gantt.row_menu.delete_category")}
+                            </MenuAction>
+                          </>
+                        )}
+                      </>
+                    )
+                  }
+                </RowMenu>
               )}
             </>
           }
@@ -300,6 +455,8 @@ export function TaskRow({
   commentCount = 0,
   onOpenComments,
   onInsertBefore,
+  categories,
+  taskCountByCategory,
 }: {
   projectId: string;
   task: Task;
@@ -344,12 +501,21 @@ export function TaskRow({
   onOpenComments?: (taskId: string) => void;
   /** Завести задачу прямо над этой строкой. `undefined` — читателю. */
   onInsertBefore?: () => void;
+  /** Все категории проекта — знает пункт «Переместить» в меню строки. */
+  categories?: Category[];
+  /** Сколько задач уже в каждой категории — туда, куда переносят, задача
+      встаёт в конец, а конец и есть текущее число строк. */
+  taskCountByCategory?: ReadonlyMap<string, number>;
 }) {
   const { t } = useLocale();
   const { apply } = useProjectMutation(projectId);
   // Узел с названием задачи: им подписана кнопка исполнителей — она называет
   // себя «Исполнители», а какой задачи, говорит описанием (см. AssignMenu).
   const nameId = useId();
+  // Полное имя тултипом — но только когда оно и правда обрезано многоточием
+  // (см. useTruncatedTitle). Ширина колонки — во втором параметре: её тянут
+  // за границу, и обрезка меняется без единой правки самого имени.
+  const nameTitle = useTruncatedTitle<HTMLSpanElement>(task.name, layout.widths.task);
   // Место полоски по датам. Считается здесь, а не в разметке ниже, потому что
   // его знать нужно двоим: самой разметке и слою движения — тот сравнивает его
   // с местом на прошлом рендере и по разнице показывает переезд.
@@ -413,44 +579,96 @@ export function TaskRow({
     .map((id) => assigneeNames?.get(id))
     .filter((name): name is string => name !== undefined);
 
-  // Исполнителей раздают со строки, а не только из карточки. Кнопка стоит в
-  // своей колонке, когда та показана, и в колонке имени, когда нет: орган
-  // управления один, и рисовать его дважды значило бы завести два места, где
-  // одно и то же однажды разойдётся.
-  const assign =
-    canWrite && assigneeNames !== undefined && assigneeNames.size > 0 ? (
-      <AssignMenu
-        projectId={projectId}
-        task={task}
-        roster={assigneeNames}
-        describedBy={nameId}
-      />
+  // Раздаёт исполнителей своя колонка, когда она показана (её кнопка там не
+  // меняется — см. AssignMenu), и меню «⋯», когда её нет или для того, кто ей
+  // не заглядывал. Признак доступности один на оба места: назначать некого,
+  // если состав организации не пришёл вовсе или пуст.
+  const assignAvailable = canWrite && assigneeNames !== undefined && assigneeNames.size > 0;
+  const assignInColumn = assignAvailable && layout.shown.includes("assignee");
+  // Рядом с именем, когда колонки нет, — не кнопка, а метка: кто уже назначен,
+  // а не приглашение назначить. Приглашение и сама раздача — в меню «⋯» (см.
+  // ниже), а здесь остаётся то, что действием никогда не было: состояние.
+  const assignIndicator =
+    !assignInColumn && assignees.length > 0 ? (
+      <span className="gantt__row-indicator" title={assignees.join(", ")}>
+        <Avatar name={assignees[0]} size={18} />
+        {assignees.length > 1 && <span>+{assignees.length - 1}</span>}
+      </span>
     ) : null;
-  const assignInColumn = assign !== null && layout.shown.includes("assignee");
-  const assignInName = assignInColumn ? null : assign;
 
-  // Счётчик обсуждения. Ноль числа не рисует: «0» на каждой из ста строк — это
-  // рябь, в которой не видно единственной строки, где разговор есть. Сам знак
-  // при этом остаётся — его показывает наведение (см. gantt.css), иначе
-  // открыть разговор со строки было бы нечем.
-  //
-  // Не кнопка — по той же причине, что и имя задачи рядом (см. ниже): то же
-  // обсуждение открывается с клавиатуры полоской и вкладкой в карточке, а
-  // вторая кнопка на каждой из ста строк была бы сотней лишних шагов Tab, ни
-  // один из которых не ведёт туда, куда нельзя дойти иначе. Числу при этом
-  // нужно имя: без него с экрана читается голая цифра.
+  // Счётчик обсуждения — только когда есть что считать: у задачи без реплик
+  // это не приглашение начать разговор (оно теперь в меню «⋯»), а состояние —
+  // и нулю показывать нечего.
   const commentsLabel = t("comments.aria", { name: task.name, count: commentCount });
   const comments =
-    commentCount === 0 && onOpenComments === undefined ? null : (
+    commentCount === 0 ? null : (
       <RowBadge
         label={commentsLabel}
-        set={commentCount > 0}
+        set
         onClick={onOpenComments ? () => onOpenComments(task.id) : undefined}
       >
         <CommentIcon />
-        {commentCount > 0 && commentCount}
+        {commentCount}
       </RowBadge>
     );
+
+  // Каждый исполнитель — своя операция, как и в панели у колонки: снимают их
+  // по одному, и в истории они читаются как отдельные события.
+  const toggleAssignee = (userId: string) => {
+    const assigned = task.assignee_ids.includes(userId);
+    void apply(
+      { type: assigned ? "unassign_user" : "assign_user", task_id: task.id, user_id: userId },
+      (state) =>
+        patchTask(state, task.id, {
+          assignee_ids: assigned
+            ? task.assignee_ids.filter((id) => id !== userId)
+            : [...task.assignee_ids, userId],
+        }),
+    ).catch(() => {});
+  };
+
+  const duplicateTask = () => {
+    void apply(
+      {
+        type: "create_task",
+        category_id: task.category_id,
+        name: `${task.name} ${t("gantt.row_menu.copy_suffix")}`,
+        start_date: task.start_date,
+        duration_days: task.duration_days,
+        description: task.description ?? "",
+        criticality: task.criticality,
+        status: task.status,
+        progress_pct: task.progress_pct,
+        milestone: task.milestone,
+      },
+      (state) => state,
+    ).catch(() => {});
+  };
+
+  const moveToCategory = (categoryId: string) => {
+    const position = taskCountByCategory?.get(categoryId) ?? 0;
+    void apply(
+      { type: "reorder_task", task_id: task.id, category_id: categoryId, position },
+      (state) => reorderTask(state, task.id, categoryId, position),
+    ).catch(() => {});
+  };
+
+  const removeTask = () => {
+    void apply({ type: "delete_task", task_id: task.id }, (state) => deleteTask(state, task.id)).catch(
+      () => {},
+    );
+  };
+
+  const otherCategories = (categories ?? []).filter((category) => category.id !== task.category_id);
+
+  // Вложенный вид меню «⋯»: роспись по исполнителям, список категорий у
+  // «Переместить», подтверждение удаления. Живёт здесь, а не внутри RowMenu —
+  // у панели своего состояния нет, и `onClose` ниже возвращает вид в корень
+  // при любом способе закрытия (Esc, щелчок мимо, потеря прокрутки).
+  const [menuView, setMenuView] = useState<"root" | "assign" | "move" | "delete">("root");
+  // Кнопка «⋯» появляется, только если в ней есть хоть одно действие: у
+  // публичной страницы без карточки и обсуждения меню было бы пустой рамкой.
+  const showMenu = canWrite || Boolean(onSelect) || Boolean(onOpenComments);
 
   return (
     <div
@@ -544,9 +762,18 @@ export function TaskRow({
             // «нечего показать» (прочерк), а `false` от неё неотличим от
             // намеренно пустого содержимого и стёр бы прочерк.
             // Кнопка выбора занимает эту ячейку целиком, когда назначать
-            // можно: она же и показывает назначенных — аватарами.
+            // можно: она же и показывает назначенных — аватарами. `!` — не
+            // догадка: `assignInColumn` сам собой означает, что состав
+            // организации пришёл и не пуст (см. `assignAvailable` выше).
             assignee: assignInColumn
-              ? assign
+              ? (
+                  <AssignMenu
+                    projectId={projectId}
+                    task={task}
+                    roster={assigneeNames!}
+                    describedBy={nameId}
+                  />
+                )
               : assignees.length > 0
                 ? (
                     <span className="cell-value" title={assignees.join(", ")}>
@@ -557,29 +784,6 @@ export function TaskRow({
           }}
           task={
             <>
-              {onInsertBefore && (
-                // «Плюс» на границе строк: задача заводится
-                // там, куда указали, а не в конце категории. Стоит он поперёк
-                // верхнего края строки, наполовину заезжая на соседа сверху:
-                // вставка происходит между ними, и знак обязан стоять там же,
-                // где произойдёт то, что он обещает.
-                //
-                // Не кнопка и скрыт от чтения с экрана — как ручка
-                // перестановки рядом, и по той же причине: это выбор места
-                // строки в списке, а выбор места с клавиатуры в этот план не
-                // входит. Объявить сотню кнопок, ни одна из которых не
-                // срабатывает по Enter, хуже, чем не объявлять их вовсе;
-                // завести же задачу с клавиатуры по-прежнему можно — «плюсом»
-                // на строке категории, который кнопка и есть.
-                <span
-                  className="gantt__insert"
-                  aria-hidden="true"
-                  title={t("gantt.insert_before", { name: task.name })}
-                  onClick={onInsertBefore}
-                >
-                  +
-                </span>
-              )}
               {reorder?.enabled && (
                 // Ручка отдельно от полоски: за неё меняют порядок, за полоску —
                 // даты.
@@ -610,6 +814,8 @@ export function TaskRow({
                   доступен указателем и не обещает того, чего не выполняет. */}
               <span
                 id={nameId}
+                ref={nameTitle.ref}
+                title={nameTitle.title}
                 className={`gantt__label-name${onSelect ? " gantt__label-name--clickable" : ""}`}
                 onClick={onSelect ? () => onSelect(task.id) : undefined}
               >
@@ -635,20 +841,162 @@ export function TaskRow({
                 </span>
               )}
 
-              {/* Хвост колонки имени: обсуждение и исполнители — то, что
-                  показывает наведение на строку. Прижаты вправо,
-                  чтобы имена задач читались одним столбцом, а не начинались
-                  каждое на своём отступе.
-
-                  Молчат, пока не навели, — но только когда молчать есть о чём:
-                  число реплик видно всегда (иначе о разговоре можно узнать,
-                  только водя мышью по ста строкам), а кнопка, чтобы этот
-                  разговор завести, ждёт наведения (см. gantt.css). */}
-              {(comments !== null || assignInName !== null) && (
+              {/* Хвост колонки имени: то, что у задачи уже есть, — не то, что с
+                  ней можно сделать. Число реплик и метка исполнителя — это
+                  состояние, и оно не молчит до наведения: молчать, пока на
+                  строку не навели, свойственно органам управления, а не
+                  значениям (тот же довод у назначенного исполнителя в
+                  колонке). Само действие — назначить, обсудить, вставить,
+                  удалить — теперь одно и то же место: меню «⋯» справа. */}
+              {(comments !== null || assignIndicator !== null) && (
                 <span className="row-icons">
                   {comments}
-                  {assignInName}
+                  {assignIndicator}
                 </span>
+              )}
+              {showMenu && (
+                <RowMenu
+                  label={t("gantt.row_menu.task_label")}
+                  describedBy={nameId}
+                  onClose={() => setMenuView("root")}
+                  testId={`row-menu-${task.id}`}
+                >
+                  {(close) => {
+                    if (menuView === "assign") {
+                      return (
+                        <>
+                          <MenuBack label={t("gantt.assign.label")} onClick={() => setMenuView("root")} />
+                          {[...(assigneeNames ?? [])].map(([id, name]) => (
+                            <MenuAction
+                              key={id}
+                              icon={<Avatar name={name} size={18} />}
+                              pressed={task.assignee_ids.includes(id)}
+                              onClick={() => toggleAssignee(id)}
+                            >
+                              {name}
+                            </MenuAction>
+                          ))}
+                        </>
+                      );
+                    }
+                    if (menuView === "move") {
+                      return (
+                        <>
+                          <MenuBack label={t("gantt.row_menu.move")} onClick={() => setMenuView("root")} />
+                          {otherCategories.map((category) => (
+                            <MenuAction
+                              key={category.id}
+                              onClick={() => {
+                                moveToCategory(category.id);
+                                close();
+                              }}
+                            >
+                              {category.name}
+                            </MenuAction>
+                          ))}
+                        </>
+                      );
+                    }
+                    if (menuView === "delete") {
+                      return (
+                        <div className="gantt__more-confirm">
+                          <p>{t("task.panel.delete_warning")}</p>
+                          <div className="gantt__more-confirm-actions">
+                            <button
+                              type="button"
+                              className="button--quiet"
+                              onClick={() => setMenuView("root")}
+                            >
+                              {t("common.cancel")}
+                            </button>
+                            <button
+                              type="button"
+                              className="button--danger"
+                              onClick={() => {
+                                removeTask();
+                                close();
+                              }}
+                            >
+                              {t("task.panel.delete_confirm")}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <>
+                        {onSelect && (
+                          <MenuAction
+                            icon={<span aria-hidden="true">↗</span>}
+                            onClick={() => {
+                              onSelect(task.id);
+                              close();
+                            }}
+                          >
+                            {t("gantt.row_menu.open")}
+                          </MenuAction>
+                        )}
+                        {onInsertBefore && (
+                          <MenuAction
+                            icon={<span aria-hidden="true">+</span>}
+                            onClick={() => {
+                              onInsertBefore();
+                              close();
+                            }}
+                          >
+                            {t("gantt.row_menu.add_task")}
+                          </MenuAction>
+                        )}
+                        {assignAvailable && (
+                          <MenuAction icon={<PeopleIcon />} onClick={() => setMenuView("assign")}>
+                            {t("gantt.row_menu.assign")}
+                          </MenuAction>
+                        )}
+                        {onOpenComments && (
+                          <MenuAction
+                            icon={<CommentIcon />}
+                            onClick={() => {
+                              onOpenComments(task.id);
+                              close();
+                            }}
+                          >
+                            {t("gantt.row_menu.comment")}
+                          </MenuAction>
+                        )}
+                        {canWrite && (
+                          <>
+                            <MenuSeparator />
+                            <MenuAction
+                              icon={<span aria-hidden="true">⧉</span>}
+                              onClick={() => {
+                                duplicateTask();
+                                close();
+                              }}
+                            >
+                              {t("gantt.row_menu.duplicate")}
+                            </MenuAction>
+                            {otherCategories.length > 0 && (
+                              <MenuAction
+                                icon={<span aria-hidden="true">↔</span>}
+                                onClick={() => setMenuView("move")}
+                              >
+                                {t("gantt.row_menu.move")}
+                              </MenuAction>
+                            )}
+                            <MenuSeparator />
+                            <MenuAction
+                              icon={<span aria-hidden="true">×</span>}
+                              tone="danger"
+                              onClick={() => setMenuView("delete")}
+                            >
+                              {t("gantt.row_menu.delete")}
+                            </MenuAction>
+                          </>
+                        )}
+                      </>
+                    );
+                  }}
+                </RowMenu>
               )}
             </>
           }

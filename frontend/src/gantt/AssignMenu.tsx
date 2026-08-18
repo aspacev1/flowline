@@ -216,7 +216,7 @@ export function AssignMenu({
  * линий ленты выглядит наклейкой; к тому же на разных системах это разные
  * картинки. Рисунок берёт цвет текста и меняется вместе с ним.
  */
-function PeopleIcon() {
+export function PeopleIcon() {
   return (
     <svg className="glyph" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
       <circle cx="6" cy="5" r="2.4" />

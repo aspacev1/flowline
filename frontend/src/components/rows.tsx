@@ -31,6 +31,9 @@ export function EditableCell({
   min,
   max,
   allowEmpty = false,
+  editTrigger,
+  className,
+  id,
   onCommit,
 }: {
   /** Значение в том виде, в каком его примет поле ввода. */
@@ -52,11 +55,36 @@ export function EditableCell({
    * описания пустота — настоящее значение: описание стирают.
    */
   allowEmpty?: boolean;
+  /**
+   * Открыть поле не щелчком по ячейке, а откуда-то ещё — например, пунктом
+   * «Переименовать» в меню строки. Ячейка сама не знает об этом внешнем
+   * поводе, поэтому повод передаётся значением: каждое новое (по ссылке или
+   * по значению) открывает поле, а не открывшее ничего первое совпадение с
+   * тем, что уже лежит в пропсе при монтировании.
+   */
+  editTrigger?: unknown;
+  /** Класс поверх «cell-value» — там, где ячейка донашивает чужое оформление
+      (жирность строки категории, обрезка многоточием той же меры, что у имени
+      задачи), а не только своё. */
+  className?: string;
+  /** Узел, на который ссылаются описанием — например, кнопка «⋯» строки. */
+  id?: string;
   onCommit: (value: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
   const input = useRef<HTMLInputElement>(null);
+  // Первый рендер — не повод открываться: без этой отметки ячейка, которой
+  // сразу дали неопределённый `editTrigger`, распахивалась бы едва появившись.
+  const mounted = useRef(false);
+
+  useEffect(() => {
+    if (!mounted.current) {
+      mounted.current = true;
+      return;
+    }
+    if (editTrigger !== undefined) setEditing(true);
+  }, [editTrigger]);
 
   // Пока ячейку не открывали, черновик обязан идти за правдой: сосед по
   // проекту правит ту же строку, и ячейка рядом не должна показывать
@@ -73,7 +101,8 @@ export function EditableCell({
   if (!editing || disabled) {
     return (
       <span
-        className={`cell-value${disabled ? "" : " cell-value--editable"}`}
+        id={id}
+        className={`cell-value${disabled ? "" : " cell-value--editable"}${className ? ` ${className}` : ""}`}
         title={display === "" ? undefined : display}
         onClick={disabled ? undefined : () => setEditing(true)}
       >
@@ -92,6 +121,7 @@ export function EditableCell({
   return (
     <input
       ref={input}
+      id={id}
       className="cell-input"
       type={type}
       value={draft}
