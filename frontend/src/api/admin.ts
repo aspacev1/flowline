@@ -19,8 +19,8 @@ export type AdminUser = {
 /**
  * Все аккаунты установки — самые новые регистрации первыми.
  *
- * Доступен только адресам из ADMIN_EMAILS на сервере; остальным маршрут
- * отвечает 403 (см. `error.forbidden` в словаре).
+ * Доступен только роли директора на сервере; остальным маршрут отвечает 403
+ * (см. `error.forbidden` в словаре).
  */
 export function adminUsers(): Promise<AdminUser[]> {
   return request<AdminUser[]>("/api/admin/users");

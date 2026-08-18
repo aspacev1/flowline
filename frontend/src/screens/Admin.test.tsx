@@ -26,11 +26,11 @@ const ROSTER = [
 ];
 
 function adminHandlers(
-  options: { isAdmin?: boolean; roster?: unknown[] | null } = {},
+  options: { isDirector?: boolean; roster?: unknown[] | null } = {},
 ) {
-  const { isAdmin = true, roster = ROSTER } = options;
+  const { isDirector = true, roster = ROSTER } = options;
   return [
-    http.get("/api/auth/me", () => HttpResponse.json({ ...USER, is_admin: isAdmin })),
+    http.get("/api/auth/me", () => HttpResponse.json({ ...USER, is_director: isDirector })),
     http.get("/api/admin/users", () =>
       roster === null
         ? HttpResponse.json({ detail: "forbidden" }, { status: 403 })
@@ -41,16 +41,16 @@ function adminHandlers(
   ];
 }
 
-describe("панель владельца установки", () => {
-  it("пункт колонки виден только владельцу", async () => {
-    server.use(...adminHandlers({ isAdmin: true }));
+describe("панель директора", () => {
+  it("пункт колонки виден только директору", async () => {
+    server.use(...adminHandlers({ isDirector: true }));
     renderApp({ route: "/projects", locale: "ru" });
 
     expect(await screen.findByRole("link", { name: "Админ-панель" })).toBeInTheDocument();
   });
 
-  it("не показывает пункт колонки тем, кого нет в ADMIN_EMAILS", async () => {
-    server.use(...adminHandlers({ isAdmin: false }));
+  it("не показывает пункт колонки тому, кто не носит роль директора", async () => {
+    server.use(...adminHandlers({ isDirector: false }));
     renderApp({ route: "/projects", locale: "ru" });
 
     await screen.findByRole("heading", { name: "Проекты" });
@@ -94,8 +94,8 @@ describe("панель владельца установки", () => {
     expect(screen.getByText("Мария")).toBeInTheDocument();
   });
 
-  it("не-владелец получает тот же отказ, что и любой другой закрытый маршрут", async () => {
-    server.use(...adminHandlers({ isAdmin: false, roster: null }));
+  it("не-директор получает тот же отказ, что и любой другой закрытый маршрут", async () => {
+    server.use(...adminHandlers({ isDirector: false, roster: null }));
     renderApp({ route: "/admin", locale: "ru" });
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Для этого у вас нет прав");

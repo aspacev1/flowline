@@ -1,11 +1,10 @@
-"""Панель владельца установки: кто зарегистрирован и когда пользовался
-продуктом в последний раз.
+"""Панель директора: кто зарегистрирован и когда пользовался продуктом в
+последний раз.
 
 Доступ решает не роль в организации — Role.OWNER имеет смысл только внутри
 одной организации, а владельцев организаций в установке может быть сколько
-угодно, — а список ADMIN_EMAILS в настройках (см. app.config). Это свойство
-самой установки: тот, кто её эксплуатирует, не обязан состоять ни в одной из
-организаций, за которыми наблюдает.
+угодно, — а роль директора (см. app.director). Это свойство самой установки:
+директор не обязан состоять ни в одной из организаций, за которыми наблюдает.
 """
 
 import uuid
@@ -16,22 +15,22 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
 from app.auth import current_user
-from app.config import get_settings
 from app.db import get_db
+from app.director import is_director
 from app.models import Membership, Organization, User
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
-def current_admin(user: User = Depends(current_user)) -> User:
-    """Тот же человек, что и current_user, но допущенный в панель владельца.
+def current_director(user: User = Depends(current_user)) -> User:
+    """Тот же человек, что и current_user, но допущенный в панель директора.
 
     Отказ — 403, а не 404: адрес не называет никакой чужой сущности,
     существование которой стоило бы скрывать. То, что панель вообще
-    существует, для не-владельца прячет уже интерфейс, не показывающий пункт
-    меню (см. UserOut.is_admin в auth_routes.py).
+    существует, для остальных прячет уже интерфейс, не показывающий пункт
+    меню (см. UserOut.is_director в auth_routes.py).
     """
-    if not get_settings().is_admin(user.email):
+    if not is_director(user.email):
         raise HTTPException(status_code=403, detail="forbidden")
     return user
 
@@ -53,7 +52,7 @@ class AdminUserOut(BaseModel):
 
 
 @router.get("/users", response_model=list[AdminUserOut])
-def list_users(_: User = Depends(current_admin), db: DbSession = Depends(get_db)):
+def list_users(_: User = Depends(current_director), db: DbSession = Depends(get_db)):
     """Все аккаунты установки — самые новые регистрации первыми.
 
     Организации подтягиваются одним отдельным запросом и раскладываются по

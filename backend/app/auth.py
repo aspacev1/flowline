@@ -135,9 +135,9 @@ def open_session(db: DbSession, user: User, *, active_org_id: uuid.UUID | None =
         )
     )
     # Вход и регистрация — тоже активность. Без этой строки свежий аккаунт
-    # показывал бы панели владельца установки «не заходил» весь первый шаг
-    # обновления (см. _LAST_USED_WRITE_STEP) — до первого чтения, случившегося
-    # позже, чем через четверть часа после входа.
+    # показывал бы панели директора «не заходил» весь первый шаг обновления
+    # (см. _LAST_USED_WRITE_STEP) — до первого чтения, случившегося позже,
+    # чем через четверть часа после входа.
     user.last_active_at = now
     raw, hashed = new_token()
     db.add(
@@ -220,7 +220,7 @@ def session_for_token(db: DbSession, raw_token: str | None) -> Session | None:
         record.last_used_at = now
         # Тем же шагом обновляется последняя активность самого человека — она
         # переживает уборку строк сессии (см. комментарий у User.last_active_at
-        # в models.py) и кормит панель владельца установки.
+        # в models.py) и кормит панель директора.
         user = db.get(User, record.user_id)
         if user is not None:
             user.last_active_at = now

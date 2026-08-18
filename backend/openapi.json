@@ -2400,8 +2400,8 @@
             "title": "Id",
             "type": "string"
           },
-          "is_admin": {
-            "title": "Is Admin",
+          "is_director": {
+            "title": "Is Director",
             "type": "boolean"
           },
           "locale": {
@@ -2431,7 +2431,7 @@
           "locale",
           "timezone",
           "email_verified",
-          "is_admin"
+          "is_director"
         ],
         "title": "UserOut",
         "type": "object"

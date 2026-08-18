@@ -2365,8 +2365,8 @@ export interface components {
             email_verified: boolean;
             /** Id */
             id: string;
-            /** Is Admin */
-            is_admin: boolean;
+            /** Is Director */
+            is_director: boolean;
             /** Locale */
             locale: string;
             /** Name */

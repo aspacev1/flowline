@@ -6,8 +6,6 @@ from typing import Self
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-from app.text import normalize_email
-
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 # Вынесено в имя, потому что ниже с ним сравнивают: «значение осталось
@@ -60,16 +58,6 @@ class Settings(BaseSettings):
 
     public_sharing_enabled: bool = True
     guest_comment_rate_limit: int = 10
-
-    #: Адреса, которым видна панель владельца установки (/admin) — список
-    #: регистраций и последней активности. Через запятую, пусто по умолчанию:
-    #: без явного списка панель не видна никому, а не тому, кто первым
-    #: зарегистрировался. Не роль в организации (Role.OWNER имеет смысл
-    #: только внутри одной организации, а владельцев организаций в установке
-    #: может быть сколько угодно) — это свойство самой установки, и тот, кто
-    #: её эксплуатирует, не обязан состоять ни в одной организации, за
-    #: которыми наблюдает.
-    admin_emails: str = ""
 
     # Пределы входа и регистрации (0 — выключить соответствующий предел).
     # По IP считаются все попытки, по аккаунту — только неудачные: успешный
@@ -249,20 +237,6 @@ class Settings(BaseSettings):
     @property
     def locales(self) -> list[str]:
         return [item.strip() for item in self.supported_locales.split(",") if item.strip()]
-
-    def is_admin(self, email: str) -> bool:
-        """Виден ли панели владельца этот адрес.
-
-        Сравнение идёт по той же нормализации, что и уникальность аккаунта
-        (см. app.text.normalize_email): ADMIN_EMAILS задают руками в .env, а
-        регистр и совместимые формы юникода там никто не выравнивает.
-        """
-        normalized = normalize_email(email)
-        return any(
-            normalized == normalize_email(item)
-            for item in self.admin_emails.split(",")
-            if item.strip()
-        )
 
 
 @lru_cache
