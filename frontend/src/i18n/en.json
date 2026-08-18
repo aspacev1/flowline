@@ -311,6 +311,7 @@
     "delete_warning": "Everything in it goes too ({tasks}) — with their links, assignees and comments. “Undo” brings it all back",
     "delete_warning_empty": "The category has no tasks. “Undo” brings it back",
     "delete_confirm": "Yes, delete",
+    "rename": "Rename “{name}”",
     "new": {
       "title": "New category",
       "name": "Name",
@@ -551,6 +552,22 @@
       "empty": "Assign people",
       "some": "Assigned: {names}",
       "aria": "People on “{name}”"
+    },
+    "row_menu": {
+      "task_label": "Task actions",
+      "category_label": "Category actions",
+      "open": "Open task",
+      "add_task": "Add task",
+      "assign": "Assign people",
+      "comment": "Add comment",
+      "duplicate": "Duplicate",
+      "move": "Move",
+      "move_up": "Move up",
+      "move_down": "Move down",
+      "delete": "Delete",
+      "rename_category": "Rename category",
+      "delete_category": "Delete category",
+      "copy_suffix": "(copy)"
     },
     "caption": "The magenta tick is the original deadline; the “+N d” label shows how far the date slipped. A magenta arrow is a violated dependency: the task started before its blocker was done.",
     "resized": "“{name}” now takes {days}",

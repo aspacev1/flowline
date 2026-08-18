@@ -107,6 +107,19 @@ export function shiftCategory(
 }
 
 /**
+ * Название категории меняется на месте — так же, как правится название
+ * задачи: строка не должна дёргаться, пока сервер не ответил.
+ */
+export function renameCategory(state: ProjectState, categoryId: string, name: string): ProjectState {
+  return {
+    ...state,
+    categories: state.categories.map((category) =>
+      category.id === categoryId ? { ...category, name } : category,
+    ),
+  };
+}
+
+/**
  * Задача исчезает вместе со своими связями — ровно так, как сделает каскад на
  * сервере. Оставить связи было бы не осторожностью, а ошибкой: стрелки к
  * несуществующей строке некуда рисовать, и до ответа сервера лента мигала бы

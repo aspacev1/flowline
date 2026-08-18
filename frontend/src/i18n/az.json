@@ -311,6 +311,7 @@
     "delete_warning": "Kateqoriya ilə birlikdə onun bütün tapşırıqları ({tasks}) gedir — əlaqələri, icraçıları və şərhləri ilə. «Ləğv et» hamısını geri qaytarır",
     "delete_warning_empty": "Kateqoriyada tapşırıq yoxdur. «Ləğv et» onu geri qaytarır",
     "delete_confirm": "Bəli, sil",
+    "rename": "«{name}» adını dəyiş",
     "new": {
       "title": "Yeni kateqoriya",
       "name": "Ad",
@@ -551,6 +552,22 @@
       "empty": "İcraçı təyin et",
       "some": "İcraçılar: {names}",
       "aria": "«{name}» icraçıları"
+    },
+    "row_menu": {
+      "task_label": "Tapşırıq əməliyyatları",
+      "category_label": "Kateqoriya əməliyyatları",
+      "open": "Tapşırığı aç",
+      "add_task": "Tapşırıq əlavə et",
+      "assign": "İcraçı təyin et",
+      "comment": "Şərh əlavə et",
+      "duplicate": "Dublikat et",
+      "move": "Köçür",
+      "move_up": "Yuxarı köçür",
+      "move_down": "Aşağı köçür",
+      "delete": "Sil",
+      "rename_category": "Kateqoriyanın adını dəyiş",
+      "delete_category": "Kateqoriyanı sil",
+      "copy_suffix": "(surət)"
     },
     "caption": "Al qırmızı kəsik — ilkin son tarixdir; «+N gün» yazısı tarixin nə qədər sürüşdüyünü göstərir. Al qırmızı ox — pozulmuş asılılıqdır: tapşırıq blokeri hazır olmamış başlayıb.",
     "resized": "«{name}» indi {days} çəkir",

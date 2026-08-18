@@ -189,6 +189,12 @@ export type Op =
       milestone?: boolean;
     }
   | { type: "delete_category"; category_id: string }
+  /**
+   * Переименование категории — своя операция, а не часть `create_category`:
+   * заголовок правят на месте (в строке ленты или сметы), и правка обязана
+   * остаться одной записью в истории, а не парой «удалить, создать заново».
+   */
+  | { type: "rename_category"; category_id: string; name: string }
   | { type: "delete_task"; task_id: string }
   | { type: "move_task"; task_id: string; start_date: string }
   /**

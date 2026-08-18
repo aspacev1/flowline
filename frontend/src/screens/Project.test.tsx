@@ -209,14 +209,20 @@ describe("экран проекта", () => {
 describe("удаление категории", () => {
   beforeEach(projectFixtures);
 
+  /** Меню «⋯» строки категории по её идентификатору (см. RowMenu). */
+  async function openCategoryMenu(categoryId: string) {
+    await userEvent.click(await screen.findByTestId(`category-menu-${categoryId}-button`));
+  }
+
   it("пустая категория уходит после подтверждения, что терять нечего", async () => {
     const sent = captureMutations();
     renderProject();
     await screen.findByRole("button", { name: /Логотип/ });
 
-    await userEvent.click(screen.getByRole("button", { name: "Удалить категорию «Разработка»" }));
+    await openCategoryMenu("c2");
+    await userEvent.click(await screen.findByRole("button", { name: "Удалить категорию" }));
 
-    // Вопрос задаётся и о пустой: промахнуться крестиком по соседней строке —
+    // Вопрос задаётся и о пустой: промахнуться мимо соседней строки —
     // обычное дело, и имя в заголовке окна единственное, чем это видно.
     const dialog = await screen.findByRole("dialog", { name: /Разработка/ });
     expect(dialog).toHaveTextContent("В категории нет задач");
@@ -235,7 +241,8 @@ describe("удаление категории", () => {
     renderProject();
     await screen.findByRole("button", { name: /Логотип/ });
 
-    await userEvent.click(screen.getByRole("button", { name: "Удалить категорию «Дизайн»" }));
+    await openCategoryMenu("c1");
+    await userEvent.click(await screen.findByRole("button", { name: "Удалить категорию" }));
 
     // Число, а не «вы уверены?»: «удалить категорию» звучит как расставание с
     // заголовком, а уходит вместе с ним весь этап.
@@ -255,7 +262,8 @@ describe("удаление категории", () => {
     renderProject();
     await screen.findByRole("button", { name: /Логотип/ });
 
-    await userEvent.click(screen.getByRole("button", { name: "Удалить категорию «Дизайн»" }));
+    await openCategoryMenu("c1");
+    await userEvent.click(await screen.findByRole("button", { name: "Удалить категорию" }));
     await screen.findByRole("dialog", { name: /Дизайн/ });
     await userEvent.click(screen.getByRole("button", { name: "Отмена" }));
 
@@ -264,11 +272,9 @@ describe("удаление категории", () => {
     expect(screen.getByText("Логотип")).toBeInTheDocument();
   });
 
-  it("читателю крестик не показывается", async () => {
+  it("читателю кнопки «⋯» на категории не показывается", async () => {
     renderProject(undefined, { canWrite: false });
     await screen.findByRole("button", { name: /Логотип/ });
-    expect(
-      screen.queryByRole("button", { name: "Удалить категорию «Разработка»" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId("category-menu-c2-button")).not.toBeInTheDocument();
   });
 });

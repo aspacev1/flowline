@@ -351,6 +351,28 @@ function applied(state: ProjectState, op: Record<string, unknown>): ProjectState
       return deleteTask(state, id);
     case "delete_category":
       return deleteCategory(state, op.category_id as string);
+    case "create_category":
+      // Тем же приёмом, что и `create_task`: сервер сам назначает
+      // идентификатор и позицию, здесь тоже.
+      return {
+        ...state,
+        categories: [
+          ...state.categories,
+          {
+            id: `newcat${state.categories.length + 1}`,
+            name: op.name as string,
+            color: op.color as string,
+            position: state.categories.length,
+          },
+        ],
+      };
+    case "rename_category":
+      return {
+        ...state,
+        categories: state.categories.map((category) =>
+          category.id === op.category_id ? { ...category, name: op.name as string } : category,
+        ),
+      };
     default:
       return state;
   }
