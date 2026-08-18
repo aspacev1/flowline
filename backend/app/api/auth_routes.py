@@ -94,6 +94,12 @@ class UserOut(BaseModel):
     # «подтвердите адрес», а точное время подтверждения ему не нужно ни для
     # чего — и не стоит того, чтобы разбирать формат даты на клиенте.
     email_verified: bool
+    #: Виден ли этому человеку пункт «Админ-панель». Решает список
+    #: ADMIN_EMAILS в настройках — то же правило, что проверяет сам маршрут
+    #: панели (см. app.api.admin_routes.current_admin), продублированное
+    #: здесь только затем, чтобы колонка не показывала пункт меню, ведущий
+    #: заведомо в отказ.
+    is_admin: bool
 
 
 class MailResultOut(BaseModel):
@@ -167,6 +173,7 @@ def _to_out(user: User) -> UserOut:
         locale=user.locale,
         timezone=user.timezone,
         email_verified=user.email_verified_at is not None,
+        is_admin=get_settings().is_admin(user.email),
     )
 
 

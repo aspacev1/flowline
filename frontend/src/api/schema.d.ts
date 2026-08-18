@@ -4,6 +4,31 @@
  */
 
 export interface paths {
+    "/api/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Users
+         * @description Все аккаунты установки — самые новые регистрации первыми.
+         *
+         *     Организации подтягиваются одним отдельным запросом и раскладываются по
+         *     владельцу в памяти, а не join'ом к списку пользователей: join размножил
+         *     бы строку человека на число его организаций и потребовал бы схлопывать
+         *     дубликаты здесь же.
+         */
+        get: operations["list_users_api_admin_users_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/ai/credential": {
         parameters: {
             query?: never;
@@ -1357,6 +1382,21 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AdminUserOut */
+        AdminUserOut: {
+            /** Created At */
+            created_at: string;
+            /** Email */
+            email: string;
+            /** Id */
+            id: string;
+            /** Last Active At */
+            last_active_at: string | null;
+            /** Name */
+            name: string;
+            /** Organizations */
+            organizations: string[];
+        };
         /** AnswerIn */
         AnswerIn: {
             /** Text */
@@ -2325,6 +2365,8 @@ export interface components {
             email_verified: boolean;
             /** Id */
             id: string;
+            /** Is Admin */
+            is_admin: boolean;
             /** Locale */
             locale: string;
             /** Name */
@@ -2371,6 +2413,37 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_users_api_admin_users_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     read_credential_api_ai_credential_get: {
         parameters: {
             query?: never;

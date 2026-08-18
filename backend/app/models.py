@@ -128,6 +128,15 @@ class User(Base):
     timezone: Mapped[str | None] = mapped_column(String(64))
     email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # Последняя активность этого человека — момент последнего запроса с его
+    # валидной сессией, а не производная от Session.last_used_at. Строки
+    # сессий подметаются (выход, просрочка, недельный простой без обращений —
+    # см. app.auth), и агрегат по ним слепнет ровно тогда, когда об
+    # активности спрашивают после давнего перерыва: свежих строк уже нет, а
+    # человек продолжает пользоваться продуктом. Отдельное поле переживает
+    # эту уборку. Обновляется тем же шагом, что и last_used_at, — не на
+    # каждый запрос. Кормит панель владельца установки (см. admin_routes).
+    last_active_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Membership(Base):

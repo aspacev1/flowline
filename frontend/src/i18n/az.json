@@ -88,6 +88,7 @@
     "projects": "Layihələr",
     "logout": "Çıxış",
     "org_settings": "Təşkilat",
+    "admin": "Admin paneli",
     "settings": "Parametrlər",
     "sidebar_collapse": "Menyunu gizlət",
     "sidebar_expand": "Menyunu göstər"
@@ -642,6 +643,22 @@
       "done": "«{org}» təşkilatını tərk etdiniz",
       "last_owner": "Siz yeganə sahibsiniz: əvvəlcə başqasını sahib təyin edin — yoxsa təşkilat sahibsiz qalar"
     }
+  },
+  "admin": {
+    "title": "Quraşdırmanın istifadəçiləri",
+    "subtitle": "Bütün qeydiyyatlar, təşkilatları və son aktivlik",
+    "search_placeholder": "Ad və ya ünvan…",
+    "col": {
+      "user": "İstifadəçi",
+      "organizations": "Təşkilatlar",
+      "registered": "Qeydiyyat",
+      "last_active": "Son aktivlik"
+    },
+    "no_organization": "təşkilatsız",
+    "never_active": "hələ daxil olmayıb",
+    "empty": "Hələ heç kim qeydiyyatdan keçməyib",
+    "no_match": "Heç kim tapılmadı",
+    "count": "Cəmi: {count}"
   },
   "invite": {
     "open": "Dəvət et",

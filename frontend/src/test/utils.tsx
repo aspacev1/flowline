@@ -58,6 +58,7 @@ export const USER = {
   // всякий, кто про эту настройку не вспоминал.
   timezone: null as string | null,
   email_verified: true,
+  is_admin: false,
 };
 
 /**

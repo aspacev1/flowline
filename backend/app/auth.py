@@ -124,21 +124,27 @@ def authenticate(db: DbSession, *, email: str, password: str) -> User | None:
 
 
 def open_session(db: DbSession, user: User, *, active_org_id: uuid.UUID | None = None) -> str:
+    now = datetime.now(timezone.utc)
     # Попутная уборка: просроченные сессии этого человека никому больше не
     # нужны, а другого регулярного места, где их подметать, у архитектуры без
     # планировщика нет. Вход — естественный момент: он и так пишет в таблицу.
     db.execute(
         Session.__table__.delete().where(
             Session.user_id == user.id,
-            Session.expires_at < datetime.now(timezone.utc),
+            Session.expires_at < now,
         )
     )
+    # Вход и регистрация — тоже активность. Без этой строки свежий аккаунт
+    # показывал бы панели владельца установки «не заходил» весь первый шаг
+    # обновления (см. _LAST_USED_WRITE_STEP) — до первого чтения, случившегося
+    # позже, чем через четверть часа после входа.
+    user.last_active_at = now
     raw, hashed = new_token()
     db.add(
         Session(
             user_id=user.id,
             token_hash=hashed,
-            expires_at=datetime.now(timezone.utc) + SESSION_TTL,
+            expires_at=now + SESSION_TTL,
             # Задаётся при входе по приглашению: человек только что вошёл в
             # чужую организацию и должен увидеть именно её, а не ту, что
             # оказалась первой по порядку.
@@ -212,6 +218,12 @@ def session_for_token(db: DbSession, raw_token: str | None) -> Session | None:
     # Отметка «пользовались» — с шагом, а не на каждый запрос (см. константу).
     if record.last_used_at is None or now - record.last_used_at > _LAST_USED_WRITE_STEP:
         record.last_used_at = now
+        # Тем же шагом обновляется последняя активность самого человека — она
+        # переживает уборку строк сессии (см. комментарий у User.last_active_at
+        # в models.py) и кормит панель владельца установки.
+        user = db.get(User, record.user_id)
+        if user is not None:
+            user.last_active_at = now
         db.flush()
 
     return record
