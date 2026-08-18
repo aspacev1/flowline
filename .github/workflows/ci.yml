@@ -34,6 +34,7 @@ jobs:
     env:
       DATABASE_URL: postgresql+psycopg://planora:planora@localhost:5432/planora
       APP_SECRET: ci-secret-not-for-production
+      DIRECTOR_EMAIL: director@example.com
     defaults:
       run:
         working-directory: backend

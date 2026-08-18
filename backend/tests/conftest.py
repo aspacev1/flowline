@@ -1,6 +1,10 @@
 import os
 
 os.environ.setdefault("APP_SECRET", "test-secret-not-for-production")
+# Обязателен той же самой валидацией, что и APP_SECRET (см. app.config).
+# Тесты, которым важен конкретный адрес директора, подменяют переменную сами
+# monkeypatch'ем и сбрасывают кэш настроек — см. tests/test_admin_api.py.
+os.environ.setdefault("DIRECTOR_EMAIL", "director@example.com")
 # Тестовые адреса LLM — выдуманные хосты и localhost; проверка публичности
 # адреса (защита от SSRF, app/ai/netguard.py) резолвила бы их в сеть на
 # каждом тесте. Сама проверка тестируется отдельно, с явно выключенным

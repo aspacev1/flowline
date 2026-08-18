@@ -24,6 +24,7 @@ def _settings(**env: str) -> Settings:
     return Settings(
         _env_file=None,
         app_secret="test-secret-not-for-production",
+        director_email="director@example.com",
         database_url="postgresql+psycopg://u:p@host/db",
         **env,
     )
