@@ -26,6 +26,7 @@ import { PlanChangesPanel } from "../project/PlanChangesPanel";
 import { ProjectHead } from "../project/ProjectHead";
 import { Proposal } from "../proposal/Proposal";
 import { ProjectHistory } from "../project/ProjectHistory";
+import { Scorecard } from "../scorecard/Scorecard";
 import { ShiftReasonProvider } from "../project/ShiftReason";
 import { StartDateDialog } from "../project/StartDateDialog";
 import { UndoHotkey } from "../project/UndoHotkey";
@@ -44,7 +45,7 @@ import { ShareDialog } from "./ShareDialog";
  */
 export function Project({
   tab = "gantt",
-}: { tab?: "gantt" | "history" | "proposal" } = {}) {
+}: { tab?: "gantt" | "history" | "proposal" | "scorecard" } = {}) {
   const { t } = useLocale();
   const { projectId = "" } = useParams();
   const navigate = useNavigate();
@@ -307,6 +308,12 @@ export function Project({
               <NavLink to={`/projects/${projectId}/proposal`} className={tabClass}>
                 {t("history.tab_proposal")}
               </NavLink>
+              {/* Скоркард — после сметы, перед историей: сводка недели ближе
+                  к работе, чем журнал. На публичной странице (/p/...) вкладок
+                  нет вовсе, и скоркард туда не попадает. */}
+              <NavLink to={`/projects/${projectId}/scorecard`} className={tabClass}>
+                {t("history.tab_scorecard")}
+              </NavLink>
               <NavLink to={`/projects/${projectId}/history`} className={tabClass}>
                 {t("history.tab_history")}
               </NavLink>
@@ -317,6 +324,21 @@ export function Project({
             )}
 
             {tab === "proposal" && <Proposal projectId={projectId} canWrite={editable} />}
+
+            {/* Скоркарду отдаётся «кому можно», а не «можно ли сейчас»:
+                обрыв связи он учитывает сам — пересчёт гаснет, а чтение
+                остаётся. Задача из drill-down открывается на ленте — тем же
+                переходом, что и из списка расхождений. */}
+            {tab === "scorecard" && (
+              <Scorecard
+                projectId={projectId}
+                canWrite={canWrite}
+                onOpenTask={(taskId) => {
+                  navigate(`/projects/${projectId}`);
+                  openTask(taskId);
+                }}
+              />
+            )}
 
             {/* Предложение подвинуть связанную задачу — над лентой, а не поверх
                 неё: оно ненавязчивое и не должно закрывать то, что человек только

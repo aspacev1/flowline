@@ -250,7 +250,11 @@
     "date_out_of_range": "Сдвиг уводит задачу за границу поддерживаемых дат",
     "proposal_empty": "В предложении нет задач для переноса в план",
     "proposal_category_not_found": "Такого раздела нет в этом предложении",
-    "proposal_task_not_found": "Такой задачи нет в этом предложении"
+    "proposal_task_not_found": "Такой задачи нет в этом предложении",
+    "rate_limited": "Слишком часто: пересчёт доступен раз в минуту",
+    "metric_not_found": "Такой метрики нет",
+    "week_in_future": "Неделя ещё не наступила",
+    "target_out_of_range": "Цель не может быть отрицательной"
   },
   "live": {
     "offline": "Нет связи с сервером. Редактирование недоступно",
@@ -432,6 +436,7 @@
     "set_category_color": "изменил цвет категории",
     "tabs_label": "Разделы проекта",
     "tab_proposal": "Предложение",
+    "tab_scorecard": "Scorecard",
     "tab_gantt": "Диаграмма",
     "tab_history": "История",
     "feed_empty": "Изменений пока нет",
@@ -994,6 +999,71 @@
     },
     "cell": {
       "edit": "Изменить: {column} у «{name}»"
+    }
+  },
+  "scorecard": {
+    "title": "Scorecard проекта",
+    "subtitle": "Неделя {number} · {start} – {end}",
+    "updated": "обновлено {time}",
+    "weeks_window": "13 недель",
+    "recalculate": "Пересчитать",
+    "columns": {
+      "metric": "Метрика",
+      "value": "Факт / цель",
+      "trend": "Динамика",
+      "status": "Статус"
+    },
+    "metric": {
+      "overdue_tasks": "Просроченные задачи",
+      "avg_overdue_days": "Средняя просрочка, раб. дн.",
+      "date_shifts": "Сдвиги дат за неделю",
+      "close_rate": "Закрываемость недели",
+      "stale_in_progress": "Зависшие в работе",
+      "unassigned_tasks": "Задачи без исполнителя",
+      "daily_health": "Здоровье дейли",
+      "data_quality": "Качество данных"
+    },
+    "status": {
+      "ok": "В норме",
+      "warn": "Внимание",
+      "risk": "Риск",
+      "no_data": "Нет данных"
+    },
+    "streak": "· {count} нед.",
+    "owner_label": "Владелец метрики «{metric}»",
+    "owner_none": "не назначен",
+    "target_label": "Цель метрики «{metric}»",
+    "attention": {
+      "title": "Требует внимания",
+      "empty": "Всё в норме",
+      "rule": "«{metric}» — в риске вторую неделю подряд, создана задача",
+      "open_task": "Открыть задачу",
+      "risk": "«{metric}» — в риске на этой неделе",
+      "open_all": "Открыть все задачи ({count}) →"
+    },
+    "drill": {
+      "empty": "За эту неделю задач нет",
+      "deleted": "Задача удалена",
+      "days_overdue": "просрочка {count} раб. дн.",
+      "in_progress_days": "в работе {count} раб. дн.",
+      "delta_days": "сдвиг {count} дн.",
+      "closed": "закрыта на этой неделе",
+      "not_closed": "не закрыта",
+      "reason": {
+        "unassigned": "нет исполнителя",
+        "unreal_deadline": "нереальный срок"
+      }
+    },
+    "quality": {
+      "title": "Качество данных проекта",
+      "percent": "{value}%",
+      "summary": "у {unreal} задач нет реальных сроков, у {unassigned} — нет исполнителя"
+    },
+    "daily": {
+      "title": "Дейли за неделю",
+      "held": "{held} из {planned}",
+      "blockers": "Блокеров: {count}",
+      "stalled": "Есть зависший блокер"
     }
   }
 }
