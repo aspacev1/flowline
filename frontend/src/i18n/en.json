@@ -246,7 +246,11 @@
     "date_out_of_range": "That shift takes a task past the supported date range",
     "proposal_empty": "The proposal has no tasks to add to the plan",
     "proposal_category_not_found": "No such section in this proposal",
-    "proposal_task_not_found": "No such task in this proposal"
+    "proposal_task_not_found": "No such task in this proposal",
+    "rate_limited": "Too often: recalculation is available once a minute",
+    "metric_not_found": "No such metric",
+    "week_in_future": "That week has not started yet",
+    "target_out_of_range": "The target cannot be negative"
   },
   "live": {
     "offline": "No connection to the server. Editing is unavailable",
@@ -428,6 +432,7 @@
     "set_category_color": "changed the category colour",
     "tabs_label": "Project sections",
     "tab_proposal": "Proposal",
+    "tab_scorecard": "Scorecard",
     "tab_gantt": "Chart",
     "tab_history": "History",
     "feed_empty": "No changes yet",
@@ -974,6 +979,71 @@
     },
     "cell": {
       "edit": "Change {column} for “{name}”"
+    }
+  },
+  "scorecard": {
+    "title": "Project scorecard",
+    "subtitle": "Week {number} · {start} – {end}",
+    "updated": "updated {time}",
+    "weeks_window": "13 weeks",
+    "recalculate": "Recalculate",
+    "columns": {
+      "metric": "Metric",
+      "value": "Actual / target",
+      "trend": "Trend",
+      "status": "Status"
+    },
+    "metric": {
+      "overdue_tasks": "Overdue tasks",
+      "avg_overdue_days": "Average overdue, wd",
+      "date_shifts": "Date shifts this week",
+      "close_rate": "Weekly close rate",
+      "stale_in_progress": "Stale in progress",
+      "unassigned_tasks": "Unassigned tasks",
+      "daily_health": "Daily health",
+      "data_quality": "Data quality"
+    },
+    "status": {
+      "ok": "On track",
+      "warn": "Attention",
+      "risk": "At risk",
+      "no_data": "No data"
+    },
+    "streak": "· {count} wk",
+    "owner_label": "Owner of “{metric}”",
+    "owner_none": "unassigned",
+    "target_label": "Target for “{metric}”",
+    "attention": {
+      "title": "Needs attention",
+      "empty": "All good",
+      "rule": "“{metric}” has been at risk for two weeks in a row, a task was created",
+      "open_task": "Open the task",
+      "risk": "“{metric}” is at risk this week",
+      "open_all": "Open all tasks ({count}) →"
+    },
+    "drill": {
+      "empty": "No tasks for this week",
+      "deleted": "Task deleted",
+      "days_overdue": "{count} wd overdue",
+      "in_progress_days": "{count} wd in progress",
+      "delta_days": "shifted {count} d",
+      "closed": "closed this week",
+      "not_closed": "not closed",
+      "reason": {
+        "unassigned": "no assignee",
+        "unreal_deadline": "unrealistic deadline"
+      }
+    },
+    "quality": {
+      "title": "Project data quality",
+      "percent": "{value}%",
+      "summary": "{unreal} tasks have no realistic deadline, {unassigned} have no assignee"
+    },
+    "daily": {
+      "title": "Dailies this week",
+      "held": "{held} of {planned}",
+      "blockers": "Blockers: {count}",
+      "stalled": "A blocker is stalled"
     }
   }
 }

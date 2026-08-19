@@ -625,6 +625,15 @@ class Task(Base):
     created_by_ai_session_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("ai_sessions.id", ondelete="SET NULL")
     )
+    # Когда задача стала «сделано» и когда взята в работу. Ставятся слоем
+    # мутаций при переходе статуса и чистятся при уходе из него (см.
+    # _stamp_status_change в app.mutations): скоркарду нужны «закрыто на этой
+    # неделе» и «висит в работе N дней», а журнал ревизий отвечает на эти
+    # вопросы только проходом по всем записям задачи. Колонка — последняя
+    # граница, а не история: полную летопись переходов по-прежнему хранит
+    # журнал.
+    done_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    in_progress_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class PlanVersion(Base):
@@ -924,3 +933,160 @@ class ProposalComment(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.clock_timestamp()
     )
+
+
+class ScorecardDirection(StrEnum):
+    """Куда должна смотреть метрика скоркарда: «не больше цели» или «не меньше»."""
+
+    LTE = "lte"
+    GTE = "gte"
+
+
+SCORECARD_DIRECTIONS: tuple[str, ...] = tuple(d.value for d in ScorecardDirection)
+
+
+class ScorecardStatus(StrEnum):
+    """Оценка недели по метрике. `no_data` — источника нет или метрика
+    выключена: серый прочерк, в сериях и правилах не участвует."""
+
+    OK = "ok"
+    WARN = "warn"
+    RISK = "risk"
+    NO_DATA = "no_data"
+
+
+SCORECARD_STATUSES: tuple[str, ...] = tuple(s.value for s in ScorecardStatus)
+
+
+class ScorecardAlertKind(StrEnum):
+    RULE_TRIGGERED = "rule_triggered"
+    METRIC_RISK = "metric_risk"
+
+
+SCORECARD_ALERT_KINDS: tuple[str, ...] = tuple(k.value for k in ScorecardAlertKind)
+
+
+class ScorecardMetric(Base):
+    """Настройка метрики скоркарда — на проект, не на организацию.
+
+    Строки заводятся лениво, первым открытием скоркарда проекта (см.
+    app.scorecard.ensure_metrics): дефолты — только сид, дальше владелец,
+    цель и включённость правятся PATCH-ем и действуют в своём проекте.
+    Направление в таблице всё же хранится, хотя оно жёстко следует из ключа:
+    снимок копирует конфиг на момент записи, и без колонки здесь копировать
+    было бы неоткуда при смене констант в коде.
+    """
+
+    __tablename__ = "scorecard_metrics"
+    __table_args__ = (
+        UniqueConstraint("project_id", "metric_key"),
+        # Тот же принцип, что у schedule_mode: инвариант держит база, а не
+        # только слой приложения.
+        CheckConstraint(
+            "direction IN (" + ", ".join(f"'{d}'" for d in SCORECARD_DIRECTIONS) + ")",
+            name="ck_scorecard_metrics_direction",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    metric_key: Mapped[str] = mapped_column(String(40))
+    # SET NULL: удаление аккаунта оставляет метрику без владельца, а не
+    # уносит её настройку.
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    # Numeric, а не Float: цель «90%» обязана оставаться ровно девяноста.
+    target_value: Mapped[Decimal] = mapped_column(Numeric(10, 2))
+    direction: Mapped[str] = mapped_column(String(3))
+    # Порог «жёлтого» — задел на будущее, в MVP не используется: статусы
+    # считаются от цели множителями-константами (см. app.scorecard).
+    warn_value: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"))
+    position: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class ScorecardSnapshot(Base):
+    """Недельный снимок метрики: значение, статус и копия конфига на момент
+    записи.
+
+    Снимки прошлых недель неизменяемы — это летопись, по которой считаются
+    серии и спарклайн. Перезаписывается только строка текущей недели: она же
+    служит кэшем живого расчёта (см. app.scorecard). Цель и направление
+    копируются в снимок сознательно: правка цели сегодня не должна
+    перекрашивать прошлые недели.
+    """
+
+    __tablename__ = "scorecard_snapshots"
+    __table_args__ = (
+        UniqueConstraint("project_id", "metric_key", "week_start"),
+        # История читается «все метрики проекта за N недель» — с этой пары.
+        Index("ix_scorecard_snapshots_project_week", "project_id", "week_start"),
+        CheckConstraint(
+            "direction IN (" + ", ".join(f"'{d}'" for d in SCORECARD_DIRECTIONS) + ")",
+            name="ck_scorecard_snapshots_direction",
+        ),
+        CheckConstraint(
+            "status IN (" + ", ".join(f"'{s}'" for s in SCORECARD_STATUSES) + ")",
+            name="ck_scorecard_snapshots_status",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    metric_key: Mapped[str] = mapped_column(String(40))
+    # Понедельник ISO-недели в таймзоне проекта.
+    week_start: Mapped[date] = mapped_column(Date)
+    # NULL — данных нет (источник отсутствует или метрика была выключена).
+    value: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    target_value: Mapped[Decimal] = mapped_column(Numeric(10, 2))
+    direction: Mapped[str] = mapped_column(String(3))
+    status: Mapped[str] = mapped_column(String(8))
+    computed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    # NULL — снимок записан не человеком, а ленивой фиксацией на GET.
+    computed_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    # Сериализованный drill-down: id и краткие атрибуты задач метрики. jsonb
+    # по правилу журнала: прошлые недели читаются только отсюда, и по ключам
+    # внутри однажды придётся искать.
+    details: Mapped[dict] = mapped_column(JSONB, default=dict)
+
+
+class ScorecardAlert(Base):
+    """Событие панели «Требует внимания».
+
+    `metric_risk` живёт, пока метрика в красном на текущей неделе;
+    `rule_triggered` — след сработавшего правила «красная 2 недели подряд»
+    со ссылкой на созданную задачу в payload. Закрытые события не удаляются,
+    а помечаются resolved_at: по ним видно, когда серия оборвалась, и по ним
+    же подавляется повтор правила внутри одной серии.
+    """
+
+    __tablename__ = "scorecard_alerts"
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN (" + ", ".join(f"'{k}'" for k in SCORECARD_ALERT_KINDS) + ")",
+            name="ck_scorecard_alerts_kind",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    # События читаются пачкой на каждый GET скоркарда — с этой колонки.
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    metric_key: Mapped[str] = mapped_column(String(40))
+    week_start: Mapped[date] = mapped_column(Date)
+    kind: Mapped[str] = mapped_column(String(16))
+    payload: Mapped[dict] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

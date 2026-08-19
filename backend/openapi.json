@@ -2253,6 +2253,49 @@
         "title": "ScheduleIn",
         "type": "object"
       },
+      "ScorecardMetricPatch": {
+        "description": "Правка метрики: присланные поля меняются, остальные не трогаются.\n\nowner_user_id принимает явный null — «снять владельца»; отличие «не\nприслано» от «прислано null» делает exclude_unset в маршруте.",
+        "properties": {
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "owner_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner User Id"
+          },
+          "target_value": {
+            "anyOf": [
+              {
+                "maximum": 99999999.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Value"
+          }
+        },
+        "title": "ScorecardMetricPatch",
+        "type": "object"
+      },
       "SessionsClosedOut": {
         "properties": {
           "closed": {
@@ -6544,6 +6587,307 @@
         "summary": "Preview Schedule",
         "tags": [
           "projects"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/scorecard": {
+      "get": {
+        "description": "Скоркард целиком: метрики с историей, события, качество данных.\n\nПобочный эффект — ленивая фиксация недель: планировщика в архитектуре\nнет, и дозаписывает снимки первый читатель после границы недели.",
+        "operationId": "get_project_scorecard_api_projects__project_id__scorecard_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weeks",
+            "required": false,
+            "schema": {
+              "default": 13,
+              "maximum": 26,
+              "minimum": 1,
+              "title": "Weeks",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "planora_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Planora Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Project Scorecard",
+        "tags": [
+          "scorecard"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/scorecard/metrics/{metric_key}": {
+      "patch": {
+        "description": "Настройка метрики этого проекта: владелец, цель, включённость.\n\nНаправление не правится — оно жёстко следует из ключа. После правки\nтекущая неделя пересчитывается сразу: статус зависит от цели, и экран не\nдолжен показывать старый цвет при новой цели.",
+        "operationId": "update_scorecard_metric_api_projects__project_id__scorecard_metrics__metric_key__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "metric_key",
+            "required": true,
+            "schema": {
+              "title": "Metric Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "planora_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Planora Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScorecardMetricPatch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Scorecard Metric",
+        "tags": [
+          "scorecard"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/scorecard/metrics/{metric_key}/tasks": {
+      "get": {
+        "description": "Drill-down метрики: задачи недели. Прошлые недели — из снимка,\nтекущая — живой расчёт без записи.",
+        "operationId": "get_scorecard_metric_tasks_api_projects__project_id__scorecard_metrics__metric_key__tasks_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "metric_key",
+            "required": true,
+            "schema": {
+              "title": "Metric Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "week",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Week"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "planora_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Planora Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Scorecard Metric Tasks",
+        "tags": [
+          "scorecard"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/scorecard/recalculate": {
+      "post": {
+        "description": "Пересчёт текущей недели мимо кэша. Только текущей: прошлые снимки\nнеизменяемы, и никакая кнопка их не трогает.",
+        "operationId": "recalculate_project_scorecard_api_projects__project_id__scorecard_recalculate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "weeks",
+            "required": false,
+            "schema": {
+              "default": 13,
+              "maximum": 26,
+              "minimum": 1,
+              "title": "Weeks",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "planora_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Planora Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Recalculate Project Scorecard",
+        "tags": [
+          "scorecard"
         ]
       }
     },

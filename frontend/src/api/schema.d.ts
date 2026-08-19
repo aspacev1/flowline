@@ -1209,6 +1209,95 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project_id}/scorecard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Project Scorecard
+         * @description Скоркард целиком: метрики с историей, события, качество данных.
+         *
+         *     Побочный эффект — ленивая фиксация недель: планировщика в архитектуре
+         *     нет, и дозаписывает снимки первый читатель после границы недели.
+         */
+        get: operations["get_project_scorecard_api_projects__project_id__scorecard_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/scorecard/metrics/{metric_key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Scorecard Metric
+         * @description Настройка метрики этого проекта: владелец, цель, включённость.
+         *
+         *     Направление не правится — оно жёстко следует из ключа. После правки
+         *     текущая неделя пересчитывается сразу: статус зависит от цели, и экран не
+         *     должен показывать старый цвет при новой цели.
+         */
+        patch: operations["update_scorecard_metric_api_projects__project_id__scorecard_metrics__metric_key__patch"];
+        trace?: never;
+    };
+    "/api/projects/{project_id}/scorecard/metrics/{metric_key}/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Scorecard Metric Tasks
+         * @description Drill-down метрики: задачи недели. Прошлые недели — из снимка,
+         *     текущая — живой расчёт без записи.
+         */
+        get: operations["get_scorecard_metric_tasks_api_projects__project_id__scorecard_metrics__metric_key__tasks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/scorecard/recalculate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Recalculate Project Scorecard
+         * @description Пересчёт текущей недели мимо кэша. Только текущей: прошлые снимки
+         *     неизменяемы, и никакая кнопка их не трогает.
+         */
+        post: operations["recalculate_project_scorecard_api_projects__project_id__scorecard_recalculate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{project_id}/share": {
         parameters: {
             query?: never;
@@ -2303,6 +2392,21 @@ export interface components {
             start_date: string;
             /** Working Days */
             working_days?: number | null;
+        };
+        /**
+         * ScorecardMetricPatch
+         * @description Правка метрики: присланные поля меняются, остальные не трогаются.
+         *
+         *     owner_user_id принимает явный null — «снять владельца»; отличие «не
+         *     прислано» от «прислано null» делает exclude_unset в маршруте.
+         */
+        ScorecardMetricPatch: {
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Owner User Id */
+            owner_user_id?: string | null;
+            /** Target Value */
+            target_value?: number | null;
         };
         /** SessionsClosedOut */
         SessionsClosedOut: {
@@ -4674,6 +4778,150 @@ export interface operations {
                 "application/json": components["schemas"]["ScheduleIn"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_project_scorecard_api_projects__project_id__scorecard_get: {
+        parameters: {
+            query?: {
+                weeks?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_scorecard_metric_api_projects__project_id__scorecard_metrics__metric_key__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                metric_key: string;
+                project_id: string;
+            };
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScorecardMetricPatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_scorecard_metric_tasks_api_projects__project_id__scorecard_metrics__metric_key__tasks_get: {
+        parameters: {
+            query?: {
+                week?: string | null;
+            };
+            header?: never;
+            path: {
+                metric_key: string;
+                project_id: string;
+            };
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recalculate_project_scorecard_api_projects__project_id__scorecard_recalculate_post: {
+        parameters: {
+            query?: {
+                weeks?: number;
+            };
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

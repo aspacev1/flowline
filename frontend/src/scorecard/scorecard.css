@@ -1,0 +1,501 @@
+/* Вкладка «Scorecard». Правило то же, что у остальных модулей: селекторы
+   скоркарда живут только здесь. Цвета статусов — токены Northstar-темы
+   (--ok / --warn / --danger): статусы недель обязаны совпадать по цвету со
+   статусами ленты, и второй набор значений разошёлся бы с темой. */
+
+.scorecard {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+}
+
+/* Две колонки 2/3 + 1/3, как в макете. */
+.scorecard__main {
+  flex: 2 1 0;
+  min-width: 0;
+}
+
+.scorecard-side {
+  flex: 1 1 0;
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: sticky;
+  top: 16px;
+}
+
+@media (max-width: 1100px) {
+  .scorecard {
+    flex-direction: column;
+  }
+  .scorecard-side {
+    width: 100%;
+    min-width: 0;
+    position: static;
+  }
+}
+
+.scorecard__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.scorecard__title {
+  margin: 0;
+  font-size: 18px;
+}
+
+.scorecard__subtitle {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.scorecard__actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.scorecard__recalculate {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm, 6px);
+  padding: 6px 14px;
+  cursor: pointer;
+}
+
+.scorecard__recalculate:hover:not(:disabled) {
+  background: var(--accent-hover, var(--accent));
+}
+
+.scorecard__recalculate:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Таблица шире окна уезжает в собственную прокрутку, а не ломает колонки —
+   тем же приёмом, что таблица сметы. */
+.scorecard-table__scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.scorecard-table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.scorecard-table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.scorecard-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.scorecard-table tr:last-child td {
+  border-bottom: none;
+}
+
+.scorecard-row {
+  cursor: pointer;
+}
+
+.scorecard-row:hover {
+  background: var(--hover);
+}
+
+/* Красная строка: левая кромка и розовая подложка — риску положено быть
+   видным раньше, чем прочитан бейдж. */
+.scorecard-row.is-risk {
+  background: var(--danger-soft);
+  box-shadow: inset 3px 0 0 var(--danger);
+}
+
+.scorecard-row.is-risk:hover {
+  background: var(--danger-soft);
+}
+
+.scorecard-row__metric {
+  min-width: 200px;
+}
+
+.scorecard-row__name {
+  display: block;
+  font-weight: 500;
+}
+
+.scorecard-row__owner {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.scorecard-row__owner-select {
+  max-width: 160px;
+  font-size: 12px;
+  color: inherit;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  padding: 2px 4px;
+}
+
+.scorecard-row__owner-select:hover,
+.scorecard-row__owner-select:focus-visible {
+  border-color: var(--border);
+  background: var(--surface);
+}
+
+.scorecard-row__value {
+  white-space: nowrap;
+}
+
+.scorecard-row__value strong {
+  font-size: 15px;
+}
+
+.scorecard-row__value strong[data-status="ok"] {
+  color: var(--ok);
+}
+
+.scorecard-row__value strong[data-status="warn"] {
+  color: var(--warn);
+}
+
+.scorecard-row__value strong[data-status="risk"] {
+  color: var(--danger);
+}
+
+.scorecard-row__value strong[data-status="no_data"] {
+  color: var(--text-faint);
+}
+
+.scorecard-row__target {
+  color: var(--text-muted);
+  margin-left: 6px;
+  font-size: 13px;
+}
+
+.scorecard-row__target-input {
+  width: 64px;
+  font-size: 13px;
+  padding: 2px 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: inherit;
+}
+
+/* Спарклайн: по столбику на неделю, без библиотек. Кнопки — чтобы неделя
+   открывалась и с клавиатуры. */
+.scorecard-spark {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 32px;
+}
+
+.scorecard-spark__bar {
+  width: 10px;
+  height: 100%;
+  display: inline-flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid var(--border);
+  padding: 0;
+  cursor: pointer;
+}
+
+.scorecard-spark__fill {
+  display: block;
+  width: 8px;
+  border-radius: 2px 2px 0 0;
+  background: var(--border-strong);
+}
+
+.scorecard-spark__fill[data-status="ok"] {
+  background: var(--ok);
+}
+
+.scorecard-spark__fill[data-status="warn"] {
+  background: var(--warn);
+}
+
+.scorecard-spark__fill[data-status="risk"] {
+  background: var(--danger);
+}
+
+.scorecard-badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.scorecard-badge[data-status="ok"] {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.scorecard-badge[data-status="warn"] {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.scorecard-badge[data-status="risk"] {
+  background: var(--danger-soft);
+  color: var(--danger-strong, var(--danger));
+}
+
+.scorecard-badge[data-status="no_data"] {
+  background: var(--bg-subtle);
+  color: var(--text-faint);
+}
+
+/* Развёрнутая строка: список задач недели. */
+.scorecard-drill td {
+  background: var(--bg-subtle);
+  padding: 8px 12px 12px;
+}
+
+.scorecard-drill__empty {
+  margin: 4px 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.scorecard-drill__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.scorecard-drill__task {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 13px;
+  color: inherit;
+}
+
+.scorecard-drill__task:hover {
+  background: var(--hover);
+}
+
+.scorecard-drill__task-name {
+  font-weight: 500;
+}
+
+.scorecard-drill__task-meta {
+  color: var(--text-muted);
+  font-size: 12px;
+  display: inline-flex;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+/* Правая колонка. */
+.scorecard-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 14px 16px;
+}
+
+.scorecard-card__title {
+  margin: 0 0 10px;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.scorecard-card__count {
+  background: var(--danger-soft);
+  color: var(--danger-strong, var(--danger));
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.scorecard-card__empty,
+.scorecard-card__hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.scorecard-alert {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+.scorecard-alert:first-of-type {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 0;
+}
+
+.scorecard-alert p {
+  margin: 0 0 6px;
+}
+
+.scorecard-alert__tasks {
+  list-style: none;
+  margin: 0 0 6px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.scorecard-alert__link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 13px;
+  text-align: left;
+}
+
+.scorecard-alert__link:hover {
+  text-decoration: underline;
+}
+
+.scorecard-alert__meta {
+  display: block;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.scorecard-alert__all {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+/* Качество данных: процент и полоса в цвете статуса. */
+.scorecard-quality__value {
+  margin: 0 0 8px;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.scorecard-quality__value[data-status="ok"] {
+  color: var(--ok);
+}
+
+.scorecard-quality__value[data-status="warn"] {
+  color: var(--warn);
+}
+
+.scorecard-quality__value[data-status="risk"] {
+  color: var(--danger);
+}
+
+.scorecard-quality__bar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg-subtle);
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.scorecard-quality__fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--border-strong);
+}
+
+.scorecard-quality__fill[data-status="ok"] {
+  background: var(--ok);
+}
+
+.scorecard-quality__fill[data-status="warn"] {
+  background: var(--warn);
+}
+
+.scorecard-quality__fill[data-status="risk"] {
+  background: var(--danger);
+}
+
+/* Дейли: контракт вёрстки под будущий модуль. */
+.scorecard-daily__score {
+  margin: 0 0 8px;
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.scorecard-daily__bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 48px;
+  margin-bottom: 8px;
+}
+
+.scorecard-daily__bar {
+  flex: 1;
+  background: var(--accent-soft);
+  border-radius: 3px 3px 0 0;
+  min-height: 2px;
+}
+
+.scorecard-daily__blockers {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.scorecard-daily__stalled {
+  display: inline-block;
+  margin-left: 8px;
+  background: var(--danger-soft);
+  color: var(--danger-strong, var(--danger));
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 12px;
+}

@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -804,6 +804,30 @@ def _snapshot_task_links(db: DbSession, task: Task) -> dict:
     return snapshot
 
 
+def _stamp_status_change(task: Task, previous_status: str) -> None:
+    """Метки времени статуса: done_at и in_progress_since.
+
+    Ставятся на входе в статус, чистятся на выходе — колонка хранит последнюю
+    границу, а не историю (летопись переходов остаётся за журналом ревизий).
+    Здесь, а не в ветках set_status/set_progress по отдельности: статус меняют
+    две операции плюс создание задачи, и три копии этого правила разошлись бы
+    первой же правкой. Отмена проходит тем же путём и ставит текущее время,
+    а не прежнее, — «когда задача снова стала сделанной» и есть ответ на
+    вопрос, который эти метки обслуживают (см. app.scorecard).
+    """
+    if task.status == previous_status:
+        return
+    now = datetime.now(timezone.utc)
+    if task.status == TaskStatus.DONE:
+        task.done_at = now
+    elif previous_status == TaskStatus.DONE:
+        task.done_at = None
+    if task.status == TaskStatus.IN_PROGRESS:
+        task.in_progress_since = now
+    elif previous_status == TaskStatus.IN_PROGRESS:
+        task.in_progress_since = None
+
+
 def _add_task(db: DbSession, project: Project, op: CreateTask) -> Task:
     """Строка задачи — со всеми проверками и выбором места в списке.
 
@@ -886,6 +910,10 @@ def _add_task(db: DbSession, project: Project, op: CreateTask) -> Task:
         baseline_start=op.baseline_start,
         baseline_duration=op.baseline_duration,
     )
+    # Задача, рождённая сразу в done или in_progress (перенос из сметы,
+    # восстановление из журнала), получает метку входа в статус здесь: другого
+    # перехода у неё не будет.
+    _stamp_status_change(task, TaskStatus.PLANNED.value)
     db.add(task)
     db.flush()
     return task
@@ -1304,6 +1332,7 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
             # прогресса о них ничего не говорит.
             task.status = TaskStatus.IN_PROGRESS.value
         task.progress_pct = op.progress_pct
+        _stamp_status_change(task, previous_status)
         db.flush()
         if task.status != previous_status:
             # Обе границы статуса — в журнал: отмена обязана вернуть прежний
@@ -1329,6 +1358,7 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
             "to": op.status,
         }
         inverse = _swap(forward)
+        previous_status = task.status
         task.status = op.status
         if op.progress_pct is not None:
             # Поле восстановления — как status у set_progress: журнал диктует
@@ -1338,6 +1368,7 @@ def _apply(db: DbSession, project: Project, op) -> tuple[dict, dict]:
             # Связка (см. комментарий у модели): «сделано» — это весь объём.
             # Обратного правила нет: уход из 'done' прогресс не трогает.
             task.progress_pct = 100
+        _stamp_status_change(task, previous_status)
         db.flush()
         if task.progress_pct != previous_progress:
             forward |= {"progress_from": previous_progress, "progress_to": task.progress_pct}

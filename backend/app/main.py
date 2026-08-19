@@ -77,6 +77,7 @@ from app.api import (
     project_routes,
     proposal_routes,
     public_routes,
+    scorecard_routes,
     share_routes,
 )
 
@@ -215,6 +216,7 @@ app.include_router(invite_routes.router)
 app.include_router(invite_routes.public_router)
 app.include_router(project_routes.router)
 app.include_router(proposal_routes.router)
+app.include_router(scorecard_routes.router)
 app.include_router(share_routes.router)
 app.include_router(public_routes.router)
 app.include_router(live_routes.router)
