@@ -250,7 +250,20 @@
     "rate_limited": "Too often: recalculation is available once a minute",
     "metric_not_found": "No such metric",
     "week_in_future": "That week has not started yet",
-    "target_out_of_range": "The target cannot be negative"
+    "target_out_of_range": "The target cannot be negative",
+    "jira_not_configured": "No Jira is connected",
+    "jira_not_linked": "This project wasn't set up from Jira",
+    "jira_unreachable": "Jira is unreachable",
+    "jira_refused": "Jira refused the request",
+    "jira_unauthorized": "Jira refused access — check the email and token",
+    "jira_not_found": "Jira answered 404",
+    "jira_bad_json": "Jira's answer could not be read",
+    "jira_bad_shape": "Jira's answer is missing expected fields",
+    "jira_key_unreadable": "The token cannot be decrypted: APP_SECRET changed",
+    "jira_token_required": "A token is required for the first connection",
+    "jira_url_not_https": "The Jira address must be https",
+    "jira_url_invalid": "The Jira address is invalid",
+    "jira_url_private": "The Jira address does not resolve to a public host"
   },
   "live": {
     "offline": "No connection to the server. Editing is unavailable",
@@ -274,7 +287,8 @@
     "card": {
       "menu": "Project actions"
     },
-    "delete_title": "Delete the “{name}” project?"
+    "delete_title": "Delete the “{name}” project?",
+    "create_from_jira": "Import from Jira"
   },
   "project": {
     "period": "{from} — {to}",
@@ -868,6 +882,19 @@
       "key_set": "A key is set. Leave empty to keep it",
       "key_missing": "No key yet",
       "save": "Save the connection"
+    },
+    "jira": {
+      "title": "Jira",
+      "hint": "Site address, account email and an API token — to import projects from Jira",
+      "base_url": "Site address (base URL)",
+      "email": "Account email",
+      "token": "API token",
+      "token_missing": "No token yet",
+      "token_set": "A token is set. Leave empty to keep it",
+      "save": "Save the connection",
+      "disconnect": "Disconnect",
+      "disconnect_warning": "Projects will stop syncing with Jira. Tasks already imported stay where they are.",
+      "disconnect_confirm": "Yes, disconnect"
     }
   },
   "ai": {
@@ -894,6 +921,28 @@
       "drop": "Remove",
       "project_name": "Project name",
       "apply": "Apply to a project"
+    }
+  },
+  "jira": {
+    "not_configured": "Jira isn't connected: the address and token are set in organization settings",
+    "import": {
+      "title": "Import from Jira",
+      "back": "To projects",
+      "loading_projects": "Loading Jira projects…",
+      "empty_projects": "This connection doesn't see any projects in Jira",
+      "project_label": "Jira project",
+      "project_placeholder": "Choose a project",
+      "name_label": "Project name in Planora",
+      "submit": "Import",
+      "imported": "Project “{name}” imported from Jira"
+    },
+    "sync": {
+      "title": "Jira",
+      "hint": "This project was set up from Jira ({key}): syncing updates statuses and dates and adds new tasks. Changes made here to rows already brought over can be overwritten by a sync.",
+      "never": "not synced yet",
+      "last_synced": "Last synced: {date}",
+      "button": "Sync now",
+      "result": "Done: new tasks — {createdTasks}, updated — {updatedTasks}"
     }
   },
   "proposal": {
