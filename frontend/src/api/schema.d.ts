@@ -540,6 +540,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/jira/credential": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Credential */
+        get: operations["read_credential_api_jira_credential_get"];
+        /** Write Credential */
+        put: operations["write_credential_api_jira_credential_put"];
+        post?: never;
+        /** Delete Credential */
+        delete: operations["delete_credential_api_jira_credential_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/jira/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import From Jira */
+        post: operations["import_from_jira_api_jira_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/jira/projects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Jira Projects */
+        get: operations["list_jira_projects_api_jira_projects_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/org": {
         parameters: {
             query?: never;
@@ -907,6 +960,40 @@ export interface paths {
         get: operations["project_comment_counts_api_projects__project_id__comments_counts_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/jira": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Jira Link */
+        get: operations["read_jira_link_api_projects__project_id__jira_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/projects/{project_id}/jira/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sync From Jira */
+        post: operations["sync_from_jira_api_projects__project_id__jira_sync_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1675,6 +1762,76 @@ export interface components {
             sent: boolean;
             /** Url */
             url: string;
+        };
+        /** JiraCredentialIn */
+        JiraCredentialIn: {
+            /**
+             * Api Token
+             * @default
+             */
+            api_token: string;
+            /** Base Url */
+            base_url: string;
+            /** Email */
+            email: string;
+        };
+        /** JiraCredentialOut */
+        JiraCredentialOut: {
+            /** Base Url */
+            base_url: string;
+            /** Configured */
+            configured: boolean;
+            /** Email */
+            email: string;
+        };
+        /** JiraImportIn */
+        JiraImportIn: {
+            /** Jira Project Key */
+            jira_project_key: string;
+            /** Jql */
+            jql?: string | null;
+            /** Name */
+            name: string;
+        };
+        /** JiraImportOut */
+        JiraImportOut: {
+            /** Batch Id */
+            batch_id: string;
+            /** Created Categories */
+            created_categories: number;
+            /** Created Tasks */
+            created_tasks: number;
+            /** Project Id */
+            project_id: string;
+        };
+        /** JiraLinkOut */
+        JiraLinkOut: {
+            /** Jira Project Key */
+            jira_project_key?: string | null;
+            /** Jql */
+            jql?: string | null;
+            /** Last Synced At */
+            last_synced_at?: string | null;
+            /** Linked */
+            linked: boolean;
+        };
+        /** JiraProjectOut */
+        JiraProjectOut: {
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+        };
+        /** JiraSyncOut */
+        JiraSyncOut: {
+            /** Batch Id */
+            batch_id: string;
+            /** Created Categories */
+            created_categories: number;
+            /** Created Tasks */
+            created_tasks: number;
+            /** Updated Tasks */
+            updated_tasks: number;
         };
         /** JoinedOut */
         JoinedOut: {
@@ -3445,6 +3602,167 @@ export interface operations {
             };
         };
     };
+    read_credential_api_jira_credential_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraCredentialOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    write_credential_api_jira_credential_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JiraCredentialIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraCredentialOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_credential_api_jira_credential_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_from_jira_api_jira_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JiraImportIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraImportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_jira_projects_api_jira_projects_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraProjectOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     current_organization_api_org_get: {
         parameters: {
             query?: never;
@@ -4144,6 +4462,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_jira_link_api_projects__project_id__jira_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraLinkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sync_from_jira_api_projects__project_id__jira_sync_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraSyncOut"];
                 };
             };
             /** @description Validation Error */
