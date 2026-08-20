@@ -11,7 +11,7 @@ from app.auth import current_user
 from app.db import get_db
 from app.jira.credentials import client_for, credential, drop_credential, save_credential
 from app.jira.errors import JiraError
-from app.jira.sync import import_project, sync_project
+from app.jira.sync import import_project, push_project, sync_project
 from app.models import JiraProjectLink, Membership, Organization, User
 from app.orgs import current_membership
 
@@ -222,4 +222,40 @@ def sync_from_jira(
         created_categories=result.created_categories,
         created_tasks=result.created_tasks,
         updated_tasks=result.updated_tasks,
+    )
+
+
+class JiraPushFailure(BaseModel):
+    issue_key: str
+    code: str
+
+
+class JiraPushOut(BaseModel):
+    pushed: int
+    unchanged: int
+    failed: list[JiraPushFailure]
+
+
+@project_router.post("/{project_id}/jira/push", response_model=JiraPushOut, status_code=201)
+def push_to_jira(
+    context: ProjectContext = Depends(project_context), db: DbSession = Depends(get_db)
+):
+    """Отправляет сроки задач в Jira. Отказ одной задачи (Jira отклонила срок,
+    у токена нет прав на неё) не проваливает запрос целиком — он приходит
+    списком `failed`, а не кодом ответа: остальные задачи всё равно отправились."""
+    context.require(Action.PROJECT_WRITE)
+    try:
+        result = push_project(
+            db,
+            org=context.org,
+            client_factory=lambda: client_for(db, context.org),
+            project=context.project,
+            actor=context.user,
+        )
+    except JiraError as error:
+        raise _refuse(error)
+    return JiraPushOut(
+        pushed=result.pushed,
+        unchanged=result.unchanged,
+        failed=[JiraPushFailure(**item) for item in result.failed],
     )

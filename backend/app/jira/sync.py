@@ -18,17 +18,28 @@ Jira становятся категориями, остальные задач�
     угадывать место в чужом списке задач не дело автоматической синхронизации);
   - понижает веху обратно в обычную задачу, если тип задачи в Jira сменился.
 Обновление уже заведённых дат и статусов при этом происходит: Jira для
-привязанного проекта — источник правды по срокам и статусам, а не Planora.
+привязанного проекта — источник правды по срокам и статусам, а не Planora —
+с одним исключением. Как только срок конкретной задачи отправлен в Jira
+кнопкой «Отправить в Jira» (`push_project`), эта же задача помечается
+`JiraTaskLink.pushed_due_date`, и с этого момента её старт и длительность
+больше не приходят из Jira при обычной синхронизации — их source of truth
+переключился на Planora для этой одной строки, а не для всего проекта.
+Отправка при этом однонаправленная и не автоматическая: меняет поля только
+по нажатию кнопки, шлёт только Due Date (единственное системное поле сроков,
+которое есть на любом сайте Jira Cloud — Start Date существует лишь при
+Advanced Roadmaps) и никогда не создаёт задачи в Jira из тех, что заведены
+только в Planora.
 """
 
 import uuid
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
+from app.calendar import end_date
 from app.config import get_settings
 from app.jira.client import ISSUE_FIELDS, JiraClient
 from app.jira.errors import JiraError
@@ -242,14 +253,23 @@ def _sync_categories(
     return by_key, created
 
 
-def _task_needs_update(task: Task, fields: IssueTaskFields) -> bool:
+def _dates_from_jira(link: JiraTaskLink) -> bool:
+    """Ведёт ли Jira сроки этой задачи. `False` — сроки отправлены в Jira
+    (см. app/jira/sync.py:push_project), и обычная синхронизация им не указ."""
+    return link.pushed_due_date is None
+
+
+def _task_needs_update(task: Task, fields: IssueTaskFields, link: JiraTaskLink) -> bool:
+    dates_differ = not fields.milestone and (
+        task.start_date != fields.start_date or task.duration_days != fields.duration_days
+    )
     return (
         task.name != fields.name
         or task.description != fields.description
         or task.criticality != fields.criticality
         or task.status != fields.status
         or (fields.milestone and not task.milestone)
-        or (not fields.milestone and (task.start_date != fields.start_date or task.duration_days != fields.duration_days))
+        or (dates_differ and _dates_from_jira(link))
     )
 
 
@@ -258,6 +278,7 @@ def _apply_task_update(
     project: Project,
     task: Task,
     fields: IssueTaskFields,
+    link: JiraTaskLink,
     *,
     actor: User,
     batch_id: uuid.UUID,
@@ -296,8 +317,11 @@ def _apply_task_update(
             batch_id=batch_id,
             reason=reason,
         )
-    if not task.milestone and not fields.milestone and (
-        task.start_date != fields.start_date or task.duration_days != fields.duration_days
+    if (
+        not task.milestone
+        and not fields.milestone
+        and _dates_from_jira(link)
+        and (task.start_date != fields.start_date or task.duration_days != fields.duration_days)
     ):
         apply_op(
             db,
@@ -386,8 +410,8 @@ def _sync_tasks(
             # строки плана отдаём человеку, который его принял.
             continue
         task = db.get(Task, link.task_id)
-        if _task_needs_update(task, fields):
-            _apply_task_update(db, project, task, fields, actor=actor, batch_id=batch_id, reason=reason)
+        if _task_needs_update(task, fields, link):
+            _apply_task_update(db, project, task, fields, link, actor=actor, batch_id=batch_id, reason=reason)
             updated += 1
 
     return created, updated, assigner.created_default
@@ -534,3 +558,59 @@ def sync_project(
     link.last_synced_at = _now()
     db.flush()
     return result, batch_id
+
+
+@dataclass
+class PushResult:
+    pushed: int = 0
+    unchanged: int = 0
+    #: [{"issue_key": ..., "code": ...}] — одна отклонённая Jira задача не
+    #: должна прятать успех остальных, поэтому список, а не первое же исключение.
+    failed: list[dict] = field(default_factory=list)
+
+
+def push_project(
+    db: DbSession,
+    *,
+    org: Organization,
+    client_factory: Callable[[], JiraClient],
+    project: Project,
+    actor: User,  # noqa: ARG001 — параметр держит форму с sync_project/import_project;
+    # отправка не проходит через apply_op (меняет только jira_task_links, не
+    # план), и автору мутации здесь взяться неоткуда.
+) -> PushResult:
+    """Отправляет в Jira сроки задач, разошедшиеся с тем, что туда ушло в
+    прошлый раз, — кнопка «Отправить в Jira». Меняет только Due Date
+    (см. докстринг JiraClient.update_issue_due_date) и только у задач,
+    заведённых из Jira; ничего не создаёт в Jira и не трогает план Planora —
+    см. докстринг модуля о том, как это меняет поведение следующей
+    синхронизации для отправленных задач.
+    """
+    link = db.scalar(select(JiraProjectLink).where(JiraProjectLink.project_id == project.id))
+    if link is None:
+        raise JiraError("jira_not_linked", "проект не заведён из Jira")
+    client = client_factory()
+    calendar = project_calendar(project, org)
+
+    rows = db.execute(
+        select(JiraTaskLink, Task)
+        .join(Task, Task.id == JiraTaskLink.task_id)
+        .where(JiraTaskLink.project_id == project.id, JiraTaskLink.task_id.is_not(None))
+    ).all()
+
+    result = PushResult()
+    for task_link, task in rows:
+        due = end_date(task.start_date, task.duration_days, calendar)
+        if task_link.pushed_due_date == due:
+            result.unchanged += 1
+            continue
+        try:
+            client.update_issue_due_date(task_link.issue_key, due)
+        except JiraError as error:
+            result.failed.append({"issue_key": task_link.issue_key, "code": error.code})
+            continue
+        task_link.pushed_due_date = due
+        result.pushed += 1
+
+    db.flush()
+    return result

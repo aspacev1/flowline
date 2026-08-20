@@ -983,6 +983,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/projects/{project_id}/jira/push": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Push To Jira
+         * @description Отправляет сроки задач в Jira. Отказ одной задачи (Jira отклонила срок,
+         *     у токена нет прав на неё) не проваливает запрос целиком — он приходит
+         *     списком `failed`, а не кодом ответа: остальные задачи всё равно отправились.
+         */
+        post: operations["push_to_jira_api_projects__project_id__jira_push_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/projects/{project_id}/jira/sync": {
         parameters: {
             query?: never;
@@ -1821,6 +1843,22 @@ export interface components {
             key: string;
             /** Name */
             name: string;
+        };
+        /** JiraPushFailure */
+        JiraPushFailure: {
+            /** Code */
+            code: string;
+            /** Issue Key */
+            issue_key: string;
+        };
+        /** JiraPushOut */
+        JiraPushOut: {
+            /** Failed */
+            failed: components["schemas"]["JiraPushFailure"][];
+            /** Pushed */
+            pushed: number;
+            /** Unchanged */
+            unchanged: number;
         };
         /** JiraSyncOut */
         JiraSyncOut: {
@@ -4495,6 +4533,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["JiraLinkOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    push_to_jira_api_projects__project_id__jira_push_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                project_id: string;
+            };
+            cookie?: {
+                planora_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JiraPushOut"];
                 };
             };
             /** @description Validation Error */

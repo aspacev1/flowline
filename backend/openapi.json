@@ -827,6 +827,50 @@
         "title": "JiraProjectOut",
         "type": "object"
       },
+      "JiraPushFailure": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "issue_key": {
+            "title": "Issue Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "issue_key",
+          "code"
+        ],
+        "title": "JiraPushFailure",
+        "type": "object"
+      },
+      "JiraPushOut": {
+        "properties": {
+          "failed": {
+            "items": {
+              "$ref": "#/components/schemas/JiraPushFailure"
+            },
+            "title": "Failed",
+            "type": "array"
+          },
+          "pushed": {
+            "title": "Pushed",
+            "type": "integer"
+          },
+          "unchanged": {
+            "title": "Unchanged",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pushed",
+          "unchanged",
+          "failed"
+        ],
+        "title": "JiraPushOut",
+        "type": "object"
+      },
       "JiraSyncOut": {
         "properties": {
           "batch_id": {
@@ -5825,6 +5869,66 @@
           }
         },
         "summary": "Read Jira Link",
+        "tags": [
+          "jira"
+        ]
+      }
+    },
+    "/api/projects/{project_id}/jira/push": {
+      "post": {
+        "description": "Отправляет сроки задач в Jira. Отказ одной задачи (Jira отклонила срок,\nу токена нет прав на неё) не проваливает запрос целиком — он приходит\nсписком `failed`, а не кодом ответа: остальные задачи всё равно отправились.",
+        "operationId": "push_to_jira_api_projects__project_id__jira_push_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "planora_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Planora Session"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JiraPushOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Push To Jira",
         "tags": [
           "jira"
         ]

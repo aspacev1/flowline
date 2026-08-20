@@ -42,6 +42,17 @@ export type JiraLink = {
   last_synced_at: string | null;
 };
 
+export type JiraPushFailure = {
+  issue_key: string;
+  code: string;
+};
+
+export type JiraPushResult = {
+  pushed: number;
+  unchanged: number;
+  failed: JiraPushFailure[];
+};
+
 export function readJiraCredential(): Promise<JiraCredential> {
   return request<JiraCredential>("/api/jira/credential");
 }
@@ -81,4 +92,8 @@ export function readJiraLink(projectId: string): Promise<JiraLink> {
 
 export function syncFromJira(projectId: string): Promise<JiraSyncResult> {
   return request<JiraSyncResult>(`/api/projects/${projectId}/jira/sync`, { method: "POST" });
+}
+
+export function pushToJira(projectId: string): Promise<JiraPushResult> {
+  return request<JiraPushResult>(`/api/projects/${projectId}/jira/push`, { method: "POST" });
 }

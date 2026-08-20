@@ -379,6 +379,54 @@ describe("настройки проекта", () => {
 
     expect(await screen.findByText(/новых задач.*2.*обновлено.*1/)).toBeInTheDocument();
   });
+
+  it("отправляет сроки в Jira по кнопке и показывает итог", async () => {
+    projectSettingsFixtures();
+    server.use(
+      http.get("/api/projects/p1/jira", () =>
+        HttpResponse.json({
+          linked: true,
+          jira_project_key: "PROJ",
+          jql: 'project = "PROJ" ORDER BY created ASC',
+          last_synced_at: "2026-08-19T10:00:00+00:00",
+        }),
+      ),
+      http.post("/api/projects/p1/jira/push", () =>
+        HttpResponse.json({ pushed: 2, unchanged: 1, failed: [] }, { status: 201 }),
+      ),
+    );
+    renderApp({ route: "/projects/p1/settings" });
+
+    const button = await screen.findByRole("button", { name: "Отправить в Jira" });
+    await userEvent.click(button);
+
+    expect(await screen.findByText(/отправлено.*2.*без изменений.*1/)).toBeInTheDocument();
+  });
+
+  it("отклонённые Jira задачи остаются на панели, а не исчезают вместе с тостом", async () => {
+    projectSettingsFixtures();
+    server.use(
+      http.get("/api/projects/p1/jira", () =>
+        HttpResponse.json({
+          linked: true,
+          jira_project_key: "PROJ",
+          jql: 'project = "PROJ" ORDER BY created ASC',
+          last_synced_at: null,
+        }),
+      ),
+      http.post("/api/projects/p1/jira/push", () =>
+        HttpResponse.json(
+          { pushed: 1, unchanged: 0, failed: [{ issue_key: "PROJ-9", code: "jira_refused" }] },
+          { status: 201 },
+        ),
+      ),
+    );
+    renderApp({ route: "/projects/p1/settings" });
+
+    await userEvent.click(await screen.findByRole("button", { name: "Отправить в Jira" }));
+
+    expect(await screen.findByText(/PROJ-9/)).toBeInTheDocument();
+  });
 });
 
 /**

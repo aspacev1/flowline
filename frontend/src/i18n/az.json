@@ -943,6 +943,13 @@
       "last_synced": "Son sinxronizasiya: {date}",
       "button": "İndi sinxronizasiya et",
       "result": "Hazırdır: yeni tapşırıq — {createdTasks}, yenilənib — {updatedTasks}"
+    },
+    "push": {
+      "hint": "Burada tarixini dəyişdiyiniz tapşırıqların son (bitmə) tarixini geri Jira-ya göndərir. Göndərilmiş tapşırıqların tarixinə sinxronizasiya artıq toxunmur.",
+      "button": "Jira-ya göndər",
+      "result": "Hazırdır: göndərildi — {pushed}, dəyişməz — {unchanged}",
+      "result_with_failures": "Hazırdır: göndərildi — {pushed}, dəyişməz — {unchanged}, Jira rədd etdi — {failed}",
+      "failures": "Jira bunlar üçün tarixi rədd etdi: {keys}"
     }
   },
   "proposal": {

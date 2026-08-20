@@ -6,6 +6,7 @@
 """
 
 import uuid
+from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
@@ -411,4 +412,98 @@ def test_a_viewer_cannot_trigger_a_sync(authed, db, monkeypatch):
     db.flush()
 
     response = authed.post(f"/api/projects/{imported['project_id']}/jira/sync")
+    assert response.status_code == 403
+
+
+# --- отправка сроков в Jira -----------------------------------------------------
+
+
+def test_pushing_to_an_unlinked_project_is_a_plain_refusal(authed):
+    project = authed.post("/api/projects", json={"name": "Обычный проект"}).json()
+    response = authed.post(f"/api/projects/{project['id']}/jira/push")
+    assert response.status_code == 409
+    assert response.json()["detail"] == "jira_not_linked"
+
+
+def test_push_sends_the_current_due_date_and_the_next_sync_leaves_it_alone(authed, db, monkeypatch):
+    _connect(authed)
+    _patch_client(monkeypatch, _recorded_client(issues=[_EPIC, _TASK_IN_EPIC]))
+    imported = authed.post(
+        "/api/jira/import", json={"jira_project_key": "PROJ", "name": "Проект"}
+    ).json()
+    project_id = imported["project_id"]
+
+    task_id = db.scalar(
+        select(Task.id).where(Task.project_id == uuid.UUID(project_id), Task.name.like("%Логотип%"))
+    )
+    # Человек в Planora продлевает задачу до пятницы той же недели.
+    resize = authed.post(
+        f"/api/projects/{project_id}/mutations",
+        json={
+            "op": {
+                "type": "resize_task",
+                "task_id": str(task_id),
+                "start_date": "2026-03-02",
+                "duration_days": 5,
+            }
+        },
+    )
+    assert resize.status_code == 201
+
+    recorded = _recorded_client(issues=[_EPIC, _TASK_IN_EPIC])
+    _patch_client(monkeypatch, recorded)
+    push = authed.post(f"/api/projects/{project_id}/jira/push")
+    assert push.status_code == 201
+    assert push.json() == {"pushed": 1, "unchanged": 0, "failed": []}
+    assert recorded.due_date_calls == [("PROJ-2", date(2026, 3, 6))]
+
+    # Повторная отправка без изменений ничего не шлёт второй раз.
+    recorded_again = _recorded_client(issues=[_EPIC, _TASK_IN_EPIC])
+    _patch_client(monkeypatch, recorded_again)
+    push_again = authed.post(f"/api/projects/{project_id}/jira/push").json()
+    assert push_again == {"pushed": 0, "unchanged": 1, "failed": []}
+    assert recorded_again.due_date_calls == []
+
+    # Обычная синхронизация после отправки не двигает даты этой задачи назад —
+    # с этого момента её сроки ведёт Planora, а не выборка Jira.
+    _patch_client(monkeypatch, _recorded_client(issues=[_EPIC, _TASK_IN_EPIC]))
+    sync = authed.post(f"/api/projects/{project_id}/jira/sync").json()
+    assert sync["updated_tasks"] == 0
+    task = db.get(Task, task_id)
+    assert (task.start_date.isoformat(), task.duration_days) == ("2026-03-02", 5)
+
+
+def test_push_reports_a_rejected_task_without_failing_the_rest(authed, db, monkeypatch):
+    _connect(authed)
+    _patch_client(monkeypatch, _recorded_client(issues=[_EPIC, _TASK_IN_EPIC, _TASK_DONE]))
+    imported = authed.post(
+        "/api/jira/import", json={"jira_project_key": "PROJ", "name": "Проект"}
+    ).json()
+    project_id = imported["project_id"]
+
+    recorded = _recorded_client(
+        issues=[_EPIC, _TASK_IN_EPIC, _TASK_DONE], due_date_failures=frozenset({"PROJ-2"})
+    )
+    _patch_client(monkeypatch, recorded)
+    # Обе задачи не совпадают с pushed_due_date (он ещё не задан ни у одной) —
+    # обе задачи должны быть отправлены, PROJ-2 при этом отказом.
+    response = authed.post(f"/api/projects/{project_id}/jira/push")
+    body = response.json()
+    assert body["pushed"] == 1
+    assert body["failed"] == [{"issue_key": "PROJ-2", "code": "jira_refused"}]
+
+
+def test_a_viewer_cannot_push_to_jira(authed, db, monkeypatch):
+    _connect(authed)
+    _patch_client(monkeypatch, _recorded_client(issues=[_EPIC, _TASK_IN_EPIC]))
+    imported = authed.post(
+        "/api/jira/import", json={"jira_project_key": "PROJ", "name": "Из Jira"}
+    ).json()
+
+    user_id = authed.get("/api/auth/me").json()["id"]
+    membership = db.scalar(select(Membership).where(Membership.user_id == uuid.UUID(user_id)))
+    membership.role = "viewer"
+    db.flush()
+
+    response = authed.post(f"/api/projects/{imported['project_id']}/jira/push")
     assert response.status_code == 403

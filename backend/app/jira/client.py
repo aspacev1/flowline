@@ -15,6 +15,7 @@ import base64
 import json
 import urllib.error
 import urllib.request
+from datetime import date
 from typing import Protocol
 from urllib.parse import urlencode
 
@@ -71,6 +72,17 @@ class JiraClient(Protocol):
         self, jql: str, *, fields: list[str], max_results: int
     ) -> list[dict]:
         """Задачи по JQL, сырые объекты Jira, не длиннее max_results."""
+        ...
+
+    def update_issue_due_date(self, issue_key: str, due_date: date) -> None:
+        """Отправляет срок задачи в Jira — кнопка «Отправить в Jira».
+
+        Единственный пишущий вызов этого клиента: остальные три читают.
+        Только Due Date — у Due Date есть системное поле на любом сайте Jira
+        Cloud, а Start Date есть лишь при Advanced Roadmaps, чьим
+        пользовательским полем этот клиент не занимается (см.
+        app/jira/sync.py:push_project).
+        """
         ...
 
 
@@ -183,6 +195,15 @@ class HttpJiraClient:
                 break
         return issues[:max_results]
 
+    def update_issue_due_date(self, issue_key: str, due_date: date) -> None:
+        # PUT /issue отвечает 204 без тела на успех — _request просто
+        # возвращает {} для пустого ответа, и это ровно то, что здесь нужно.
+        self._request(
+            "PUT",
+            f"/rest/api/3/issue/{issue_key}",
+            body={"fields": {"duedate": due_date.isoformat()}},
+        )
+
 
 class RecordedJiraClient:
     """Заранее заготовленные ответы — тем же приёмом, что RecordedProvider
@@ -195,12 +216,18 @@ class RecordedJiraClient:
         projects: list[dict] | None = None,
         fields: list[dict] | None = None,
         issues: list[dict] | None = None,
+        #: Ключи задач, на которых update_issue_due_date отказывает, —
+        #: тест партичного отказа отправки: одна отвергнутая Jira задача не
+        #: должна прерывать отправку остальных (см. app/jira/sync.py:push_project).
+        due_date_failures: frozenset[str] = frozenset(),
     ):
         self._whoami_name = whoami_name
         self._projects = projects or []
         self._fields = fields or []
         self._issues = issues or []
+        self._due_date_failures = due_date_failures
         self.search_calls: list[str] = []
+        self.due_date_calls: list[tuple[str, date]] = []
 
     def whoami(self) -> str:
         return self._whoami_name
@@ -214,6 +241,11 @@ class RecordedJiraClient:
     def search_issues(self, jql: str, *, fields: list[str], max_results: int) -> list[dict]:  # noqa: ARG002
         self.search_calls.append(jql)
         return self._issues[:max_results]
+
+    def update_issue_due_date(self, issue_key: str, due_date: date) -> None:
+        self.due_date_calls.append((issue_key, due_date))
+        if issue_key in self._due_date_failures:
+            raise JiraError("jira_refused", f"Jira отклонила срок для {issue_key}")
 
 
 __all__ = ["JiraClient", "HttpJiraClient", "RecordedJiraClient", "JiraError", "ISSUE_FIELDS"]

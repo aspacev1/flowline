@@ -943,6 +943,13 @@
       "last_synced": "Last synced: {date}",
       "button": "Sync now",
       "result": "Done: new tasks — {createdTasks}, updated — {updatedTasks}"
+    },
+    "push": {
+      "hint": "Sends the due date of tasks whose dates you've changed here back to Jira. Once a task's date is pushed, syncing from Jira stops touching it.",
+      "button": "Push to Jira",
+      "result": "Done: sent — {pushed}, unchanged — {unchanged}",
+      "result_with_failures": "Done: sent — {pushed}, unchanged — {unchanged}, Jira rejected — {failed}",
+      "failures": "Jira rejected the due date for: {keys}"
     }
   },
   "proposal": {

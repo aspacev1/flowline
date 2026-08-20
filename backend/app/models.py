@@ -800,6 +800,16 @@ class JiraTaskLink(Base):
     первому же совпадению ключа. Строка с `task_id IS NULL` — надгробие: она
     остаётся в таблице только затем, чтобы этот самый ключ больше не считался
     новым (см. app/jira/sync.py:_sync_tasks).
+
+    `pushed_due_date` — дата, последней отправленная в Jira кнопкой «Отправить
+    в Jira» (см. app/jira/sync.py:push_project). `NULL` — сроки этой задачи
+    ведёт Jira: обычная синхронизация подтягивает `duedate` оттуда как обычно.
+    Заполненное значение переворачивает направление для дат этой конкретной
+    задачи: она заведена человеком в Planora как источник правды по срокам, и
+    обычная синхронизация больше не трогает её старт и длительность — только
+    отправка снова меняет это поле. Свойство задачи, а не проекта целиком:
+    в одном плане часть строк может остаться под Jira, а часть — перейти под
+    ручное управление, по мере того как их даты поправляют здесь.
     """
 
     __tablename__ = "jira_task_links"
@@ -813,6 +823,7 @@ class JiraTaskLink(Base):
         ForeignKey("tasks.id", ondelete="SET NULL"), unique=True
     )
     issue_key: Mapped[str] = mapped_column(String(64))
+    pushed_due_date: Mapped[date | None] = mapped_column(Date)
 
 
 class AiSession(Base):

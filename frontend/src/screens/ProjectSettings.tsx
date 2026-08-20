@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { errorKey } from "../api/errors";
-import { jiraLinkQueryKey, readJiraLink, syncFromJira } from "../api/jira";
+import { jiraLinkQueryKey, pushToJira, readJiraLink, syncFromJira } from "../api/jira";
+import type { JiraPushFailure } from "../api/jira";
 import { ORG_QUERY_KEY, organization } from "../api/org";
 import {
   checkProjectSlug,
@@ -374,6 +376,10 @@ function JiraSyncPanel({ projectId, readOnly }: { projectId: string; readOnly: b
   const { t, locale } = useLocale();
   const queryClient = useQueryClient();
   const showToast = useToast();
+  // Отказы отправки остаются на панели, а не только в тосте: тост исчезает,
+  // а список отклонённых задач Jira — то, что человеку нужно решить, а не
+  // просто прочитать один раз.
+  const [pushFailures, setPushFailures] = useState<JiraPushFailure[]>([]);
 
   const link = useQuery({
     queryKey: jiraLinkQueryKey(projectId),
@@ -402,6 +408,19 @@ function JiraSyncPanel({ projectId, readOnly }: { projectId: string; readOnly: b
     },
   });
 
+  const push = useMutation({
+    mutationFn: () => pushToJira(projectId),
+    onSuccess: (result) => {
+      setPushFailures(result.failed);
+      showToast({
+        message: t(
+          result.failed.length > 0 ? "jira.push.result_with_failures" : "jira.push.result",
+          { pushed: result.pushed, unchanged: result.unchanged, failed: result.failed.length },
+        ),
+      });
+    },
+  });
+
   if (!link.data?.linked) return null;
 
   return (
@@ -424,6 +443,24 @@ function JiraSyncPanel({ projectId, readOnly }: { projectId: string; readOnly: b
 
       <button type="button" disabled={readOnly || sync.isPending} onClick={() => sync.mutate()}>
         {t("jira.sync.button")}
+      </button>
+
+      <p className="muted">{t("jira.push.hint")}</p>
+
+      {push.error !== null && (
+        <p className="error" role="alert">
+          {t(errorKey(push.error))}
+        </p>
+      )}
+
+      {pushFailures.length > 0 && (
+        <p className="error" role="alert">
+          {t("jira.push.failures", { keys: pushFailures.map((f) => f.issue_key).join(", ") })}
+        </p>
+      )}
+
+      <button type="button" disabled={readOnly || push.isPending} onClick={() => push.mutate()}>
+        {t("jira.push.button")}
       </button>
     </div>
   );
