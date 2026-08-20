@@ -140,6 +140,21 @@ const PLAIN_CODES = new Set([
   "metric_not_found",
   "week_in_future",
   "target_out_of_range",
+  // Jira. Тот же принцип, что у отказов LLM: сбой стороннего сервиса — не
+  // поломка, а состояние, о котором человеку говорят словами.
+  "jira_not_configured",
+  "jira_not_linked",
+  "jira_unreachable",
+  "jira_refused",
+  "jira_unauthorized",
+  "jira_not_found",
+  "jira_bad_json",
+  "jira_bad_shape",
+  "jira_key_unreadable",
+  "jira_token_required",
+  "jira_url_not_https",
+  "jira_url_invalid",
+  "jira_url_private",
 ]);
 
 /** Ключ словаря, которым объясняется ошибка. Сырой код наружу не выходит. */

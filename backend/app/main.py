@@ -71,6 +71,7 @@ from app.api import (
     ai_routes,
     auth_routes,
     invite_routes,
+    jira_routes,
     live_routes,
     meta_routes,
     org_routes,
@@ -221,6 +222,8 @@ app.include_router(share_routes.router)
 app.include_router(public_routes.router)
 app.include_router(live_routes.router)
 app.include_router(ai_routes.router)
+app.include_router(jira_routes.router)
+app.include_router(jira_routes.project_router)
 app.include_router(admin_routes.router)
 
 

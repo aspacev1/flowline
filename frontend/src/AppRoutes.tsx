@@ -5,6 +5,7 @@ import { Admin } from "./screens/Admin";
 import { AiIntake } from "./screens/AiIntake";
 import { ForgotPassword } from "./screens/ForgotPassword";
 import { Invite } from "./screens/Invite";
+import { JiraImport } from "./screens/JiraImport";
 import { Login } from "./screens/Login";
 import { Members } from "./screens/Members";
 import { MyTasks } from "./screens/MyTasks";
@@ -59,6 +60,10 @@ export function AppRoutes() {
         {/* Интервью доступно только при создании нового проекта: запуск
             внутри существующего — следующий этап, не первая версия. */}
         <Route path="/projects/new/ai" element={<AiIntake />} />
+        {/* Импорт из Jira — тем же правилом, что интервью: заводит новый
+            проект, а перенастройка уже существующего на другой проект
+            Jira — не первая версия. */}
+        <Route path="/projects/new/jira" element={<JiraImport />} />
         <Route path="/projects/:projectId" element={<Project />} />
         {/* Предложение — вкладка того же экрана со своим адресом, по тому же
             правилу, что и история: смету обсуждают в переписке, и «открой

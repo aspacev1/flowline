@@ -1,7 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 
 import { errorKey } from "../api/errors";
+import { jiraLinkQueryKey, pushToJira, readJiraLink, syncFromJira } from "../api/jira";
+import type { JiraPushFailure } from "../api/jira";
 import { ORG_QUERY_KEY, organization } from "../api/org";
 import {
   checkProjectSlug,
@@ -15,6 +18,8 @@ import { SaveMark, TextField, ValueField, useFieldSaves } from "../components/au
 import type { FieldSave } from "../components/autosave";
 import { ConfirmAction } from "../components/ConfirmAction";
 import { Switch } from "../components/Switch";
+import { useToast } from "../components/toast";
+import { formatDate, formatTime } from "../i18n/dates";
 import { useLocale } from "../i18n/LocaleProvider";
 import { SharePanel } from "../project/SharePanel";
 import { useDeleteProject } from "../project/useDeleteProject";
@@ -266,6 +271,10 @@ export function ProjectSettings() {
           onCommit={(workdays_extra) => saves.commit("project-workdays", { workdays_extra })}
         />
 
+        {/* Jira — только у проекта, заведённого импортом: у обычного проекта
+            эту панель просто нечем заполнить. */}
+        <JiraSyncPanel projectId={projectId} readOnly={readOnly} />
+
         {/* Публичная ссылка — последним блоком: это не настройка расчёта, а
             решение показать проект наружу. */}
         {!readOnly && <SharePanel projectId={projectId} />}
@@ -352,6 +361,107 @@ function Override({
           наследуется, это сама галочка, а дальше её показывает поле. Иначе о
           возврате к наследованию не сказал бы никто. */}
       {inherits ? <SaveMark save={save} /> : render(overridden, onOverride, Boolean(disabled), save)}
+    </div>
+  );
+}
+
+/**
+ * Синхронизация с Jira — только у проекта, заведённого импортом.
+ *
+ * Молчит (не рисует ничего), если проект обычный: пустая панель с надписью
+ * «не привязан» отвечала бы на вопрос, который никто не задавал, — у
+ * обычного проекта Jira просто нет отношения к делу.
+ */
+function JiraSyncPanel({ projectId, readOnly }: { projectId: string; readOnly: boolean }) {
+  const { t, locale } = useLocale();
+  const queryClient = useQueryClient();
+  const showToast = useToast();
+  // Отказы отправки остаются на панели, а не только в тосте: тост исчезает,
+  // а список отклонённых задач Jira — то, что человеку нужно решить, а не
+  // просто прочитать один раз.
+  const [pushFailures, setPushFailures] = useState<JiraPushFailure[]>([]);
+
+  const link = useQuery({
+    queryKey: jiraLinkQueryKey(projectId),
+    queryFn: () => readJiraLink(projectId),
+    retry: false,
+  });
+
+  const sync = useMutation({
+    mutationFn: () => syncFromJira(projectId),
+    onSuccess: (result) => {
+      // Ревизии применились в базе — состояние проекта (задачи, диаграмма,
+      // скоркард) читают его заново, а не достраивают поверх кэша: строк
+      // могло появиться сколько угодно, и досчитывать разницу на клиенте —
+      // повторять то, что уже посчитал сервер.
+      void queryClient.invalidateQueries({ queryKey: projectQueryKey(projectId) });
+      queryClient.setQueryData(jiraLinkQueryKey(projectId), {
+        ...link.data,
+        last_synced_at: new Date().toISOString(),
+      });
+      showToast({
+        message: t("jira.sync.result", {
+          createdTasks: result.created_tasks,
+          updatedTasks: result.updated_tasks,
+        }),
+      });
+    },
+  });
+
+  const push = useMutation({
+    mutationFn: () => pushToJira(projectId),
+    onSuccess: (result) => {
+      setPushFailures(result.failed);
+      showToast({
+        message: t(
+          result.failed.length > 0 ? "jira.push.result_with_failures" : "jira.push.result",
+          { pushed: result.pushed, unchanged: result.unchanged, failed: result.failed.length },
+        ),
+      });
+    },
+  });
+
+  if (!link.data?.linked) return null;
+
+  return (
+    <div className="settings__fieldset">
+      <h2>{t("jira.sync.title")}</h2>
+      <p className="muted">{t("jira.sync.hint", { key: link.data.jira_project_key ?? "" })}</p>
+      <p className="muted">
+        {link.data.last_synced_at
+          ? t("jira.sync.last_synced", {
+              date: `${formatDate(t, link.data.last_synced_at)} · ${formatTime(locale, new Date(link.data.last_synced_at))}`,
+            })
+          : t("jira.sync.never")}
+      </p>
+
+      {sync.error !== null && (
+        <p className="error" role="alert">
+          {t(errorKey(sync.error))}
+        </p>
+      )}
+
+      <button type="button" disabled={readOnly || sync.isPending} onClick={() => sync.mutate()}>
+        {t("jira.sync.button")}
+      </button>
+
+      <p className="muted">{t("jira.push.hint")}</p>
+
+      {push.error !== null && (
+        <p className="error" role="alert">
+          {t(errorKey(push.error))}
+        </p>
+      )}
+
+      {pushFailures.length > 0 && (
+        <p className="error" role="alert">
+          {t("jira.push.failures", { keys: pushFailures.map((f) => f.issue_key).join(", ") })}
+        </p>
+      )}
+
+      <button type="button" disabled={readOnly || push.isPending} onClick={() => push.mutate()}>
+        {t("jira.push.button")}
+      </button>
     </div>
   );
 }

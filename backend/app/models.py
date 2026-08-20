@@ -720,6 +720,112 @@ class OrgLlmCredential(Base):
     encrypted_key: Mapped[str] = mapped_column(Text)
 
 
+class JiraConnection(Base):
+    """Подключение Jira: одно на организацию.
+
+    Basic-аутентификация Jira Cloud — email участника и API-токен, выпущенный
+    в его профиле (id.atlassian.com/manage-profile/security/api-tokens).
+    OAuth 2.0 (3LO) устроен сложнее — своё приложение, редиректы, обновляемые
+    токены — и в MVP не нужен: организация, вводящая сюда свои же учётные
+    данные, доверяет собственному инстансу Jira ровно так же, как доверяет
+    адресу и ключу LLM.
+
+    Токен шифруется тем же способом, что ключ LLM (см. OrgLlmCredential), и
+    наружу не отдаётся никогда — только признак «подключено».
+    """
+
+    __tablename__ = "jira_connections"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("organizations.id", ondelete="CASCADE"), unique=True
+    )
+    base_url: Mapped[str] = mapped_column(String(300))
+    email: Mapped[str] = mapped_column(String(320))
+    encrypted_token: Mapped[str] = mapped_column(Text)
+
+
+class JiraProjectLink(Base):
+    """Проект Planora, заведённый импортом из проекта Jira.
+
+    Одна связь на проект: второй импорт того же плана из другой строки Jira
+    не имеет смысла — планом либо управляет Jira, либо нет. `jql` хранит
+    запрос исходного импорта (по умолчанию — все задачи проекта Jira), и
+    повторная синхронизация спрашивает Jira о том же подмножестве, а не обо
+    всём инстансе.
+    """
+
+    __tablename__ = "jira_project_links"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), unique=True
+    )
+    jira_project_key: Mapped[str] = mapped_column(String(64))
+    jql: Mapped[str] = mapped_column(Text)
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class JiraCategoryLink(Base):
+    """Этап плана, заведённый из эпика Jira, — привязка для повторной синхронизации.
+
+    Отдельная таблица от JiraTaskLink, а не общая с признаком «вид строки»:
+    категория и задача ссылаются на разные таблицы плана, и общая колонка
+    держала бы половину значений пустыми на каждой строке.
+    """
+
+    __tablename__ = "jira_category_links"
+    __table_args__ = (UniqueConstraint("project_id", "issue_key"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    category_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("categories.id", ondelete="CASCADE"), unique=True
+    )
+    issue_key: Mapped[str] = mapped_column(String(64))
+
+
+class JiraTaskLink(Base):
+    """Задача плана, заведённая из строки Jira, — привязка для повторной синхронизации.
+
+    `issue_key`, а не внутренний числовой id Jira: ключ виден человеку в
+    самой Jira и меняется только явным переносом задачи между проектами, а
+    числовой id не нужен нигде в этом продукте.
+
+    `task_id` — SET NULL, а не CASCADE, вопреки остальным привязкам этого
+    модуля: удаление задачи человеком в Planora — осознанное решение, и
+    повторная синхронизация не должна его отменять, воскрешая строку по
+    первому же совпадению ключа. Строка с `task_id IS NULL` — надгробие: она
+    остаётся в таблице только затем, чтобы этот самый ключ больше не считался
+    новым (см. app/jira/sync.py:_sync_tasks).
+
+    `pushed_due_date` — дата, последней отправленная в Jira кнопкой «Отправить
+    в Jira» (см. app/jira/sync.py:push_project). `NULL` — сроки этой задачи
+    ведёт Jira: обычная синхронизация подтягивает `duedate` оттуда как обычно.
+    Заполненное значение переворачивает направление для дат этой конкретной
+    задачи: она заведена человеком в Planora как источник правды по срокам, и
+    обычная синхронизация больше не трогает её старт и длительность — только
+    отправка снова меняет это поле. Свойство задачи, а не проекта целиком:
+    в одном плане часть строк может остаться под Jira, а часть — перейти под
+    ручное управление, по мере того как их даты поправляют здесь.
+    """
+
+    __tablename__ = "jira_task_links"
+    __table_args__ = (UniqueConstraint("project_id", "issue_key"),)
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    task_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("tasks.id", ondelete="SET NULL"), unique=True
+    )
+    issue_key: Mapped[str] = mapped_column(String(64))
+    pushed_due_date: Mapped[date | None] = mapped_column(Date)
+
+
 class AiSession(Base):
     """Интервью, конспект и черновик — до применения в проект.
 

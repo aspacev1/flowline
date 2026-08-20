@@ -93,6 +93,16 @@ class Settings(BaseSettings):
     #: с локальной моделью в своей сети.
     ai_allow_private_urls: bool = False
 
+    jira_request_timeout: int = 30
+    #: Тот же рубильник, что ai_allow_private_urls, и по той же причине
+    #: (защита от SSRF — адрес сайта Jira задаёт пользователь, а ходит по нему
+    #: сервер): по умолчанию выключен, true — self-hosted Jira в приватной сети.
+    jira_allow_private_urls: bool = False
+    #: Потолок задач, которые импорт и синхронизация обрабатывают за один
+    #: вызов. Явная строка отказа при переполнении, а не молчаливая обрезка:
+    #: план, обрезанный без предупреждения, выглядит как полный.
+    jira_max_issues_per_sync: int = 500
+
     max_tasks_per_project: int = 2000
     max_text_len: int = 4000
     #: Потолок размера тела запроса в байтах. Больше самого большого

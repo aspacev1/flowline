@@ -594,7 +594,7 @@ describe("адреса списка", () => {
     expect(await screen.findByRole("heading", { name: "Проекты" })).toBeInTheDocument();
   });
 
-  it("даёт завести проект обоими способами, не уходя со страницы", async () => {
+  it("даёт завести проект всеми способами, не уходя со страницы", async () => {
     server.use(...sessionHandlers(), http.get("/api/projects", () => HttpResponse.json([])));
 
     renderApp({ route: "/projects", locale: "ru" });
@@ -602,6 +602,10 @@ describe("адреса списка", () => {
     expect(await screen.findByRole("link", { name: /создать через интервью/i })).toHaveAttribute(
       "href",
       "/projects/new/ai",
+    );
+    expect(screen.getByRole("link", { name: /импорт из jira/i })).toHaveAttribute(
+      "href",
+      "/projects/new/jira",
     );
     expect(screen.getByRole("button", { name: /создать проект/i })).toBeInTheDocument();
   });

@@ -17,6 +17,11 @@ import { setupServer } from "msw/node";
  * Пустой ответ означает «нигде ещё не обсуждали»: с этого начинается всякий
  * проект, и на строках ленты в этом состоянии нет ни одного числа.
  *
+ * Привязку к Jira спрашивают настройки проекта при каждой отрисовке — панель
+ * синхронизации молчит, пока не пришёл ответ «не привязан», но запрос уходит
+ * всё равно, и тестам, которым Jira не по теме (публичная ссылка, удаление
+ * проекта, тосты), незачем каждый раз объявлять его сами.
+ *
  * Настройки установки спрашивает рама приложения — полоска «адрес не
  * подтверждён». Почта включена: это обычная установка, и тест про
  * подтверждение адреса не должен начинаться с объявления почтового сервера.
@@ -35,4 +40,7 @@ export const server = setupServer(
   http.get("/api/org/list", () => HttpResponse.json([])),
   http.get("/api/projects/:projectId/comments/counts", () => HttpResponse.json({})),
   http.get("/api/public/:orgSlug/:projectSlug/comments/counts", () => HttpResponse.json({})),
+  http.get("/api/projects/:projectId/jira", () =>
+    HttpResponse.json({ linked: false, jira_project_key: null, jql: null, last_synced_at: null }),
+  ),
 );

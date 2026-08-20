@@ -16,6 +16,11 @@ os.environ.setdefault("AI_ALLOW_PRIVATE_URLS", "true")
 # на конкретном объекте настроек.
 os.environ.setdefault("AI_REQUESTS_PER_MINUTE", "0")
 os.environ.setdefault("AI_DAILY_TOKEN_BUDGET", "0")
+# Тот же довод, что у AI_ALLOW_PRIVATE_URLS: тестовые адреса Jira — выдуманные
+# хосты и localhost, и без рубильника проверка публичности адреса
+# (app/jira/netguard.py) резолвила бы их в сеть на каждом тесте. Сама
+# проверка тестируется отдельно, с явно выключенным рубильником.
+os.environ.setdefault("JIRA_ALLOW_PRIVATE_URLS", "true")
 
 import pytest
 from sqlalchemy import create_engine
