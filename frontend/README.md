@@ -1,32 +1,27 @@
-# React + TypeScript + Vite
+# Planora frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React 19 + TypeScript + Vite + TanStack Query + react-router-dom v7. No
+Redux/Zustand — server state lives in React Query, local UI state in
+`useState`/context. No charting/Gantt library — the Gantt chart and
+Scorecard sparkline are hand-built SVG + CSS + React.
 
-Currently, two official plugins are available:
+This directory has no project-specific docs of its own on purpose — see:
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- the repo root [`README.md`](../README.md) for the product overview, and
+  [`README.ru.md`](../README.ru.md) for the full deployment/ops guide,
+- the repo root [`CLAUDE.md`](../CLAUDE.md) and the `planora-conventions`
+  skill (`.claude/skills/planora-conventions/`) for the architecture map —
+  data model, the API-call pattern (`src/api/*.ts` → `client.ts`'s
+  `request<T>()`), feature-folder layout, and dev-workflow commands (lint,
+  typecheck, `gen:api`, tests).
 
-## React Compiler
+Quick reference for this package specifically:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm ci
+npm run dev          # Vite dev server
+npm run lint         # oxlint — see .oxlintrc.json
+npx tsc -b           # typecheck
+npm run gen:api      # regenerate src/api/schema.d.ts from the backend's openapi.json
+npx vitest run --coverage
 ```
-
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.

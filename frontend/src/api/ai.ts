@@ -3,10 +3,6 @@ import type { Criticality } from "./projects";
 
 export const AI_CREDENTIAL_QUERY_KEY = ["ai", "credential"] as const;
 
-export function aiSessionQueryKey(id: string) {
-  return ["ai", "session", id] as const;
-}
-
 /** Подключение LLM. Ключа здесь нет и быть не может — только признак. */
 export type LlmCredential = {
   provider: string;

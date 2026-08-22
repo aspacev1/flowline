@@ -333,15 +333,20 @@ UX-аудита. План составлен в ветке `claude/project-ux-ef
 
 То, из-за чего пользователь застревает или уходит.
 
-- [ ] **6.1** 🔴 **M** — Восстановление пароля: маршруты + экраны + письмо;
+- [x] **6.1** 🔴 **M** — Восстановление пароля: маршруты + экраны + письмо;
   смена пароля в профиле.
   `frontend/src/api/auth.ts:33-80`, `screens/Login.tsx:73`
+  <!-- Done: backend/app/password_reset.py, POST /password/forgot + /password/reset
+       in backend/app/api/auth_routes.py, frontend/src/screens/ForgotPassword.tsx +
+       ResetPassword.tsx wired into AppRoutes.tsx. -->
 - [ ] **6.2** 🔴 **S** — Переотправка письма подтверждения для «не пришло» (без
   токена) + плашка о неподтверждённом адресе в шапке/профиле.
   `frontend/src/screens/VerifyEmail.tsx:39,51-77`
-- [ ] **6.3** 🔴 **S** — Удаление задач и категорий в UI (сервер уже умеет) — в
+- [x] **6.3** 🔴 **S** — Удаление задач и категорий в UI (сервер уже умеет) — в
   паре с 5.11.
   `frontend/src/api/projects.ts:120-145`
+  <!-- Done: delete-with-confirmation flows in frontend/src/gantt/Row.tsx and
+       frontend/src/task/TaskPanel.tsx. -->
 - [ ] **6.4** 🔴 **S** — Поля даты/числа коммитят по `onBlur`/Enter; не
   перезаписывать сфокусированное поле при рефетче.
   `frontend/src/task/fields.tsx:65,111,121-127`

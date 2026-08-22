@@ -1,5 +1,12 @@
 # План редизайна фронтенда по макету Northstar
 
+> **Historical, executed.** This redesign plan has been fully carried out —
+> the color tokens, metrics strip, and other concrete deliverables it
+> specifies all match the shipped frontend. One naming note: this document
+> refers throughout to the pre-redesign theme file as `broadsheet-theme.css`
+> (its name at the time this was written); it shipped as
+> `frontend/src/northstar-theme.css`. Kept as a design-history record.
+
 Рабочий план перевода интерфейса на визуальный язык макета
 `northstar-gantt-mockup.html` (разбор — `northstar-gantt-mockup.md`).
 

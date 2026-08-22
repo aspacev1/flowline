@@ -377,17 +377,6 @@ def grant_project_access(db: DbSession, *, user_id: uuid.UUID, project_ids: list
     db.flush()
 
 
-def has_project_access(db: DbSession, *, user_id: uuid.UUID, project_id: uuid.UUID) -> bool:
-    return (
-        db.scalar(
-            select(ProjectAccess.id).where(
-                ProjectAccess.user_id == user_id, ProjectAccess.project_id == project_id
-            )
-        )
-        is not None
-    )
-
-
 def granted_project_ids(db: DbSession, *, user_id: uuid.UUID) -> set[uuid.UUID]:
     return set(
         db.scalars(select(ProjectAccess.project_id).where(ProjectAccess.user_id == user_id)).all()

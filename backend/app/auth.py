@@ -229,11 +229,6 @@ def session_for_token(db: DbSession, raw_token: str | None) -> Session | None:
     return record
 
 
-def user_for_token(db: DbSession, raw_token: str | None) -> User | None:
-    record = session_for_token(db, raw_token)
-    return None if record is None else db.get(User, record.user_id)
-
-
 def current_session(
     planora_session: str | None = Cookie(default=None, alias=SESSION_COOKIE),
     db: DbSession = Depends(get_db),
