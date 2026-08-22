@@ -3,6 +3,14 @@
 Дата: 2026-08-10
 Статус: утверждён к реализации
 
+> **Historical, partially superseded.** This is the original v1 design spec.
+> The core model (org → project → category → task, the mutation/revision
+> journal, AI intake, public links, i18n) is still accurate, but two "out of
+> scope" calls below were reversed later and two whole subsystems shipped
+> that this spec predates entirely — see the inline notes at §4 and §14.
+> For current architecture, see the repo's `CLAUDE.md` and the
+> `planora-conventions` skill.
+
 ## 1. Что это и зачем
 
 Самостоятельно размещаемый планировщик проектов с диаграммой Ганта. Две задачи:
@@ -131,6 +139,12 @@
 **Делает:** хранит у каждой задачи дату старта и длительность, считает дату окончания по календарю, выводит границы категории как минимум и максимум по её задачам.
 
 **Не делает:** не пересчитывает даты по связям, не двигает задачи автоматически, не считает критический путь и резервы, не выравнивает загрузку людей.
+
+> **Superseded.** Two of these were later built: critical-path/float
+> calculation (`backend/app/critical.py`) and opt-in auto-shift of
+> successor tasks along dependency edges (`backend/app/cascade.py`,
+> gated by the project's `auto_schedule` setting, off by default). Workload
+> balancing across people is still not implemented.
 
 Связи существуют только как стрелки. Единственное поведение: после сдвига задачи, у которой есть исходящая связь, если связанная задача теперь начинается раньше окончания предшественника — показывается ненавязчивое предложение «Подвинуть „Сделать сайт“ на 5 дней?» с одной кнопкой. Отказ ничего не ломает: стрелка просто рисуется наискось.
 
@@ -371,6 +385,17 @@ WebSocket-рассылка держится в памяти процесса. П
 ## 14. Вне первой версии
 
 Записано явно, чтобы не возвращаться к спорам: AI-сессия внутри существующего проекта, автосдвиг по связям и типы связей, критический путь и резервы, ресурсы и загрузка людей, биллинг, OG-превью ссылок, экспорт в MS Project и Excel, мобильное приложение, совместное редактирование с курсорами.
+
+> **Superseded / incomplete list.** Auto-shift by dependencies and
+> critical-path/float were built after all (see the §4 note above). This
+> list also predates two entire subsystems that shipped later and aren't
+> mentioned anywhere in this spec: the Proposal/quoting module
+> (`backend/app/proposals.py`) and the weekly Scorecard health dashboard
+> (`backend/app/scorecard.py`) — plus the Jira import/sync integration
+> (`backend/app/jira/`), which is a new external-service connection this
+> spec doesn't anticipate at all. Resource/workload balancing, billing,
+> OG previews, MS Project/Excel export, a mobile app, and collaborative
+> cursors are still out of scope as of this writing.
 
 Про почту отдельно, чтобы не путать: письмо-приглашение в первой версии **есть** — это единственное транзакционное письмо во всём приложении. Писем-уведомлений (задачу назначили, срок сдвинули, пришёл комментарий) **нет**: внутри приложения значок, и всё. Как только уведомления понадобятся, к ним придётся добавить очередь, повторные попытки и отписку — это отдельная работа, а не «ещё один вызов `send`».
 

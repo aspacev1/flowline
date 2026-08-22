@@ -4,7 +4,6 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select
 from sqlalchemy.orm import Session as DbSession
 
 from app.access import Action, can, parse_role

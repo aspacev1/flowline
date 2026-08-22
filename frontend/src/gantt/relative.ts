@@ -34,13 +34,6 @@ export function projectDayNumber(iso: string, anchor: string = RELATIVE_EPOCH): 
   return daysBetween(anchor, iso) + 1;
 }
 
-/** Номер недели проекта, начиная с единицы. Дни до якоря — неделя 0 и ниже:
- *  в относительном плане их не бывает, а в относительном виде календарного
- *  проекта честнее показать «до старта», чем соврать про первую неделю. */
-export function projectWeekNumber(iso: string, anchor: string = RELATIVE_EPOCH): number {
-  return Math.floor(daysBetween(anchor, iso) / WEEK_DAYS) + 1;
-}
-
 /** Координата дня проекта: обратный ход projectDayNumber, для форм ввода. */
 export function dateOfProjectDay(day: number, anchor: string = RELATIVE_EPOCH): string {
   return addDays(anchor, day - 1);

@@ -1,11 +1,16 @@
 # Adding a third-party integration
 
-Planora has exactly one feature shaped like "connect an external service,
-per organization, with a secret": the LLM/AI connection used for the AI
-project-intake interview. It's spread across three files under
-`backend/app/ai/` and is the template to copy for anything else in this
-family — a new AI provider, an issue tracker, a chat webhook, a calendar
-sync, etc.
+Planora has two features shaped like "connect an external service, per
+organization, with a secret": the LLM/AI connection used for the AI
+project-intake interview (`backend/app/ai/`), and the Jira connection used
+to import/sync a project's plan from Jira Cloud/Server
+(`backend/app/jira/`). They're structurally identical — same credential
+model, same encrypt-at-rest rule, same SSRF guard shape, same
+Protocol-backed outbound client with a recorded test double — and either is
+the template to copy for anything else in this family: a new AI provider, a
+chat webhook, a calendar sync, etc. This doc walks through the AI one in
+detail since it came first; where Jira's version differs, it's called out
+inline.
 
 ## The existing shape
 
@@ -14,12 +19,12 @@ sync, etc.
   `encrypted_key`. Nothing about the secret is queryable in plaintext.
 - **`backend/app/crypto.py`** — `encrypt(value: str) -> str` /
   `decrypt(value: str) -> str`, Fernet symmetric encryption with a key
-  derived (`SHA-256`) from `APP_SECRET`. This is the *only* secret this app
-  encrypts at rest today; reuse this module rather than adding a second
-  encryption scheme. `DecryptionError` is a distinct exception from "key
-  missing" — it means `APP_SECRET` rotated since the value was encrypted,
-  and the fix is either restoring the old secret or asking the org to
-  re-enter the credential, not retrying.
+  derived (`SHA-256`) from `APP_SECRET`. Reuse this module rather than adding
+  a second encryption scheme — it already backs two secrets, `OrgLlmCredential.encrypted_key`
+  and `JiraConnection.encrypted_token`. `DecryptionError` is a distinct
+  exception from "key missing" — it means `APP_SECRET` rotated since the
+  value was encrypted, and the fix is either restoring the old secret or
+  asking the org to re-enter the credential, not retrying.
 - **`backend/app/ai/credentials.py`** — `save_credential()` /
   `credential()` / `provider_for()`. Notice the save-time UX detail: an
   **empty key on update means "keep the existing one"** — the key is never
@@ -53,17 +58,45 @@ sync, etc.
   and a daily token budget (`ai_daily_token_budget`), both configured in
   `app/config.py` with `0` meaning "no limit." A paid third-party API used
   on behalf of an org needs the same kind of budget guard — otherwise one
-  member can exhaust the whole org's quota/bill in an evening.
+  member can exhaust the whole org's quota/bill in an evening. Jira has no
+  equivalent budget guard — it isn't metered/billed per call the way an LLM
+  API is — but it does have its own hard cap, `jira_max_issues_per_sync`
+  (`app/config.py`), which refuses an oversized sync outright rather than
+  silently truncating it.
+
+## The Jira connection — the second worked example
+
+`backend/app/jira/` mirrors the shape above file-for-file:
+`JiraConnection` (`base_url` + `email` + `encrypted_token`, one row per org)
+in `models.py`; `credentials.py` (same "empty token on update = keep
+existing" UX rule); `client.py` defining a `JiraClient` `Protocol` with
+`HttpJiraClient` (raw `urllib`, no vendor SDK) and `RecordedJiraClient` (the
+test double) implementations; `netguard.py` (`ensure_public_https`, same
+SSRF shape, its own `JIRA_ALLOW_PRIVATE_URLS` escape hatch); and `sync.py`,
+which holds the integration-specific logic — importing/syncing a Jira
+project's issues and epics into Planora tasks/categories through the
+**mutation layer** (one shared `batch_id` per import/sync, so the whole
+operation is one-click undoable, exactly like a human-driven multi-edit
+would be), plus a manual "push due dates to Jira" action.
+
+The one deliberate divergence worth knowing before copying this pattern:
+Jira uses Basic auth (email + a personal API token) rather than OAuth, on
+purpose — see the docstring on `JiraConnection` in `models.py` for why an
+org-owned API token was judged good enough here. Don't take "the AI/Jira
+connections don't use OAuth" as evidence OAuth is unneeded in general; it's
+evidence this specific pair of integrations didn't need it.
 
 ## What doesn't exist yet (design it before building it)
 
 - **No OAuth-client flow.** Planora issues session cookies to its own users;
   it has never been the OAuth *consumer* side of a flow with an external
-  provider. Building "Connect your GitHub/Slack/Jira account" is new
-  territory — there's no `oauth.py` to copy. Model the stored token the same
-  way as `OrgLlmCredential` (encrypted, never returned by the API), and keep
-  the state/redirect handling in its own module rather than folding it into
-  `auth.py` (which is exclusively about Planora's own session lifecycle).
+  provider, and neither of the two integrations above needed one (see
+  above). Building "Connect your GitHub/Slack account" via OAuth is still
+  new territory — there's no `oauth.py` to copy. Model the stored token the
+  same way as `OrgLlmCredential`/`JiraConnection` (encrypted, never returned
+  by the API), and keep the state/redirect handling in its own module rather
+  than folding it into `auth.py` (which is exclusively about Planora's own
+  session lifecycle).
 - **No webhook receiver.** Nothing in this codebase accepts inbound HTTP
   from a third party today. If you add one: it sits outside the normal
   session-cookie auth entirely (verify by signature/secret instead, the way

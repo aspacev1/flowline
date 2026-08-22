@@ -1,5 +1,11 @@
 # Разбор макета «Northstar»
 
+> **Historical reference.** A structural analysis of a static mockup file
+> (unchanged, so still accurate as a description of that file). Its
+> implementation recommendations fed into `northstar-redesign-plan.md`,
+> which has since been executed — read that file for current status, this
+> one for design rationale.
+
 Структурный разбор `northstar-gantt-mockup.html` — второго макета экрана
 проекта с диаграммой Ганта. Первый разобран в `planora-mockup-analysis.md`;
 тот в репозитории не сохранён и существует только как текст, поэтому здесь

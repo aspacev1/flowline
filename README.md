@@ -61,6 +61,14 @@ Price out the same plan as a client proposal — role, effort, rate, tax —
 and push the agreed line items straight into the Gantt chart as real tasks
 once the client signs off, instead of re-typing the estimate a second time.
 
+### Import and sync from Jira
+Already tracking work in Jira? Connect an org's Jira Cloud/Server instance
+with an API token, pick a project, and import its issues and epics straight
+into a Gantt plan — issues become tasks, epics become categories, and the
+whole import is one undo away like any other batch edit. Re-sync pulls
+status/date updates from Jira on demand; a manual "push to Jira" sends a
+task's due date the other way once you've adjusted it here.
+
 ### Share it outside the team
 ![Public read-only project page, no login required](docs/screenshots/public-share.png)
 
@@ -81,9 +89,19 @@ docker compose up --build
 ```
 
 The first run takes a few minutes to build the images and apply the schema;
-after that, `docker compose up` starts in seconds. Open
-<http://localhost:8080> to register the first account — it becomes the
-`owner` of its own organization.
+after that, `docker compose up` starts in seconds. On a **fresh generic
+clone** this opens on <http://localhost:8080> to register the first
+account — it becomes the `owner` of its own organization.
+
+> **Note:** the `docker-compose.yml`/`Caddyfile` currently committed to this
+> repository are pre-configured for this installation's own production
+> domain (fixed host ports `80`/`443`, Caddy matching one specific
+> hostname) rather than the generic `WEB_PORT`/`localhost` template
+> described above. If you're self-hosting your own copy, edit the site
+> block in `Caddyfile` back to your domain (or `:8080` for plain HTTP) and
+> the `web` service's `ports:` in `docker-compose.yml` accordingly — see
+> the [full guide](README.ru.md)'s "Свой домен и TLS" section, which walks
+> through exactly that edit.
 
 That's the short version. For backups and restore, a custom domain and TLS,
 transactional mail, invitations, deploying to Vercel, and the local dev

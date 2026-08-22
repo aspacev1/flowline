@@ -1,5 +1,9 @@
 # Разбор макета Planora
 
+> **Historical.** All discrepancies with the implementation that §10 of this
+> document lists have since been closed (see §10's own status note). Kept
+> as a design-history record, not an open task list.
+
 Глубокий анализ макета «Planora» — экрана проекта «Website Redesign» с диаграммой
 Ганта, — по которому уже шли два прохода редизайна (`6c8ede1`, `744a1e8`).
 Сам файл макета в репозитории не хранится; единственное его описание в коде —

@@ -46,6 +46,9 @@
 
 ### 1. На телефоне нельзя выйти, открыть настройки, сменить язык и организацию
 
+> **Status: fixed.** `frontend/src/northstar-theme.css` no longer hides
+> `.sidebar__foot`/`.org-switch` at narrow widths.
+
 `frontend/src/northstar-theme.css:677`
 
 ```css
@@ -81,6 +84,10 @@
 тремя пунктами навигации и имеет запас справа — место есть.
 
 ### 2. Тап по пустому месту строки отзывает приглашение
+
+> **Status: fixed.** `@media (hover: none)` rules now exist for the
+> affected touch targets (e.g. `frontend/src/components/rows.css`,
+> `frontend/src/gantt/gantt.css`).
 
 `frontend/src/styles.css:1284`
 
@@ -204,6 +211,9 @@ inherited={String(orgSettings?.working_days ?? "")}
 `WorkingDaysField`.
 
 ### 6. Модальное окно не удерживает фокус
+
+> **Status: still open.** `Modal.tsx` still only sets initial focus and
+> restores it on close — no Tab-cycling focus trap yet.
 
 `frontend/src/components/Modal.tsx`
 

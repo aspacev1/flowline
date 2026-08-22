@@ -1,5 +1,12 @@
 # План 1: регистрация и онбординг — план реализации
 
+> **Historical.** This is one of the original build plans this codebase
+> was built from — every step below has since shipped. It reflects the plan
+> as scoped in August 2026, not necessarily today's implementation; for
+> current architecture and conventions, see the repo's `CLAUDE.md` and the
+> `planora-conventions` skill. Kept as a build-history record, not an active
+> task list.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Поднять фронтенд до состояния, в котором человек открывает адрес в браузере, регистрируется, попадает внутрь на своём языке и видит осмысленное пустое состояние — вместо `{"detail":"Not Found"}`.
